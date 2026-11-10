@@ -10,14 +10,42 @@
 guiyan-platform/
 ├── web/                  网页版（静态单文件，直接用浏览器打开）
 │   └── index.html
+├── server/               后端：Node.js + PostgreSQL 真实数据库（详见 server/README.md）
+│   ├── server.mjs / app.mjs / postgres.mjs / schema.mjs / seed.mjs
+│   ├── docker-compose.yml / .env.example
+│   └── README.md
+├── tests/                后端测试（真实 PostgreSQL）
+│   └── api-pg.test.mjs
 └── miniprogram/          微信小程序版（与网页版同一份数据、同一流程）
     ├── app.js / app.json / app.wxss
     ├── project.config.json / sitemap.json
     ├── assets/           底部导航图标
-    ├── utils/            data.js（62 项资源）· i18n.js · store.js
+    ├── utils/            data.js（62 项资源）· i18n.js · store.js · api.js
     └── pages/            index（首页）· category（目录）· demands（需求大厅）
                           assistant（智能助理）· orders（我的票券）· detail（详情与预订）
 ```
+
+## 后端：真实 PostgreSQL 数据库（可选）
+
+网页版与小程序版默认离线运行（数据在本地，刷新/重装后订单会重置）。
+如需订单、收藏、需求在多端共享、长期保存，可启动后端：
+
+```bash
+cd server
+docker compose up -d   # PostgreSQL 16
+cp .env.example .env   # 设置 DEMO_PASSWORD / ADMIN_PASSWORD（首次启动前）
+npm ci && npm start    # http://localhost:3001，首次启动自动建表并 seed 62 项资源
+```
+
+- Web：由后端在 `/` 直接提供，默认走同源 `/api`；也可加
+  `?api=http://localhost:3001` 指向其他服务；API 不可达时自动回落
+  到离线演示数据。
+- 小程序：`app.js` 中 `globalData.apiBase` 默认留空（离线）；填入
+  服务地址后启用在线模式（开发者工具预览需勾选“不校验合法域名”）。
+- API 只面向顾客：浏览、登录、预订、订单状态机、需求、收藏、规则
+  助手；支付与 AI 均为模拟。详见 [server/README.md](server/README.md)，
+  测试见 [tests/api-pg.test.mjs](tests/api-pg.test.mjs)（真实
+  PostgreSQL，非 mock）。
 
 ## 网页版怎么打开
 
@@ -27,7 +55,7 @@ guiyan-platform/
 2. 在页面顶部切换语言：**中文 / Tiếng Việt / English**（下拉选择，以后加新语言只需扩展语言列表）。
 3. 试一试完整流程：搜索或筛选资源 → 点开详情 → 选日期与数量 → 立即预订 → 在“我的票券”里依次完成确认 → 模拟支付 → 完成；也可取消或申请退款。
 
-网页版是静态单文件：刷新后订单与收藏会重置（演示用途）。
+网页版是静态单文件：刷新后订单与收藏会重置（演示用途）。如需长期保存并多端共享，请启动 `server/` 后端（见上节）。
 
 ## 小程序版怎么运行
 
@@ -40,7 +68,7 @@ guiyan-platform/
 
 ### 在微信里使用（发布后）
 
-将 `project.config.json` 中的 AppID 换成你自己的小程序 AppID 后提交审核；小程序本身完全离线运行（数据在本地），不需要配置服务器域名。日后如果接通真实后端，再按微信要求配置合法域名与 HTTPS。
+将 `project.config.json` 中的 AppID 换成你自己的小程序 AppID 后提交审核；小程序默认完全离线运行（数据在本地），不需要配置服务器域名。如需接通真实后端，在 `app.js` 的 `globalData.apiBase` 中填入服务地址，并按微信要求配置合法域名与 HTTPS。
 
 ## 语言（i18n）
 

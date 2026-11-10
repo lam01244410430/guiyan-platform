@@ -1,6 +1,7 @@
 var i18n = require('../../utils/i18n.js');
 var data = require('../../utils/data.js');
 var store = require('../../utils/store.js');
+var api = require('../../utils/api.js');
 
 Page({
   data: {
@@ -51,17 +52,62 @@ Page({
       sortIdx: this.data.sortIds.indexOf(this.data.sortSel) });
     this.refresh();
   },
-  refresh: function () {
+  // Same filter/sort rules as data.searchRes, but over the merged catalog
+  // (local RES + any API resources merged in by name).
+  buildView: function () {
     var lang = i18n.getLang();
-    var list = data.searchRes(this.data.kw, this.data.catSel, this.data.citySel, this.data.sortSel);
-    var view = list.map(function (o) {
+    var kw = (this.data.kw || '').toLowerCase();
+    var catSel = this.data.catSel;
+    var citySel = this.data.citySel;
+    var sortSel = this.data.sortSel;
+    var list = api.getCatalog().map(function (r, i) { return { r: r, i: i }; })
+      .filter(function (o) {
+        if (catSel && catSel !== 'all' && o.r.cat !== catSel) return false;
+        if (citySel && citySel !== 'all' && o.r.city !== citySel) return false;
+        if (!kw) return true;
+        var hay = (o.r.name + ' ' + o.r.city + ' ' + o.r.desc.zh + ' '
+          + o.r.desc.vi + ' ' + o.r.desc.en).toLowerCase();
+        return hay.indexOf(kw) !== -1;
+      });
+    if (sortSel === 'asc') list.sort(function (a, b) { return a.r.price - b.r.price; });
+    else if (sortSel === 'desc') list.sort(function (a, b) { return b.r.price - a.r.price; });
+    else if (sortSel === 'name') list.sort(function (a, b) { return a.r.name.localeCompare(b.r.name, 'zh'); });
+    else list.sort(function (a, b) { return b.r.views - a.r.views; });
+    return list.map(function (o) {
       return { idx: o.i, name: o.r.name, cat: data.catName(o.r.cat, lang),
         city: data.cityName(o.r.city, lang), price: data.money(o.r.price),
         unit: data.unitName(o.r.unit, lang), views: o.r.views,
         desc: data.descOf(o.r, lang), fav: store.isFav(o.i) };
     });
-    this.setData({ list: view,
-      resultLine: i18n.fmt(i18n.t('results', lang), { a: view.length, b: data.RES.length }) });
+  },
+  resultLineFor: function (n) {
+    return i18n.fmt(i18n.t('results'), { a: n, b: api.getCatalog().length });
+  },
+  refresh: function () {
+    var view = this.buildView();
+    this.setData({ list: view, resultLine: this.resultLineFor(view.length) });
+    this.refreshOnline();
+  },
+  // Online: GET /api/resources with the same filters, merge by name, then
+  // re-render from the merged catalog. Silent fallback on any failure.
+  refreshOnline: function () {
+    if (!api.getBase() || this._loadingOnline) return;
+    var self = this;
+    this._loadingOnline = true;
+    api.checkHealth().then(function (ok) {
+      if (!ok) { self._loadingOnline = false; return; }
+      var params = {};
+      if (self.data.catSel !== 'all') params.category = data.catName(self.data.catSel, 'zh');
+      if (self.data.citySel !== 'all') params.city = self.data.citySel;
+      if (self.data.kw) params.q = self.data.kw;
+      params.sort = self.data.sortSel === 'asc' ? 'price_asc'
+        : self.data.sortSel === 'desc' ? 'price_desc' : 'hot';
+      api.loadResources(params).then(function () {
+        self._loadingOnline = false;
+        var view = self.buildView();
+        self.setData({ list: view, resultLine: self.resultLineFor(view.length) });
+      }, function () { self._loadingOnline = false; });
+    }, function () { self._loadingOnline = false; });
   },
   onKw: function (e) { this.setData({ kw: e.detail.value }); this.refresh(); },
   onCat: function (e) { this.setData({ catSel: e.currentTarget.dataset.cat }); this.refresh(); },
@@ -80,8 +126,10 @@ Page({
   },
   toggleFav: function (e) {
     var idx = e.currentTarget.dataset.idx;
-    var on = store.toggleFav(idx);
-    wx.showToast({ title: i18n.t(on ? 'favAdd' : 'favRemove'), icon: 'none' });
-    this.refresh();
+    var self = this;
+    api.toggleFav(idx).then(function (on) {
+      wx.showToast({ title: i18n.t(on ? 'favAdd' : 'favRemove'), icon: 'none' });
+      self.refresh();
+    });
   }
 });

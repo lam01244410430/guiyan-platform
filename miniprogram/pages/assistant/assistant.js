@@ -1,5 +1,6 @@
 var i18n = require('../../utils/i18n.js');
 var data = require('../../utils/data.js');
+var api = require('../../utils/api.js');
 
 function botAnswer(q) {
   var s = (q || '').toLowerCase();
@@ -55,9 +56,22 @@ Page({
     var self = this;
     var msgs = this.data.msgs.concat([{ who: 'me', text: q }]);
     this.setData({ msgs: msgs, input: '' });
-    setTimeout(function () {
-      self.setData({ msgs: self.data.msgs.concat([{ who: 'bot', text: botAnswer(q) }]) });
-    }, 280);
+    function local() {
+      setTimeout(function () {
+        self.setData({ msgs: self.data.msgs.concat([{ who: 'bot', text: botAnswer(q) }]) });
+      }, 280);
+    }
+    // Online: ask the server first and show its answer as-is; any failure
+    // falls back silently to the local rule-based answer.
+    if (api.isOnline()) {
+      api.get('/api/assistant', { q: q }).then(function (res) {
+        var answer = (res && res.answer) || '';
+        if (!answer) { local(); return; }
+        self.setData({ msgs: self.data.msgs.concat([{ who: 'bot', text: answer }]) });
+      }, function () { local(); });
+    } else {
+      local();
+    }
   },
   send: function () {
     var v = (this.data.input || '').trim();

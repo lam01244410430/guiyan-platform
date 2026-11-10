@@ -319,6 +319,19 @@ footer ul{list-style:none;margin:0;padding:0;display:grid;gap:6px}
 .drawer .emptybox{text-align:center;color:var(--ink2);padding:44px 10px;font-size:14px}
 .toast{position:fixed;left:50%;bottom:26px;transform:translate(-50%,80px);background:var(--ink);color:var(--bg);padding:13px 22px;border-radius:99px;font-size:14px;font-weight:600;z-index:120;transition:transform .3s ease;box-shadow:var(--shadow);max-width:92vw;text-align:center}
 .toast.show{transform:translate(-50%,0)}
+.authchip{display:inline-flex;align-items:center;gap:8px;background:var(--surface);border:1px solid var(--line2);border-radius:99px;padding:6px 8px 6px 14px;font-size:13px;font-weight:700;white-space:nowrap}
+.authchip button{border:0;background:var(--surface2);border-radius:99px;padding:5px 11px;font-size:12.5px;font-weight:700;color:var(--ink);cursor:pointer}
+.auth-overlay{position:fixed;inset:0;background:rgba(10,8,5,.62);z-index:130;display:none;align-items:center;justify-content:center;padding:20px}
+.auth-overlay.open{display:flex}
+.auth-card{background:var(--surface);color:var(--ink);width:100%;max-width:380px;border-radius:20px;padding:26px 26px 22px;display:grid;gap:12px}
+.auth-card h3{margin:0;font-size:19px;font-family:"Noto Serif SC",serif}
+.auth-card input,.auth-card select,.auth-card textarea{width:100%;box-sizing:border-box;border:1px solid var(--line2);border-radius:12px;padding:11px 13px;font-size:14px;background:var(--surface);color:var(--ink);font-family:inherit}
+.auth-card textarea{min-height:84px;resize:vertical}
+.auth-card .err{color:var(--red);font-size:13px;min-height:18px}
+.auth-card .row{display:flex;gap:10px;align-items:center}
+.auth-card .row .btn{flex:1;justify-content:center}
+.auth-card .x{justify-self:end;border:0;background:var(--surface2);width:34px;height:34px;border-radius:99px;font-size:15px;color:var(--ink);cursor:pointer}
+@media(max-width:560px){.authchip span#loginName{display:none}}
 @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important;scroll-behavior:auto!important}}
 </style>
 </head>
@@ -350,6 +363,8 @@ footer ul{list-style:none;margin:0;padding:0;display:grid;gap:6px}
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 7h15l-1.5 9h-12z"/><path d="M6 7L5 3H2"/><circle cx="9" cy="20" r="1.6"/><circle cx="17" cy="20" r="1.6"/></svg>
       <span class="lbl" data-i18n="myTickets"></span> <b id="orderCount">0</b>
     </button>
+    <button class="cartbtn" id="loginBtn" type="button"><span data-i18n="loginBtn"></span></button>
+    <span class="authchip" id="loginState" style="display:none"><span id="loginName"></span><button type="button" id="logoutBtn" data-i18n="logoutBtn"></button></span>
   </div>
 </header>
 
@@ -437,6 +452,7 @@ footer ul{list-style:none;margin:0;padding:0;display:grid;gap:6px}
       <span class="no">其三</span>
       <h2><span data-i18n="demTitle"></span><span class="sub" data-i18n="demSub"></span></h2>
       <p data-i18n="demNote"></p>
+      <p style="margin-top:12px"><button type="button" class="btn ghost" id="postDemandBtn" data-i18n="postDemandBtn"></button></p>
     </div>
     <div class="demands" id="demandGrid"></div>
     <div class="matchbox" id="matchBox">
@@ -574,6 +590,32 @@ footer ul{list-style:none;margin:0;padding:0;display:grid;gap:6px}
   <div class="list" id="orderList"></div>
 </aside>
 
+<!-- login dialog (PostgreSQL API auth; password field is empty by design) -->
+<div class="auth-overlay" id="loginOverlay" role="dialog" aria-modal="true">
+  <form class="auth-card" id="loginForm">
+    <button type="button" class="x" id="loginCancel" aria-label="Close">✕</button>
+    <h3 data-i18n="loginTitle"></h3>
+    <input id="loginUser" type="text" value="demo" autocomplete="username" data-i18n-ph="userPh" />
+    <input id="loginPass" type="password" value="" autocomplete="current-password" data-i18n-ph="passPh" />
+    <div class="err" id="loginErr"></div>
+    <div class="row"><button class="btn red" type="submit" data-i18n="loginBtn"></button></div>
+  </form>
+</div>
+
+<!-- post-demand dialog -->
+<div class="auth-overlay" id="demandOverlay" role="dialog" aria-modal="true">
+  <form class="auth-card" id="demandForm">
+    <button type="button" class="x" id="demandCancel" aria-label="Close">✕</button>
+    <h3 data-i18n="postDemandTitle"></h3>
+    <input id="demTitle" type="text" data-i18n-ph="demTitlePh" />
+    <select id="demCat"></select>
+    <input id="demBudget" type="number" min="0" step="1" data-i18n-ph="demBudgetPh" />
+    <select id="demCity"></select>
+    <textarea id="demDesc" data-i18n-ph="demDescPh"></textarea>
+    <div class="row"><button class="btn red" type="submit" data-i18n="postDemandBtn"></button></div>
+  </form>
+</div>
+
 <div class="toast" id="toast" role="status"></div>
 
 <script>
@@ -582,7 +624,7 @@ var LANGS=["zh","vi","en"], lang="vi";
 function li(){ return LANGS.indexOf(lang); }
 function L(a){ return a[li()]; }
 var I18N={
-zh:{brandTag:"广西演艺资源平台",navCatalog:"资源目录",navDemands:"需求大厅",navAssistant:"智能助理",myTickets:"我的票券",navWechat:"微信小程序",wxBanner:"您正在微信中浏览桂演 — 全部功能与网页版一致，可直接预订。",wxTitle:"微信小程序版",wxSub:"在微信里打开桂演，功能与网页版完全一致",wxNote:"无需下载安装：在微信搜索「桂演」、扫码或从公众号菜单进入，手机上的演示即为小程序的真实界面。",wxCopyTitle:"同一个桂演，装进口袋里",wxCopyText:"小程序与网页版共用同一份62项资源、同一套价格与订单流程。在右边手机里试一试：搜索、筛选、点开预订、切到「我的票券」查看订单 — 全部真实可用，和网页版一模一样。",wxB1:"首页、目录、需求大厅、我的票券 — 四个底部标签与网页版一一对应",wxB2:"预订流程一致：提交预约 → 确认 → 支付（模拟）→ 完成，可取消与退款",wxB3:"语言跟随网页版上方下拉选择，中、越、英实时同步",wxS1:"在微信顶部搜索「桂演 Guiyan」",wxS2:"点开小程序 — 无需下载、无需注册即可浏览",wxS3:"选资源、选日期、预订，在「我的票券」里跟进订单",wxRepo:"源码仓库：github.com/lam01244410430/guiyan-platform ↗",wxTabHome:"首页",wxFeatured:"热门推荐",
+zh:{brandTag:"广西演艺资源平台",navCatalog:"资源目录",navDemands:"需求大厅",navAssistant:"智能助理",myTickets:"我的票券",loginBtn:"登录",loginTitle:"登录桂演",userPh:"用户名",passPh:"密码",logoutBtn:"退出登录",loggedInAs:"已登录 {name}",loginFailed:"登录失败，请检查账号或网络",postDemandBtn:"发布需求",postDemandTitle:"发布合作需求",demTitlePh:"需求标题，例如：寻找民族歌舞团队",demDescPh:"简单描述时间、人数与具体要求…",demBudgetPh:"预算（元）",navWechat:"微信小程序",wxBanner:"您正在微信中浏览桂演 — 全部功能与网页版一致，可直接预订。",wxTitle:"微信小程序版",wxSub:"在微信里打开桂演，功能与网页版完全一致",wxNote:"无需下载安装：在微信搜索「桂演」、扫码或从公众号菜单进入，手机上的演示即为小程序的真实界面。",wxCopyTitle:"同一个桂演，装进口袋里",wxCopyText:"小程序与网页版共用同一份62项资源、同一套价格与订单流程。在右边手机里试一试：搜索、筛选、点开预订、切到「我的票券」查看订单 — 全部真实可用，和网页版一模一样。",wxB1:"首页、目录、需求大厅、我的票券 — 四个底部标签与网页版一一对应",wxB2:"预订流程一致：提交预约 → 确认 → 支付（模拟）→ 完成，可取消与退款",wxB3:"语言跟随网页版上方下拉选择，中、越、英实时同步",wxS1:"在微信顶部搜索「桂演 Guiyan」",wxS2:"点开小程序 — 无需下载、无需注册即可浏览",wxS3:"选资源、选日期、预订，在「我的票券」里跟进订单",wxRepo:"源码仓库：github.com/lam01244410430/guiyan-platform ↗",wxTabHome:"首页",wxFeatured:"热门推荐",
 heroKicker:"广西演艺资源平台",heroSub:"好戏广西，触手可及",heroLead:"一站汇聚广西62项演艺资源——剧目、场馆、艺人、非遗、版权与数字演出：在线预订、发布需求、智能匹配，尽在一处。",
 heroSearchPh:"找剧目、场馆、艺人、非遗体验…",heroSearchPhShort:"找好戏…",searchBtn:"找好戏",
 sRes:"项演艺资源",sShow:"台演出剧目",sVenue:"座场馆与舞台",sCity:"座城市",sCat:"大资源品类",sDem:"条合作需求",
@@ -616,7 +658,7 @@ ansBook:"预订很简单：在目录中点开任意资源 → 选日期与数量
 ansHot:"按人气为你推荐：\n{list}",
 ansHello:"您好！想看什么演出，或者需要我帮您查退改签规则？",
 ansFallback:"我可以帮你处理这些事：退票退款 · 改签换期 · 如何预订 · 非遗体验推荐 · 热门演出推荐。点下方快捷问题试试。"},
-vi:{brandTag:"Nền tảng diễn nghệ Quảng Tây",navCatalog:"Danh mục",navDemands:"Sàn nhu cầu",navAssistant:"Trợ lý",myTickets:"Vé của tôi",navWechat:"WeChat Mini",wxBanner:"Bạn đang xem Guiyan trong WeChat — mọi tính năng giống hệt bản web, đặt vé được ngay.",wxTitle:"Phiên bản WeChat Mini Program",wxSub:"Mở Guiyan ngay trong WeChat — mọi thứ hoạt động giống bản web",wxNote:"Không cần cài app: tìm “桂演” trong WeChat, quét mã hoặc mở từ menu tài khoản chính thức. Chiếc điện thoại bên cạnh chính là giao diện mini program thật, bấm thử được.",wxCopyTitle:"Một Guiyan duy nhất, gọn trong túi bạn",wxCopyText:"Mini program dùng chung 62 tài nguyên, cùng giá và cùng quy trình đơn với bản web. Hãy thử ngay trên điện thoại bên phải: tìm kiếm, lọc danh mục, chạm để đặt chỗ, chuyển sang tab “Vé của tôi” để xem đơn — tất cả chạy thật, y như bản web.",wxB1:"Trang chủ · Danh mục · Sàn nhu cầu · Vé của tôi — 4 tab dưới đáy khớp 1-1 với bản web",wxB2:"Quy trình đặt giống hệt: đặt chỗ → xác nhận → thanh toán (mô phỏng) → hoàn tất, hủy và hoàn tiền được",wxB3:"Ngôn ngữ theo ô chọn thả xuống phía trên — Trung / Việt / Anh đồng bộ tức thì sang mini program",wxS1:"Tìm “桂演 Guiyan” trong ô tìm kiếm của WeChat",wxS2:"Mở mini program — không cần tải, không cần đăng ký để xem",wxS3:"Chọn tài nguyên, chọn ngày, đặt chỗ và theo dõi đơn trong “Vé của tôi”",wxRepo:"Mã nguồn: github.com/lam01244410430/guiyan-platform ↗",wxTabHome:"Trang chủ",wxFeatured:"Gợi ý nổi bật",
+vi:{brandTag:"Nền tảng diễn nghệ Quảng Tây",navCatalog:"Danh mục",navDemands:"Sàn nhu cầu",navAssistant:"Trợ lý",myTickets:"Vé của tôi",loginBtn:"Đăng nhập",loginTitle:"Đăng nhập Guiyan",userPh:"Tên đăng nhập",passPh:"Mật khẩu",logoutBtn:"Đăng xuất",loggedInAs:"Đã đăng nhập: {name}",loginFailed:"Đăng nhập thất bại — kiểm tra tài khoản hoặc mạng",postDemandBtn:"Đăng nhu cầu",postDemandTitle:"Đăng nhu cầu hợp tác",demTitlePh:"Tiêu đề nhu cầu, ví dụ: Tìm đoàn ca múa dân tộc",demDescPh:"Mô tả ngắn thời gian, số người và yêu cầu cụ thể…",demBudgetPh:"Ngân sách (¥)",navWechat:"WeChat Mini",wxBanner:"Bạn đang xem Guiyan trong WeChat — mọi tính năng giống hệt bản web, đặt vé được ngay.",wxTitle:"Phiên bản WeChat Mini Program",wxSub:"Mở Guiyan ngay trong WeChat — mọi thứ hoạt động giống bản web",wxNote:"Không cần cài app: tìm “桂演” trong WeChat, quét mã hoặc mở từ menu tài khoản chính thức. Chiếc điện thoại bên cạnh chính là giao diện mini program thật, bấm thử được.",wxCopyTitle:"Một Guiyan duy nhất, gọn trong túi bạn",wxCopyText:"Mini program dùng chung 62 tài nguyên, cùng giá và cùng quy trình đơn với bản web. Hãy thử ngay trên điện thoại bên phải: tìm kiếm, lọc danh mục, chạm để đặt chỗ, chuyển sang tab “Vé của tôi” để xem đơn — tất cả chạy thật, y như bản web.",wxB1:"Trang chủ · Danh mục · Sàn nhu cầu · Vé của tôi — 4 tab dưới đáy khớp 1-1 với bản web",wxB2:"Quy trình đặt giống hệt: đặt chỗ → xác nhận → thanh toán (mô phỏng) → hoàn tất, hủy và hoàn tiền được",wxB3:"Ngôn ngữ theo ô chọn thả xuống phía trên — Trung / Việt / Anh đồng bộ tức thì sang mini program",wxS1:"Tìm “桂演 Guiyan” trong ô tìm kiếm của WeChat",wxS2:"Mở mini program — không cần tải, không cần đăng ký để xem",wxS3:"Chọn tài nguyên, chọn ngày, đặt chỗ và theo dõi đơn trong “Vé của tôi”",wxRepo:"Mã nguồn: github.com/lam01244410430/guiyan-platform ↗",wxTabHome:"Trang chủ",wxFeatured:"Gợi ý nổi bật",
 heroKicker:"Nền tảng tài nguyên biểu diễn Quảng Tây",heroSub:"Hảo hí Quảng Tây, trong tầm tay bạn",heroLead:"Tụ hội 62 tài nguyên biểu diễn toàn Quảng Tây — kịch mục, nhà hát, nghệ nhân, di sản, bản quyền và diễn số: đặt chỗ, đăng nhu cầu và khớp thông minh trong một nơi duy nhất.",
 heroSearchPh:"Tìm vở diễn, nhà hát, nghệ nhân, trải nghiệm di sản…",heroSearchPhShort:"Tìm vở diễn…",searchBtn:"Tìm vở diễn",
 sRes:"tài nguyên biểu diễn",sShow:"vở diễn & kịch mục",sVenue:"nhà hát & sân khấu",sCity:"thành phố phủ sóng",sCat:"danh mục tài nguyên",sDem:"nhu cầu hợp tác đang mở",
@@ -650,7 +692,7 @@ ansBook:"Cách đặt chỗ: mở một tài nguyên trong danh mục → chọn
 ansHot:"Gợi ý theo độ phổ biến:\n{list}",
 ansHello:"Xin chào! Bạn muốn xem vở nào, hay cần mình tra quy tắc hoàn/đổi vé?",
 ansFallback:"Tôi giúp được các việc: hoàn vé · đổi lịch · cách đặt chỗ · gợi ý di sản · gợi ý vở hot. Thử các nút gợi ý bên dưới nhé."},
-en:{brandTag:"Guangxi Performing Arts",navCatalog:"Catalog",navDemands:"Requests",navAssistant:"Assistant",myTickets:"My tickets",navWechat:"WeChat Mini",wxBanner:"You are browsing Guiyan inside WeChat — every feature works exactly like the web version.",wxTitle:"WeChat Mini Program edition",wxSub:"Open Guiyan inside WeChat — everything works just like the web",wxNote:"No install needed: search “Guiyan” in WeChat, scan the code, or open it from the official account menu. The phone beside this text is the real mini-program interface — try it.",wxCopyTitle:"The same Guiyan, in your pocket",wxCopyText:"The mini program shares the same 62 resources, prices and order flow as the web version. Try the phone on the right: search, filter, tap to book, switch to “My tickets” — everything genuinely works, exactly like the web.",wxB1:"Home · Catalog · Requests · My tickets — four bottom tabs mirroring the web version",wxB2:"Same booking flow: book → confirm → pay (simulated) → done, with cancel and refund",wxB3:"Language follows the dropdown above — Chinese, Vietnamese and English sync instantly",wxS1:"Search “桂演 Guiyan” at the top of WeChat",wxS2:"Open the mini program — no download, no sign-up to browse",wxS3:"Pick a resource, choose a date, book, and track it in “My tickets”",wxRepo:"Source: github.com/lam01244410430/guiyan-platform ↗",wxTabHome:"Home",wxFeatured:"Featured picks",
+en:{brandTag:"Guangxi Performing Arts",navCatalog:"Catalog",navDemands:"Requests",navAssistant:"Assistant",myTickets:"My tickets",loginBtn:"Sign in",loginTitle:"Sign in to Guiyan",userPh:"Username",passPh:"Password",logoutBtn:"Sign out",loggedInAs:"Signed in as {name}",loginFailed:"Sign-in failed — check your details or connection",postDemandBtn:"Post a request",postDemandTitle:"Post a partner request",demTitlePh:"Request title, e.g. Seeking a folk dance troupe",demDescPh:"Briefly describe timing, group size and requirements…",demBudgetPh:"Budget (¥)",navWechat:"WeChat Mini",wxBanner:"You are browsing Guiyan inside WeChat — every feature works exactly like the web version.",wxTitle:"WeChat Mini Program edition",wxSub:"Open Guiyan inside WeChat — everything works just like the web",wxNote:"No install needed: search “Guiyan” in WeChat, scan the code, or open it from the official account menu. The phone beside this text is the real mini-program interface — try it.",wxCopyTitle:"The same Guiyan, in your pocket",wxCopyText:"The mini program shares the same 62 resources, prices and order flow as the web version. Try the phone on the right: search, filter, tap to book, switch to “My tickets” — everything genuinely works, exactly like the web.",wxB1:"Home · Catalog · Requests · My tickets — four bottom tabs mirroring the web version",wxB2:"Same booking flow: book → confirm → pay (simulated) → done, with cancel and refund",wxB3:"Language follows the dropdown above — Chinese, Vietnamese and English sync instantly",wxS1:"Search “桂演 Guiyan” at the top of WeChat",wxS2:"Open the mini program — no download, no sign-up to browse",wxS3:"Pick a resource, choose a date, book, and track it in “My tickets”",wxRepo:"Source: github.com/lam01244410430/guiyan-platform ↗",wxTabHome:"Home",wxFeatured:"Featured picks",
 heroKicker:"Guangxi Performing Arts Platform",heroSub:"Great Guangxi shows, within reach",heroLead:"All 62 Guangxi performing-arts resources in one place — shows, venues, artists, heritage, IP and digital performances: book, post requests and get matched, all here.",
 heroSearchPh:"Search shows, venues, artists, heritage experiences…",heroSearchPhShort:"Search shows…",searchBtn:"Find shows",
 sRes:"performances & resources",sShow:"shows & productions",sVenue:"venues & stages",sCity:"cities covered",sCat:"resource categories",sDem:"open partner requests",
@@ -793,6 +835,293 @@ var state = { cat:"all", q:"", city:"all", sort:"hot", shown:12, favs:{}, orders
 <script>
 function $(id){ return document.getElementById(id); }
 function esc(s){ return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;"); }
+/* ============ Guiyan PostgreSQL API layer (graceful offline fallback) ============ */
+/* Contract: same-origin /api by default; override via window.GUIYAN_API_BASE or
+   ?api=<base>. All money is INTEGER CENTS on the wire; embedded RES rows stay in
+   YUAN. If the API is unreachable, apiAvailable stays false and every feature
+   silently keeps its original local in-memory behaviour. No error is ever shown
+   for an unreachable API (the login form is the one exception: a user-initiated
+   sign-in shows its failure inline in the dialog). */
+var apiAvailable=false;
+var apiUser=null;
+var APIRES={};    /* RES index -> {id, stock, capacity, rating, review_count, status, tags} */
+var APIID2IDX={}; /* API resource id -> RES index */
+var APICAT={};    /* API category Chinese name -> CATS id */
+function apiBase(){
+  var b="";
+  try{ var m=/[?&]api=([^&]+)/.exec(location.search); if(m) b=decodeURIComponent(m[1]); }catch(e){}
+  if(!b && window.GUIYAN_API_BASE) b=window.GUIYAN_API_BASE;
+  return String(b||"").replace(/\/+$/,"");
+}
+function getToken(){ try{ return sessionStorage.getItem("guiyan-token")||""; }catch(e){ return ""; } }
+function setToken(token,user){
+  apiUser=user||null;
+  try{
+    if(token){ sessionStorage.setItem("guiyan-token",token); sessionStorage.setItem("guiyan-user",JSON.stringify(user||{})); }
+    else { sessionStorage.removeItem("guiyan-token"); sessionStorage.removeItem("guiyan-user"); }
+  }catch(e){}
+}
+function clearToken(){ setToken("",null); }
+function apiFetch(path,opts){
+  opts=opts||{};
+  var ctrl=null;
+  try{ ctrl=new AbortController(); }catch(e){ ctrl=null; }
+  var timer=null;
+  if(ctrl){ timer=setTimeout(function(){ try{ ctrl.abort(); }catch(e){} },5000); }
+  var headers={"Content-Type":"application/json"};
+  var tk=getToken(); if(tk) headers.Authorization="Bearer "+tk;
+  return fetch(apiBase()+path,{method:opts.method||"GET",headers:headers,body:opts.body?JSON.stringify(opts.body):undefined,signal:ctrl?ctrl.signal:undefined})
+    .then(function(res){
+      if(timer) clearTimeout(timer);
+      return res.text().then(function(txt){
+        var data=null; try{ data=txt?JSON.parse(txt):null; }catch(e){ data=null; }
+        if(!res.ok){ var err=new Error((data&&data.error)||("HTTP "+res.status)); err.status=res.status; err.data=data; throw err; }
+        apiAvailable=true; return data;
+      });
+    })
+    .catch(function(e){
+      if(timer) clearTimeout(timer);
+      if(e&&e.status){ apiAvailable=true; } /* HTTP answer = API reachable, even on 4xx/5xx */
+      else { apiAvailable=false; }           /* network failure / timeout / abort = offline */
+      throw e;
+    });
+}
+function apiGet(path){ return apiFetch(path,{method:"GET"}); }
+function apiPost(path,body){ return apiFetch(path,{method:"POST",body:body}); }
+function apiDel(path){ return apiFetch(path,{method:"DELETE"}); }
+function apiCatId(name){
+  if(!name) return "show";
+  for(var i=0;i<CATS.length;i++){ if(CATS[i][0]===name) return name; }
+  if(APICAT[name]) return APICAT[name];
+  for(var j=0;j<CATS.length;j++){ if(CATS[j][1]===name) return CATS[j][0]; }
+  return "show";
+}
+function mergeCategories(data){
+  if(!data||!data.categories) return;
+  data.categories.forEach(function(c){
+    if(!c||!c.name) return;
+    for(var i=0;i<CATS.length;i++){ if(CATS[i][1]===c.name) APICAT[c.name]=CATS[i][0]; }
+  });
+}
+function mergeResources(data){
+  if(!data||!data.resources) return;
+  data.resources.forEach(function(a){
+    if(!a||!a.name) return;
+    var idx=-1;
+    for(var i=0;i<RES.length;i++){ if(RES[i][0]===a.name){ idx=i; break; } }
+    var priceYuan=(typeof a.price==="number")?a.price/100:(idx>=0?RES[idx][3]:0);
+    if(idx<0){
+      var dsc=a.description||a.name;
+      RES.push([a.name,apiCatId(a.category),a.city||"南宁",priceYuan,a.unit||"张",(typeof a.views==="number"?a.views:0),[dsc,dsc,dsc]]);
+      idx=RES.length-1;
+    }else{
+      RES[idx][3]=priceYuan;
+      if(typeof a.views==="number") RES[idx][5]=a.views;
+      /* embedded trilingual desc, category, city and unit are kept */
+    }
+    APIRES[idx]={id:a.id,stock:a.stock,capacity:a.capacity,rating:a.rating,review_count:a.review_count,status:a.status,tags:a.tags||[]};
+    if(a.id!=null) APIID2IDX[a.id]=idx;
+  });
+}
+function mergeDemands(data){
+  if(!data||!data.demands) return;
+  data.demands.forEach(function(a){
+    if(!a||!a.title) return;
+    var budgetYuan=(typeof a.budget==="number")?a.budget/100:0;
+    var catId=apiCatId(a.category);
+    var idx=-1;
+    for(var i=0;i<DEMANDS.length;i++){ if(DEMANDS[i][0][0]===a.title){ idx=i; break; } }
+    if(idx<0){
+      var dsc=a.description||a.title;
+      DEMANDS.push([[a.title,a.title,a.title],catId,budgetYuan,a.city||"南宁",[dsc,dsc,dsc]]);
+    }else{
+      DEMANDS[idx][1]=catId; DEMANDS[idx][2]=budgetYuan;
+      if(a.city) DEMANDS[idx][3]=a.city;
+      if(a.description) DEMANDS[idx][4][1]=a.description; /* zh slot; vi/en stay embedded */
+    }
+  });
+}
+function mapApiOrder(o){
+  if(!o) return null;
+  var idx=-1;
+  if(o.resource_id!=null&&APIID2IDX[o.resource_id]!=null) idx=APIID2IDX[o.resource_id];
+  if(idx<0){ for(var i=0;i<RES.length;i++){ if(RES[i][0]===o.resource_name){ idx=i; break; } } }
+  if(idx<0) return null;
+  var st=o.status==="refund_requested"?"refunded":o.status;
+  if(!STATUS[st]) st="pending";
+  return {code:o.code||("GY"+o.id),idx:idx,qty:o.quantity||1,date:String(o.booking_date||"").slice(0,10),total:(o.amount||0)/100,status:st,apiId:o.id};
+}
+function refreshOrdersApi(){
+  if(!apiAvailable||!getToken()) return Promise.resolve(false);
+  return apiGet("/orders").then(function(d){
+    if(!d||!d.orders) return false;
+    var mapped=[];
+    d.orders.forEach(function(o){ var m=mapApiOrder(o); if(m) mapped.push(m); });
+    state.orders=mapped; renderOrders(); renderWx(); return true;
+  }).catch(function(){ return false; });
+}
+function loadFavoritesApi(){
+  if(!apiAvailable||!getToken()) return Promise.resolve(false);
+  return apiGet("/favorites").then(function(d){
+    if(!d||!d.favorites) return false;
+    d.favorites.forEach(function(r){
+      var idx=-1;
+      if(r.id!=null&&APIID2IDX[r.id]!=null) idx=APIID2IDX[r.id];
+      if(idx<0){ for(var i=0;i<RES.length;i++){ if(RES[i][0]===r.name){ idx=i; break; } } }
+      if(idx>=0) state.favs[idx]=true;
+    });
+    renderGrid(); return true;
+  }).catch(function(){ return false; });
+}
+function toggleFav(i){
+  var rid=APIRES[i]&&APIRES[i].id;
+  function done(){ renderGrid(); toast(state.favs[i]?t("favAdd"):t("favRemove")); }
+  if(apiAvailable&&getToken()&&rid!=null){
+    return apiPost("/favorites",{resourceId:rid}).then(function(d){
+      if(d&&typeof d.favorite==="boolean") state.favs[i]=d.favorite; else state.favs[i]=!state.favs[i];
+      done();
+    }).catch(function(e){
+      if(e&&e.status===401){ clearToken(); updateAuthUI(); openLogin(); return; }
+      state.favs[i]=!state.favs[i]; done();
+    });
+  }
+  state.favs[i]=!state.favs[i]; done(); return Promise.resolve();
+}
+function bookResource(i,qty,date){
+  var r=RES[i];
+  function localBook(){
+    var code="GY2026"+String(state.seq++).padStart(6,"0");
+    state.orders.unshift({code:code,idx:i,qty:qty,date:date,total:r[3]*qty,status:"pending"});
+    closeSheet(); renderOrders(); renderWx(); toast(fmt(t("orderCreated"),{code:code})); openDrawer();
+  }
+  var rid=APIRES[i]&&APIRES[i].id;
+  if(!apiAvailable||!getToken()||rid==null){ localBook(); return; }
+  apiPost("/orders",{resourceId:rid,quantity:qty,booking_date:date,channel:"web"}).then(function(d){
+    if(d&&d.ok){
+      var code=d.code||("GY2026"+String(state.seq++).padStart(6,"0"));
+      var total=(typeof d.amount==="number")?d.amount/100:r[3]*qty;
+      state.orders.unshift({code:code,idx:i,qty:qty,date:date,total:total,status:"pending",apiId:d.id});
+      closeSheet(); renderOrders(); renderWx(); toast(fmt(t("orderCreated"),{code:code})); openDrawer();
+    }else{ localBook(); }
+  }).catch(function(e){
+    if(e&&e.status===401){ clearToken(); updateAuthUI(); openLogin(); }
+    localBook();
+  });
+}
+function handleOrderAction(b){
+  var o=state.orders[+b.dataset.oi]; if(!o) return;
+  var map={confirm:"confirmed",pay:"paid",complete:"completed",cancel:"cancelled",refund:"refunded"};
+  var act=b.dataset.act; if(!map[act]) return;
+  if(o.apiId!=null&&apiAvailable&&getToken()){
+    var ep={confirm:"confirm",pay:"pay",complete:"complete",cancel:"cancel",refund:"refund"}[act];
+    apiPost("/orders/"+encodeURIComponent(o.apiId)+"/"+ep,{}).then(function(){
+      o.status=map[act]; renderOrders(); renderWx();
+      toast(fmt(t("statusToast"),{code:o.code,st:t(STATUS[o.status])}));
+      refreshOrdersApi();
+    }).catch(function(e){
+      if(e&&e.status===401){ clearToken(); updateAuthUI(); openLogin(); return; }
+      if(e&&e.data&&e.data.error) toast(e.data.error);
+      refreshOrdersApi();
+    });
+    return;
+  }
+  o.status=map[act]; renderOrders(); renderWx();
+  toast(fmt(t("statusToast"),{code:o.code,st:t(STATUS[o.status])}));
+}
+function askBotApi(q){
+  if(!apiAvailable){ addMsg(botAnswer(q),false); return; }
+  apiGet("/assistant?q="+encodeURIComponent(q)).then(function(d){
+    if(d&&d.answer) addMsg(d.answer,false); else addMsg(botAnswer(q),false);
+  }).catch(function(){ addMsg(botAnswer(q),false); });
+}
+/* ---- auth UI ---- */
+function updateAuthUI(){
+  var lb=$("loginBtn"), st=$("loginState"), nm=$("loginName");
+  if(!lb||!st) return;
+  var logged=!!getToken();
+  lb.style.display=logged?"none":"";
+  st.style.display=logged?"":"none";
+  if(logged&&nm) nm.textContent=fmt(t("loggedInAs"),{name:(apiUser&&(apiUser.name||apiUser.username))||"demo"});
+}
+function openLogin(){ var o=$("loginOverlay"); if(o){ o.classList.add("open"); var u=$("loginUser"); if(u) u.focus(); } }
+function closeLogin(){ var o=$("loginOverlay"); if(o) o.classList.remove("open"); }
+function doLogin(ev){
+  if(ev) ev.preventDefault();
+  var u=$("loginUser").value.trim()||"demo", pw=$("loginPass").value, err=$("loginErr");
+  if(err) err.textContent="";
+  apiPost("/auth/login",{username:u,password:pw}).then(function(d){
+    if(d&&d.token){ setToken(d.token,d.user||{username:u,name:u}); apiAvailable=true; updateAuthUI(); closeLogin(); loadFavoritesApi(); refreshOrdersApi(); }
+    else if(err){ err.textContent=t("loginFailed"); }
+  }).catch(function(e){
+    if(err) err.textContent=(e&&e.data&&e.data.error)||t("loginFailed");
+  });
+}
+function doLogout(){ clearToken(); updateAuthUI(); }
+/* ---- post-demand UI (no posting form existed before; this is the new minimal one) ---- */
+function openDemandDialog(){
+  if(!getToken()){ openLogin(); return; }
+  var o=$("demandOverlay"); if(o) o.classList.add("open");
+}
+function closeDemandDialog(){ var o=$("demandOverlay"); if(o) o.classList.remove("open"); }
+function submitDemand(ev){
+  if(ev) ev.preventDefault();
+  var title=$("demTitle").value.trim(); if(!title) return;
+  var cat=$("demCat").value, city=$("demCity").value;
+  var by=parseFloat($("demBudget").value)||0;
+  var desc=$("demDesc").value.trim();
+  function localAdd(){
+    DEMANDS.unshift([[title,title,title],cat,by,city,[desc,desc,desc]]);
+    renderDemands(); renderWx(); closeDemandDialog();
+  }
+  if(!apiAvailable||!getToken()){ if(!getToken()){ closeDemandDialog(); openLogin(); return; } localAdd(); return; }
+  apiPost("/demands",{title:title,category:catZh(cat),budget:Math.round(by*100),city:city,description:desc}).then(function(){
+    localAdd();
+  }).catch(function(e){
+    if(e&&e.status===401){ clearToken(); updateAuthUI(); closeDemandDialog(); openLogin(); return; }
+    localAdd();
+  });
+}
+/* ---- boot ---- */
+function loadApiData(){
+  return apiGet("/health").then(function(){
+    apiAvailable=true;
+    return Promise.all([
+      apiGet("/resources?sort=hot").catch(function(){ return null; }),
+      apiGet("/categories").catch(function(){ return null; }),
+      apiGet("/demands").catch(function(){ return null; })
+    ]);
+  }).then(function(arr){
+    if(!arr) return false;
+    mergeCategories(arr[1]); mergeResources(arr[0]); mergeDemands(arr[2]);
+    renderAll();
+    if(getToken()){ loadFavoritesApi(); refreshOrdersApi(); }
+    return true;
+  }).catch(function(){ return false; });
+}
+function bootApi(){
+  try{
+    var u=sessionStorage.getItem("guiyan-user");
+    if(u) apiUser=JSON.parse(u);
+  }catch(e){ apiUser=null; }
+  updateAuthUI();
+  loadApiData().catch(function(){ /* offline: embedded data stays exactly as-is */ });
+}
+function bindAuthUI(){
+  var lb=$("loginBtn"); if(lb) lb.addEventListener("click",openLogin);
+  var lo=$("logoutBtn"); if(lo) lo.addEventListener("click",doLogout);
+  var lf=$("loginForm"); if(lf) lf.addEventListener("submit",doLogin);
+  var lc=$("loginCancel"); if(lc) lc.addEventListener("click",closeLogin);
+  var lov=$("loginOverlay"); if(lov) lov.addEventListener("click",function(e){ if(e.target===this) closeLogin(); });
+  var pd=$("postDemandBtn"); if(pd) pd.addEventListener("click",openDemandDialog);
+  var df=$("demandForm"); if(df) df.addEventListener("submit",submitDemand);
+  var dc=$("demandCancel"); if(dc) dc.addEventListener("click",closeDemandDialog);
+  var dov=$("demandOverlay"); if(dov) dov.addEventListener("click",function(e){ if(e.target===this) closeDemandDialog(); });
+  var catSel=$("demCat"), citySel=$("demCity");
+  if(catSel) catSel.innerHTML=CATS.map(function(c){ return '<option value="'+c[0]+'">'+c[1]+'</option>'; }).join("");
+  if(citySel) citySel.innerHTML=Object.keys(CITYN).map(function(c){ return '<option value="'+c+'">'+c+'</option>'; }).join("");
+}
+bindAuthUI();
+
 function desc(r){ return lang==="zh" ? r[6][1] : lang==="en" ? r[6][2] : r[6][0]; }
 function toast(msg){ var tEl=$("toast"); tEl.textContent=msg; tEl.classList.add("show"); clearTimeout(tEl._h); tEl._h=setTimeout(function(){ tEl.classList.remove("show"); },2600); }
 function catCount(id){ return RES.filter(function(r){ return r[1]===id; }).length; }
@@ -878,7 +1207,7 @@ function renderChatHome(){
   $("chatQuick").innerHTML=t("quicks").map(function(q){ return '<button type="button">'+q+'</button>'; }).join("");
 }
 function renderAll(){
-  applyStatic(); renderHero(); renderCats(); renderFilters(); renderCities(); renderGrid(); renderDemands(); renderPrefs(); renderOrders(); renderChatHome(); renderWx();
+  applyStatic(); renderHero(); renderCats(); renderFilters(); renderCities(); renderGrid(); renderDemands(); renderPrefs(); renderOrders(); renderChatHome(); renderWx(); updateAuthUI();
   $("matchBox").classList.remove("show");
 }
 function setLang(l){
@@ -932,7 +1261,7 @@ $("catRail").addEventListener("click",function(e){ var b=e.target.closest("[data
 $("catFilters").addEventListener("click",function(e){ var b=e.target.closest("[data-c]"); if(b) setCat(b.dataset.c); });
 $("grid").addEventListener("click",function(e){
   var f=e.target.closest("[data-fav]");
-  if(f){ e.stopPropagation(); var i=+f.dataset.fav; state.favs[i]=!state.favs[i]; renderGrid(); toast(state.favs[i]?t("favAdd"):t("favRemove")); return; }
+  if(f){ e.stopPropagation(); toggleFav(+f.dataset.fav); return; }
   var c=e.target.closest("[data-open]"); if(c) openDetail(+c.dataset.open);
 });
 $("grid").addEventListener("keydown",function(e){ if(e.key==="Enter"){ var c=e.target.closest("[data-open]"); if(c) openDetail(+c.dataset.open); } });
@@ -968,12 +1297,10 @@ function openDetail(i){
   $("overlay").classList.add("open");
   $("sheetX").addEventListener("click",closeSheet);
   $("bkQty").addEventListener("change",function(){ $("bkTotal").textContent=money(r[3]*+this.value); });
-  $("bkFav").addEventListener("click",function(){ state.favs[i]=!state.favs[i]; this.textContent=state.favs[i]?t("favOn"):t("favOff"); renderGrid(); });
+  $("bkFav").addEventListener("click",function(){ var btn=this; toggleFav(i).then(function(){ btn.textContent=state.favs[i]?t("favOn"):t("favOff"); }); });
   $("bkGo").addEventListener("click",function(){
     var qty=+$("bkQty").value, date=$("bkDate").value||"2026-12-05";
-    var code="GY2026"+String(state.seq++).padStart(6,"0");
-    state.orders.unshift({code:code,idx:i,qty:qty,date:date,total:r[3]*qty,status:"pending"});
-    closeSheet(); renderOrders(); renderWx(); toast(fmt(t("orderCreated"),{code:code})); openDrawer();
+    bookResource(i,qty,date);
   });
 }
 function closeSheet(){ $("overlay").classList.remove("open"); }
@@ -998,10 +1325,7 @@ function renderOrders(){
 }
 $("orderList").addEventListener("click",function(e){
   var b=e.target.closest("[data-act]"); if(!b) return;
-  var o=state.orders[+b.dataset.oi];
-  var map={confirm:"confirmed",pay:"paid",complete:"completed",cancel:"cancelled",refund:"refunded"};
-  o.status=map[b.dataset.act]; renderOrders(); renderWx();
-  toast(fmt(t("statusToast"),{code:o.code,st:t(STATUS[o.status])}));
+  handleOrderAction(b);
 });
 function openDrawer(){ renderOrders(); $("drawer").classList.add("open"); }
 $("openOrders").addEventListener("click",openDrawer);
@@ -1051,7 +1375,7 @@ function botAnswer(q){
   return t("ansFallback");
 }
 function addMsg(txt,me){ var d=document.createElement("div"); d.className="msg "+(me?"me":"bot"); d.textContent=txt; $("chatLog").appendChild(d); $("chatLog").scrollTop=$("chatLog").scrollHeight; }
-function askBot(q){ addMsg(q,true); setTimeout(function(){ addMsg(botAnswer(q),false); },280); }
+function askBot(q){ addMsg(q,true); setTimeout(function(){ askBotApi(q); },280); }
 $("chatQuick").addEventListener("click",function(e){ var b=e.target.closest("button"); if(b) askBot(b.textContent); });
 $("chatForm").addEventListener("submit",function(e){ e.preventDefault(); var v=$("chatIn").value.trim(); if(!v) return; $("chatIn").value=""; askBot(v); });
 document.querySelectorAll("[data-help]").forEach(function(b){
@@ -1067,6 +1391,7 @@ document.querySelectorAll("[data-help]").forEach(function(b){
 /* init */
 bindGotoCat();
 renderAll();
+bootApi();
 </script>
 </body>
 </html>

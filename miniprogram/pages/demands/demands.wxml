@@ -11,6 +11,21 @@
   <view class="sec-title serif">{{L.demTitle}}</view>
   <view class="sec-sub">{{L.demSub}}</view>
   <view class="note">{{L.demNote}}</view>
+  <view class="btn ghost" bindtap="togglePost">＋ 发布需求</view>
+  <block wx:if="{{showPost}}">
+    <view class="card">
+      <input placeholder="需求标题" value="{{postTitle}}" bindinput="onPostTitle" style="background:#F7F4EE;border-radius:12rpx;padding:18rpx 22rpx" />
+      <input placeholder="预算（元）" value="{{postBudget}}" bindinput="onPostBudget" type="digit" style="background:#F7F4EE;border-radius:12rpx;padding:18rpx 22rpx;margin-top:16rpx" />
+      <picker mode="selector" range="{{cats}}" range-key="name" value="{{postCatIdx}}" bindchange="onPostCat">
+        <view class="picker">品类：{{cats[postCatIdx].name}} <text class="arrow">▾</text></view>
+      </picker>
+      <picker mode="selector" range="{{cityNames}}" value="{{postCityIdx}}" bindchange="onPostCity">
+        <view class="picker">{{L.cityLabel}}：{{cityNames[postCityIdx]}} <text class="arrow">▾</text></view>
+      </picker>
+      <input placeholder="简单描述需求…" value="{{postDesc}}" bindinput="onPostDesc" style="background:#F7F4EE;border-radius:12rpx;padding:18rpx 22rpx;margin-top:16rpx" />
+      <view class="btn" bindtap="submitDemand">{{L.confirmBtn}}</view>
+    </view>
+  </block>
   <block wx:for="{{demands}}" wx:key="i">
     <view class="rescard" bindtap="toggle" data-i="{{item.i}}">
       <view class="name serif">{{item.title}}</view>

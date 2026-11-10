@@ -1,0 +1,340 @@
+// Guiyan API tests — run against a REAL PostgreSQL 16, never a mock.
+//
+//   DATABASE_URL=postgres://guiyan:guiyan@localhost:5433/guiyan_test \
+//   DEMO_PASSWORD=... ADMIN_PASSWORD=... \
+//   npm --prefix server test
+//
+// The test spawns server/server.mjs on TEST_PORT (default 3101) and talks
+// to it over HTTP. DATABASE_URL must point at a FRESH, disposable database
+// (the server seeds 62 resources + demo users on first boot). Do not point
+// it at any shared or production database.
+import test, { before, after } from "node:test";
+import assert from "node:assert/strict";
+import { spawn } from "node:child_process";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+
+const DATABASE_URL = process.env.DATABASE_URL;
+if (!DATABASE_URL)
+  throw new Error(
+    "DATABASE_URL is required, e.g. postgres://guiyan:guiyan@localhost:5433/guiyan_test",
+  );
+if (!process.env.DEMO_PASSWORD || !process.env.ADMIN_PASSWORD)
+  throw new Error(
+    "DEMO_PASSWORD and ADMIN_PASSWORD are required (demo login tests)",
+  );
+
+const PORT = Number(process.env.TEST_PORT || 3101);
+const BASE = `http://127.0.0.1:${PORT}`;
+const serverDir = path.resolve(
+  path.dirname(fileURLToPath(import.meta.url)),
+  "..",
+  "server",
+);
+const BOOKING_DATE = "2026-12-20";
+
+let proc;
+async function req(p, { method = "GET", body, token } = {}) {
+  const res = await fetch(BASE + p, {
+    method,
+    headers: {
+      ...(body ? { "Content-Type": "application/json" } : {}),
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+    body: body ? JSON.stringify(body) : undefined,
+  });
+  const text = await res.text();
+  let json = null;
+  try {
+    json = JSON.parse(text);
+  } catch {
+    // keep json null; assertions below will fail with a clear message
+  }
+  return { status: res.status, json, text };
+}
+
+before(async () => {
+  proc = spawn("node", ["server.mjs"], {
+    cwd: serverDir,
+    env: { ...process.env, DATABASE_URL, PORT: String(PORT) },
+    stdio: ["ignore", "pipe", "pipe"],
+  });
+  proc.stdout.on("data", (d) => process.stderr.write(`[server] ${d}`));
+  proc.stderr.on("data", (d) => process.stderr.write(`[server:err] ${d}`));
+  const deadline = Date.now() + 60000;
+  for (;;) {
+    try {
+      const r = await req("/api/health");
+      if (r.status === 200 && r.json?.ok) return;
+    } catch {
+      // not up yet
+    }
+    if (Date.now() > deadline)
+      throw new Error("server did not become healthy within 60s");
+    await new Promise((r) => setTimeout(r, 500));
+  }
+});
+
+after(() => {
+  if (proc && !proc.killed) proc.kill("SIGTERM");
+});
+
+test("health reports postgres mode", async () => {
+  const r = await req("/api/health");
+  assert.equal(r.status, 200);
+  assert.equal(r.json.ok, true);
+  assert.equal(r.json.database, "postgres");
+});
+
+test("categories list the 10 resource types", async () => {
+  const r = await req("/api/categories");
+  assert.equal(r.status, 200);
+  assert.equal(r.json.categories.length, 10);
+  assert.ok(r.json.categories.some((c) => c.id === "show"));
+});
+
+test("resource list has exactly the 62 seeded resources", async () => {
+  const r = await req("/api/resources");
+  assert.equal(r.status, 200);
+  assert.equal(r.json.resources.length, 62);
+  const liu = r.json.resources.find(
+    (x) => x.name === "民族歌舞剧《刘三姐》",
+  );
+  assert.ok(liu, "刘三姐 must be seeded");
+  assert.equal(liu.price, 28000); // integer cents
+  assert.equal(liu.category, "show");
+});
+
+test("resource filters and search work", async () => {
+  const heritage = await req("/api/resources?category=heritage");
+  assert.equal(heritage.status, 200);
+  assert.ok(heritage.json.resources.length >= 6);
+  assert.ok(heritage.json.resources.every((x) => x.category === "heritage"));
+  // Category filter also accepts the Chinese category name (mini-program sends it).
+  const byName = await req(
+    "/api/resources?category=" + encodeURIComponent("非遗体验"),
+  );
+  assert.equal(byName.status, 200);
+  assert.equal(byName.json.resources.length, heritage.json.resources.length);
+  const search = await req("/api/resources?q=" + encodeURIComponent("刘三姐"));
+  assert.equal(search.status, 200);
+  assert.equal(search.json.resources.length, 2);
+  const one = await req(
+    `/api/resources/${search.json.resources[0].id}`,
+  );
+  assert.equal(one.status, 200);
+  assert.equal(one.json.resource.id, search.json.resources[0].id);
+  const missing = await req("/api/resources/999999");
+  assert.equal(missing.status, 404);
+});
+
+test("login accepts the demo account and rejects a wrong password", async () => {
+  const ok = await req("/api/auth/login", {
+    method: "POST",
+    body: { username: "demo", password: process.env.DEMO_PASSWORD },
+  });
+  assert.equal(ok.status, 200);
+  assert.ok(ok.json.token);
+  assert.equal(ok.json.user.username, "demo");
+  const bad = await req("/api/auth/login", {
+    method: "POST",
+    body: { username: "demo", password: "wrong-password" },
+  });
+  assert.equal(bad.status, 401);
+});
+
+async function login() {
+  const r = await req("/api/auth/login", {
+    method: "POST",
+    body: { username: "demo", password: process.env.DEMO_PASSWORD },
+  });
+  assert.equal(r.status, 200);
+  return r.json.token;
+}
+
+async function pickShow(token) {
+  const r = await req("/api/resources?category=show&sort=hot");
+  assert.equal(r.status, 200);
+  const show = r.json.resources.find((x) => x.stock > 0);
+  assert.ok(show, "need a show resource with stock");
+  return show;
+}
+
+test("orders require login", async () => {
+  const r = await req("/api/orders");
+  assert.equal(r.status, 401);
+});
+
+test("order happy path: create -> confirm -> pay (simulated) -> complete", async () => {
+  const token = await login();
+  const show = await pickShow(token);
+  const created = await req("/api/orders", {
+    method: "POST",
+    token,
+    body: {
+      resourceId: show.id,
+      quantity: 2,
+      booking_date: BOOKING_DATE,
+      channel: "H5",
+    },
+  });
+  assert.equal(created.status, 200, JSON.stringify(created.json));
+  assert.equal(created.json.status, "pending");
+  assert.equal(created.json.amount, show.price * 2);
+  const id = created.json.id;
+
+  const confirm = await req(`/api/orders/${id}/confirm`, {
+    method: "POST",
+    token,
+  });
+  assert.equal(confirm.status, 200);
+  assert.equal(confirm.json.status, "confirmed");
+
+  const pay = await req(`/api/orders/${id}/pay`, { method: "POST", token });
+  assert.equal(pay.status, 200);
+  assert.equal(pay.json.status, "paid");
+  assert.equal(pay.json.simulated, true);
+
+  const complete = await req(`/api/orders/${id}/complete`, {
+    method: "POST",
+    token,
+  });
+  assert.equal(complete.status, 200);
+  assert.equal(complete.json.status, "completed");
+
+  const list = await req("/api/orders", { token });
+  assert.equal(list.status, 200);
+  const mine = list.json.orders.find((o) => o.id === id);
+  assert.ok(mine);
+  assert.equal(mine.status, "completed");
+  assert.equal(mine.amount, show.price * 2);
+});
+
+test("illegal order transition is rejected with 400", async () => {
+  const token = await login();
+  const show = await pickShow(token);
+  const created = await req("/api/orders", {
+    method: "POST",
+    token,
+    body: {
+      resourceId: show.id,
+      quantity: 1,
+      booking_date: BOOKING_DATE,
+    },
+  });
+  assert.equal(created.status, 200);
+  const pay = await req(`/api/orders/${created.json.id}/pay`, {
+    method: "POST",
+    token,
+  });
+  assert.equal(pay.status, 400); // pending cannot pay; must confirm first
+  const cancel = await req(`/api/orders/${created.json.id}/cancel`, {
+    method: "POST",
+    token,
+  });
+  assert.equal(cancel.status, 200);
+});
+
+test("client-sent amount is ignored; server computes it", async () => {
+  const token = await login();
+  const show = await pickShow(token);
+  const created = await req("/api/orders", {
+    method: "POST",
+    token,
+    body: {
+      resourceId: show.id,
+      quantity: 2,
+      booking_date: BOOKING_DATE,
+      amount: 1, // tampered: must be ignored
+    },
+  });
+  assert.equal(created.status, 200);
+  assert.equal(created.json.amount, show.price * 2);
+  await req(`/api/orders/${created.json.id}/cancel`, {
+    method: "POST",
+    token,
+  });
+});
+
+test("favorites round-trip", async () => {
+  const token = await login();
+  const list0 = await req("/api/resources");
+  const rid = list0.json.resources[0].id;
+  await req(`/api/favorites/${rid}`, { method: "DELETE", token });
+  const on = await req("/api/favorites", {
+    method: "POST",
+    token,
+    body: { resourceId: rid },
+  });
+  assert.equal(on.status, 200);
+  assert.equal(on.json.favorite, true);
+  const favs = await req("/api/favorites", { token });
+  assert.equal(favs.status, 200);
+  assert.ok(favs.json.favorites.some((r) => r.id === rid));
+  const off = await req(`/api/favorites/${rid}`, {
+    method: "DELETE",
+    token,
+  });
+  assert.equal(off.status, 200);
+  const favs2 = await req("/api/favorites", { token });
+  assert.ok(!favs2.json.favorites.some((r) => r.id === rid));
+});
+
+test("demands list and create", async () => {
+  const token = await login();
+  const beforeList = await req("/api/demands", { token });
+  assert.equal(beforeList.status, 200);
+  assert.ok(beforeList.json.demands.length >= 8);
+  assert.ok(
+    beforeList.json.demands.some(
+      (d) => d.title === "寻民族歌舞团队，合作城市文化周",
+    ),
+  );
+  const title = "测试需求 " + Date.now();
+  const created = await req("/api/demands", {
+    method: "POST",
+    token,
+    body: {
+      title,
+      category: "artist",
+      budget: 100000,
+      city: "南宁",
+      description: "测试需求（自动化测试产生）",
+    },
+  });
+  assert.equal(created.status, 200, JSON.stringify(created.json));
+  assert.ok(created.json.id);
+  const afterList = await req("/api/demands", { token });
+  assert.ok(afterList.json.demands.some((d) => d.title === title));
+});
+
+test("assistant answers by rule from live data", async () => {
+  const refund = await req(
+    "/api/assistant?q=" + encodeURIComponent("怎么退款"),
+  );
+  assert.equal(refund.status, 200);
+  assert.equal(refund.json.kind, "refund");
+  assert.equal(refund.json.mock, true);
+
+  const heritage = await req(
+    "/api/assistant?q=" + encodeURIComponent("非遗体验有哪些"),
+  );
+  assert.equal(heritage.status, 200);
+  assert.equal(heritage.json.kind, "heritage");
+  assert.ok(heritage.json.items.length >= 6);
+  assert.ok(heritage.json.answer.includes("非遗体验"));
+
+  const hot = await req(
+    "/api/assistant?q=" + encodeURIComponent("今晚有什么热门演出"),
+  );
+  assert.equal(hot.status, 200);
+  assert.equal(hot.json.kind, "hot");
+  assert.equal(hot.json.items.length, 3);
+
+  const hello = await req("/api/assistant?q=hello");
+  assert.equal(hello.status, 200);
+  assert.equal(hello.json.kind, "hello");
+
+  const empty = await req("/api/assistant?q=");
+  assert.equal(empty.status, 400);
+});
