@@ -19,7 +19,7 @@ if (!connectionString) {
 }
 
 const { openPostgresStore } = await import("./postgres.mjs");
-const { createApp } = await import("./app.mjs");
+const { createApp } = await import("./index.mjs");
 
 const database = await openPostgresStore(connectionString);
 const server = await createApp({ database });

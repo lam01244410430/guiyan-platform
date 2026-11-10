@@ -11,7 +11,7 @@ guiyan-platform/
 ├── web/                  网页版（静态单文件，直接用浏览器打开）
 │   └── index.html
 ├── server/               后端：Node.js + PostgreSQL 真实数据库（详见 server/README.md）
-│   ├── server.mjs / app.mjs / postgres.mjs / schema.mjs / seed.mjs
+│   ├── server.mjs / index.mjs / postgres.mjs / schema.mjs / seed.mjs
 │   ├── docker-compose.yml / .env.example
 │   └── README.md
 ├── tests/                后端测试（真实 PostgreSQL）

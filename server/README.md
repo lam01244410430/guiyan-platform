@@ -3,23 +3,38 @@
 > Tóm tắt tiếng Việt ở cuối file.
 
 桂演 premium redesign 的后端：纯 Node.js（`node:http`，无框架）+
-PostgreSQL 16。只保留面向顾客的功能：浏览资源、登录、预订下单、
-订单状态机、需求大厅、收藏、规则助手。没有管理后台、没有数据分析、
-没有内部指标接口。
+PostgreSQL 16。顾客功能包括浏览资源、登录、预订下单、
+订单状态机、需求大厅、收藏、规则助手。2026-11-10 新增只读管理后台
+接口：管理员可查看统计、订单与用户，不提供修改、删除或审批操作。
 
 ## 目录结构
 
 ```
 server/
 ├── server.mjs           入口：校验 DATABASE_URL，启动 HTTP 服务
-├── app.mjs              全部 /api 路由（顾客功能）
+├── index.mjs            createApp、请求 ctx、顺序路由表、事务包装与 HTTP 服务
+├── lib/
+│   ├── http.mjs         校验、时间、金额与安全响应辅助函数
+│   └── context.mjs      createContext(database)：查询、审计、通知、事务与对象存储
+├── routes/              每个路由函数接收一个 ctx；处理后返回 true，否则 false
+│   ├── misc.mjs         健康检查、分类
+│   ├── resources.mjs    资源列表、详情
+│   ├── auth.mjs         登录、注销
+│   ├── orders.mjs       本人订单、下单、状态流转
+│   ├── demands.mjs      需求列表、发布
+│   ├── favorites.mjs    收藏列表、切换、删除
+│   ├── assistant.mjs    规则助手与中文 ANSWERS
+│   ├── storage.mjs      对象存储 API（使用 server/storage.mjs）
+│   └── admin.mjs        管理员只读统计、订单、用户
+├── static.mjs           web/ 静态页面与 assets；路径越界、缺失文件返回 JSON 404
 ├── postgres.mjs         pg 连接池、建表、首次启动批量 seed
 ├── schema.mjs           11 张表（与原小组设计 03 一致）
 ├── seed.mjs             演示数据：用户、22 项资源、130 笔订单……
 ├── catalog-content.mjs  另外 40 项资源 + 6 条需求（enrichCatalog）
+├── storage.mjs          可选的 Neon S3 兼容对象存储客户端
 ├── docker-compose.yml   本地 PostgreSQL 16
 ├── .env.example         环境变量模板（不要提交 .env）
-└── package.json         唯一依赖：pg
+└── package.json         依赖：pg、AWS S3 SDK
 ```
 
 数据库：11 张表 `users / sessions / resources / orders / demands /
@@ -56,7 +71,7 @@ DEMO_PASSWORD=... ADMIN_PASSWORD=...
 
 - `demo`：普通用户（林同学，已认证，可发布需求）
 - `supplier`：资源方（八桂演艺工作室）
-- `admin`：平台管理员（本后端不提供管理接口，账号仅保留）
+- `admin`：平台管理员（仅可读取 `/api/admin/*`，不能修改业务数据）
 
 密码原文不在仓库中；取值见原小组文档《08 运行与最终交付说明》
 中的演示账号。`.env` 不要提交。
@@ -88,6 +103,23 @@ DEMO_PASSWORD=... ADMIN_PASSWORD=...
 | POST | /api/storage/upload | 上传文件（需登录）`{key, content_base64, content_type?}`，文件 ≤200KB |
 | GET | /api/storage/url?key= | 取文件预签名下载链接（需登录，1 小时有效） |
 | DELETE | /api/storage/:key | 删除文件（需登录） |
+| GET | /api/admin/stats | 管理统计：`{users, orders, revenue_cents, resources, demands, orders_by_status}`；收入只汇总 paid/completed 订单的 amount（整数分），orders_by_status 为状态到订单数的映射 |
+| GET | /api/admin/orders | `{orders}`：最新 200 笔订单，按 id 倒序，包含 user_name 与 resource_name |
+| GET | /api/admin/users | `{users}`：用户列表，经 safeUser 过滤，绝不返回 password |
+
+三个管理接口仅允许会话用户 `role=admin`；未登录或非管理员统一返回
+403 `{"error":"无权访问管理后台"}`。顾客订单权限不变：确认仍只允许
+订单本人操作；退款仍为 `paid → refunded`，没有新增管理员审批。
+
+`index.mjs` 中的 if-chain 保持原路由检查顺序，新管理接口在原接口之后。
+`createRequestHandler` 仍在成功提交事务后才发送响应，错误与 404 处理不变。
+
+本地静态服务：`/` 与 `/index.html` 对应 `web/index.html`，另支持
+`/user.html` 及 `/assets/*`（html/css/js/webp/png/json/svg/ico）。
+管理后台是独立 web：`/admin/` 与 `/admin/dashboard.html` 及
+`/admin/assets/*` 对应 `admin/` 下同名文件，与顾客站完全分离。
+禁止路径越界；页面或资源缺失、未知非 API 路径均返回
+404 `{"error":"页面不存在"}`。
 
 订单状态机：`pending → confirmed → paid → completed`，非法流转返回
 400；场馆/设备类按天预约，同一天不可重复预订；其余资源下单扣库存、
@@ -151,7 +183,7 @@ vercel link            # 关联一个 Vercel 项目（或在控制台 Import 本
 - 静态网页：`web/index.html` 在 `/` 直接提供（`vercel.json` 的
   rewrite），无构建、无框架。
 - `/api/*` 路由到同一个 Node 函数 `api/index.js`，它复用
-  `server/app.mjs` 与 `server/postgres.mjs`，与本地
+  `server/index.mjs` 与 `server/postgres.mjs`，与本地
   `node server.mjs` 是同一套代码、同一套接口与订单状态机。
 - 区域固定为新加坡 `sin1`（与原小组的 Vercel/Neon 配置一致，
   离广西用户最近）。
@@ -179,9 +211,13 @@ PostgreSQL 这一套，数据库地址不同而已，数据不自动互相同步
 
 ## Tóm tắt tiếng Việt
 
-Backend thật cho bản Guiyan mới: Node.js thuần + PostgreSQL 16, chỉ
-có chức năng khách hàng (xem tài nguyên, đăng nhập, đặt vé, đơn hàng,
-nhu cầu, yêu thích, trợ lý theo quy tắc). Chạy local bằng
+Backend thật cho bản Guiyan mới: Node.js thuần + PostgreSQL 16, có
+chức năng khách hàng (xem tài nguyên, đăng nhập, đặt vé, đơn hàng,
+nhu cầu, yêu thích, trợ lý theo quy tắc) và 3 API admin chỉ đọc
+(`/api/admin/stats`, `/api/admin/orders`, `/api/admin/users`, role=admin).
+Backend tách thành lib/, routes/ và static.mjs; giữ thứ tự routing,
+SQL và giao dịch. Trang quản trị là web riêng (admin/, đăng nhập +
+dashboard), trang user dùng chung mẫu web chính (user.html). Chạy local bằng
 `docker compose up -d` rồi `npm ci && npm start`; lần đầu chạy sẽ tự
 tạo 11 bảng và seed 62 tài nguyên + tài khoản demo. Tài khoản demo lấy
 mật khẩu từ biến môi trường `DEMO_PASSWORD` / `ADMIN_PASSWORD` (đặt

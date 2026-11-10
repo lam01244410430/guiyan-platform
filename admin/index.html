@@ -1,0 +1,34 @@
+<!doctype html>
+<html lang="zh-CN" data-type="software">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="page-type" content="software">
+<meta name="site-kind" content="software">
+<meta name="description" content="桂演文化惠票务管理后台登录，仅管理员可访问。">
+<title>桂演管理后台 · 登录</title>
+<link rel="icon" href="data:,">
+<link rel="stylesheet" href="/admin/assets/css/admin.css">
+</head>
+<body>
+<div class="login-page">
+  <div class="login-card">
+    <div class="mark">桂演</div>
+    <h1>管理后台</h1>
+    <p class="sub">桂演文化惠票务 · 仅管理员可登录</p>
+    <form id="loginForm">
+      <label for="loginUser">账号</label>
+      <input id="loginUser" name="username" type="text" autocomplete="username" required>
+      <label for="loginPass">密码</label>
+      <input id="loginPass" name="password" type="password" autocomplete="current-password" required>
+      <p class="err" id="loginErr" role="alert"></p>
+      <button type="submit" class="login-btn" id="loginBtn">登录</button>
+    </form>
+    <p class="sub" style="margin:14px 0 0;text-align:center">演示账号：admin / admin123</p>
+    <a class="login-back" href="/index.html">← 返回桂演首页</a>
+  </div>
+</div>
+<script src="/admin/assets/js/api.js"></script>
+<script src="/admin/assets/js/login.js"></script>
+</body>
+</html>

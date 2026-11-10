@@ -1,0 +1,112 @@
+/* Guiyan admin console — separate web, own design system.
+   TasteSkill: no Inter, no purple-blue gradients, no three equal-width
+   cards, one section per screen, real content, quiet micro-interactions.
+   Brand: deep pine, cinnabar, gold, warm paper (same family as the
+   customer site, composed as an admin console). Chinese-first UI. */
+:root{
+  --bg:#f7f3ec; --surface:#fffdf8; --surface2:#f3ecdf;
+  --ink:#1c1710; --ink2:#5d5344; --ink3:#8a7d68;
+  --line:#ddd2bf; --line2:#cbbd9f;
+  --pine:#0b3d36; --pine-deep:#072a25; --pine-soft:#dcefe9;
+  --red:#c8452c; --red-deep:#a83722; --red-soft:#f6e3d8;
+  --gold:#c9a24b; --gold-soft:#f1e5c3;
+  --jade:#0d6e5f; --jade-soft:#dcefe9;
+  --blue:#20518f; --blue-soft:#dbe7f7;
+  --shadow:0 18px 44px rgba(60,40,10,.14);
+  --r-lg:20px; --r-md:14px; --r-sm:9px;
+}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:"Noto Sans SC","Be Vietnam Pro",system-ui,sans-serif;font-size:15px;line-height:1.6;-webkit-font-smoothing:antialiased}
+a{color:var(--red)}
+button{font:inherit;cursor:pointer}
+input{font:inherit}
+.zh{font-family:"Noto Serif SC",serif}
+
+/* ================= login ================= */
+.login-page{min-height:100vh;background:var(--pine);display:flex;align-items:center;justify-content:center;padding:24px;position:relative;overflow:hidden}
+.login-page::before{content:"桂演";position:absolute;right:-40px;bottom:-90px;font-family:"Noto Serif SC",serif;font-size:340px;font-weight:900;color:rgba(245,238,221,.05);line-height:1;pointer-events:none}
+.login-card{position:relative;background:var(--surface);border-radius:var(--r-lg);box-shadow:var(--shadow);width:100%;max-width:400px;padding:36px 34px 30px}
+.login-card .mark{font-family:"Noto Serif SC",serif;font-size:44px;font-weight:900;color:var(--red);line-height:1;letter-spacing:.04em}
+.login-card h1{font-family:"Noto Serif SC",serif;font-size:22px;font-weight:900;margin:10px 0 2px}
+.login-card .sub{color:var(--ink2);font-size:13.5px;margin:0 0 24px}
+.login-card label{display:block;font-size:13px;font-weight:700;color:var(--ink2);margin:0 0 6px}
+.login-card input{width:100%;border:1px solid var(--line2);border-radius:12px;padding:12px 14px;font-size:15px;background:var(--surface);color:var(--ink);margin-bottom:14px;outline:none}
+.login-card input:focus{border-color:var(--red);box-shadow:0 0 0 3px var(--red-soft)}
+.login-card .err{color:var(--red);font-size:13px;min-height:20px;margin:0 0 6px}
+.login-btn{width:100%;border:0;border-radius:99px;background:var(--red);color:#fff;font-weight:700;font-size:15px;padding:13px 20px}
+.login-btn:hover{background:var(--red-deep)}
+.login-back{display:block;text-align:center;margin-top:18px;font-size:13px;color:var(--ink2);text-decoration:none}
+.login-back:hover{color:var(--red)}
+
+/* ================= app shell ================= */
+.admin-app{display:flex;min-height:100vh}
+.sidebar{position:fixed;inset:0 auto 0 0;width:240px;background:var(--pine);color:#f5eedd;display:flex;flex-direction:column;padding:26px 18px 20px;z-index:40}
+.sidebar .mark{font-family:"Noto Serif SC",serif;font-size:30px;font-weight:900;color:#fff;line-height:1;letter-spacing:.04em}
+.sidebar .mark small{display:block;font-size:11px;letter-spacing:.28em;color:#cbbfa5;font-weight:700;margin-top:8px;text-transform:uppercase}
+.sidebar nav{margin-top:34px;display:flex;flex-direction:column;gap:4px}
+.sidebar nav button{all:unset;display:flex;align-items:center;gap:10px;padding:11px 14px;border-radius:10px;font-size:14.5px;font-weight:600;color:#cbbfa5;cursor:pointer;text-align:left}
+.sidebar nav button:hover{background:rgba(245,238,221,.1);color:#fff}
+.sidebar nav button.on{background:rgba(245,238,221,.14);color:#fff;box-shadow:inset 3px 0 0 var(--gold)}
+.sidebar nav button .n{font-family:"Noto Serif SC",serif;font-size:12px;color:var(--gold);font-weight:900}
+.sidebar .who{margin-top:auto;border-top:1px solid rgba(245,238,221,.18);padding-top:16px;display:flex;align-items:center;gap:10px}
+.sidebar .who .nm{font-size:13.5px;font-weight:700;line-height:1.3}
+.sidebar .who .rl{font-size:11.5px;color:#cbbfa5}
+.sidebar .who button{margin-left:auto;border:1px solid rgba(245,238,221,.4);background:transparent;color:#f5eedd;border-radius:99px;padding:6px 12px;font-size:12.5px;font-weight:700}
+.sidebar .who button:hover{background:rgba(245,238,221,.14)}
+.main{flex:1;margin-left:240px;padding:34px 36px 60px;min-width:0}
+.main-head{display:flex;align-items:flex-end;gap:20px;flex-wrap:wrap;margin-bottom:28px}
+.main-head h1{font-family:"Noto Serif SC",serif;font-size:34px;font-weight:900;line-height:1.15;margin:0}
+.main-head h1 .sub{display:block;font-family:"Noto Sans SC",sans-serif;font-size:14px;font-weight:600;color:var(--ink2);margin-top:6px}
+.badge{margin-left:auto;font-size:12px;font-weight:800;padding:5px 12px;border-radius:99px;background:var(--gold-soft);color:var(--gold);white-space:nowrap}
+.view{display:none}
+.view.on{display:block}
+.view h2{font-family:"Noto Serif SC",serif;font-size:22px;font-weight:900;margin:0 0 16px}
+
+/* stats: featured revenue card + compact cards (not equal-width) */
+.stats{display:grid;grid-template-columns:2fr 1fr 1fr 1fr 1fr;gap:14px;margin-bottom:30px}
+.stat{background:var(--surface);border:1px solid var(--line);border-radius:var(--r-md);padding:18px}
+.stat b{display:block;font-family:"Noto Serif SC",serif;font-size:28px;font-weight:900;line-height:1.1}
+.stat span{font-size:12.5px;color:var(--ink2);font-weight:600}
+.stat.hero{background:var(--pine);border-color:var(--pine);color:#f5eedd}
+.stat.hero b{color:#fff;font-size:34px}
+.stat.hero span{color:#cbbfa5}
+.stat.hero b em{font-style:normal;color:#e8c97a;font-size:20px}
+
+/* tables */
+.tbl-wrap{overflow-x:auto;border:1px solid var(--line);border-radius:var(--r-md);background:var(--surface)}
+table{width:100%;border-collapse:collapse;font-size:13.5px;min-width:640px}
+th{text-align:left;font-size:11.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--ink3);padding:12px 14px;border-bottom:1px solid var(--line);white-space:nowrap}
+td{padding:11px 14px;border-bottom:1px solid var(--line);vertical-align:middle}
+tr:last-child td{border-bottom:0}
+tbody tr:hover{background:var(--surface2)}
+td.num,th.num{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
+.empty{text-align:center;color:var(--ink2);padding:36px 10px;font-size:14px}
+.pill{font-size:11.5px;font-weight:800;padding:3px 10px;border-radius:99px;white-space:nowrap}
+.pill.pending{background:var(--gold-soft);color:var(--gold)}
+.pill.confirmed{background:var(--blue-soft);color:var(--blue)}
+.pill.paid{background:var(--jade-soft);color:var(--jade)}
+.pill.completed{background:var(--jade);color:#fff}
+.pill.cancelled,.pill.refunded{background:var(--red-soft);color:var(--red)}
+.chips{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px}
+.chips button{border:1px solid var(--line2);background:var(--surface);border-radius:99px;padding:6px 14px;font-size:13px;font-weight:700;color:var(--ink2)}
+.chips button.on{background:var(--ink);border-color:var(--ink);color:var(--bg)}
+.note{background:var(--gold-soft);border:1px solid var(--line2);border-radius:var(--r-md);padding:12px 16px;font-size:13.5px;color:var(--ink2);margin-bottom:24px}
+.sec{margin-bottom:36px}
+.toast{position:fixed;left:50%;bottom:26px;transform:translate(-50%,80px);background:var(--ink);color:var(--bg);padding:13px 22px;border-radius:99px;font-size:14px;font-weight:600;z-index:120;transition:transform .3s ease;box-shadow:var(--shadow);max-width:92vw;text-align:center}
+.toast.show{transform:translate(-50%,0)}
+@media(max-width:1000px){.stats{grid-template-columns:1fr 1fr}.stat.hero{grid-column:1/-1}}
+@media(max-width:860px){
+  .admin-app{flex-direction:column}
+  .sidebar{position:static;width:100%;flex-direction:row;flex-wrap:wrap;align-items:center;gap:8px;padding:16px 20px}
+  .sidebar nav{margin:0;flex-direction:row;flex-wrap:wrap}
+  .sidebar nav button{padding:8px 12px}
+  .sidebar .who{margin:0 0 0 auto;border:0;padding:0}
+  .main{margin-left:0;padding:24px 18px 48px}
+}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important;scroll-behavior:auto!important}}
+
+/* TasteSkill motion: hero enters once on load; buttons press on click. */
+@keyframes rise{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
+.login-card{animation:rise .5s ease both}
+.login-btn:active,.chips button:active,.sidebar nav button:active{transform:translateY(1px)}

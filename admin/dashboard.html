@@ -1,0 +1,111 @@
+<!doctype html>
+<html lang="zh-CN" data-type="software">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="page-type" content="software">
+<meta name="site-kind" content="software">
+<meta name="description" content="桂演文化惠票务管理后台：订单、用户、资源、需求一览，仅查看。">
+<title>桂演管理后台</title>
+<link rel="icon" href="data:,">
+<link rel="stylesheet" href="/admin/assets/css/admin.css">
+</head>
+<body>
+<div id="app" class="admin-app">
+  <aside class="sidebar">
+    <div class="mark">桂演<small>Admin Console</small></div>
+    <nav>
+      <button type="button" data-view="overview" class="on"><span class="n">01</span>总览</button>
+      <button type="button" data-view="orders"><span class="n">02</span>订单</button>
+      <button type="button" data-view="users"><span class="n">03</span>用户</button>
+      <button type="button" data-view="resources"><span class="n">04</span>资源</button>
+      <button type="button" data-view="demands"><span class="n">05</span>需求</button>
+    </nav>
+    <div class="who">
+      <div><div class="nm" id="whoName">管理员</div><div class="rl">管理员</div></div>
+      <button type="button" id="logoutBtn">退出</button>
+    </div>
+  </aside>
+  <main class="main">
+    <div class="main-head">
+      <h1><span id="pageTitle">总览</span><span class="sub" id="pageSub">运营数据一览</span></h1>
+      <span class="badge">仅查看 · 只读</span>
+    </div>
+
+    <section class="view on" id="view-overview">
+      <div class="stats">
+        <div class="stat hero"><span>总收入</span><b id="statRevenue">¥0</b></div>
+        <div class="stat"><span>用户</span><b id="statUsers">0</b></div>
+        <div class="stat"><span>订单</span><b id="statOrders">0</b></div>
+        <div class="stat"><span>资源</span><b id="statResources">0</b></div>
+        <div class="stat"><span>需求</span><b id="statDemands">0</b></div>
+      </div>
+      <div class="note">管理后台仅查看：订单、用户、资源、需求均不可在此修改。支付与 AI 均为模拟。</div>
+      <div class="sec">
+        <h2>订单状态</h2>
+        <div id="orderBreakdown"></div>
+      </div>
+      <div class="sec">
+        <h2>最近订单</h2>
+        <div class="tbl-wrap"><table>
+          <thead><tr><th>订单号</th><th>用户</th><th>资源</th><th class="num">金额</th><th>预订日期</th><th>状态</th></tr></thead>
+          <tbody id="recentBody"></tbody>
+        </table></div>
+      </div>
+    </section>
+
+    <section class="view" id="view-orders">
+      <div class="chips">
+        <button type="button" data-f="all" class="on">全部</button>
+        <button type="button" data-f="pending">待确认</button>
+        <button type="button" data-f="confirmed">已确认</button>
+        <button type="button" data-f="paid">已支付</button>
+        <button type="button" data-f="completed">已完成</button>
+        <button type="button" data-f="cancelled">已取消</button>
+        <button type="button" data-f="refunded">已退款</button>
+      </div>
+      <div class="tbl-wrap"><table>
+        <thead><tr><th>订单号</th><th>用户</th><th>资源</th><th class="num">金额</th><th>预订日期</th><th>状态</th></tr></thead>
+        <tbody id="ordersBody"></tbody>
+      </table></div>
+    </section>
+
+    <section class="view" id="view-users">
+      <div class="tbl-wrap"><table>
+        <thead><tr><th>姓名</th><th>账号</th><th>角色</th><th>城市</th><th>渠道</th><th>认证</th></tr></thead>
+        <tbody id="usersBody"></tbody>
+      </table></div>
+    </section>
+
+    <section class="view" id="view-resources">
+      <div class="tbl-wrap"><table>
+        <thead><tr><th>名称</th><th>分类</th><th>城市</th><th class="num">价格</th><th class="num">库存</th></tr></thead>
+        <tbody id="resBody"></tbody>
+      </table></div>
+    </section>
+
+    <section class="view" id="view-demands">
+      <div class="tbl-wrap"><table>
+        <thead><tr><th>标题</th><th>分类</th><th class="num">预算</th><th>城市</th><th>发布人</th><th>状态</th></tr></thead>
+        <tbody id="demBody"></tbody>
+      </table></div>
+    </section>
+  </main>
+</div>
+
+<div id="forbidden" style="display:none">
+  <div class="login-page">
+    <div class="login-card">
+      <div class="mark">桂演</div>
+      <h1>无权访问</h1>
+      <p class="sub">该账号无权访问管理后台，请使用管理员账号登录。</p>
+      <button type="button" class="login-btn" id="backLoginBtn">返回登录</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast" role="status"></div>
+<script src="/admin/assets/js/api.js"></script>
+<script src="/admin/assets/js/dashboard.js"></script>
+</body>
+</html>

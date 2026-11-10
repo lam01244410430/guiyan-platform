@@ -1,1 +1,27 @@
-{"$schema":"https://openapi.vercel.sh/vercel.json","functions":{"api/index.js":{"maxDuration":60}},"regions":["sin1"],"rewrites":[{"destination":"/api/index?route=:path*","source":"/api/:path*"},{"destination":"/web/index.html","source":"/"}]}
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "buildCommand": "mkdir -p dist dist/admin && cp -r web/. dist/ && cp -r admin/. dist/admin/",
+  "framework": "vite",
+  "functions": {
+    "api/index.js": {
+      "maxDuration": 60
+    }
+  },
+  "outputDirectory": "dist",
+  "regions": [
+    "sin1"
+  ],
+  "routes": [
+    {
+      "dest": "/api/index?route=$1",
+      "src": "/api/(.*)"
+    },
+    {
+      "handle": "filesystem"
+    },
+    {
+      "dest": "/index.html",
+      "src": "/.*"
+    }
+  ]
+}

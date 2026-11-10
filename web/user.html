@@ -1,0 +1,144 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<meta name="color-scheme" content="light dark" />
+<link rel="icon" href="data:," />
+<title>我的账户 · 桂演 Guiyan</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@600;700;900&family=Noto+Sans+SC:wght@400;500;700&family=Be+Vietnam+Pro:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="assets/css/main.css" />
+</head>
+<body>
+<header class="topbar">
+  <div class="wrap topbar-in">
+    <a class="brand" href="index.html"><span class="zh">桂演</span><small data-i18n="brandTag"></small></a>
+    <nav class="mainnav" id="mainNav">
+      <a href="index.html#catalog" data-i18n="navCatalog"></a>
+      <a href="index.html#demands" data-i18n="navDemands"></a>
+      <a href="index.html#ai" data-i18n="navAssistant"></a>
+      <a href="user.html" data-i18n="navUser"></a>
+    </nav>
+    <label class="langsel" aria-label="Language">
+      <svg class="globe" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c2.5 2.6 3.8 5.7 3.8 9S14.5 18.4 12 21c-2.5-2.6-3.8-5.7-3.8-9S9.5 5.6 12 3z"/></svg>
+      <select id="langSel" aria-label="Language">
+        <option value="vi">Tiếng Việt</option>
+        <option value="zh">中文（简体）</option>
+        <option value="en">English</option>
+        <option value="ja" disabled>日本語 · Sắp có</option>
+        <option value="ko" disabled>한국어 · Sắp có</option>
+        <option value="th" disabled>ไทย · Sắp có</option>
+        <option value="fr" disabled>Français · Sắp có</option>
+      </select>
+    </label>
+    <button class="cartbtn" id="loginBtn" type="button"><span data-i18n="loginBtn"></span></button>
+    <span class="authchip" id="loginState" style="display:none"><span id="loginName"></span><button type="button" id="logoutBtn" data-i18n="logoutBtn"></button></span>
+  </div>
+</header>
+
+<main class="db-page">
+  <div class="wrap">
+    <div class="sec-head">
+      <span class="no">01</span>
+      <h2><span data-i18n="usrTitle"></span><span class="sub" data-i18n="usrSub"></span></h2>
+    </div>
+
+    <div id="usrGate" style="display:none">
+      <div class="db-empty" data-i18n="needLogin"></div>
+      <div style="text-align:center"><button class="btn red" type="button" id="gateLoginBtn" data-i18n="loginBtn"></button></div>
+    </div>
+
+    <div id="usrMain" style="display:none">
+      <section class="db-sec">
+        <h3 data-i18n="usrProfile"></h3>
+        <div class="db-profile" id="profileRows"></div>
+      </section>
+
+      <div class="db-stats">
+        <div class="db-stat"><b id="myStatOrders">–</b><span data-i18n="usrOrders"></span></div>
+        <div class="db-stat"><b id="myStatFavs">–</b><span data-i18n="usrFavs"></span></div>
+        <div class="db-stat"><b id="myStatDemands">–</b><span data-i18n="usrDemands"></span></div>
+      </div>
+
+      <section class="db-sec">
+        <h3 data-i18n="usrOrders"></h3>
+        <div class="db-list" id="ordersList"></div>
+      </section>
+
+      <section class="db-sec">
+        <h3 data-i18n="usrFavs"></h3>
+        <div class="db-scroll"><table class="db-table">
+          <thead><tr><th data-i18n="colName"></th><th data-i18n="colResource"></th><th data-i18n="colCity"></th><th class="num" data-i18n="colPrice"></th><th></th></tr></thead>
+          <tbody id="favsBody"></tbody>
+        </table></div>
+      </section>
+
+      <section class="db-sec">
+        <h3 data-i18n="usrDemands"></h3>
+        <div class="db-scroll"><table class="db-table">
+          <thead><tr><th data-i18n="colTitle"></th><th data-i18n="colResource"></th><th class="num" data-i18n="colBudget"></th><th data-i18n="colCity"></th><th data-i18n="colStatus"></th></tr></thead>
+          <tbody id="demsBody"></tbody>
+        </table></div>
+      </section>
+    </div>
+  </div>
+</main>
+
+<footer>
+  <div class="wrap">
+    <div class="foot-grid">
+      <div>
+        <span class="zh">桂演 · Guiyan</span>
+        <p style="margin:10px 0 0;max-width:420px" data-i18n="footBlurb"></p>
+      </div>
+      <div>
+        <h5 data-i18n="footExplore"></h5>
+        <ul>
+          <li><a href="index.html#catalog" data-i18n="navCatalog"></a></li>
+          <li><a href="index.html#demands" data-i18n="navDemands"></a></li>
+          <li><a href="index.html#ai" data-i18n="navAssistant"></a></li>
+          <li><button type="button" class="linklike" onclick="location.href='user.html'" data-i18n="myTickets"></button></li>
+        </ul>
+      </div>
+      <div>
+        <h5 data-i18n="footCats"></h5>
+        <ul id="footCats"></ul>
+      </div>
+      <div>
+        <h5 data-i18n="footHelp"></h5>
+        <ul>
+          <li><button type="button" class="linklike" onclick="location.href='index.html#ai'" data-i18n="helpRefund"></button></li>
+          <li><button type="button" class="linklike" onclick="location.href='index.html#ai'" data-i18n="helpBook"></button></li>
+          <li><button type="button" class="linklike" onclick="location.href='index.html#ai'" data-i18n="helpResched"></button></li>
+        </ul>
+      </div>
+    </div>
+    <div class="foot-note">
+      <span>© 2026 桂演 Guiyan</span>
+      <span data-i18n="footPrice"></span>
+      <a href="https://github.com/lam01244410430/guiyan-platform.git" target="_blank" rel="noopener">GitHub · lam01244410430/guiyan-platform</a>
+    </div>
+  </div>
+</footer>
+
+<!-- login dialog (PostgreSQL API auth; password field is empty by design) -->
+<div class="auth-overlay" id="loginOverlay" role="dialog" aria-modal="true">
+  <form class="auth-card" id="loginForm">
+    <button type="button" class="x" id="loginCancel" aria-label="Close">✕</button>
+    <h3 data-i18n="loginTitle"></h3>
+    <input id="loginUser" type="text" value="demo" autocomplete="username" data-i18n-ph="userPh" />
+    <input id="loginPass" type="password" value="" autocomplete="current-password" data-i18n-ph="passPh" />
+    <div class="err" id="loginErr"></div>
+    <div class="row"><button class="btn red" type="submit" data-i18n="loginBtn"></button></div>
+  </form>
+</div>
+
+<div class="toast" id="toast" role="status"></div>
+
+<script src="assets/js/data.js"></script>
+<script src="assets/js/api.js"></script>
+<script src="assets/js/user.js"></script>
+</body>
+</html>

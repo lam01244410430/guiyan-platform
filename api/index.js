@@ -1,6 +1,6 @@
 // Guiyan API — Vercel Serverless Function.
 //
-// Reuses the standalone backend (server/app.mjs + server/postgres.mjs)
+// Reuses the standalone backend (server/index.mjs + server/postgres.mjs)
 // instead of duplicating the API: the same createApp({database}) that
 // `node server.mjs` runs locally. Only the transport differs — here the
 // entry point is Vercel's handler, not an HTTP server listening on PORT.
@@ -12,7 +12,7 @@
 // Postgres); when it is missing or the database is unreachable the
 // function answers 503 with a clear message instead of crashing.
 
-import { createApp } from "../server/app.mjs";
+import { createApp } from "../server/index.mjs";
 import { openPostgresStore } from "../server/postgres.mjs";
 
 let app;
