@@ -1,0 +1,1 @@
+{"dependencies":{"pg":"^8.23.1"},"description":"Guiyan 桂演 premium redesign — static web + Vercel API function (PostgreSQL)","engines":{"node":">=22"},"name":"guiyan-platform","private":true,"type":"module","version":"1.0.0"}

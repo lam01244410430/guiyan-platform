@@ -47,6 +47,22 @@ npm ci && npm start    # http://localhost:3001，首次启动自动建表并 see
   测试见 [tests/api-pg.test.mjs](tests/api-pg.test.mjs)（真实
   PostgreSQL，非 mock）。
 
+## 部署到 Vercel（静态网页 + API 函数 + Neon PostgreSQL）
+
+部署前请先有 Vercel 账号；本次只准备配置，**尚未部署**。完整说明见
+[server/README.md](server/README.md#部署到-vercel静态网页--api-函数--neon-postgresql)。
+
+- Vercel 项目设置：Root Directory 为仓库根目录；Framework 为 Other，
+  Build Command 与 Output Directory 留空；Node.js 22。
+- 环境变量（在 Vercel 控制台设置，**不要提交**）：`DATABASE_URL`
+  （Neon PostgreSQL，新加坡区域）、`DEMO_PASSWORD`、`ADMIN_PASSWORD`
+  （首次启动前设置）。
+- `web/index.html` 在 `/` 直接提供；`/api/*` 由 `api/index.js`
+  处理，复用 `server/` 的同一套代码与接口；区域 `sin1`。
+- 首次连接自动建表并 seed 62 项资源；已有数据的库不会被清空，
+  重新部署不会重置业务记录。
+- 小程序不能部署到 Vercel，仍用微信开发者工具编译运行。
+
 ## 网页版怎么打开
 
 不需要安装、构建或启动服务器：
@@ -104,7 +120,7 @@ npm ci && npm start    # http://localhost:3001，首次启动自动建表并 see
 
 ## Tóm tắt tiếng Việt
 
-桂演 (Guiyan) là nền tảng tài nguyên biểu diễn nghệ thuật Quảng Tây — xem và đặt vé kịch, thuê sân khấu, nghệ sĩ, trải nghiệm di sản, gói văn hóa–du lịch. Đây là bản thiết kế lại cao cấp, **chỉ dành cho khách hàng**: mở `web/index.html` là dùng được ngay; bản mini-program trong `miniprogram/` thì import vào WeChat DevTools là chạy. Hỗ trợ 3 ngôn ngữ (tiếng Trung, tiếng Việt, tiếng Anh) qua ô chọn thả xuống. Có 62 tài nguyên, đặt vé đủ quy trình (đặt → xác nhận → thanh toán mô phỏng → hoàn tất), sàn nhu cầu, trợ lý tư vấn và Vé của tôi. Thanh toán và AI đều là **mô phỏng**, không có giao dịch thật, không có tài khoản/mật khẩu trong repo.
+桂演 (Guiyan) là nền tảng tài nguyên biểu diễn nghệ thuật Quảng Tây — xem và đặt vé kịch, thuê sân khấu, nghệ sĩ, trải nghiệm di sản, gói văn hóa–du lịch. Đây là bản thiết kế lại cao cấp, **chỉ dành cho khách hàng**: mở `web/index.html` là dùng được ngay; bản mini-program trong `miniprogram/` thì import vào WeChat DevTools là chạy. Hỗ trợ 3 ngôn ngữ (tiếng Trung, tiếng Việt, tiếng Anh) qua ô chọn thả xuống. Có 62 tài nguyên, đặt vé đủ quy trình (đặt → xác nhận → thanh toán mô phỏng → hoàn tất), sàn nhu cầu, trợ lý tư vấn và Vé của tôi. Thanh toán và AI đều là **mô phỏng**, không có giao dịch thật, không có tài khoản/mật khẩu trong repo. Đã chuẩn bị sẵn cấu hình deploy lên Vercel (web tĩnh + API function, database Neon Postgres ở Singapore, `DATABASE_URL` đặt trong biến môi trường của Vercel) — xem mục “部署到 Vercel”; mini-program không deploy lên Vercel được.
 
 ## English summary
 
