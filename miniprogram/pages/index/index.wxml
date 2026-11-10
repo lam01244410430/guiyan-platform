@@ -1,0 +1,55 @@
+<view class="wrap">
+<view class="topbar">
+  <view>
+    <view class="brand serif">桂演 Guiyan</view>
+    <view class="brand-sub">{{L.brandTag}}</view>
+  </view>
+  <picker mode="selector" range="{{langs}}" value="{{langIdx}}" bindchange="onLangChange">
+    <view class="langpick">{{langName}} <text class="arrow">▾</text></view>
+  </picker>
+</view>
+  <view class="hero">
+    <view class="kicker">{{L.heroKicker}}</view>
+    <view class="title serif">{{L.heroSub}}</view>
+    <view class="lead">{{L.heroLead}}</view>
+    <view class="stats">{{stats}}</view>
+  </view>
+  <view class="searchrow">
+    <input placeholder="{{L.heroSearchPh}}" bindinput="onKw" confirm-type="search" bindconfirm="goSearch" />
+    <view class="go" bindtap="goSearch">{{L.searchBtn}}</view>
+  </view>
+
+  <view class="section">
+    <view class="sec-title serif">{{L.catTitle}}</view>
+    <view class="sec-sub">{{L.catSub}}</view>
+    <view class="chiprow">
+      <block wx:for="{{cats}}" wx:key="id">
+        <view class="chip" bindtap="goCat" data-cat="{{item.id}}">{{item.name}} · {{item.count}}</view>
+      </block>
+    </view>
+  </view>
+
+  <view class="section">
+    <view class="sec-title serif">{{L.featured}}</view>
+    <block wx:for="{{featured}}" wx:key="idx">
+      <view class="rescard" bindtap="goDetail" data-idx="{{item.idx}}">
+        <view class="name serif">{{item.name}}</view>
+        <view class="meta"><text class="tag">{{item.cat}}</text><text class="tag gold">{{item.city}}</text></view>
+        <view class="desc">{{item.desc}}</view>
+        <view class="foot">
+          <view class="price">{{item.price}}<text class="unit">/ {{item.unit}}</text></view>
+          <view class="views">{{item.views}} {{L.viewsUnit}}</view>
+        </view>
+        <view class="note">{{L.tapToBook}}</view>
+      </view>
+    </block>
+  </view>
+
+  <view class="section">
+    <view class="card" bindtap="goAssistant">
+      <view class="sec-title serif">{{L.assistantEntry}}</view>
+      <view class="sec-sub">{{L.assistantEntrySub}}</view>
+      <view class="note">{{L.aiNote}}</view>
+    </view>
+  </view>
+</view>

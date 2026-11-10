@@ -1,0 +1,66 @@
+<view class="wrap">
+<view class="topbar">
+  <view>
+    <view class="brand serif">桂演 Guiyan</view>
+    <view class="brand-sub">{{L.brandTag}}</view>
+  </view>
+  <picker mode="selector" range="{{langs}}" value="{{langIdx}}" bindchange="onLangChange">
+    <view class="langpick">{{langName}} <text class="arrow">▾</text></view>
+  </picker>
+</view>
+  <view class="sec-title serif">{{L.myTickets}}</view>
+  <view class="simnote">{{L.simNote}}</view>
+
+  <view class="section">
+    <view class="sec-title serif" style="font-size:32rpx">{{L.ordersSection}}</view>
+    <block wx:if="{{orders.length===0}}">
+      <view class="empty">{{L.emptyOrdersMini}}</view>
+      <view class="btn" bindtap="goCatalog">{{L.favSection}}</view>
+    </block>
+    <block wx:for="{{orders}}" wx:key="code">
+      <view class="rescard">
+        <view class="name serif">{{item.name}}</view>
+        <view class="meta">{{item.code}} · {{item.date}} · ×{{item.qty}} · {{item.city}}</view>
+        <view class="foot">
+          <view class="price">{{item.total}}</view>
+          <view><text class="pill {{item.status}}">{{item.statusText}}</text></view>
+        </view>
+        <block wx:if="{{item.status==='pending'}}">
+          <view class="btn" bindtap="act" data-act="confirm" data-code="{{item.code}}">{{L.actConfirm}}</view>
+          <view class="btn ghost" bindtap="act" data-act="cancel" data-code="{{item.code}}">{{L.actCancel}}</view>
+        </block>
+        <block wx:if="{{item.status==='confirmed'}}">
+          <view class="btn" bindtap="act" data-act="pay" data-code="{{item.code}}">{{item.payLabel}}（{{L.simPay}}）</view>
+          <view class="btn ghost" bindtap="act" data-act="cancel" data-code="{{item.code}}">{{L.actCancel}}</view>
+        </block>
+        <block wx:if="{{item.status==='paid'}}">
+          <view class="ticket">
+            <view style="font-size:26rpx;color:#C9A24B">{{L.ticketTitle}}</view>
+            <view class="code serif">{{item.code}}</view>
+          </view>
+          <view class="btn" bindtap="act" data-act="complete" data-code="{{item.code}}">{{L.actComplete}}</view>
+          <view class="btn ghost" bindtap="act" data-act="refund" data-code="{{item.code}}">{{L.actRefund}}</view>
+        </block>
+        <block wx:if="{{item.status==='completed'}}">
+          <view class="note">{{L.doneNote}}</view>
+        </block>
+      </view>
+    </block>
+  </view>
+
+  <view class="section">
+    <view class="sec-title serif" style="font-size:32rpx">{{L.favSection}}</view>
+    <block wx:if="{{favs.length===0}}">
+      <view class="empty">{{L.emptyFav}}</view>
+    </block>
+    <block wx:for="{{favs}}" wx:key="idx">
+      <view class="rescard" bindtap="goDetail" data-idx="{{item.idx}}">
+        <view class="name serif">{{item.name}}</view>
+        <view class="foot">
+          <view class="price">{{item.price}}<text class="unit">/ {{item.unit}}</text></view>
+          <view class="views">{{item.city}} · {{item.views}} {{L.viewsUnit}}</view>
+        </view>
+      </view>
+    </block>
+  </view>
+</view>

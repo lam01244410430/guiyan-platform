@@ -1,0 +1,44 @@
+<view class="wrap">
+<view class="topbar">
+  <view>
+    <view class="brand serif">桂演 Guiyan</view>
+    <view class="brand-sub">{{L.brandTag}}</view>
+  </view>
+  <picker mode="selector" range="{{langs}}" value="{{langIdx}}" bindchange="onLangChange">
+    <view class="langpick">{{langName}} <text class="arrow">▾</text></view>
+  </picker>
+</view>
+  <view class="sec-title serif">{{L.catTitle}}</view>
+  <view class="searchrow">
+    <input placeholder="{{L.searchPh}}" value="{{kw}}" bindinput="onKw" confirm-type="search" />
+    <view class="go">{{L.searchBtn}}</view>
+  </view>
+  <view class="chiprow">
+    <view class="chip {{catSel==='all'?'on':''}}" bindtap="onCat" data-cat="all">{{L.allChip}}</view>
+    <block wx:for="{{cats}}" wx:key="id">
+      <view class="chip {{catSel===item.id?'on':''}}" bindtap="onCat" data-cat="{{item.id}}">{{item.name}}</view>
+    </block>
+  </view>
+  <picker mode="selector" range="{{cityNames}}" value="{{cityIdx}}" bindchange="onCity">
+    <view class="picker">{{L.cityLabel}}：{{cityNames[cityIdx]}} <text class="arrow">▾</text></view>
+  </picker>
+  <picker mode="selector" range="{{sortNames}}" value="{{sortIdx}}" bindchange="onSort">
+    <view class="picker">{{L.sortLabel}}：{{sortNames[sortIdx]}} <text class="arrow">▾</text></view>
+  </picker>
+  <view class="note">{{resultLine}}</view>
+  <block wx:if="{{list.length===0}}">
+    <view class="empty">{{L.emptyRes}}</view>
+  </block>
+  <block wx:for="{{list}}" wx:key="idx">
+    <view class="rescard" bindtap="goDetail" data-idx="{{item.idx}}">
+      <view class="name serif">{{item.name}}</view>
+      <view class="meta"><text class="tag">{{item.cat}}</text><text class="tag gold">{{item.city}}</text></view>
+      <view class="desc">{{item.desc}}</view>
+      <view class="foot">
+        <view class="price">{{item.price}}<text class="unit">/ {{item.unit}}</text></view>
+        <view class="views">{{item.views}} {{L.viewsUnit}}</view>
+      </view>
+      <view class="btn ghost small" catchtap="toggleFav" data-idx="{{item.idx}}">{{item.fav ? L.favOn : L.favOff}}</view>
+    </view>
+  </block>
+</view>

@@ -1,0 +1,32 @@
+{
+  "pages": [
+    "pages/index/index",
+    "pages/category/category",
+    "pages/demands/demands",
+    "pages/assistant/assistant",
+    "pages/orders/orders",
+    "pages/detail/detail"
+  ],
+  "window": {
+    "navigationBarTitleText": "桂演 Guiyan",
+    "navigationBarBackgroundColor": "#0B3D36",
+    "navigationBarTextStyle": "white",
+    "backgroundColor": "#F7F4EE",
+    "backgroundTextStyle": "dark"
+  },
+  "tabBar": {
+    "color": "#8A94A6",
+    "selectedColor": "#0B3D36",
+    "backgroundColor": "#FFFFFF",
+    "borderStyle": "white",
+    "list": [
+      { "pagePath": "pages/index/index", "text": "首页", "iconPath": "assets/tab-home.png", "selectedIconPath": "assets/tab-home-active.png" },
+      { "pagePath": "pages/category/category", "text": "目录", "iconPath": "assets/tab-grid.png", "selectedIconPath": "assets/tab-grid-active.png" },
+      { "pagePath": "pages/demands/demands", "text": "需求", "iconPath": "assets/tab-list.png", "selectedIconPath": "assets/tab-list-active.png" },
+      { "pagePath": "pages/assistant/assistant", "text": "助理", "iconPath": "assets/tab-chat.png", "selectedIconPath": "assets/tab-chat-active.png" },
+      { "pagePath": "pages/orders/orders", "text": "我的票券", "iconPath": "assets/tab-ticket.png", "selectedIconPath": "assets/tab-ticket-active.png" }
+    ]
+  },
+  "style": "v2",
+  "sitemapLocation": "sitemap.json"
+}

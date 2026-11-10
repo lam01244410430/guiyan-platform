@@ -1,0 +1,72 @@
+<view class="wrap">
+<view class="topbar">
+  <view>
+    <view class="brand serif">桂演 Guiyan</view>
+    <view class="brand-sub">{{L.brandTag}}</view>
+  </view>
+  <picker mode="selector" range="{{langs}}" value="{{langIdx}}" bindchange="onLangChange">
+    <view class="langpick">{{langName}} <text class="arrow">▾</text></view>
+  </picker>
+</view>
+  <view class="hero">
+    <view class="kicker">{{res.cat}} · {{res.city}}</view>
+    <view class="title serif">{{res.name}}</view>
+    <view class="lead">{{res.desc}}</view>
+    <view class="stats">{{res.views}} {{L.viewsUnit}}</view>
+  </view>
+  <view class="card">
+    <view class="foot" style="display:flex;justify-content:space-between;align-items:center">
+      <view class="price">{{res.price}}<text class="unit">/ {{res.unit}}</text></view>
+      <view class="btn ghost small" bindtap="toggleFav">{{fav ? L.favOn : L.favOff}}</view>
+    </view>
+    <picker mode="date" value="{{date}}" bindchange="onDate">
+      <view class="picker">{{L.dateLabel}}：{{date || L.datePh}} <text class="arrow">▾</text></view>
+    </picker>
+    <view style="display:flex;justify-content:space-between;align-items:center;margin-top:24rpx">
+      <view>{{L.qtyLabel}}</view>
+      <view class="stepper">
+        <view class="st-btn" bindtap="qtyMinus">−</view>
+        <view class="st-num">{{qty}}</view>
+        <view class="st-btn" bindtap="qtyPlus">＋</view>
+      </view>
+    </view>
+    <view style="display:flex;justify-content:space-between;margin-top:24rpx;font-size:30rpx;font-weight:700">
+      <view>{{L.totalLabel}}</view><view class="price">{{total}}</view>
+    </view>
+    <view class="btn" bindtap="book">{{L.bookNow}}</view>
+    <view class="simnote">{{L.simNote}}</view>
+  </view>
+
+  <block wx:if="{{order}}">
+    <view class="card">
+      <view class="sec-title serif" style="font-size:32rpx">{{order.code}}</view>
+      <view style="margin-top:14rpx"><text class="pill {{order.status}}">{{order.statusText}}</text></view>
+      <view class="note">{{L.flow[0]}} → {{L.flow[1]}} → {{L.flow[2]}} → {{L.flow[3]}}</view>
+      <view class="note">{{order.name}} · {{order.date}} · ×{{order.qty}} · {{order.total}}</view>
+      <block wx:if="{{order.status==='pending'}}">
+        <view class="btn" bindtap="act" data-act="confirm">{{L.actConfirm}}</view>
+        <view class="btn ghost" bindtap="act" data-act="cancel">{{L.actCancel}}</view>
+      </block>
+      <block wx:if="{{order.status==='confirmed'}}">
+        <view class="btn" bindtap="act" data-act="pay">{{order.payLabel}}（{{L.simPay}}）</view>
+        <view class="btn ghost" bindtap="act" data-act="cancel">{{L.actCancel}}</view>
+      </block>
+      <block wx:if="{{order.status==='paid'}}">
+        <view class="btn" bindtap="act" data-act="complete">{{L.actComplete}}</view>
+        <view class="btn ghost" bindtap="act" data-act="refund">{{L.actRefund}}</view>
+      </block>
+      <block wx:if="{{order.status==='completed'}}">
+        <view class="note">{{L.doneNote}}</view>
+      </block>
+    </view>
+    <block wx:if="{{order.status==='paid' || order.status==='completed'}}">
+      <view class="ticket">
+        <view style="font-size:26rpx;color:#C9A24B">{{L.ticketTitle}}</view>
+        <view class="code serif">{{order.code}}</view>
+        <view class="tmeta">{{order.name}}</view>
+        <view class="tmeta">{{order.date}} · ×{{order.qty}} · {{order.total}}</view>
+      </view>
+      <view class="btn ghost" bindtap="goOrders">{{L.myTickets}}</view>
+    </block>
+  </block>
+</view>

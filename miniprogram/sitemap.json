@@ -1,0 +1,4 @@
+{
+  "desc": "Guiyan mini-program pages (customer-facing demo)",
+  "rules": [{ "action": "allow", "page": "*" }]
+}

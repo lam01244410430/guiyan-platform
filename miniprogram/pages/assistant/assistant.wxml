@@ -1,0 +1,31 @@
+<view class="wrap">
+<view class="topbar">
+  <view>
+    <view class="brand serif">桂演 Guiyan</view>
+    <view class="brand-sub">{{L.brandTag}}</view>
+  </view>
+  <picker mode="selector" range="{{langs}}" value="{{langIdx}}" bindchange="onLangChange">
+    <view class="langpick">{{langName}} <text class="arrow">▾</text></view>
+  </picker>
+</view>
+  <view class="sec-title serif">{{L.aiTitle}}</view>
+  <view class="sec-sub">{{L.aiSub}}</view>
+  <view class="note">{{L.aiNote}}</view>
+  <view class="simnote">{{L.simAi}}</view>
+  <view class="section">
+    <view class="chatlog">
+      <block wx:for="{{msgs}}" wx:key="index">
+        <view class="msg {{item.who}}">{{item.text}}</view>
+      </block>
+    </view>
+    <view class="quickrow">
+      <block wx:for="{{quicks}}" wx:key="index">
+        <view class="chip" bindtap="quick" data-q="{{item}}">{{item}}</view>
+      </block>
+    </view>
+    <view class="searchrow">
+      <input placeholder="{{L.chatPh}}" value="{{input}}" bindinput="onInput" confirm-type="send" bindconfirm="send" />
+      <view class="go" bindtap="send">{{L.sendBtn}}</view>
+    </view>
+  </view>
+</view>

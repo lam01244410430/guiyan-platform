@@ -1,0 +1,16 @@
+{
+  "description": "桂演 Guiyan — premium redesign mini-program (customer-facing, i18n zh/vi/en)",
+  "miniprogramRoot": "./",
+  "compileType": "miniprogram",
+  "appid": "touristappid",
+  "projectname": "guiyan-platform",
+  "setting": {
+    "urlCheck": false,
+    "es6": true,
+    "enhance": true,
+    "postcss": true,
+    "minified": true,
+    "minifyWXML": true
+  },
+  "libVersion": "trial"
+}
