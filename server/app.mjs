@@ -22,6 +22,7 @@ import { readFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
 import { categories } from "./seed.mjs";
+import { createStorage, validKey } from "./storage.mjs";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const webIndex = path.join(root, "web", "index.html");
@@ -120,6 +121,9 @@ function createRequestHandler(db, handle) {
 
 export async function createApp({ database }) {
   const db = database;
+  // Object storage is fail-soft (null when AWS_* env vars are missing);
+  // storage routes answer 503 then. See server/storage.mjs.
+  const storage = createStorage();
   const all = (sql, ...params) => db.prepare(sql).all(...params);
   const get = (sql, ...params) => db.prepare(sql).get(...params);
   const run = (sql, ...params) => db.prepare(sql).run(...params);
@@ -579,6 +583,68 @@ export async function createApp({ database }) {
           answer = ANSWERS.fallback;
         }
         send({ kind, answer, mock: true, ...(items ? { items } : {}) });
+        return;
+      }
+
+      const needStorage = () => {
+        assert(storage, "对象存储未配置", 503);
+        return storage;
+      };
+
+      if (p === "/api/storage/health" && req.method === "GET") {
+        send(await needStorage().health());
+        return;
+      }
+
+      if (p === "/api/storage/upload" && req.method === "POST") {
+        const u = needUser();
+        const s = needStorage();
+        assert(validKey(b.key), "文件路径无效", 400);
+        assert(
+          typeof b.content_base64 === "string" &&
+            b.content_base64.length > 0,
+          "文件内容不能为空",
+          400,
+        );
+        const body = Buffer.from(b.content_base64, "base64");
+        assert(
+          body.length > 0 && body.length <= 200000,
+          "文件大小须在 200KB 以内",
+          400,
+        );
+        const contentType =
+          typeof b.content_type === "string" &&
+          b.content_type.length <= 100
+            ? b.content_type
+            : "application/octet-stream";
+        const out = await s.put(b.key, body, contentType);
+        await audit(u, "上传文件", b.key);
+        send({ ok: true, ...out });
+        return;
+      }
+
+      if (p === "/api/storage/url" && req.method === "GET") {
+        needUser();
+        const s = needStorage();
+        const key = url.searchParams.get("key") || "";
+        assert(validKey(key), "文件路径无效", 400);
+        send(await s.presignedGet(key));
+        return;
+      }
+
+      m = p.match(/^\/api\/storage\/(.+)$/);
+      if (
+        m &&
+        req.method === "DELETE" &&
+        !["health", "upload", "url"].includes(m[1])
+      ) {
+        const u = needUser();
+        const s = needStorage();
+        const key = decodeURIComponent(m[1]);
+        assert(validKey(key), "文件路径无效", 400);
+        const out = await s.remove(key);
+        await audit(u, "删除文件", key);
+        send({ ok: true, ...out });
         return;
       }
 

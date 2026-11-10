@@ -5,3 +5,5 @@ dist/
 *.log
 .env
 *.pem
+.env.local
+.neon

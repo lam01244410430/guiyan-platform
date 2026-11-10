@@ -43,7 +43,11 @@ npm start                     # http://localhost:3001
 http://localhost:3001/api/health` 应返回 `{"ok":true,
 "database":"postgres"}`；打开 `http://localhost:3001/` 即为新版 Web。
 
-`DATABASE_URL` 必填，缺失时进程直接退出并提示用法。
+`DATABASE_URL` 必填，缺失时进程直接退出并提示用法。对象存储是可选的：
+`AWS_ACCESS_KEY_ID`、`AWS_SECRET_ACCESS_KEY`、`AWS_ENDPOINT_URL_S3`、
+`AWS_REGION` 四个变量缺一个，`/api/storage/*` 就返回 503
+“对象存储未配置”，其余接口不受影响。这四个变量由 `neon deploy`
+写入 `.env.local`（见根目录 `neon.ts`；bucket 为 `uploads`）。
 演示账号在**首次启动前**由环境变量决定：
 
 ```bash
@@ -80,6 +84,10 @@ DEMO_PASSWORD=... ADMIN_PASSWORD=...
 | POST | /api/favorites | 收藏/取消收藏（切换） |
 | DELETE | /api/favorites/:id | 取消收藏 |
 | GET | /api/assistant?q= | 规则助手（refund / reschedule / heritage / book / hot / hello / fallback，按实时库内数据计算） |
+| GET | /api/storage/health | 对象存储健康检查（bucket `uploads`） |
+| POST | /api/storage/upload | 上传文件（需登录）`{key, content_base64, content_type?}`，文件 ≤200KB |
+| GET | /api/storage/url?key= | 取文件预签名下载链接（需登录，1 小时有效） |
+| DELETE | /api/storage/:key | 删除文件（需登录） |
 
 订单状态机：`pending → confirmed → paid → completed`，非法流转返回
 400；场馆/设备类按天预约，同一天不可重复预订；其余资源下单扣库存、
@@ -132,7 +140,11 @@ vercel link            # 关联一个 Vercel 项目（或在控制台 Import 本
 - Environment Variables：`DATABASE_URL`（Neon PostgreSQL 连接串，
   在 Vercel 控制台设置；**永远不要提交到仓库**）。同时设置
   `DEMO_PASSWORD` 与 `ADMIN_PASSWORD`（首次启动前，决定演示账号
-  的密码；取值见原小组文档《08 运行与最终交付说明》）。
+  的密码；取值见原小组文档《08 运行与最终交付说明》）。对象存储
+  也需要四个变量：`AWS_ACCESS_KEY_ID`、`AWS_SECRET_ACCESS_KEY`、
+  `AWS_ENDPOINT_URL_S3`、`AWS_REGION`（`neon deploy` 写入本地
+  `.env.local` 的同名变量；线上要在 Vercel 控制台再填一份，否则
+  `/api/storage/*` 返回 503）。
 
 **工作原理**（见根目录 `vercel.json` 与 `api/index.js`）：
 
