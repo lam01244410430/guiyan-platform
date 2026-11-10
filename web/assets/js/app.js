@@ -210,8 +210,16 @@ function updateAuthUI(){
   var logged=!!getToken();
   lb.style.display=logged?"none":"";
   st.style.display=logged?"":"none";
-  if(logged&&nm) nm.textContent=fmt(t("loggedInAs"),{name:(apiUser&&(apiUser.name||apiUser.username))||"demo"});
+  if(logged&&nm){
+    var name=(apiUser&&(apiUser.name||apiUser.username))||"demo";
+    nm.textContent=fmt(t("hiName"),{name:name});
+    var av=$("userAvatar"); if(av) av.textContent=name.charAt(0).toUpperCase();
+  }
+  closeUserMenu();
 }
+/* ---- signed-in user menu ("Hi + name" dropdown) ---- */
+function closeUserMenu(){ var m=$("loginState"); if(m) m.classList.remove("open"); var c=$("userChip"); if(c) c.setAttribute("aria-expanded","false"); }
+function toggleUserMenu(ev){ if(ev) ev.stopPropagation(); var m=$("loginState"); if(!m) return; var open=!m.classList.contains("open"); m.classList.toggle("open",open); var c=$("userChip"); if(c) c.setAttribute("aria-expanded",open?"true":"false"); }
 function openLogin(){ var o=$("loginOverlay"); if(o){ o.classList.add("open"); var u=$("loginUser"); if(u) u.focus(); } }
 function closeLogin(){ var o=$("loginOverlay"); if(o) o.classList.remove("open"); }
 function doLogin(ev){
@@ -278,6 +286,11 @@ function bootApi(){
 function bindAuthUI(){
   var lb=$("loginBtn"); if(lb) lb.addEventListener("click",openLogin);
   var lo=$("logoutBtn"); if(lo) lo.addEventListener("click",doLogout);
+  var uc=$("userChip"); if(uc) uc.addEventListener("click",toggleUserMenu);
+  var mo=$("menuOrders"); if(mo) mo.addEventListener("click",function(){ closeUserMenu(); openDrawer(); });
+  var mb=$("menuBtn"); if(mb) mb.addEventListener("click",function(){ var nv=$("mainNav"); if(nv){ var open=!nv.classList.contains("open"); nv.classList.toggle("open",open); mb.setAttribute("aria-expanded",open?"true":"false"); } });
+  var nv=$("mainNav"); if(nv) nv.addEventListener("click",function(e){ if(e.target&&e.target.tagName==="A"){ nv.classList.remove("open"); var b=$("menuBtn"); if(b) b.setAttribute("aria-expanded","false"); } });
+  document.addEventListener("click",function(e){ var m=$("loginState"); if(m&&m.classList.contains("open")&&!m.contains(e.target)) closeUserMenu(); });
   var lf=$("loginForm"); if(lf) lf.addEventListener("submit",doLogin);
   var lc=$("loginCancel"); if(lc) lc.addEventListener("click",closeLogin);
   var lov=$("loginOverlay"); if(lov) lov.addEventListener("click",function(e){ if(e.target===this) closeLogin(); });
@@ -382,6 +395,7 @@ function renderAll(){
 function setLang(l){
   if(l===lang) return;
   lang=l; state.shown=12;
+  closeUserMenu();
   closeSheet();
   renderAll();
 }
@@ -474,7 +488,7 @@ function openDetail(i){
 }
 function closeSheet(){ $("overlay").classList.remove("open"); }
 $("overlay").addEventListener("click",function(e){ if(e.target===this) closeSheet(); });
-document.addEventListener("keydown",function(e){ if(e.key==="Escape"){ closeSheet(); $("drawer").classList.remove("open"); } });
+document.addEventListener("keydown",function(e){ if(e.key==="Escape"){ closeSheet(); $("drawer").classList.remove("open"); closeUserMenu(); var nv=$("mainNav"); if(nv) nv.classList.remove("open"); } });
 
 /* ---- orders ---- */
 var STATUS={pending:"stPending",confirmed:"stConfirmed",paid:"stPaid",completed:"stCompleted",cancelled:"stCancelled",refunded:"stRefunded"};

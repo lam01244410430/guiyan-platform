@@ -41,7 +41,7 @@ a{color:var(--red)}
 .brand .zh{font-size:27px;font-weight:900;letter-spacing:.06em;color:var(--red)}
 .brand small{font-size:10px;letter-spacing:.18em;font-weight:700;color:var(--ink3);text-transform:uppercase}
 .mainnav{display:flex;gap:4px;margin-left:auto}
-.mainnav a{color:var(--ink2);text-decoration:none;font-size:13.5px;font-weight:600;padding:8px 11px;border-radius:99px}
+.mainnav a{color:var(--ink2);text-decoration:none;font-size:13.5px;font-weight:600;padding:8px 11px;border-radius:99px;white-space:nowrap}
 .mainnav a:hover{background:var(--surface2);color:var(--ink)}
 .langsel{position:relative;display:flex;align-items:center;flex:none;background:var(--surface);border:1px solid var(--line2);border-radius:99px;padding:0 10px 0 12px;height:38px;gap:7px;color:var(--ink2)}
 .langsel svg.globe{flex:none;color:var(--gold)}
@@ -52,6 +52,41 @@ a{color:var(--red)}
 .wxbtn:hover{background:#06ad56}
 .cartbtn{display:inline-flex;align-items:center;gap:8px;background:var(--ink);color:var(--bg);border:0;border-radius:99px;padding:9px 16px;font-weight:700;font-size:13.5px;white-space:nowrap}
 .cartbtn b{background:var(--red);color:#fff;border-radius:99px;min-width:21px;height:21px;display:inline-grid;place-items:center;font-size:12px;padding:0 5px}
+
+/* ---------- signed-in user menu ("Hi + name") ---------- */
+.user-menu{position:relative;flex:none}
+.user-chip{display:inline-flex;align-items:center;gap:8px;background:var(--ink);color:var(--bg);border:0;border-radius:99px;padding:5px 13px 5px 5px;font-family:inherit;font-weight:700;font-size:13.5px;white-space:nowrap;cursor:pointer}
+.user-chip .avatar{width:28px;height:28px;flex:none;border-radius:50%;background:var(--red);color:#fff;display:inline-grid;place-items:center;font-size:13px;font-weight:800}
+.user-chip .chev{flex:none;transition:transform .18s}
+.user-menu.open .user-chip .chev{transform:rotate(180deg)}
+.user-drop{position:absolute;right:0;top:calc(100% + 8px);min-width:208px;background:var(--surface);border:1px solid var(--line);border-radius:var(--r-md);box-shadow:var(--shadow);padding:6px;display:none;z-index:70}
+.user-menu.open .user-drop{display:block}
+.user-drop a,.user-drop button{display:flex;width:100%;box-sizing:border-box;text-align:left;background:none;border:0;color:var(--ink);text-decoration:none;font-family:inherit;font-size:13.5px;font-weight:600;padding:9px 12px;border-radius:8px;cursor:pointer}
+.user-drop a:hover,.user-drop button:hover{background:var(--surface2)}
+.user-drop hr{border:0;border-top:1px solid var(--line);margin:4px 6px}
+.user-drop button.danger{color:var(--red)}
+/* ---------- hamburger (narrow screens only) ---------- */
+.menuBtn{display:none;align-items:center;justify-content:center;background:var(--surface);color:var(--ink);border:1px solid var(--line2);border-radius:99px;width:38px;height:38px;flex:none;cursor:pointer}
+/* ---------- responsive header: full width, logo far left, auth far right ---------- */
+@media (max-width:1100px){
+  .brand small{display:none}
+  .wxbtn span{display:none}
+  .wxbtn{padding:9px 11px}
+  .langsel select{max-width:104px}
+  .topbar-in{gap:10px}
+}
+@media (max-width:860px){
+  .menuBtn{display:inline-flex;margin-right:auto}
+  .mainnav{display:none;position:absolute;top:100%;left:0;right:0;flex-direction:column;gap:2px;background:var(--surface);border-bottom:1px solid var(--line);padding:8px 20px 12px;margin-left:0}
+  .mainnav.open{display:flex}
+  .mainnav a{padding:10px 12px;border-radius:8px}
+}
+@media (max-width:560px){
+  .wxbtn{display:none}
+  .cartbtn .lbl{display:none}
+  .cartbtn{padding:9px 12px}
+  .user-chip #loginName{max-width:96px;overflow:hidden;text-overflow:ellipsis}
+}
 @media(max-width:900px){.mainnav{display:none}.brand small{display:none}}
 @media(max-width:560px){.cartbtn span.lbl{display:none}.wxbtn span{display:none}.wxbtn{padding:9px 11px}.langsel select{max-width:104px;font-size:12.5px}}
 
