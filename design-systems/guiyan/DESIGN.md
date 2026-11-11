@@ -66,6 +66,17 @@ screen. Everything else is paper, ink, and data.
   (Latin/Vietnamese) + `system-ui` fallback. All tables, labels,
   buttons, inputs, navigation, and metadata are sans.
 - **Mono:** `ui-monospace, monospace` — order codes and IDs only.
+- **Tables:** every record table has an ID column first — the ID
+  (mono, muted ink3, 13px) is the disambiguator; never append `·N`
+  or any other suffix to a name to make it unique. Table text is
+  neutral ink/ink2 only — no blue links, no green, no cream tint
+  inside cells (status pills excepted).
+- **SortButton:** a 14px icon button beside the header label, vertically
+  centred inside `<th>`. Inactive is muted ink3; active is pine. Icon
+  states: unsorted = up-down arrows, ascending = up arrow, descending =
+  down arrow. Click cycles unsorted → ascending → descending → unsorted.
+  Sorting is client-side only, applies after search, and never changes
+  the stored order — unsorted is the original order.
 - **Scale (px):** 12 · 13.5 · 15 · 18 · 22 · 28 · 34. Page title 34,
   view title 22, stat numerals 28 (hero 34), body 15, meta 12.5.
 - **Line-height:** 1.6 body, 1.15 display.
@@ -99,7 +110,11 @@ screen. Everything else is paper, ink, and data.
   **active: lighter-pine fill `#14564D` + cream text + gold icon —
   no left-border accent** (the rounded-card-with-left-border is the
   canonical AI dashboard tile; the active state is a fill, not a
-  border). Footer: operator name + role, logout as a bordered button.
+  border). A **返回首页** link sits directly above the operator card at the
+  bottom of the sidebar: full-width, 9px radius, 1px `--sidebar-line`
+  border, cream text, home icon on the left; hover is a lighter-pine
+  fill. It links to `/` in the same tab. Footer: operator name + role,
+  logout as a bordered button.
 - **Main:** paper background, one view at a time. Page head: serif
   h1 + sans sub-line + the read-only badge at the far right.
 - **Stat cards:** white surface, 1px line border, 14px radius.

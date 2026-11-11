@@ -60,7 +60,7 @@ export default function AdminLogin() {
           <button type="submit" className="login-btn" id="loginBtn" disabled={busy}>登录</button>
         </form>
         <p className="sub" style={{ margin: "14px 0 0", textAlign: "center" }}>演示账号：admin / admin123</p>
-        <a className="login-back" href="/index.html">← 返回桂演首页</a>
+        <a className="login-back" href="/">← 返回首页</a>
       </div>
     </div>
   );

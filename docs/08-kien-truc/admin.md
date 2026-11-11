@@ -20,6 +20,7 @@ admin/
   assets/
     css/admin.css         # design system riêng: sidebar xanh đậm 240px,
                           #   nền giấy, thẻ doanh thu rộng nổi bật + 4 thẻ nhỏ (không 3 thẻ bằng nhau)
+    icons/ui-home.svg     # icon home (Lucide), kèm entry trong icons-credits.json
     js/loginMain.jsx      # entry login: createRoot + <AdminLogin/>
     js/dashboardMain.jsx  # entry dashboard: createRoot + <AdminDashboard/>
     js/AdminLogin.jsx     # form đăng nhập admin
@@ -27,6 +28,11 @@ admin/
                           #   + 3 view premium (趋势统计 / 经营分析 / 预警中心, giai đoạn 5)
     js/SearchBox.jsx      # khung search dùng chung (redesign 2026-11-11): label thật,
                           #   icon search, nút clear, Esc, đếm kết quả, trạng thái rỗng
+    js/SortButton.jsx     # nút sort dùng chung: button thật, icon Lucide 14px, 3 trạng thái
+                          #   (chưa sort / tăng / giảm), nhận state từ AdminDashboard
+    js/sortUtils.js       # comparator + cycle + sortRows (JS thuần, không JSX): số so số,
+                          #   chuỗi localeCompare "zh", null/undefined tính là rỗng,
+                          #   sort trên bản copy
     js/cats.js            # bảng CATS 10 dòng (copy nguyên văn từ web data.js) + hàm catZh
                           #   thuần — tránh import data.js của web khách vào admin (P2-1)
     js/TrendChart.jsx     # chart SVG thuần (giai đoạn 5): line day/week/month, bar quarter,
@@ -71,6 +77,41 @@ Không lọc theo tiền (`amount`/`price`/`stock`/`budget`). Bảng màu mới 
 - Số liệu live: users 39, orders 133, revenue ¥158,028, resources 62, demands 9 (số đơn tăng dần theo test) — số liệu này là của **DB Neon production trước seed mới**; sau seed mới (139 user / 310 đơn) các con số tổng sẽ đổi theo DB đang chạy, không còn là 39/133 nữa.
 - Bảng nhu cầu dùng `GET /api/admin/demands` (thấy cả nhu cầu chờ duyệt) + cột trạng thái (已通过/待审核/已拒绝).
 - Đăng xuất về lại trang login admin (có giao diện, không phải trang chữ trơn).
+
+## Sắp xếp cột + nút về trang chính (2026-11-11)
+
+Sắp xếp là **client-side** (không endpoint mới): một map `sorts` (`{ [tableId]: { key, dir } }`),
+một entry cho mỗi bảng; click một cột chạy vòng chưa sort → tăng → giảm → chưa sort; đổi view
+reset toàn bộ map (như query search), đổi `period` hoặc chip trạng thái thì giữ nguyên sort.
+Sort chạy **sau** bộ lọc search (+ chip trạng thái ở view 订单）, **trước** mọi slice; khi chưa
+sort, thứ tự là thứ tự gốc từ API. Số so bằng số, chuỗi so bằng `localeCompare "zh"`,
+`null`/`undefined` tính là rỗng (đầu khi tăng, cuối khi giảm); sort luôn trên bản copy
+(`sortRows` trong `sortUtils.js`), không mutate mảng gốc.
+
+| View / bảng | Cột sắp xếp được |
+|---|---|
+| Tổng quan (最近订单） | 订单号 / 金额 / 预订日期 |
+| Đơn hàng | 订单号 / 金额 / 预订日期 |
+| Người dùng | ID / 姓名 / 账号 |
+| Tài nguyên | 名称 / 价格 / 库存 |
+| Nhu cầu | 标题 / 预算 |
+| 趋势统计 (最近周期） | 周期 / 金额 / 订单量 |
+| 经营分析 — 渠道复盘 | 成交额 / 订单量 / 占比 |
+| 经营分析 — 资源销量 Top 10 | 销量 / 数量 / 交易额 (cột 排名 giữ số gốc, không đánh lại) |
+| 预警中心 — 操作审计 | 时间 |
+
+Không sort: thanh trạng thái đơn hàng, thẻ stat, thẻ场馆, danh sách alert. Nút sort là
+`SortButton.jsx` (button thật, icon Lucide 14px: chưa sort = mũi tên lên-xuống, tăng = mũi
+tên lên, giảm = mũi tên xuống; chưa sort màu ink3 mờ, đang sort màu pine), `aria-sort`
+đặt trên `<th>`.
+
+Quy tắc đếm ở 趋势统计： khi có sort, dòng đếm khi search đọc "显示前 10 条" (slice 10 đầu
+của thứ tự đã sort); khi chưa sort vẫn là "显示最近 10 条" (10 chu kỳ mới nhất). Không có
+query thì không hiện dòng đếm. Tổng quan "显示前 8 条" và ranking "共 N 项资源" không đổi.
+
+Nút về trang chính: link `返回首页` (`href="/"`, cùng tab) ở sidebar, ngay trên thẻ operator
+cuối sidebar (kèm icon home Lucide `ui-home`); trang login dùng link chữ sẵn có
+`← 返回首页` (`href="/"`), không thêm link thứ hai.
 
 ## Premium dashboard — GIAI ĐOẠN 5 (chưa làm)
 

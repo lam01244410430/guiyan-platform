@@ -86,7 +86,7 @@ function seed(db, passwords) {
     user.run(
       `visitor${i + 1}`,
       commonHash,
-      `${names[i % 12]}${i >= 12 ? "·" + (i + 1) : ""}`,
+      `${names[i % 12]}`,
       "user",
       ["南宁", "柳州", "桂林", "北海"][i % 4],
       20 + (i % 35),

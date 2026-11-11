@@ -15,6 +15,8 @@ import {
 } from "./adminApi.js";
 import TrendChart from "./TrendChart.jsx";
 import SearchBox from "./SearchBox.jsx";
+import SortButton from "./SortButton.jsx";
+import { cycleDirection, sortRows } from "./sortUtils.js";
 // catZh maps a category id (show/venue/…) to its Chinese name, from a
 // verbatim copy of the CATS table (admin/assets/js/cats.js). It used to
 // come from web/assets/js/data.js, which dragged the whole 866 KB data
@@ -97,7 +99,21 @@ export default function AdminDashboard() {
   // change so a query never leaks into another view. Changing `period`
   // inside trends/analysis does NOT reset it (same view).
   const [query, setQuery] = useState("");
-  function changeView(v) { setView(v); setQuery(""); setDrawerOpen(false); }
+  // One sort entry per table: { [tableId]: { key, dir } }. A table with no
+  // entry is unsorted (original order). Cleared on view change, like `query`;
+  // changing `period` or the orders status chip does NOT clear it (same view).
+  const [sorts, setSorts] = useState({});
+  function toggleSort(tableId, key) {
+    setSorts(function (prev) {
+      const cur = prev[tableId];
+      const next = cur && cur.key === key ? cycleDirection(cur.dir) : "asc";
+      const out = { ...prev };
+      if (next) out[tableId] = { key, dir: next };
+      else delete out[tableId];
+      return out;
+    });
+  }
+  function changeView(v) { setView(v); setQuery(""); setSorts({}); setDrawerOpen(false); }
   // Mobile drawer (≤860px): open state + Esc closes + focus returns to
   // the hamburger. Desktop sidebar is unaffected (drawer CSS only
   // applies at ≤860px).
@@ -275,7 +291,7 @@ export default function AdminDashboard() {
       || has(o.booking_date) || has(o.status) || has(STATUS[o.status]);
   }
   function userMatch(u) {
-    return has(u.name) || has(u.username) || has(u.email) || has(u.city)
+    return has(String(u.id)) || has(u.name) || has(u.username) || has(u.email) || has(u.city)
       || has(u.channel) || has(u.role) || has(u.verified ? "已认证" : "未认证");
   }
   function categoryMatch(c) { return has(c) || has(catZh(c)); }
@@ -311,6 +327,48 @@ export default function AdminDashboard() {
     return has(l.user_name) || has(l.action) || has(l.detail)
       || has(String(l.created_at || "").slice(0, 16));
   }) : auditLogs;
+  // Sort (sortable columns 2026-11-11): derived in render, never stored
+  // order. Pipeline per table: source -> search filter (+ status chip
+  // for orders) -> sort (copy) -> slice. Unsorted = original (API) order.
+  const SORT_ACCESSORS = {
+    overview: {
+      code: (o) => o.code ?? "", amount: (o) => o.amount,
+      booking_date: (o) => o.booking_date ?? "",
+    },
+    orders: {
+      code: (o) => o.code ?? "", amount: (o) => o.amount,
+      booking_date: (o) => o.booking_date ?? "",
+    },
+    users: { id: (u) => u.id, name: (u) => u.name ?? "", username: (u) => u.username ?? "" },
+    resources: { name: (r) => r.name ?? "", price: (r) => r.price, stock: (r) => r.stock },
+    demands: { title: (d) => d.title ?? "", budget: (d) => d.budget },
+    trends: { label: (s) => s.label, amount: (s) => s.amount, count: (s) => s.count },
+    channels: {
+      amount: (c) => c.amount, orders: (c) => c.orders,
+      share: (c) => (analysis && analysis.kpis.revenue ? (c.amount / analysis.kpis.revenue) * 100 : 0),
+    },
+    ranking: { sales: (r) => r.sales, quantity: (r) => r.quantity, revenue: (r) => r.revenue },
+    audit: { created_at: (l) => String(l.created_at || "") },
+  };
+  function sorted(tableId, rows) {
+    const s = sorts[tableId];
+    if (!s) return rows;
+    return sortRows(rows, SORT_ACCESSORS[tableId][s.key], s.dir);
+  }
+  function ariaSort(tableId, key) {
+    const s = sorts[tableId];
+    if (!s || s.key !== key) return "none";
+    return s.dir === "asc" ? "ascending" : "descending";
+  }
+  const sortedOverview = sorted("overview", overviewMatches);
+  const sortedOrders = sorted("orders", filteredOrders);
+  const sortedUsers = sorted("users", filteredUsers);
+  const sortedResources = sorted("resources", filteredResources);
+  const sortedDemands = sorted("demands", filteredDemands);
+  const sortedSeries = sorted("trends", filteredSeries);
+  const sortedChannels = sorted("channels", filteredChannels);
+  const sortedRanking = sorted("ranking", filteredRanking);
+  const sortedAudit = sorted("audit", filteredAudit);
   // Search empty state (parent-side): distinct from the "no data at all"
   // state — only shown while a query is active and nothing matches.
   const searchEmpty = (colSpan) => (
@@ -369,6 +427,10 @@ export default function AdminDashboard() {
               </button>
             ))}
           </nav>
+          <a className="home-link" href="/">
+            <svg className="ic" data-icon="ui:home" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" /><path d="M9 22V12h6v10" /></svg>
+            返回首页
+          </a>
           <div className="who">
             <div><div className="nm" id="whoName">{whoName}</div><div className="rl">管理员</div></div>
             <button type="button" id="logoutBtn" onClick={doLogout}>退出</button>
@@ -422,10 +484,10 @@ export default function AdminDashboard() {
               </div>
               <div className="tbl-wrap">
                 <table>
-                  <thead><tr><th scope="col">订单号</th><th scope="col">用户</th><th scope="col">资源</th><th scope="col" className="num">金额</th><th scope="col">预订日期</th><th scope="col">状态</th></tr></thead>
+                  <thead><tr><th scope="col" aria-sort={ariaSort("overview", "code")}>订单号<SortButton label="订单号" sortKey="code" tableId="overview" sort={sorts.overview} onToggle={toggleSort} /></th><th scope="col">用户</th><th scope="col">资源</th><th scope="col" className="num" aria-sort={ariaSort("overview", "amount")}>金额<SortButton label="金额" sortKey="amount" tableId="overview" sort={sorts.overview} onToggle={toggleSort} /></th><th scope="col" aria-sort={ariaSort("overview", "booking_date")}>预订日期<SortButton label="预订日期" sortKey="booking_date" tableId="overview" sort={sorts.overview} onToggle={toggleSort} /></th><th scope="col">状态</th></tr></thead>
                   <tbody id="recentBody">
                     {orders.length
-                      ? (overviewMatches.length ? overviewMatches.slice(0, 8).map((o) => <OrderRow key={o.code} o={o} />)
+                      ? (overviewMatches.length ? sortedOverview.slice(0, 8).map((o) => <OrderRow key={o.code} o={o} />)
                         : searchEmpty(6))
                       : <tr><td colSpan="6"><div className="empty">暂无订单</div></td></tr>}
                   </tbody>
@@ -450,9 +512,9 @@ export default function AdminDashboard() {
             </div>
             <div className="tbl-wrap">
               <table>
-                <thead><tr><th scope="col">订单号</th><th scope="col">用户</th><th scope="col">资源</th><th scope="col" className="num">金额</th><th scope="col">预订日期</th><th scope="col">状态</th></tr></thead>
+                <thead><tr><th scope="col" aria-sort={ariaSort("orders", "code")}>订单号<SortButton label="订单号" sortKey="code" tableId="orders" sort={sorts.orders} onToggle={toggleSort} /></th><th scope="col">用户</th><th scope="col">资源</th><th scope="col" className="num" aria-sort={ariaSort("orders", "amount")}>金额<SortButton label="金额" sortKey="amount" tableId="orders" sort={sorts.orders} onToggle={toggleSort} /></th><th scope="col" aria-sort={ariaSort("orders", "booking_date")}>预订日期<SortButton label="预订日期" sortKey="booking_date" tableId="orders" sort={sorts.orders} onToggle={toggleSort} /></th><th scope="col">状态</th></tr></thead>
                 <tbody id="ordersBody">
-                  {filteredOrders.length ? filteredOrders.map((o) => <OrderRow key={o.code} o={o} />)
+                  {filteredOrders.length ? sortedOrders.map((o) => <OrderRow key={o.code} o={o} />)
                     : (q ? searchEmpty(6) : <tr><td colSpan="6"><div className="empty">暂无订单</div></td></tr>)}
                 </tbody>
               </table>
@@ -461,21 +523,21 @@ export default function AdminDashboard() {
 
           <section className={"view" + (view === "users" ? " on" : "")} id="view-users">
             <div className="search-row">
-              <SearchBox id="search-users" label="搜索用户" placeholder="输入姓名、账号、邮箱或城市…"
+              <SearchBox id="search-users" label="搜索用户" placeholder="输入ID、姓名、账号、邮箱或城市…"
                 value={query} onChange={setQuery} resultCount={q ? filteredUsers.length : null} />
             </div>
             <div className="tbl-wrap">
               <table>
-                <thead><tr><th scope="col">姓名</th><th scope="col">账号</th><th scope="col">角色</th><th scope="col">城市</th><th scope="col">渠道</th><th scope="col">认证</th></tr></thead>
+                <thead><tr><th scope="col" aria-sort={ariaSort("users", "id")}>ID<SortButton label="ID" sortKey="id" tableId="users" sort={sorts.users} onToggle={toggleSort} /></th><th scope="col" aria-sort={ariaSort("users", "name")}>姓名<SortButton label="姓名" sortKey="name" tableId="users" sort={sorts.users} onToggle={toggleSort} /></th><th scope="col" aria-sort={ariaSort("users", "username")}>账号<SortButton label="账号" sortKey="username" tableId="users" sort={sorts.users} onToggle={toggleSort} /></th><th scope="col">角色</th><th scope="col">城市</th><th scope="col">渠道</th><th scope="col">认证</th></tr></thead>
                 <tbody id="usersBody">
                   {users.length
-                    ? (filteredUsers.length ? filteredUsers.map((usr) => (
+                    ? (filteredUsers.length ? sortedUsers.map((usr) => (
                       <tr key={usr.username}>
-                        <td>{usr.name || ""}</td><td>{usr.username}</td><td>{usr.role}</td>
+                        <td className="id">{usr.id}</td><td>{usr.name || ""}</td><td>{usr.username}</td><td>{usr.role}</td>
                         <td>{usr.city || ""}</td><td>{usr.channel || ""}</td><td>{usr.verified ? "已认证" : "未认证"}</td>
                       </tr>
-                    )) : searchEmpty(6))
-                    : <tr><td colSpan="6"><div className="empty">暂无用户</div></td></tr>}
+                    )) : searchEmpty(7))
+                    : <tr><td colSpan="7"><div className="empty">暂无用户</div></td></tr>}
                 </tbody>
               </table>
             </div>
@@ -488,10 +550,10 @@ export default function AdminDashboard() {
             </div>
             <div className="tbl-wrap">
               <table>
-                <thead><tr><th scope="col">名称</th><th scope="col">分类</th><th scope="col">城市</th><th scope="col" className="num">价格</th><th scope="col" className="num">库存</th></tr></thead>
+                <thead><tr><th scope="col" aria-sort={ariaSort("resources", "name")}>名称<SortButton label="名称" sortKey="name" tableId="resources" sort={sorts.resources} onToggle={toggleSort} /></th><th scope="col">分类</th><th scope="col">城市</th><th scope="col" className="num" aria-sort={ariaSort("resources", "price")}>价格<SortButton label="价格" sortKey="price" tableId="resources" sort={sorts.resources} onToggle={toggleSort} /></th><th scope="col" className="num" aria-sort={ariaSort("resources", "stock")}>库存<SortButton label="库存" sortKey="stock" tableId="resources" sort={sorts.resources} onToggle={toggleSort} /></th></tr></thead>
                 <tbody id="resBody">
                   {resources.length
-                    ? (filteredResources.length ? filteredResources.map((r) => (
+                    ? (filteredResources.length ? sortedResources.map((r) => (
                       <tr key={r.id}>
                         <td>{r.name}</td><td>{r.category}</td><td>{r.city}</td>
                         <td className="num">{fmtMoney(r.price)}</td><td className="num">{r.stock}</td>
@@ -510,10 +572,10 @@ export default function AdminDashboard() {
             </div>
             <div className="tbl-wrap">
               <table>
-                <thead><tr><th scope="col">标题</th><th scope="col">分类</th><th scope="col" className="num">预算</th><th scope="col">城市</th><th scope="col">发布人</th><th scope="col">状态</th><th scope="col">操作</th></tr></thead>
+                <thead><tr><th scope="col" aria-sort={ariaSort("demands", "title")}>标题<SortButton label="标题" sortKey="title" tableId="demands" sort={sorts.demands} onToggle={toggleSort} /></th><th scope="col">分类</th><th scope="col" className="num" aria-sort={ariaSort("demands", "budget")}>预算<SortButton label="预算" sortKey="budget" tableId="demands" sort={sorts.demands} onToggle={toggleSort} /></th><th scope="col">城市</th><th scope="col">发布人</th><th scope="col">状态</th><th scope="col">操作</th></tr></thead>
                 <tbody id="demBody">
                   {demands.length
-                    ? (filteredDemands.length ? filteredDemands.map((d) => (
+                    ? (filteredDemands.length ? sortedDemands.map((d) => (
                       <tr key={d.id}>
                         <td>{d.title}</td><td>{d.category}</td>
                         <td className="num">{fmtMoney(d.budget)}</td><td>{d.city}</td><td>{d.user_name || ""}</td>
@@ -560,13 +622,13 @@ export default function AdminDashboard() {
                   <div className="search-row">
                     <SearchBox id="search-trends" label="搜索周期" placeholder="输入周期，如 11-11 或 2026 Q4…"
                       value={query} onChange={setQuery} resultCount={q ? filteredSeries.length : null}
-                      countText={q ? (filteredSeries.length > 10 ? `找到 ${filteredSeries.length} 条（显示最近 10 条）` : `找到 ${filteredSeries.length} 条`) : undefined} />
+                      countText={q ? (filteredSeries.length > 10 ? `找到 ${filteredSeries.length} 条（显示${sorts.trends ? "前" : "最近"} 10 条）` : `找到 ${filteredSeries.length} 条`) : undefined} />
                   </div>
                   <div className="tbl-wrap">
                     <table>
-                      <thead><tr><th scope="col">周期</th><th scope="col" className="num">金额</th><th scope="col" className="num">订单量</th></tr></thead>
+                      <thead><tr><th scope="col" aria-sort={ariaSort("trends", "label")}>周期<SortButton label="周期" sortKey="label" tableId="trends" sort={sorts.trends} onToggle={toggleSort} /></th><th scope="col" className="num" aria-sort={ariaSort("trends", "amount")}>金额<SortButton label="金额" sortKey="amount" tableId="trends" sort={sorts.trends} onToggle={toggleSort} /></th><th scope="col" className="num" aria-sort={ariaSort("trends", "count")}>订单量<SortButton label="订单量" sortKey="count" tableId="trends" sort={sorts.trends} onToggle={toggleSort} /></th></tr></thead>
                       <tbody>
-                        {filteredSeries.length ? filteredSeries.slice(-10).reverse().map((s) => (
+                        {filteredSeries.length ? (sorts.trends ? sortedSeries.slice(0, 10) : filteredSeries.slice(-10).reverse()).map((s) => (
                           <tr key={s.date}><td>{s.label}</td><td className="num">{fmtMoney(s.amount)}</td><td className="num">{s.count}</td></tr>
                         )) : (q ? searchEmpty(3) : <tr><td colSpan="3"><div className="empty">暂无数据</div></td></tr>)}
                       </tbody>
@@ -604,9 +666,9 @@ export default function AdminDashboard() {
                   <h2>渠道复盘</h2>
                   <div className="tbl-wrap">
                     <table>
-                      <thead><tr><th scope="col">渠道</th><th scope="col" className="num">成交额</th><th scope="col" className="num">订单量</th><th scope="col" className="num">占比</th></tr></thead>
+                      <thead><tr><th scope="col">渠道</th><th scope="col" className="num" aria-sort={ariaSort("channels", "amount")}>成交额<SortButton label="成交额" sortKey="amount" tableId="channels" sort={sorts.channels} onToggle={toggleSort} /></th><th scope="col" className="num" aria-sort={ariaSort("channels", "orders")}>订单量<SortButton label="订单量" sortKey="orders" tableId="channels" sort={sorts.channels} onToggle={toggleSort} /></th><th scope="col" className="num" aria-sort={ariaSort("channels", "share")}>占比<SortButton label="占比" sortKey="share" tableId="channels" sort={sorts.channels} onToggle={toggleSort} /></th></tr></thead>
                       <tbody>
-                        {filteredChannels.length ? filteredChannels.map((c) => (
+                        {filteredChannels.length ? sortedChannels.map((c) => (
                           <tr key={c.name}>
                             <td>{c.name}</td><td className="num">{fmtMoney(c.amount)}</td><td className="num">{c.orders}</td>
                             <td className="num">{analysis.kpis.revenue ? ((c.amount / analysis.kpis.revenue) * 100).toFixed(1) + "%" : "—"}</td>
@@ -621,9 +683,9 @@ export default function AdminDashboard() {
                   <h2>资源销量 Top 10</h2>
                   <div className="tbl-wrap">
                     <table>
-                      <thead><tr><th scope="col">排名</th><th scope="col">资源</th><th scope="col" className="num">销量</th><th scope="col" className="num">数量</th><th scope="col" className="num">交易额</th></tr></thead>
+                      <thead><tr><th scope="col">排名</th><th scope="col">资源</th><th scope="col" className="num" aria-sort={ariaSort("ranking", "sales")}>销量<SortButton label="销量" sortKey="sales" tableId="ranking" sort={sorts.ranking} onToggle={toggleSort} /></th><th scope="col" className="num" aria-sort={ariaSort("ranking", "quantity")}>数量<SortButton label="数量" sortKey="quantity" tableId="ranking" sort={sorts.ranking} onToggle={toggleSort} /></th><th scope="col" className="num" aria-sort={ariaSort("ranking", "revenue")}>交易额<SortButton label="交易额" sortKey="revenue" tableId="ranking" sort={sorts.ranking} onToggle={toggleSort} /></th></tr></thead>
                       <tbody>
-                        {filteredRanking.length ? filteredRanking.slice(0, 10).map((r) => (
+                        {filteredRanking.length ? sortedRanking.slice(0, 10).map((r) => (
                           <tr key={r.id} className={r.rank === 1 ? "top1" : ""}>
                             <td>{r.rank}</td><td>{r.name}</td><td className="num">{r.sales}</td><td className="num">{r.quantity}</td><td className="num">{fmtMoney(r.revenue)}</td>
                           </tr>
@@ -720,10 +782,10 @@ export default function AdminDashboard() {
               <h2>操作审计</h2>
               <div className="tbl-wrap">
                 <table>
-                  <thead><tr><th scope="col">时间</th><th scope="col">操作人</th><th scope="col">操作</th><th scope="col">详情</th></tr></thead>
+                  <thead><tr><th scope="col" aria-sort={ariaSort("audit", "created_at")}>时间<SortButton label="时间" sortKey="created_at" tableId="audit" sort={sorts.audit} onToggle={toggleSort} /></th><th scope="col">操作人</th><th scope="col">操作</th><th scope="col">详情</th></tr></thead>
                   <tbody>
                     {auditLogs.length
-                      ? (filteredAudit.length ? filteredAudit.map((l) => (
+                      ? (filteredAudit.length ? sortedAudit.map((l) => (
                         <tr key={l.id}>
                           <td className="audit-time">{String(l.created_at || "").slice(0, 16)}</td>
                           <td>{l.user_name || "—"}</td><td>{l.action}</td><td>{l.detail || ""}</td>
