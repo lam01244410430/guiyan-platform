@@ -393,7 +393,12 @@ test("admin analysis ports the original insights", async () => {
   const r = await req("/api/admin/analysis?period=day", { token });
   assert.equal(r.status, 200, JSON.stringify(r.json));
   assert.ok(r.json.kpis.revenue > 0);
-  assert.equal(r.json.kpis.orders, 130 + 3); // seed 130 + 3 orders created by earlier tests
+  // kpis.orders counts every order row, same as cumulative stats — compare
+  // against the live cumulative count instead of a hard-coded seed total,
+  // so this test does not depend on how many orders earlier tests created.
+  const stats = await req("/api/admin/stats", { token });
+  assert.equal(stats.status, 200);
+  assert.equal(r.json.kpis.orders, stats.json.orders);
   assert.ok(r.json.kpis.paidOrders > 0);
   assert.ok(r.json.kpis.resources > 0);
   assert.ok(Array.isArray(r.json.ranking) && r.json.ranking.length > 0);
@@ -402,7 +407,7 @@ test("admin analysis ports the original insights", async () => {
   assert.equal(typeof r.json.report, "string");
   assert.ok(r.json.report.includes("模拟经营分析报告"));
   assert.ok(r.json.report.includes("按订单创建时间统计"));
-  assert.equal(r.json.venues.length, 2);
+  assert.equal(r.json.venues.length, 6); // 2 original venue resources + 4 catalog venues
   assert.equal(r.json.venues[0].seatOccupancy, null); // no venue<->show link in Lam's seed
   assert.ok(r.json.definitions.series.includes("无支付时间字段"));
   assert.ok(r.json.userSummary.total >= 38);
@@ -461,14 +466,28 @@ test("admin orders CSV has BOM, exact header and one row per order", async () =>
   assert.ok(
     res.headers.get("content-disposition").includes("guiyan-orders.csv"),
   );
-  const text = await res.text();
-  assert.ok(text.startsWith("\uFEFF"), "CSV must start with a BOM");
-  const lines = text.slice(1).split("\r\n");
+  // Assert the BOM on raw bytes: Response.text() decodes UTF-8 and strips
+  // a leading U+FEFF, so startsWith("\uFEFF") can never pass even though
+  // the wire bytes are correct. TextDecoder also strips the BOM, so after
+  // decoding the header starts at lines[0] with no slice.
+  const buf = Buffer.from(await res.arrayBuffer());
+  assert.deepEqual(
+    [...buf.subarray(0, 3)],
+    [0xef, 0xbb, 0xbf],
+    "CSV must start with a UTF-8 BOM",
+  );
+  const text = new TextDecoder("utf-8").decode(buf);
+  const lines = text.split("\r\n");
   assert.equal(
     lines[0],
     '"订单编号","资源","用户","金额(元)","演出/使用日期","状态","渠道","下单时间(北京时间)","历史时间说明"',
   );
-  assert.equal(lines.length - 1, all.json.orders.length);
+  // B-018: the admin orders list is capped at LIMIT 200, but the CSV
+  // exports every order — so the row count must be checked against the
+  // cumulative stats total, not the capped list (313 rows vs 200 listed).
+  const stats = await req("/api/admin/stats", { token });
+  assert.equal(stats.status, 200);
+  assert.equal(lines.length - 1, stats.json.orders);
   assert.ok(lines.some((l) => l.includes("按订单创建时间统计")));
   const demo = await login();
   const forbidden = await fetch(BASE + "/api/admin/orders.csv", {

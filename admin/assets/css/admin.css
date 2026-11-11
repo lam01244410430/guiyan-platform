@@ -1,18 +1,19 @@
 /* Guiyan admin console — separate web, own design system.
    TasteSkill: no Inter, no purple-blue gradients, no three equal-width
    cards, one section per screen, real content, quiet micro-interactions.
-   Brand: deep pine, cinnabar, gold, warm paper (same family as the
-   customer site, composed as an admin console). Chinese-first UI. */
+   Brand: bright pine, cinnabar, gold on a cool light-neutral base
+   (redesign 2026-11-11: white sidebar, sans headings, no warm paper).
+   Chinese-first UI. */
 :root{
-  --bg:#f7f3ec; --surface:#fffdf8; --surface2:#f3ecdf;
-  --ink:#1c1710; --ink2:#5d5344; --ink3:#6b6151;
-  --line:#ddd2bf; --line2:#cbbd9f;
-  --pine:#0b3d36; --pine-deep:#072a25; --pine-soft:#dcefe9;
-  --red:#c8452c; --red-deep:#a83722; --red-soft:#f6e3d8;
-  --gold:#c9a24b; --gold-ink:#7a5c14; --gold-soft:#f1e5c3;
-  --jade:#0d6e5f; --jade-soft:#dcefe9;
-  --blue:#20518f; --blue-soft:#dbe7f7;
-  --shadow:0 18px 44px rgba(60,40,10,.14);
+  --bg:#fafbfc; --surface:#ffffff; --surface2:#f1f4f6;
+  --ink:#171a1f; --ink2:#4b5563; --ink3:#6b7280;
+  --line:#e3e8ec; --line2:#c7d0d8;
+  --pine:#0f766e; --pine-deep:#0b4f47; --pine-soft:#dff2ee;
+  --red:#c8452c; --red-deep:#a83a20; --red-soft:#fdece7; --red-soft-deep:#f9dcd2;
+  --gold:#c9a24b; --gold-bar:#b8860b; --gold-ink:#7c5a10; --gold-soft:#fdf3d7;
+  --jade:#0d6e5f; --jade-soft:#dcf2ea;
+  --blue:#2563eb; --blue-soft:#dbeafe;
+  --shadow:0 8px 24px rgba(15,23,42,.08);
   --r-lg:20px; --r-md:14px; --r-sm:9px;
 }
 *{box-sizing:border-box}
@@ -21,14 +22,13 @@ body{margin:0;background:var(--bg);color:var(--ink);font-family:"Noto Sans SC","
 a{color:var(--red)}
 button{font:inherit;cursor:pointer}
 input{font:inherit}
-.zh{font-family:"Noto Serif SC",serif}
 
 /* ================= login ================= */
-.login-page{min-height:100vh;background:var(--pine);display:flex;align-items:center;justify-content:center;padding:24px;position:relative;overflow:hidden}
-.login-page::before{content:"桂演";position:absolute;right:-40px;bottom:-90px;font-family:"Noto Serif SC",serif;font-size:340px;font-weight:900;color:rgba(245,238,221,.05);line-height:1;pointer-events:none}
+.login-page{min-height:100vh;background:var(--bg);display:flex;align-items:center;justify-content:center;padding:24px;position:relative;overflow:hidden}
+.login-page::before{content:"桂演";position:absolute;right:-40px;bottom:-90px;font-family:"Noto Sans SC","Be Vietnam Pro",system-ui,sans-serif;font-size:340px;font-weight:900;color:rgba(15,118,110,.06);line-height:1;pointer-events:none}
 .login-card{position:relative;background:var(--surface);border-radius:var(--r-lg);box-shadow:var(--shadow);width:100%;max-width:400px;padding:36px 34px 30px}
-.login-card .mark{font-family:"Noto Serif SC",serif;font-size:44px;font-weight:900;color:var(--red);line-height:1;letter-spacing:.04em}
-.login-card h1{font-family:"Noto Serif SC",serif;font-size:22px;font-weight:900;margin:10px 0 2px}
+.login-card .mark{font-family:"Noto Sans SC","Be Vietnam Pro",system-ui,sans-serif;font-size:44px;font-weight:900;color:var(--red);line-height:1;letter-spacing:.04em}
+.login-card h1{font-family:"Noto Sans SC","Be Vietnam Pro",system-ui,sans-serif;font-size:22px;font-weight:900;margin:10px 0 2px}
 .login-card .sub{color:var(--ink2);font-size:13.5px;margin:0 0 24px}
 .login-card label{display:block;font-size:13px;font-weight:700;color:var(--ink2);margin:0 0 6px}
 .login-card input{width:100%;border:1px solid var(--line2);border-radius:12px;padding:12px 14px;font-size:15px;background:var(--surface);color:var(--ink);margin-bottom:14px;outline:none}
@@ -43,40 +43,40 @@ input{font:inherit}
 .skip-link{position:absolute;left:16px;top:-56px;z-index:200;background:var(--ink);color:var(--bg);padding:10px 18px;border-radius:99px;font-size:14px;font-weight:700;text-decoration:none;transition:top .15s ease}
 .skip-link:focus{top:12px}
 :focus-visible{outline:2px solid var(--red);outline-offset:2px}
-.sidebar button:focus-visible{outline-color:#e8c97a}
-.sidebar nav button:focus-visible{outline:2px solid #e8c97a;outline-offset:2px}
+.sidebar button:focus-visible{outline-color:var(--pine)}
+.sidebar nav button:focus-visible{outline:2px solid var(--pine);outline-offset:2px}
 .admin-app{display:flex;min-height:100vh}
-.sidebar{position:fixed;inset:0 auto 0 0;width:240px;background:var(--pine);color:#f5eedd;display:flex;flex-direction:column;padding:26px 18px 20px;z-index:40}
-.sidebar .mark{font-family:"Noto Serif SC",serif;font-size:30px;font-weight:900;color:#fff;line-height:1;letter-spacing:.04em}
-.sidebar .mark small{display:block;font-size:11px;letter-spacing:.28em;color:#cbbfa5;font-weight:700;margin-top:8px;text-transform:uppercase}
+.sidebar{position:fixed;inset:0 auto 0 0;width:240px;background:#ffffff;color:var(--ink);border-right:1px solid var(--line);display:flex;flex-direction:column;padding:26px 18px 20px;z-index:40}
+.sidebar .mark{font-family:"Noto Sans SC","Be Vietnam Pro",system-ui,sans-serif;font-size:30px;font-weight:900;color:var(--ink);line-height:1;letter-spacing:.04em}
+.sidebar .mark small{display:block;font-size:11px;letter-spacing:.28em;color:var(--ink3);font-weight:700;margin-top:8px;text-transform:uppercase}
 .sidebar nav{margin-top:34px;display:flex;flex-direction:column;gap:4px}
-.sidebar nav button{all:unset;box-sizing:border-box;display:flex;align-items:center;gap:10px;padding:11px 14px;border-radius:10px;font-size:14.5px;font-weight:600;color:#cbbfa5;cursor:pointer;text-align:left}
-.sidebar nav button:hover{background:rgba(245,238,221,.1);color:#fff}
-.sidebar nav button.on:hover{background:rgba(245,238,221,.22)}
-.sidebar nav button.on{background:rgba(245,238,221,.14);color:#fff;box-shadow:inset 3px 0 0 var(--gold)}
+.sidebar nav button{all:unset;box-sizing:border-box;display:flex;align-items:center;gap:10px;padding:11px 14px;border-radius:10px;font-size:14.5px;font-weight:600;color:var(--ink2);cursor:pointer;text-align:left}
+.sidebar nav button:hover{background:var(--surface2);color:var(--ink)}
+.sidebar nav button.on:hover{background:var(--pine-soft)}
+.sidebar nav button.on{background:var(--pine-soft);color:var(--pine);box-shadow:inset 3px 0 0 var(--gold)}
 .sidebar nav button .ic{width:18px;height:18px;flex:none}
-.sidebar .who{margin-top:auto;border-top:1px solid rgba(245,238,221,.18);padding-top:16px;display:flex;align-items:center;gap:10px}
+.sidebar .who{margin-top:auto;border-top:1px solid var(--line);padding-top:16px;display:flex;align-items:center;gap:10px}
 .sidebar .who .nm{font-size:13.5px;font-weight:700;line-height:1.3}
-.sidebar .who .rl{font-size:11.5px;color:#cbbfa5}
-.sidebar .who button{margin-left:auto;border:1px solid rgba(245,238,221,.4);background:transparent;color:#f5eedd;border-radius:99px;padding:6px 12px;font-size:12.5px;font-weight:700}
-.sidebar .who button:hover{background:rgba(245,238,221,.14)}
+.sidebar .who .rl{font-size:11.5px;color:var(--ink3)}
+.sidebar .who button{margin-left:auto;border:1px solid var(--line2);background:transparent;color:var(--ink2);border-radius:99px;padding:6px 12px;font-size:12.5px;font-weight:700}
+.sidebar .who button:hover{background:var(--surface2)}
 .main{flex:1;margin-left:240px;padding:34px 36px 60px;min-width:0}
 .main-head{display:flex;align-items:flex-end;gap:20px;flex-wrap:wrap;margin-bottom:28px}
-.main-head h1{font-family:"Noto Serif SC",serif;font-size:34px;font-weight:900;line-height:1.15;margin:0}
+.main-head h1{font-family:"Noto Sans SC","Be Vietnam Pro",system-ui,sans-serif;font-size:34px;font-weight:900;line-height:1.15;margin:0}
 .main-head h1 .sub{display:block;font-family:"Noto Sans SC",sans-serif;font-size:14px;font-weight:600;color:var(--ink2);margin-top:6px}
 .badge{margin-left:auto;font-size:12px;font-weight:800;padding:5px 12px;border-radius:99px;background:var(--gold-soft);color:var(--gold-ink);white-space:nowrap}
 .view{display:none}
 .view.on{display:block}
-.view h2{font-family:"Noto Serif SC",serif;font-size:22px;font-weight:900;margin:0 0 16px}
+.view h2{font-family:"Noto Sans SC","Be Vietnam Pro",system-ui,sans-serif;font-size:22px;font-weight:900;margin:0 0 16px}
 
 /* stats: featured revenue card + compact cards (not equal-width) */
 .stats{display:grid;grid-template-columns:2fr 1fr 1fr 1fr 1fr;gap:14px;margin-bottom:30px}
 .stat{background:var(--surface);border:1px solid var(--line);border-radius:var(--r-md);padding:18px}
-.stat b{display:block;font-family:"Noto Serif SC",serif;font-size:28px;font-weight:900;line-height:1.1;font-variant-numeric:tabular-nums}
+.stat b{display:block;font-family:"Noto Sans SC","Be Vietnam Pro",system-ui,sans-serif;font-size:28px;font-weight:900;line-height:1.1;font-variant-numeric:tabular-nums}
 .stat span{font-size:12.5px;color:var(--ink2);font-weight:600}
-.stat.hero{background:var(--pine);border-color:var(--pine);color:#f5eedd}
+.stat.hero{background:var(--pine);border-color:var(--pine);color:#ffffff}
 .stat.hero b{color:#fff;font-size:34px}
-.stat.hero span{color:#cbbfa5}
+.stat.hero span{color:#d7ece7}
 .stat.hero b em{font-style:normal;color:#e8c97a;font-size:20px}
 
 /* tables */
@@ -131,3 +131,92 @@ td.num,th.num{text-align:right;font-variant-numeric:tabular-nums;white-space:now
 @keyframes rise{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
 .login-card{animation:rise .5s ease both}
 .login-btn:active,.chips button:active,.sidebar nav button:active{transform:translateY(1px)}
+
+/* ================= premium dashboard (Phase 5) ================= */
+.sidebar .nav-div{height:1px;background:var(--line);margin:14px 4px 10px}
+.sidebar .nav-group{font-size:11px;letter-spacing:.18em;color:var(--ink3);font-weight:700;padding:0 14px 6px}
+.trend-bar{display:flex;align-items:flex-start;gap:12px;flex-wrap:wrap;margin-bottom:14px}
+.trend-bar .chips{margin-bottom:0;flex:1}
+.btn-export{margin-left:auto;border:0;border-radius:99px;background:var(--pine);color:#ffffff;font-weight:700;font-size:13px;padding:8px 18px;white-space:nowrap}
+.btn-export:hover{background:var(--pine-deep)}
+.btn-export:disabled{opacity:.6;cursor:default}
+.cache-note{font-size:12.5px;color:var(--ink3);margin:0 0 14px}
+.def-note{font-size:12.5px;color:var(--ink2);margin:10px 0 0}
+.stat small{display:block;font-size:12px;color:var(--ink2);margin-top:6px;line-height:1.5;font-weight:400}
+.stat.hero small{color:#d7ece7}
+.series-sum{font-size:14px;margin:0 0 8px}
+.user-sum{font-size:14px;margin:0 0 4px}
+.link-btn{border:0;background:none;color:var(--red);font-weight:700;font-size:13.5px;padding:0 0 0 8px;text-decoration:underline}
+.link-btn:hover{color:var(--red-deep)}
+
+/* chart (pure SVG) */
+.chart-wrap{background:var(--surface);border:1px solid var(--line);border-radius:var(--r-md);padding:18px;margin-bottom:16px}
+.chart-toggle{margin-bottom:6px}
+.chart-box{position:relative}
+.chart-box svg{display:block}
+.chart-box .grid{stroke:var(--line);stroke-width:1}
+.chart-box .axis{fill:var(--ink3);font-size:11.5px}
+.chart-box .line{fill:none;stroke:var(--pine);stroke-width:2.5;stroke-linejoin:round;stroke-linecap:round}
+.chart-box .area{fill:rgba(15,118,110,.08);stroke:none}
+.chart-box .dot{fill:var(--pine)}
+.chart-box .bar{fill:var(--gold-bar)}
+.chart-box .bar-val{fill:var(--ink2);font-size:12px;font-weight:700}
+.chart-box .hover-line{stroke:var(--line2);stroke-width:1;stroke-dasharray:3 3}
+.chart-tip{position:absolute;top:0;transform:translate(-50%,0);background:var(--surface);border:1px solid var(--line2);border-radius:var(--r-sm);box-shadow:var(--shadow);padding:8px 12px;font-size:12.5px;white-space:nowrap;pointer-events:none;z-index:5}
+.chart-tip b{display:block;font-size:13px;margin-bottom:2px}
+.chart-tip span{display:block;color:var(--ink2);font-variant-numeric:tabular-nums}
+.src-chips{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:6px}
+.src-chip{font-size:12px;font-weight:700;color:var(--ink2);background:var(--surface2);border:1px solid var(--line);border-radius:99px;padding:4px 12px}
+
+/* analysis */
+.report-title{font-family:"Noto Sans SC","Be Vietnam Pro",system-ui,sans-serif;font-size:24px;font-weight:900;margin:0 0 18px}
+.insights{margin:0;padding-left:20px;font-size:14px}
+.insights li{margin-bottom:8px}
+.venue-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.venue-card b{font-size:24px}
+.report{background:var(--surface);border:1px solid var(--line);border-radius:var(--r-md);padding:18px 20px}
+.report pre{margin:0;font:inherit;font-size:13.5px;line-height:1.8;white-space:pre-wrap;word-break:break-word}
+tr.top1 td{background:var(--gold-soft)}
+
+/* alerts + audit */
+.alert{background:var(--surface);border:1px solid var(--line);border-left:4px solid var(--gold);border-radius:var(--r-md);padding:14px 16px;margin-bottom:12px}
+.alert.info{border-left-color:var(--blue)}
+.alert b{display:block;font-size:14.5px;margin:8px 0 2px}
+.alert p{margin:0 0 10px;font-size:13.5px;color:var(--ink2)}
+.btn-resolve{border:1px solid var(--line2);background:var(--surface);border-radius:99px;padding:6px 14px;font-size:13px;font-weight:700;color:var(--ink)}
+.btn-resolve:hover{background:var(--surface2)}
+.audit-time{font-variant-numeric:tabular-nums;white-space:nowrap}
+
+/* demand review buttons */
+.row-actions{display:flex;gap:8px;white-space:nowrap}
+.btn-approve{border:0;border-radius:99px;background:var(--jade);color:#fff;font-weight:700;font-size:12.5px;padding:6px 14px}
+.btn-approve:hover{background:var(--pine)}
+.btn-approve:disabled,.btn-reject:disabled{opacity:.6;cursor:default}
+.btn-reject{border:1px solid var(--line2);background:var(--red-soft);color:var(--red-deep);border-radius:99px;font-weight:700;font-size:12.5px;padding:6px 14px}
+.btn-reject:hover{background:var(--red-soft-deep)}
+
+@media(max-width:860px){
+  .venue-grid{grid-template-columns:1fr}
+  .sidebar .nav-div{margin:6px 4px}
+  .sidebar .nav-group{padding:0 12px 4px}
+  .btn-export{min-height:44px}
+  .chart-tip{font-size:11.5px;padding:6px 9px}
+  .search-clear{width:44px;height:44px}
+}
+
+/* ================= SearchBox (redesign 2026-11-11) ================= */
+.search-row{margin-bottom:14px}
+.search-box{max-width:340px}
+.search-box label{display:block;font-size:13px;font-weight:700;color:var(--ink2);margin:0 0 6px}
+.search-input{position:relative;display:flex;align-items:center}
+.search-input .search-ic{position:absolute;left:12px;width:16px;height:16px;pointer-events:none;opacity:.6}
+.search-input input{width:100%;height:44px;border:1px solid var(--line2);border-radius:12px;
+  padding:0 38px 0 36px;font-size:14px;background:var(--surface);color:var(--ink);outline:none}
+.search-input input::placeholder{color:var(--ink3)}
+.search-input input:focus{border-color:var(--pine);box-shadow:0 0 0 3px var(--pine-soft)}
+/* Hide the browser's own search clear button so it does not duplicate ours */
+.search-input input::-webkit-search-cancel-button{display:none}
+.search-clear{position:absolute;right:6px;width:32px;height:32px;border:0;border-radius:99px;
+  background:transparent;color:var(--ink2);font-size:18px;line-height:1}
+.search-clear:hover{background:var(--surface2);color:var(--ink)}
+.search-count{font-size:12.5px;color:var(--ink2);margin:6px 0 0}

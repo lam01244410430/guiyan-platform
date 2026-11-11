@@ -123,10 +123,12 @@ test("demo set intact + exactly 100 new users, unique usernames", async () => {
     "SELECT COUNT(*)::int AS n FROM (SELECT name FROM users WHERE id >= 40 GROUP BY name HAVING COUNT(*) > 1) d",
   );
   assert.equal(dupNames.n, 0, "new full names must be unique");
-  // No email column exists yet (Phase 3 owns registration); the derived
-  // address <username>@example.com must still be unique per new user.
+  // The derived address <username>@example.com must still be unique per new user.
+  // GROUP BY the expression, not the alias: since phase 3 the users table has a
+  // real email column, so GROUP BY email would group by that column and the
+  // username in the SELECT list would fail ("must appear in the GROUP BY clause").
   const dupMail = await one(
-    "SELECT COUNT(*)::int AS n FROM (SELECT username || '@example.com' AS email FROM users WHERE id >= 40 GROUP BY email HAVING COUNT(*) > 1) d",
+    "SELECT COUNT(*)::int AS n FROM (SELECT username || '@example.com' AS email FROM users WHERE id >= 40 GROUP BY username || '@example.com' HAVING COUNT(*) > 1) d",
   );
   assert.equal(dupMail.n, 0);
   const badCity = await one(

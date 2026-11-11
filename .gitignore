@@ -8,4 +8,6 @@ dist/
 .env.local
 .neon
 .vercel
+# TasteSkill local gate artifacts (incl. headless Chrome profile)
+admin/.taste-skill/
 .env*

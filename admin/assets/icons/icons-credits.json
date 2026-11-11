@@ -1,5 +1,16 @@
 [
   {
+    "file": "ui-chart-line.svg",
+    "icon": "ui:chart-line",
+    "name": "Chart Line",
+    "kind": "line",
+    "source": "@iconify-json/lucide@1.2.100",
+    "author": "Lucide Contributors",
+    "licence": "ISC",
+    "url": "https://github.com/lucide-icons/lucide",
+    "trademark": false
+  },
+  {
     "file": "ui-clipboard-list.svg",
     "icon": "ui:clipboard-list",
     "name": "Clipboard List",
@@ -55,9 +66,31 @@
     "trademark": false
   },
   {
+    "file": "ui-triangle-alert.svg",
+    "icon": "ui:triangle-alert",
+    "name": "Triangle Alert",
+    "kind": "line",
+    "source": "@iconify-json/lucide@1.2.100",
+    "author": "Lucide Contributors",
+    "licence": "ISC",
+    "url": "https://github.com/lucide-icons/lucide",
+    "trademark": false
+  },
+  {
     "file": "ui-users.svg",
     "icon": "ui:users",
     "name": "Users",
+    "kind": "line",
+    "source": "@iconify-json/lucide@1.2.100",
+    "author": "Lucide Contributors",
+    "licence": "ISC",
+    "url": "https://github.com/lucide-icons/lucide",
+    "trademark": false
+  },
+  {
+    "file": "ui-search.svg",
+    "icon": "ui:search",
+    "name": "Search",
     "kind": "line",
     "source": "@iconify-json/lucide@1.2.100",
     "author": "Lucide Contributors",

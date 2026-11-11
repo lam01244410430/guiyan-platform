@@ -68,25 +68,47 @@ return period === "day"? key.slice(5): key;
 
 // Fill zero-transaction buckets from the earliest bucket through today,
 // in chronological order. `rows` are {bucket, amount, count} from SQL.
+// Steps bucket-by-bucket (not day-by-day): a quarter bucket key like
+// "2026 Q4" is not a valid date, so day-stepping from it throws
+// (B-014). Bucket keys sort lexicographically in time order within one
+// period ("2026-08" < "2026-09", "2026 Q3" < "2026 Q4"), so string
+// comparison is a safe stop condition.
+function nextBucket(key, period) {
+  if (period === "week") return shiftDay(key, 7);
+  if (period === "month") {
+    const y = Number(key.slice(0, 4));
+    const m = Number(key.slice(5, 7));
+    return m === 12
+      ? `${y + 1}-01`
+      : `${y}-${String(m + 1).padStart(2, "0")}`;
+  }
+  if (period === "quarter") {
+    const y = Number(key.slice(0, 4));
+    const q = Number(key.slice(6, 7));
+    return q === 4 ? `${y + 1} Q1` : `${y} Q${q + 1}`;
+  }
+  return shiftDay(key, 1);
+}
+
 function buildSeries(rows, period, today) {
-const byKey = new Map(rows.map((r) => [bucketKey(r.bucket, period), r]));
-const start = rows.length
-? bucketKey(rows.map((r) => r.bucket).sort()[0], period)
-: bucketKey(shiftDay(today, -29), period);
-const series = new Map();
-for (let d = start; d <= today; d = shiftDay(d, 1)) {
-const key = bucketKey(d, period);
-if (!series.has(key)) {
-const found = byKey.get(key);
-series.set(key, {
-date: key,
-label: bucketLabel(key, period),
-amount: found? Number(found.amount): 0,
-count: found? Number(found.count): 0,
-});
-}
-}
-return [...series.values()];
+  const byKey = new Map(rows.map((r) => [bucketKey(r.bucket, period), r]));
+  const start = rows.length
+    ? bucketKey(rows.map((r) => r.bucket).sort()[0], period)
+    : bucketKey(shiftDay(today, -29), period);
+  const endKey = bucketKey(today, period);
+  const series = new Map();
+  for (let key = start; key <= endKey; key = nextBucket(key, period)) {
+    if (!series.has(key)) {
+      const found = byKey.get(key);
+      series.set(key, {
+        date: key,
+        label: bucketLabel(key, period),
+        amount: found ? Number(found.amount) : 0,
+        count: found ? Number(found.count) : 0,
+      });
+    }
+  }
+  return [...series.values()];
 }
 
 async function seriesFor(ctx, period) {
@@ -460,7 +482,7 @@ resources: resources.filter((r) => r.status === "published").length,
 users: active.size,
 };
 const report = [
-"",
+"模拟经营分析报告",
 `生成日期：${today}；金额按有效已支付订单统计，退款成功订单剔除。`,
 `交易总额：${(kpis.revenue / 100).toFixed(2)}元；历史订单：${kpis.orders}笔；有效付费订单：${paid.length}笔。`,
 ...venues.map(

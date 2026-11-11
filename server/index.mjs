@@ -95,7 +95,7 @@ export async function createApp({ database }) {
       res.writeHead(204, {
         "Access-Control-Allow-Origin": "*",
         "Access-Control-Allow-Headers": "Content-Type,Authorization",
-        "Access-Control-Allow-Methods": "GET,POST,DELETE,OPTIONS",
+        "Access-Control-Allow-Methods": "GET,POST,PATCH,DELETE,OPTIONS",
       });
       res.end();
       return;
