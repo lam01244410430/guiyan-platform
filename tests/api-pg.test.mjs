@@ -680,3 +680,97 @@ test(
     }
   },
 );
+
+/* ---- Phase 3: registration (POST /api/auth/register) ---- */
+
+test("register creates a user, returns token + user with role=user, and the new account can log in", async () => {
+  const r = await req("/api/auth/register", {
+    method: "POST",
+    body: { username: "reguser1", password: "secret1", name: "注册用户", email: "reg1@example.com" },
+  });
+  assert.equal(r.status, 200, JSON.stringify(r.json));
+  assert.ok(r.json.token, "register must auto-login with a token");
+  assert.equal(r.json.user.username, "reguser1");
+  assert.equal(r.json.user.name, "注册用户");
+  assert.equal(r.json.user.role, "user");
+  assert.equal(r.json.user.email, "reg1@example.com");
+  assert.equal(r.json.user.password, undefined, "password must not leak");
+  // The token works immediately, and the same credentials log in too.
+  const me = await req("/api/orders", { token: r.json.token });
+  assert.equal(me.status, 200);
+  const again = await req("/api/auth/login", {
+    method: "POST",
+    body: { username: "reguser1", password: "secret1" },
+  });
+  assert.equal(again.status, 200);
+  assert.equal(again.json.user.username, "reguser1");
+});
+
+test("register rejects a duplicate username with 409", async () => {
+  const dup = await req("/api/auth/register", {
+    method: "POST",
+    body: { username: "reguser1", password: "secret1", name: "又一个" },
+  });
+  assert.equal(dup.status, 409);
+  const demoDup = await req("/api/auth/register", {
+    method: "POST",
+    body: { username: "demo", password: "secret1", name: "冒充" },
+  });
+  assert.equal(demoDup.status, 409);
+});
+
+test("register validates username, password, name and email", async () => {
+  const shortPw = await req("/api/auth/register", {
+    method: "POST",
+    body: { username: "reguser2", password: "12345", name: "短密码" },
+  });
+  assert.equal(shortPw.status, 400);
+  const noName = await req("/api/auth/register", {
+    method: "POST",
+    body: { username: "reguser2", password: "secret1", name: "   " },
+  });
+  assert.equal(noName.status, 400);
+  const badEmail = await req("/api/auth/register", {
+    method: "POST",
+    body: { username: "reguser2", password: "secret1", name: "错邮箱", email: "not-an-email" },
+  });
+  assert.equal(badEmail.status, 400);
+  const badUser = await req("/api/auth/register", {
+    method: "POST",
+    body: { username: "ab", password: "secret1", name: "太短" },
+  });
+  assert.equal(badUser.status, 400);
+  const badChars = await req("/api/auth/register", {
+    method: "POST",
+    body: { username: "bad name!", password: "secret1", name: "坏字符" },
+  });
+  assert.equal(badChars.status, 400);
+});
+
+test("register ignores a client-supplied role: role=admin still creates a user", async () => {
+  const r = await req("/api/auth/register", {
+    method: "POST",
+    body: { username: "reguser3", password: "secret1", name: "想当管理员", role: "admin" },
+  });
+  assert.equal(r.status, 200, JSON.stringify(r.json));
+  assert.equal(r.json.user.role, "user");
+  // ...and the new account cannot reach the admin API.
+  const stats = await req("/api/admin/stats", { token: r.json.token });
+  assert.equal(stats.status, 403);
+});
+
+test("register without email works, and the new user shows in /api/admin/users", async () => {
+  const r = await req("/api/auth/register", {
+    method: "POST",
+    body: { username: "reguser4", password: "secret1", name: "无邮箱用户" },
+  });
+  assert.equal(r.status, 200, JSON.stringify(r.json));
+  assert.equal(r.json.user.email, null);
+  const admin = await adminLogin();
+  const users = await req("/api/admin/users", { token: admin });
+  assert.equal(users.status, 200);
+  const found = users.json.users.find((u) => u.username === "reguser4");
+  assert.ok(found, "new user must appear in admin users");
+  assert.equal(found.role, "user");
+  assert.equal(found.password, undefined);
+});

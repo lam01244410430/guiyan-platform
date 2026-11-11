@@ -14,6 +14,9 @@
 // - Refund goes paid -> refunded directly (simulated refund completes at
 //   once, escrow "已模拟退款"); the original had an intermediate
 //   refund_requested state approved by an operator, which has no UI here.
+// - Registration (POST /api/auth/register, phase 3) creates a fixed-role
+//   user and auto-logs them in. No email verification in this phase:
+//   there is no email provider, and email is optional.
 
 import http from "node:http";
 import { categories } from "./seed.mjs";
@@ -23,7 +26,7 @@ import { createCache } from "./lib/cache.mjs";
 import { serveStatic } from "./static.mjs";
 import { health, listCategories } from "./routes/misc.mjs";
 import { listResources, getResource } from "./routes/resources.mjs";
-import { login, logout } from "./routes/auth.mjs";
+import { login, logout, register } from "./routes/auth.mjs";
 import { listOrders, createOrder, transitionOrder } from "./routes/orders.mjs";
 import { listDemands, createDemand } from "./routes/demands.mjs";
 import { listFavorites, toggleFavorite, deleteFavorite } from "./routes/favorites.mjs";
@@ -141,6 +144,7 @@ export async function createApp({ database }) {
       if (await listResources(ctx)) return;
       if (await getResource(ctx)) return;
       if (await login(ctx)) return;
+      if (await register(ctx)) return;
       if (await logout(ctx)) return;
       if (await listOrders(ctx)) return;
       if (await createOrder(ctx)) return;

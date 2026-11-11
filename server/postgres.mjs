@@ -59,6 +59,12 @@ export async function openPostgresStore(
       await client.query(
         "ALTER TABLE comments ADD COLUMN IF NOT EXISTS dimensions TEXT NOT NULL DEFAULT '{}'",
       );
+      // Phase 3 (registration): optional email on users. Fresh databases
+      // get it from schema.mjs; existing ones (incl. live Neon) get it
+      // here, same precedent as the dimensions column above.
+      await client.query(
+        "ALTER TABLE users ADD COLUMN IF NOT EXISTS email TEXT",
+      );
       if (!(await client.query("SELECT COUNT(*) AS n FROM users")).rows[0].n) {
         // Batch adjacent inserts to keep first-time setup fast over the network.
         const groups = [];

@@ -2,7 +2,7 @@
    login dialog and toast. Ported 1:1 from web/index.html + web/user.html
    (same markup, classes, ids and behaviour); the two pages shared this
    markup before and must stay in sync, so it lives here once.
- */
+   Registration dialog added in phase 3 (POST /api/auth/register). */
 import { useEffect, useRef, useState } from "react";
 import { t, fmt } from "./data.js";
 
@@ -144,6 +144,58 @@ export function LoginDialog({ open, err, onClose, onLogin, onRegisterClick }) {
         <input id="loginPass" type="password" value={loginPass} onChange={(e) => setLoginPass(e.target.value)} autoComplete="current-password" placeholder={t("passPh")} />
         <div className="err" id="loginErr">{err || ""}</div>
         <div className="row"><button className="btn red" type="submit">{t("loginBtn")}</button></div>
+        <div className="row"><button type="button" className="linklike" id="toRegister" onClick={onRegisterClick}>{t("regToRegister")}</button></div>
+      </form>
+    </div>
+  );
+}
+
+/* Register dialog (phase 3). Client validation mirrors the API exactly:
+   username 3–20 [A-Za-z0-9_], password >= 6, name required, email
+   optional but must match the API format when given. Server errors
+   (e.g. duplicate username) arrive via the err prop. */
+const USERNAME_RE = /^[A-Za-z0-9_]{3,20}$/;
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+export function RegisterDialog({ open, err, onClose, onRegister, onLoginClick }) {
+  const [username, setUsername] = useState("");
+  const [password, setPassword] = useState("");
+  const [name, setName] = useState("");
+  const [email, setEmail] = useState("");
+  const [localErr, setLocalErr] = useState("");
+  const userRef = useRef(null);
+
+  useEffect(() => {
+    if (open && userRef.current) userRef.current.focus();
+  }, [open ]);
+
+  useEffect(() => { if (!open) setLocalErr(""); }, [open]);
+
+  function submit(e) {
+    e.preventDefault();
+    const u = username.trim();
+    if (!USERNAME_RE.test(u)) { setLocalErr(t("regUserInvalid")); return; }
+    if (password.trim().length < 6) { setLocalErr(t("regPassShort")); return; }
+    if (!name.trim()) { setLocalErr(t("regNameRequired")); return; }
+    const em = email.trim();
+    if (em && !EMAIL_RE.test(em)) { setLocalErr(t("regEmailInvalid")); return; }
+    setLocalErr("");
+    onRegister({ username: u, password: password.trim(), name: name.trim(), email: em || undefined });
+  }
+
+  return (
+    <div className={"auth-overlay" + (open ? " open" : "")} id="registerOverlay" role="dialog" aria-modal="true"
+      onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
+      <form className="auth-card" id="registerForm" onSubmit={submit}>
+        <button type="button" className="x" id="registerCancel" aria-label="Close" onClick={onClose}>✕</button>
+        <h3>{t("registerTitle")}</h3>
+        <input id="regUser" ref={userRef} type="text" value={username} onChange={(e) => setUsername(e.target.value)} autoComplete="username" placeholder={t("userPh")} />
+        <input id="regPass" type="password" value={password} onChange={(e) => setPassword(e.target.value)} autoComplete="new-password" placeholder={t("passPh")} />
+        <input id="regName" type="text" value={name} onChange={(e) => setName(e.target.value)} autoComplete="name" placeholder={t("namePh")} />
+        <input id="regEmail" type="email" value={email} onChange={(e) => setEmail(e.target.value)} autoComplete="email" placeholder={t("emailPh")} />
+        <div className="err" id="registerErr">{localErr || err || ""}</div>
+        <div className="row"><button className="btn red" type="submit">{t("registerBtn")}</button></div>
+        <div className="row"><button type="button" className="linklike" id="toLogin" onClick={onLoginClick}>{t("regToLogin")}</button></div>
       </form>
     </div>
   );

@@ -14,7 +14,7 @@ import {
   clearToken, restoreUser, isApiAvailable, mergeCategories, mergeResources,
   mergeDemands, mapApiOrder, STATUS,
 } from "./apiClient.js";
-import { Header, LoginDialog, Toast } from "./chrome.jsx";
+import { Header, LoginDialog, RegisterDialog, Toast } from "./chrome.jsx";
 import heroImg from "../img/hero.webp";
 import spotlightImg from "../img/spotlight.webp";
 
@@ -39,6 +39,8 @@ export default function App() {
   const [navOpen, setNavOpen] = useState(false);
   const [loginOpen, setLoginOpen] = useState(false);
   const [loginErr, setLoginErr] = useState("");
+  const [registerOpen, setRegisterOpen] = useState(false);
+  const [registerErr, setRegisterErr] = useState("");
   const [demandOpen, setDemandOpen] = useState(false);
   const [detailIdx, setDetailIdx] = useState(null);
   const [bkQty, setBkQty] = useState(1);
@@ -216,6 +218,18 @@ export default function App() {
       } else { setLoginErr(t("loginFailed")); }
     }).catch(function (e) {
       setLoginErr((e && e.data && e.data.error) || t("loginFailed"));
+    });
+  }
+  function doRegister(f) {
+    setRegisterErr("");
+    apiPost("/api/auth/register", f).then(function (d) {
+      if (d && d.token) {
+        setToken(d.token, d.user || { username: f.username, name: f.name });
+        setUser(currentUser()); setRegisterOpen(false);
+        loadFavoritesApi(); refreshOrdersApi();
+      } else { setRegisterErr(t("registerFailed")); }
+    }).catch(function (e) {
+      setRegisterErr((e && e.data && e.data.error) || t("registerFailed"));
     });
   }
   function doLogout() {
@@ -755,7 +769,10 @@ export default function App() {
         </div>
       </aside>
 
-      <LoginDialog open={loginOpen} err={loginErr} onClose={() => setLoginOpen(false)} onLogin={doLogin} />
+      <LoginDialog open={loginOpen} err={loginErr} onClose={() => setLoginOpen(false)} onLogin={doLogin}
+        onRegisterClick={() => { setLoginOpen(false); setRegisterErr(""); setRegisterOpen(true); }} />
+      <RegisterDialog open={registerOpen} err={registerErr} onClose={() => setRegisterOpen(false)} onRegister={doRegister}
+        onLoginClick={() => { setRegisterOpen(false); setLoginOpen(true); }} />
 
       {/* post-demand dialog */}
       <div className={"auth-overlay" + (demandOpen ? " open" : "")} id="demandOverlay" role="dialog" aria-modal="true"

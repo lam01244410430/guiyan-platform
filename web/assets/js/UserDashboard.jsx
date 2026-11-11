@@ -8,7 +8,7 @@ import {
   apiGet, apiPost, currentUser, getToken, setToken, clearToken,
   restoreUser, fmtMoney, statusKey,
 } from "./apiClient.js";
-import { Header, LoginDialog, Toast } from "./chrome.jsx";
+import { Header, LoginDialog, RegisterDialog, Toast } from "./chrome.jsx";
 
 export default function UserDashboard() {
   const [lang, setLangState] = useState(langState.lang);
@@ -17,6 +17,8 @@ export default function UserDashboard() {
   const [navOpen, setNavOpen] = useState(false);
   const [loginOpen, setLoginOpen] = useState(false);
   const [loginErr, setLoginErr] = useState("");
+  const [registerOpen, setRegisterOpen] = useState(false);
+  const [registerErr, setRegisterErr] = useState("");
   const [toastMsg, setToastMsg] = useState("");
   const [gate, setGate] = useState(true); /* true = show login gate, false = show main */
   const [usrOrders, setUsrOrders] = useState([]);
@@ -82,6 +84,17 @@ export default function UserDashboard() {
     }).catch(function (e) {
       if (e && e.status === 401) { setLoginErr(t("loginFailed")); }
       else { setLoginErr(t("loadErr")); }
+    });
+  }
+  function doRegister(f) {
+    setRegisterErr("");
+    apiPost("/api/auth/register", f).then(function (d) {
+      if (d && d.token) {
+        setToken(d.token, d.user || { username: f.username, name: f.name });
+        setUser(currentUser()); setRegisterOpen(false); usrLoad();
+      } else { setRegisterErr(t("registerFailed")); }
+    }).catch(function (e) {
+      setRegisterErr((e && e.data && e.data.error) || t("registerFailed"));
     });
   }
   function doLogout() {
@@ -259,7 +272,10 @@ export default function UserDashboard() {
         </div>
       </footer>
 
-      <LoginDialog open={loginOpen} err={loginErr} onClose={() => setLoginOpen(false)} onLogin={doLogin} />
+      <LoginDialog open={loginOpen} err={loginErr} onClose={() => setLoginOpen(false)} onLogin={doLogin}
+        onRegisterClick={() => { setLoginOpen(false); setRegisterErr(""); setRegisterOpen(true); }} />
+      <RegisterDialog open={registerOpen} err={registerErr} onClose={() => setRegisterOpen(false)} onRegister={doRegister}
+        onLoginClick={() => { setRegisterOpen(false); setLoginOpen(true); }} />
       <Toast msg={toastMsg} />
     </>
   );
