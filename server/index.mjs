@@ -14,12 +14,12 @@
 // - Refund goes paid -> refunded directly (simulated refund completes at
 //   once, escrow "已模拟退款"); the original had an intermediate
 //   refund_requested state approved by an operator, which has no UI here.
-// - No registration endpoint: demo accounts are seeded (see seed.mjs).
 
 import http from "node:http";
 import { categories } from "./seed.mjs";
 import { assert, time, yuan } from "./lib/http.mjs";
 import { createContext } from "./lib/context.mjs";
+import { createCache } from "./lib/cache.mjs";
 import { serveStatic } from "./static.mjs";
 import { health, listCategories } from "./routes/misc.mjs";
 import { listResources, getResource } from "./routes/resources.mjs";
@@ -30,6 +30,7 @@ import { listFavorites, toggleFavorite, deleteFavorite } from "./routes/favorite
 import { ANSWERS, assistant } from "./routes/assistant.mjs";
 import { storageHealth, storageUpload, storageUrl, storageDelete } from "./routes/storage.mjs";
 import { adminStats, adminOrders, adminUsers, adminDemands } from "./routes/admin.mjs";
+import { adminStatsSeries, adminAnalysis, adminAlerts, adminOrdersCsv, adminReviewDemand, adminAuditLogs } from "./routes/admin-insights.mjs";
 
 // Commit before sending the response, so the next request sees saved changes.
 function createRequestHandler(db, handle) {
@@ -42,7 +43,12 @@ function createRequestHandler(db, handle) {
     };
     try {
       await db.request(() => handle(req, res), {
-        write: !["GET", "HEAD", "OPTIONS"].includes(req.method),
+        // GET /api/admin/orders.csv writes exactly one audit row
+        // ("导出报表"), so it needs a write transaction like the POSTs.
+        write:
+          !["GET", "HEAD", "OPTIONS"].includes(req.method) ||
+          new URL(req.url, "http://localhost").pathname ===
+            "/api/admin/orders.csv",
         success: () => res.statusCode < 400,
       });
       res.end = end;
@@ -66,6 +72,11 @@ export async function createApp({ database }) {
   const db = database;
   const context = createContext(database);
   const { get } = context;
+  // Redis cache is fail-open (see server/lib/cache.mjs): when Redis is
+  // unconfigured or down this is a disabled no-op cache and every route
+  // serves Postgres directly. Covers Vercel too — api/index.js reuses
+  // createApp, and the Upstash REST driver holds no connection.
+  const cache = await createCache();
 
   const handleApi = async (req, res) => {
     const send = (value, status = 200) => {
@@ -121,7 +132,7 @@ export async function createApp({ database }) {
 
       const ctx = {
         ...context,
-        req, send, url, p, b, session, needUser, categories, time, yuan, ANSWERS,
+        req, res, send, url, p, b, session, needUser, categories, time, yuan, ANSWERS, cache,
       };
 
       // Routing table: preserve the original handleApi check order.
@@ -148,6 +159,12 @@ export async function createApp({ database }) {
       if (await adminOrders(ctx)) return;
       if (await adminUsers(ctx)) return;
       if (await adminDemands(ctx)) return;
+      if (await adminStatsSeries(ctx)) return;
+      if (await adminAnalysis(ctx)) return;
+      if (await adminAlerts(ctx)) return;
+      if (await adminOrdersCsv(ctx)) return;
+      if (await adminReviewDemand(ctx)) return;
+      if (await adminAuditLogs(ctx)) return;
 
       send({ error: "接口不存在" }, 404);
     } catch (e) {
@@ -175,6 +192,9 @@ export async function createApp({ database }) {
 
   const server = http.createServer(handler);
   server.handler = handler;
-  server.on("close", () => db.close());
+  server.on("close", () => {
+    db.close();
+    cache.close().catch(() => {});
+  });
   return server;
 }

@@ -1,4 +1,5 @@
 import { assert } from "../lib/http.mjs";
+import { CACHE_KEYS, CACHE_TTLS } from "../lib/cache.mjs";
 
 // Canonical Chinese assistant copy — the same wording as the web prototype
 // (web/index.html I18N zh: ansRefund/ansResched/ansHeritage/ansBook/
@@ -19,7 +20,7 @@ export const ANSWERS = {
 
 
 export async function assistant(ctx) {
-  const { p, req, url, send, all, yuan, ANSWERS } = ctx;
+  const { p, req, url, send, all, yuan, ANSWERS, cache, res } = ctx;
   if (p === "/api/assistant" && req.method === "GET") {
     const q = (url.searchParams.get("q") || "").trim();
     assert(q.length > 0 && q.length <= 1000, "问题不能为空且不能超过1000字");
@@ -50,9 +51,24 @@ export async function assistant(ctx) {
       answer = ANSWERS.book;
     } else if (/今晚|热门|推荐|tonight|hot|popular|gợi ý|hôm nay|vở nào/.test(s)) {
       kind = "hot";
-      const rows = await all(
-        "SELECT name,city,price,unit FROM resources WHERE status='published' ORDER BY views DESC LIMIT 3",
-      );
+      let rows = null;
+      if (cache?.enabled) {
+        rows = await cache.get(CACHE_KEYS.resourcesHot);
+        if (rows) res.setHeader("X-Cache", "HIT");
+      }
+      if (!rows) {
+        rows = await all(
+          "SELECT name,city,price,unit FROM resources WHERE status='published' ORDER BY views DESC LIMIT 3",
+        );
+        if (cache?.enabled) {
+          res.setHeader("X-Cache", "MISS");
+          await cache.set(
+            CACHE_KEYS.resourcesHot,
+            rows,
+            CACHE_TTLS.resourcesHot,
+          );
+        }
+      }
       items = rows.map((r) => ({
         name: r.name,
         city: r.city,

@@ -1,6 +1,6 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
-  "buildCommand": "mkdir -p dist dist/admin && cp -r web/. dist/ && cp -r admin/. dist/admin/",
+  "buildCommand": "npm run build",
   "framework": "vite",
   "functions": {
     "api/index.js": {

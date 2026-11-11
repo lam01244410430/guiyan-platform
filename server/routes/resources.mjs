@@ -1,7 +1,8 @@
 import { assert, resourceRow } from "../lib/http.mjs";
+import { CACHE_KEYS, CACHE_TTLS } from "../lib/cache.mjs";
 
 export async function listResources(ctx) {
-  const { p, req, url, send, categories, all, resourceSelect } = ctx;
+  const { p, req, url, send, categories, all, resourceSelect, cache, res } = ctx;
   if (p === "/api/resources" && req.method === "GET") {
     const category = url.searchParams.get("category");
     const city = url.searchParams.get("city");
@@ -11,6 +12,18 @@ export async function listResources(ctx) {
       ["hot", "price_asc", "price_desc", "newest"].includes(sort),
       "无效排序方式",
     );
+    // Cache only the unfiltered default list (sort=hot, no filters):
+    // the single key guiyan:resources:list cannot encode every filter
+    // combination, and filtered queries stay live Postgres reads.
+    const cacheable = !category && !city && !q && sort === "hot";
+    if (cacheable && cache?.enabled) {
+      const hit = await cache.get(CACHE_KEYS.resourcesList);
+      if (hit) {
+        res.setHeader("X-Cache", "HIT");
+        send({ resources: hit });
+        return true;
+      }
+    }
     const where = ["r.status='published'"];
     const params = [];
     if (category && category !== "all") {
@@ -45,6 +58,14 @@ export async function listResources(ctx) {
         ...params,
       )
     ).map(resourceRow);
+    if (cacheable && cache?.enabled) {
+      res.setHeader("X-Cache", "MISS");
+      await cache.set(
+        CACHE_KEYS.resourcesList,
+        resources,
+        CACHE_TTLS.resourcesList,
+      );
+    }
     send({ resources });
     return true;
   }

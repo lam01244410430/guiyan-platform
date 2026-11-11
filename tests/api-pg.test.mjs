@@ -50,7 +50,7 @@ async function req(p, { method = "GET", body, token } = {}) {
   } catch {
     // keep json null; assertions below will fail with a clear message
   }
-  return { status: res.status, json, text };
+  return { status: res.status, json, text, headers: res.headers };
 }
 
 before(async () => {
@@ -65,13 +65,29 @@ before(async () => {
   for (;;) {
     try {
       const r = await req("/api/health");
-      if (r.status === 200 && r.json?.ok) return;
+      if (r.status === 200 && r.json?.ok) break;
     } catch {
       // not up yet
     }
     if (Date.now() > deadline)
       throw new Error("server did not become healthy within 60s");
     await new Promise((r) => setTimeout(r, 500));
+  }
+  // Cold cache for the run: the test database is recreated per run but
+  // redis survives it, so a stale guiyan:* key from an earlier run would
+  // serve another database's data. Flush only the disposable test redis.
+  if (process.env.REDIS_URL) {
+    try {
+      const { createClient } = await import("redis");
+      const flush = createClient({ url: process.env.REDIS_URL });
+      await flush.connect();
+      await flush.flushDb();
+      await flush.quit();
+    } catch (error) {
+      console.error("cache flush failed (continuing with stale redis)", {
+        code: error?.code || "FLUSH_FAILED",
+      });
+    }
   }
 });
 
@@ -149,6 +165,16 @@ async function login() {
     body: { username: "demo", password: process.env.DEMO_PASSWORD },
   });
   assert.equal(r.status, 200);
+  return r.json.token;
+}
+
+async function adminLogin() {
+  const r = await req("/api/auth/login", {
+    method: "POST",
+    body: { username: "admin", password: process.env.ADMIN_PASSWORD },
+  });
+  assert.equal(r.status, 200);
+  assert.equal(r.json.user.role, "admin");
   return r.json.token;
 }
 
@@ -338,3 +364,319 @@ test("assistant answers by rule from live data", async () => {
   const empty = await req("/api/assistant?q=");
   assert.equal(empty.status, 400);
 });
+
+test("admin stats series covers all four periods with zero-filled buckets", async () => {
+  const token = await adminLogin();
+  for (const period of ["day", "week", "month", "quarter"]) {
+    const r = await req(`/api/admin/stats?period=${period}`, { token });
+    assert.equal(r.status, 200, JSON.stringify(r.json));
+    assert.equal(r.json.period, period);
+    assert.ok(Array.isArray(r.json.series) && r.json.series.length > 0);
+    assert.ok(r.json.series.every((s) => typeof s.amount === "number" && typeof s.count === "number"));
+    assert.equal(r.json.sources["票房"], "未接入");
+    assert.equal(r.json.sources["核销"], "未接入");
+  }
+  // Seed orders end 2026-11-09 but "today" is the real date, so the day
+  // series must contain zero-transaction buckets after the last order.
+  const day = await req("/api/admin/stats?period=day", { token });
+  assert.ok(day.json.series.some((s) => s.count === 0), "day series must fill zero buckets");
+  assert.ok(day.json.series.some((s) => s.count > 0), "day series must contain real orders");
+  const bad = await req("/api/admin/stats?period=year", { token });
+  assert.equal(bad.status, 400);
+  const demo = await login();
+  const forbidden = await req("/api/admin/stats?period=day", { token: demo });
+  assert.equal(forbidden.status, 403);
+});
+
+test("admin analysis ports the original insights", async () => {
+  const token = await adminLogin();
+  const r = await req("/api/admin/analysis?period=day", { token });
+  assert.equal(r.status, 200, JSON.stringify(r.json));
+  assert.ok(r.json.kpis.revenue > 0);
+  assert.equal(r.json.kpis.orders, 130 + 3); // seed 130 + 3 orders created by earlier tests
+  assert.ok(r.json.kpis.paidOrders > 0);
+  assert.ok(r.json.kpis.resources > 0);
+  assert.ok(Array.isArray(r.json.ranking) && r.json.ranking.length > 0);
+  assert.equal(r.json.ranking[0].name, "广西文化艺术中心");
+  assert.equal(r.json.insights.length, 8);
+  assert.equal(typeof r.json.report, "string");
+  assert.ok(r.json.report.includes("模拟经营分析报告"));
+  assert.ok(r.json.report.includes("按订单创建时间统计"));
+  assert.equal(r.json.venues.length, 2);
+  assert.equal(r.json.venues[0].seatOccupancy, null); // no venue<->show link in Lam's seed
+  assert.ok(r.json.definitions.series.includes("无支付时间字段"));
+  assert.ok(r.json.userSummary.total >= 38);
+  const bad = await req("/api/admin/analysis?period=year", { token });
+  assert.equal(bad.status, 400);
+});
+
+test("admin alerts flag low stock, and simulated events trigger + resolve", async () => {
+  const token = await adminLogin();
+  const r = await req("/api/admin/alerts", { token });
+  assert.equal(r.status, 200);
+  const low = r.json.alerts.find((a) => a.title.includes("壮锦纹样帆布袋"));
+  assert.ok(low, "resource #12 stock=2 must raise a low-stock alert");
+  assert.ok(low.title.includes("仅剩2"));
+  // No disputed / refund_requested orders exist in Lam's seed, so the
+  // abnormal-orders alert must not appear with an invented count.
+  assert.ok(!r.json.alerts.some((a) => a.title.includes("售后或纠纷")));
+  const triggered = await req("/api/admin/alerts", {
+    method: "POST",
+    token,
+    body: { kind: "sales" },
+  });
+  assert.equal(triggered.status, 200, JSON.stringify(triggered.json));
+  const after = await req("/api/admin/alerts", { token });
+  const sim = after.json.alerts.find((a) => a.title.includes("销量突降"));
+  assert.ok(sim, "triggered simulated event must appear");
+  assert.ok(sim.title.includes("（模拟事件）"));
+  assert.ok(sim.id, "simulated event must carry its events-table id");
+  const resolved = await req("/api/admin/alerts", {
+    method: "POST",
+    token,
+    body: { resolve: sim.id },
+  });
+  assert.equal(resolved.status, 200);
+  const gone = await req("/api/admin/alerts", { token });
+  assert.ok(!gone.json.alerts.some((a) => a.id === sim.id));
+  const badKind = await req("/api/admin/alerts", {
+    method: "POST",
+    token,
+    body: { kind: "nope" },
+  });
+  assert.equal(badKind.status, 400);
+  const demo = await login();
+  assert.equal((await req("/api/admin/alerts", { token: demo })).status, 403);
+});
+
+test("admin orders CSV has BOM, exact header and one row per order", async () => {
+  const token = await adminLogin();
+  const all = await req("/api/admin/orders", { token });
+  assert.equal(all.status, 200);
+  const res = await fetch(BASE + "/api/admin/orders.csv", {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  assert.equal(res.status, 200);
+  assert.ok(res.headers.get("content-type").includes("text/csv"));
+  assert.ok(
+    res.headers.get("content-disposition").includes("guiyan-orders.csv"),
+  );
+  const text = await res.text();
+  assert.ok(text.startsWith("\uFEFF"), "CSV must start with a BOM");
+  const lines = text.slice(1).split("\r\n");
+  assert.equal(
+    lines[0],
+    '"订单编号","资源","用户","金额(元)","演出/使用日期","状态","渠道","下单时间(北京时间)","历史时间说明"',
+  );
+  assert.equal(lines.length - 1, all.json.orders.length);
+  assert.ok(lines.some((l) => l.includes("按订单创建时间统计")));
+  const demo = await login();
+  const forbidden = await fetch(BASE + "/api/admin/orders.csv", {
+    headers: { Authorization: `Bearer ${demo}` },
+  });
+  assert.equal(forbidden.status, 403);
+});
+
+test("admin reviews a pending demand; demo user gets 403, missing id 404", async () => {
+  const token = await adminLogin();
+  const demo = await login();
+  const forbidden = await req("/api/admin/demands/3", {
+    method: "PATCH",
+    token: demo,
+    body: { status: "approved" },
+  });
+  assert.equal(forbidden.status, 403);
+  const missing = await req("/api/admin/demands/999999", {
+    method: "PATCH",
+    token,
+    body: { status: "approved" },
+  });
+  assert.equal(missing.status, 404);
+  const badStatus = await req("/api/admin/demands/3", {
+    method: "PATCH",
+    token,
+    body: { status: "maybe" },
+  });
+  assert.equal(badStatus.status, 400);
+  // Seed demand 3 ("小剧场巡演合作意向") is the only pending one.
+  const ok = await req("/api/admin/demands/3", {
+    method: "PATCH",
+    token,
+    body: { status: "approved" },
+  });
+  assert.equal(ok.status, 200, JSON.stringify(ok.json));
+  assert.equal(ok.json.status, "approved");
+  const list = await req("/api/admin/demands", { token });
+  const d3 = list.json.demands.find((d) => d.id === 3);
+  assert.ok(d3);
+  assert.equal(d3.status, "approved");
+});
+
+test("admin audit-logs are readable by admin only, capped at 60", async () => {
+  const token = await adminLogin();
+  const r = await req("/api/admin/audit-logs", { token });
+  assert.equal(r.status, 200);
+  assert.ok(Array.isArray(r.json.logs));
+  assert.ok(r.json.logs.length > 0 && r.json.logs.length <= 60);
+  assert.ok(r.json.logs.some((l) => l.action === "内容审核"));
+  const demo = await login();
+  assert.equal((await req("/api/admin/audit-logs", { token: demo })).status, 403);
+});
+
+// --- Redis cache (phase 1b) -------------------------------------------------
+// These tests only run when the server under test was started with
+// REDIS_URL set (the test spawns the server with process.env, so
+// REDIS_URL=redis://127.0.0.1:6380 npm --prefix server test enables
+// them). Without REDIS_URL the cache is disabled and every response
+// serves Postgres directly with no X-Cache header.
+const cacheOn = Boolean(process.env.REDIS_URL);
+const cacheTest = (name, fn) =>
+  test(name, { skip: !cacheOn }, fn);
+
+cacheTest("cache: resources list MISS then HIT, bust on order write", async () => {
+  const token = await login();
+  const show = await pickShow(token);
+  // Bust first: an earlier test may already have cached the list.
+  const created = await req("/api/orders", {
+    method: "POST",
+    token,
+    body: { resourceId: show.id, quantity: 1, booking_date: BOOKING_DATE },
+  });
+  assert.equal(created.status, 200);
+  const first = await req("/api/resources");
+  assert.equal(first.headers.get("x-cache"), "MISS");
+  const second = await req("/api/resources");
+  assert.equal(second.headers.get("x-cache"), "HIT");
+  assert.deepEqual(second.json, first.json);
+  // Cancelling the order is a write: the list must be busted. The
+  // re-read is NOT deep-equal to the first read — cancel restores the
+  // ordered show's stock by 1 — so compare ids and the stock delta.
+  const cancel = await req(`/api/orders/${created.json.id}/cancel`, {
+    method: "POST",
+    token,
+  });
+  assert.equal(cancel.status, 200);
+  const third = await req("/api/resources");
+  assert.equal(third.headers.get("x-cache"), "MISS");
+  assert.equal(third.json.resources.length, first.json.resources.length);
+  assert.deepEqual(
+    third.json.resources.map((r) => r.id),
+    first.json.resources.map((r) => r.id),
+  );
+  const stockOf = (list) =>
+    list.find((r) => r.id === show.id).stock;
+  assert.equal(stockOf(third.json.resources), stockOf(first.json.resources) + 1);
+  // Filtered queries bypass the cache entirely (no X-Cache header).
+  const filtered = await req("/api/resources?category=show");
+  assert.equal(filtered.headers.get("x-cache"), null);
+});
+
+cacheTest("cache: admin stats series MISS then HIT, bust on demand create", async () => {
+  const admin = await adminLogin();
+  const demo = await login();
+  // Bust first via a demand write (earlier tests may have cached it).
+  const title = "缓存测试需求 " + Date.now();
+  const d0 = await req("/api/demands", {
+    method: "POST",
+    token: demo,
+    body: { title, category: "artist", budget: 1000, city: "南宁", description: "cache bust" },
+  });
+  assert.equal(d0.status, 200);
+  const first = await req("/api/admin/stats?period=day", { token: admin });
+  assert.equal(first.headers.get("x-cache"), "MISS");
+  const second = await req("/api/admin/stats?period=day", { token: admin });
+  assert.equal(second.headers.get("x-cache"), "HIT");
+  assert.deepEqual(second.json, first.json);
+  const d1 = await req("/api/demands", {
+    method: "POST",
+    token: demo,
+    body: { title: title + " 2", category: "artist", budget: 1000, city: "南宁", description: "cache bust 2" },
+  });
+  assert.equal(d1.status, 200);
+  const third = await req("/api/admin/stats?period=day", { token: admin });
+  assert.equal(third.headers.get("x-cache"), "MISS");
+  assert.deepEqual(third.json, first.json);
+});
+
+cacheTest("cache: admin analysis MISS then HIT, bust on order transition", async () => {
+  const admin = await adminLogin();
+  const demo = await login();
+  const show = await pickShow(demo);
+  const created = await req("/api/orders", {
+    method: "POST",
+    token: demo,
+    body: { resourceId: show.id, quantity: 1, booking_date: BOOKING_DATE },
+  });
+  assert.equal(created.status, 200);
+  const first = await req("/api/admin/analysis?period=day", { token: admin });
+  assert.equal(first.headers.get("x-cache"), "MISS");
+  const second = await req("/api/admin/analysis?period=day", { token: admin });
+  assert.equal(second.headers.get("x-cache"), "HIT");
+  assert.deepEqual(second.json, first.json);
+  const confirm = await req(`/api/orders/${created.json.id}/confirm`, {
+    method: "POST",
+    token: demo,
+  });
+  assert.equal(confirm.status, 200);
+  const third = await req("/api/admin/analysis?period=day", { token: admin });
+  assert.equal(third.headers.get("x-cache"), "MISS");
+  await req(`/api/orders/${created.json.id}/cancel`, { method: "POST", token: demo });
+});
+
+cacheTest("cache: assistant hot MISS then HIT", async () => {
+  const q = "/api/assistant?q=" + encodeURIComponent("今晚有什么热门演出");
+  const demo = await login();
+  const show = await pickShow(demo);
+  // Bust the hot key (order writes bust resources) so MISS is observable.
+  const created = await req("/api/orders", {
+    method: "POST",
+    token: demo,
+    body: { resourceId: show.id, quantity: 1, booking_date: BOOKING_DATE },
+  });
+  assert.equal(created.status, 200);
+  await req(`/api/orders/${created.json.id}/cancel`, { method: "POST", token: demo });
+  const first = await req(q);
+  assert.equal(first.headers.get("x-cache"), "MISS");
+  assert.equal(first.json.kind, "hot");
+  const second = await req(q);
+  assert.equal(second.headers.get("x-cache"), "HIT");
+  assert.deepEqual(second.json, first.json);
+});
+
+// Fail-open with redis stopped: only runs when GUIYAN_REDIS_CONTAINER
+// names the docker container (e.g. guiyan-redis on the EC2). Stops the
+// container, asserts every cached endpoint still answers from Postgres,
+// then restarts it in a finally block.
+test(
+  "cache: fail-open when redis is stopped",
+  { skip: !cacheOn || !process.env.GUIYAN_REDIS_CONTAINER },
+  async () => {
+    const { execSync } = await import("node:child_process");
+    const container = process.env.GUIYAN_REDIS_CONTAINER;
+    const admin = await adminLogin();
+    // Warm the cache first so the stopped-redis calls would have hit it.
+    await req("/api/resources");
+    await req("/api/admin/stats?period=day", { token: admin });
+    execSync(`docker stop ${container}`, { stdio: "ignore" });
+    try {
+      const resources = await req("/api/resources");
+      assert.equal(resources.status, 200);
+      assert.equal(resources.json.resources.length, 62);
+      const stats = await req("/api/admin/stats?period=day", { token: admin });
+      assert.equal(stats.status, 200);
+      assert.ok(Array.isArray(stats.json.series));
+      const analysis = await req("/api/admin/analysis?period=day", { token: admin });
+      assert.equal(analysis.status, 200);
+      assert.ok(analysis.json.kpis.revenue > 0);
+      const hot = await req(
+        "/api/assistant?q=" + encodeURIComponent("今晚有什么热门演出"),
+      );
+      assert.equal(hot.status, 200);
+      assert.equal(hot.json.kind, "hot");
+    } finally {
+      execSync(`docker start ${container}`, { stdio: "ignore" });
+      // Give the client a moment to reconnect before later tests run.
+      await new Promise((r) => setTimeout(r, 1000));
+    }
+  },
+);

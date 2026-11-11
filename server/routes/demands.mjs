@@ -16,7 +16,7 @@ export async function listDemands(ctx) {
 }
 
 export async function createDemand(ctx) {
-  const { p, req, b, send, needUser, categories, run, audit, notify, time } = ctx;
+  const { p, req, b, send, needUser, categories, run, audit, notify, time, cache } = ctx;
   if (p === "/api/demands" && req.method === "POST") {
     const u = needUser();
     assert(u.verified, "发布需求前请先完成演示身份认证", 403);
@@ -39,6 +39,8 @@ export async function createDemand(ctx) {
     );
     await audit(u, "发布需求", b.title);
     await notify(u.id, "需求已提交", `“${b.title}”已提交，等待审核。`);
+    // A new demand changes the demand count in cached admin stats.
+    if (cache) await cache.bustStats();
     send({ ok: true, id: Number(result.lastInsertRowid) });
     return true;
   }

@@ -1,7 +1,10 @@
 
 /* ============ i18n ============ */
-var LANGS=["zh","vi","en"], lang="zh";
-function li(){ return LANGS.indexOf(lang); }
+export const LANGS=["zh","vi","en"];
+// Mutable language holder: ESM bindings are read-only, so the current
+// language lives on this object (was a plain `var lang` in the classic script).
+export const langState={lang:"zh"};
+function li(){ return LANGS.indexOf(langState.lang); }
 function L(a){ return a[li()]; }
 var I18N={
 zh:{brandTag:"广西演艺资源平台",navCatalog:"资源目录",navDemands:"需求大厅",navAssistant:"智能助理",myTickets:"我的票券",loginBtn:"登录",loginTitle:"登录桂演",userPh:"用户名",passPh:"密码",logoutBtn:"退出登录",hiName:"Hi {name}",loginFailed:"登录失败，请检查账号或网络",postDemandBtn:"发布需求",postDemandTitle:"发布合作需求",demTitlePh:"需求标题，例如：寻找民族歌舞团队",demDescPh:"简单描述时间、人数与具体要求…",demBudgetPh:"预算（元）",navWechat:"微信小程序",wxBanner:"您正在微信中浏览桂演 — 全部功能与网页版一致，可直接预订。",wxTitle:"微信小程序版",wxSub:"在微信里打开桂演，功能与网页版完全一致",wxNote:"无需下载安装：在微信搜索「桂演」、扫码或从公众号菜单进入，手机上的演示即为小程序的真实界面。",wxCopyTitle:"同一个桂演，装进口袋里",wxCopyText:"小程序与网页版共用同一份62项资源、同一套价格与订单流程。在右边手机里试一试：搜索、筛选、点开预订、切到「我的票券」查看订单 — 全部真实可用，和网页版一模一样。",wxB1:"首页、目录、需求大厅、我的票券 — 四个底部标签与网页版一一对应",wxB2:"预订流程一致：提交预约 → 确认 → 支付（模拟）→ 完成，可取消与退款",wxB3:"语言跟随网页版上方下拉选择，中、越、英实时同步",wxS1:"在微信顶部搜索「桂演 Guiyan」",wxS2:"点开小程序 — 无需下载、无需注册即可浏览",wxS3:"选资源、选日期、预订，在「我的票券」里跟进订单",wxRepo:"源码仓库：github.com/lam01244410430/guiyan-platform ↗",wxTabHome:"首页",wxFeatured:"热门推荐",
@@ -194,7 +197,7 @@ emptyMyDemands:"No demands yet",
 goCatalog:"Browse the catalog",
 navUser:"My account"}
 };
-function t(k){ return I18N[lang][k]; }
+function t(k){ return I18N[langState.lang][k]; }
 function fmt(s,o){ return s.replace(/\{(\w+)\}/g,function(m,k){ return o[k]!=null?o[k]:m; }); }
 
 /* ============ DATA ============ */
@@ -297,3 +300,6 @@ var DEMANDS = [
 ];
 var money = function(n){ return "¥" + n.toLocaleString("zh-CN"); };
 var state = { cat:"all", q:"", city:"all", sort:"hot", shown:12, favs:{}, orders:[], seq:137, pref:null, wxTab:"home", wxCat:"all", wxQ:"" };
+
+// ESM exports (React entries import this module; no globals anymore).
+export { I18N, t, fmt, CATS, catName, catZh, CITYN, cityName, UNITN, unitName, CATIMG, RES, DEMANDS, money, state, li, L };

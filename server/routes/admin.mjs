@@ -1,9 +1,22 @@
 import { assert, safeUser } from "../lib/http.mjs";
+import { CACHE_KEYS, CACHE_TTLS } from "../lib/cache.mjs";
 
 export async function adminStats(ctx) {
-  const { req, p, send, session, get, all } = ctx;
+  const { req, p, send, session, get, all, url, cache, res } = ctx;
   if (p !== "/api/admin/stats" || req.method !== "GET") return false;
+  // With ?period= the time-series handler in admin-insights.mjs answers
+  // (registered after the admin routes); without it, the cumulative
+  // totals below stay the response, as before.
+  if (url.searchParams.has("period")) return false;
   assert(session?.role === "admin", "无权访问管理后台", 403);
+  if (cache?.enabled) {
+    const hit = await cache.get(CACHE_KEYS.adminStatsTotal);
+    if (hit) {
+      res.setHeader("X-Cache", "HIT");
+      send(hit);
+      return true;
+    }
+  }
   const stats = await get(`
     SELECT
       (SELECT COUNT(*) FROM users) AS users,
@@ -14,10 +27,19 @@ export async function adminStats(ctx) {
   const statuses = await all(
     "SELECT status,COUNT(*) AS count FROM orders GROUP BY status ORDER BY status",
   );
-  send({
+  const payload = {
     ...stats,
     orders_by_status: Object.fromEntries(statuses.map((s) => [s.status, s.count])),
-  });
+  };
+  if (cache?.enabled) {
+    res.setHeader("X-Cache", "MISS");
+    await cache.set(
+      CACHE_KEYS.adminStatsTotal,
+      payload,
+      CACHE_TTLS.adminStats,
+    );
+  }
+  send(payload);
   return true;
 }
 

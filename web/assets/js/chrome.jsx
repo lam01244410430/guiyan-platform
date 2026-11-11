@@ -1,0 +1,154 @@
+/* Shared customer chrome (React): header with the "Hi + name" user menu,
+   login dialog and toast. Ported 1:1 from web/index.html + web/user.html
+   (same markup, classes, ids and behaviour); the two pages shared this
+   markup before and must stay in sync, so it lives here once.
+ */
+import { useEffect, useRef, useState } from "react";
+import { t, fmt } from "./data.js";
+
+export function GlobeIcon() {
+  return (
+    <svg className="globe" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round">
+      <circle cx="12" cy="12" r="9" /><path d="M3 12h18M12 3c2.5 2.6 3.8 5.7 3.8 9S14.5 18.4 12 21c-2.5-2.6-3.8-5.7-3.8-9S9.5 5.6 12 3z" />
+    </svg>
+  );
+}
+
+function MenuIcon() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+      <path d="M4 7h16M4 12h16M4 17h16" />
+    </svg>
+  );
+}
+
+function WxIcon() {
+  return (
+    <svg width="17" height="17" viewBox="0 0 24 24" fill="currentColor">
+      <path d="M8.7 4C5 4 2 6.6 2 9.8c0 1.8 1 3.4 2.5 4.5l-.6 2.1 2.4-1.2c.5.2 1.1.3 1.7.3.2 0 .4 0 .6-.1A5.6 5.6 0 0 1 8.2 12c0-3.4 3.3-6.1 7.3-6.1h.4C15 4.7 12.1 4 8.7 4zm7.3 3.6c-3.2 0-5.8 2-5.8 4.4s2.6 4.4 5.8 4.4c.6 0 1.1-.1 1.6-.2l2 1-.5-1.8c1.4-.8 2.3-2 2.3-3.4 0-2.4-2.6-4.4-5.8-4.4zM6.6 8.6a.9.9 0 1 1 0 1.8.9.9 0 0 1 0-1.8zm4.7 0a.9.9 0 1 1 0 1.8.9.9 0 0 1 0-1.8zm2.5 2.5a.8.8 0 1 1 0 1.6.8.8 0 0 1 0-1.6zm4.1 0a.8.8 0 1 1 0 1.6.8.8 0 0 1 0-1.6z" />
+    </svg>
+  );
+}
+
+function CartIcon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+      <path d="M6 7h15l-1.5 9h-12z" /><path d="M6 7L5 3H2" /><circle cx="9" cy="20" r="1.6" /><circle cx="17" cy="20" r="1.6" />
+    </svg>
+  );
+}
+
+/* props:
+   variant "index" | "user" — nav hrefs, brand href, WeChat + cart buttons
+   (index only) differ; everything else is identical.
+   user: null when logged out, else {name, username, ...}
+   cartCount, onOpenDrawer, onMenuOrders, onLoginClick, onLogout,
+   lang, onLangChange, menuOpen, onToggleMenu, onCloseMenu,
+   navOpen, onToggleNav, onNavLinkClick */
+export function Header(props) {
+  const { variant, user, lang } = props;
+  const menuRef = useRef(null);
+
+  /* Close the user menu on an outside click (same as the old listener). */
+  useEffect(() => {
+    if (!props.menuOpen) return undefined;
+    const onDocClick = (e) => {
+      if (menuRef.current && !menuRef.current.contains(e.target)) props.onCloseMenu();
+    };
+    document.addEventListener("click", onDocClick);
+    return () => document.removeEventListener("click", onDocClick);
+  }, [props.menuOpen]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const navLinks = variant === "index"
+    ? [["#catalog", "navCatalog"], ["#demands", "navDemands"], ["#ai", "navAssistant"], ["#wechat", "navWechat"]]
+    : [["index.html#catalog", "navCatalog"], ["index.html#demands", "navDemands"], ["index.html#ai", "navAssistant"], ["user.html", "navUser"]];
+  const name = user ? (user.name || user.username || "demo") : "demo";
+
+  return (
+    <header className="topbar">
+      <div className="wrap topbar-in">
+        <a className="brand" href={variant === "index" ? "#top" : "index.html"}>
+          <span className="zh">桂演</span><small>{t("brandTag")}</small>
+        </a>
+        <button className="menuBtn" id="menuBtn" type="button" aria-label="Menu" aria-expanded={props.navOpen ? "true" : "false"} aria-controls="mainNav" onClick={props.onToggleNav}>
+          <MenuIcon />
+        </button>
+        <nav className={"mainnav" + (props.navOpen ? " open" : "")} id="mainNav">
+          {navLinks.map(([href, key]) => (
+            <a key={key} href={href} onClick={props.onNavLinkClick}>{t(key)}</a>
+          ))}
+        </nav>
+        <label className="langsel" aria-label="Language">
+          <GlobeIcon />
+          <select id="langSel" aria-label="Language" value={lang} onChange={(e) => props.onLangChange(e.target.value)}>
+            <option value="zh">中文</option>
+            <option value="vi">Tiếng Việt</option>
+            <option value="en">English</option>
+          </select>
+        </label>
+        {variant === "index" && (
+          <a className="wxbtn" href="#wechat"><WxIcon /><span>{t("navWechat")}</span></a>
+        )}
+        {variant === "index" && (
+          <button className="cartbtn" id="openOrders" type="button" onClick={props.onOpenDrawer}>
+            <CartIcon />
+            <span className="lbl">{t("myTickets")}</span> <b id="orderCount">{props.cartCount}</b>
+          </button>
+        )}
+        {!user && (
+          <button className="cartbtn" id="loginBtn" type="button" onClick={props.onLoginClick}>
+            <span>{t("loginBtn")}</span>
+          </button>
+        )}
+        {user && (
+          <div className={"user-menu" + (props.menuOpen ? " open" : "")} id="loginState" ref={menuRef}>
+            <button className="user-chip" id="userChip" type="button" aria-haspopup="menu" aria-expanded={props.menuOpen ? "true" : "false"}
+              onClick={(e) => { e.stopPropagation(); props.onToggleMenu(); }}>
+              <span className="avatar" id="userAvatar">{name.charAt(0).toUpperCase()}</span>
+              <span id="loginName">{fmt(t("hiName"), { name })}</span>
+              <svg className="chev" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round"><path d="M6 9l6 6 6-6" /></svg>
+            </button>
+            <div className="user-drop" id="userDrop" role="menu">
+              <a href="user.html" role="menuitem">{t("navUser")}</a>
+              <hr />
+              <button type="button" id="menuOrders" role="menuitem" onClick={() => { props.onCloseMenu(); props.onMenuOrders(); }}>{t("usrOrders")}</button>
+              <hr />
+              <button type="button" className="danger" id="logoutBtn" role="menuitem" onClick={props.onLogout}>{t("logoutBtn")}</button>
+            </div>
+          </div>
+        )}
+      </div>
+    </header>
+  );
+}
+
+/* Login dialog (PostgreSQL API auth; password field is empty by design).
+   Always mounted, shown with the .open class — same as before, so the
+   typed values survive closing and reopening. */
+export function LoginDialog({ open, err, onClose, onLogin, onRegisterClick }) {
+  const [loginUser, setLoginUser] = useState("demo");
+  const [loginPass, setLoginPass] = useState("");
+  const userRef = useRef(null);
+
+  useEffect(() => {
+    if (open && userRef.current) userRef.current.focus();
+  }, [open ]);
+
+  return (
+    <div className={"auth-overlay" + (open ? " open" : "")} id="loginOverlay" role="dialog" aria-modal="true"
+      onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
+      <form className="auth-card" id="loginForm" onSubmit={(e) => { e.preventDefault(); onLogin(loginUser.trim() || "demo", loginPass); }}>
+        <button type="button" className="x" id="loginCancel" aria-label="Close" onClick={onClose}>✕</button>
+        <h3>{t("loginTitle")}</h3>
+        <input id="loginUser" ref={userRef} type="text" value={loginUser} onChange={(e) => setLoginUser(e.target.value)} autoComplete="username" placeholder={t("userPh")} />
+        <input id="loginPass" type="password" value={loginPass} onChange={(e) => setLoginPass(e.target.value)} autoComplete="current-password" placeholder={t("passPh")} />
+        <div className="err" id="loginErr">{err || ""}</div>
+        <div className="row"><button className="btn red" type="submit">{t("loginBtn")}</button></div>
+      </form>
+    </div>
+  );
+}
+
+export function Toast({ msg }) {
+  return <div className={"toast" + (msg ? " show" : "")} id="toast" role="status">{msg || ""}</div>;
+}

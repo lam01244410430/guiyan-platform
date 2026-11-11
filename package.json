@@ -4,7 +4,9 @@
     "@aws-sdk/s3-request-presigner": "^3.1165.0",
     "@neon/config": "^1.14.0",
     "@neon/env": "^2.1.3",
-    "pg": "^8.23.1"
+    "pg": "^8.23.1",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0"
   },
   "description": "Guiyan 桂演 premium redesign — static web + Vercel API function (PostgreSQL)",
   "engines": {
@@ -15,6 +17,14 @@
   "type": "module",
   "version": "1.0.0",
   "scripts": {
-    "build": "node --check api/index.js && node --check server/catalog-content.mjs && node --check server/index.mjs && node --check server/lib/context.mjs && node --check server/lib/http.mjs && node --check server/postgres.mjs && node --check server/routes/admin.mjs && node --check server/routes/assistant.mjs && node --check server/routes/auth.mjs && node --check server/routes/demands.mjs && node --check server/routes/favorites.mjs && node --check server/routes/misc.mjs && node --check server/routes/orders.mjs && node --check server/routes/resources.mjs && node --check server/routes/storage.mjs && node --check server/schema.mjs && node --check server/seed.mjs && node --check server/server.mjs && node --check server/static.mjs && node --check server/storage.mjs"
+    "build": "vite build && node scripts/flatten-dist.mjs",
+    "dev": "vite",
+    "preview": "vite preview",
+    "check": "node --check api/index.js && node --check server/catalog-content.mjs && node --check server/index.mjs && node --check server/lib/context.mjs && node --check server/lib/http.mjs && node --check server/postgres.mjs && node --check server/routes/admin.mjs && node --check server/routes/assistant.mjs && node --check server/routes/auth.mjs && node --check server/routes/demands.mjs && node --check server/routes/favorites.mjs && node --check server/routes/misc.mjs && node --check server/routes/orders.mjs && node --check server/routes/resources.mjs && node --check server/routes/storage.mjs && node --check server/schema.mjs && node --check server/seed.mjs && node --check server/server.mjs && node --check server/static.mjs && node --check server/storage.mjs",
+    "start": "node server/server.mjs"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-react": "^4.3.4",
+    "vite": "^6.1.0"
   }
 }

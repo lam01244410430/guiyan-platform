@@ -12,7 +12,7 @@ export async function listOrders(ctx) {
 }
 
 export async function createOrder(ctx) {
-  const { p, req, b, send, needUser, get, run, transaction, notify, audit, time } = ctx;
+  const { p, req, b, send, needUser, get, run, transaction, notify, audit, time, cache } = ctx;
   if (p === "/api/orders" && req.method === "POST") {
     const u = needUser(),
       rid = int(b.resourceId, "资源编号", 1),
@@ -69,6 +69,14 @@ export async function createOrder(ctx) {
       await audit(u, "提交预约", r.name);
       return Number(result.lastInsertRowid);
     });
+    // A new order changes cached admin stats/analysis (order + revenue
+    // counts) and cached resource data (stock moves). Bust after the
+    // write; the DB commit follows immediately after this handler
+    // returns, so the re-read after a bust sees the committed row.
+    if (cache) {
+      await cache.bustAdmin();
+      await cache.bustResources();
+    }
     const created = await get("SELECT * FROM orders WHERE id=?", id);
     send({
       ok: true,
@@ -83,7 +91,7 @@ export async function createOrder(ctx) {
 }
 
 export async function transitionOrder(ctx) {
-  const { p, req, b, send, needUser, get, run, transaction, notify, audit } = ctx;
+  const { p, req, b, send, needUser, get, run, transaction, notify, audit, cache } = ctx;
   const m = p.match(/^\/api\/orders\/(\d+)\/(confirm|pay|complete|cancel|refund)$/);
   if (m && req.method === "POST") {
     const u = needUser(),
@@ -136,6 +144,12 @@ export async function transitionOrder(ctx) {
       );
       await audit(u, `订单操作 ${action}`, o.code);
     });
+    // A status change moves revenue between buckets (paid/completed) and
+    // cancel/refund restores stock — same bust as order creation.
+    if (cache) {
+      await cache.bustAdmin();
+      await cache.bustResources();
+    }
     send({
       ok: true,
       status: to,

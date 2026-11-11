@@ -2,7 +2,9 @@
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1165.0",
     "@aws-sdk/s3-request-presigner": "^3.1165.0",
-    "pg": "^8.23.1"
+    "@upstash/redis": "^1.41.0",
+    "pg": "^8.23.1",
+    "redis": "^6.3.1"
   },
   "description": "Guiyan 桂演 premium redesign backend — plain Node.js + PostgreSQL (no framework, no SQLite fallback)",
   "engines": {
@@ -12,7 +14,7 @@
   "private": true,
   "scripts": {
     "start": "node server.mjs",
-    "test": "node --test ../tests/api-pg.test.mjs ../tests/storage.test.mjs"
+    "test": "node --test --test-concurrency=1 ../tests/api-pg.test.mjs ../tests/storage.test.mjs ../tests/cache.test.mjs"
   },
   "type": "module",
   "version": "1.0.0"
