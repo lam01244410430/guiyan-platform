@@ -432,7 +432,7 @@ test("assistant chat proxies to the AI backend", async () => {
   assert.equal("fallback" in r.json, false);
 });
 
-test("assistant chat forwards a language instruction, no language field upstream", async () => {
+test("assistant chat forwards a language instruction and language field upstream", async () => {
   stubHandler = stubJson(200, { reply: "stub xin chào" });
   const instructions = {
     zh: "请用中文回答以下问题：",
@@ -453,7 +453,7 @@ test("assistant chat forwards a language instruction, no language field upstream
       `forwarded message must start with the ${language} instruction: ${JSON.stringify(stubSeen.message)}`,
     );
     assert.ok(stubSeen.message.includes("what time is the show?"));
-    assert.equal("language" in stubSeen, false, "no language field upstream");
+    assert.equal(stubSeen.language, language, "upstream language field must match");
   }
 });
 
@@ -465,7 +465,7 @@ test("assistant chat defaults an omitted or invalid language to zh", async () =>
     const r = await req("/api/assistant/chat", { method: "POST", body });
     assert.equal(r.status, 200, JSON.stringify(r.json));
     assert.ok(stubSeen.message.startsWith(zhInstruction), JSON.stringify(stubSeen));
-    assert.equal("language" in stubSeen, false);
+    assert.equal(stubSeen.language, "zh", "omitted/invalid language must forward zh");
   }
 });
 

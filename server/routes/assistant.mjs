@@ -91,9 +91,10 @@ export async function answerRules(ctx, q) {
 }
 
 // Language instruction prepended to the forwarded message so the trial
-// backend answers in the site's current language. The backend ignores a
-// `language` field (verified) and its own reply language is unreliable, so
-// the proxy enforces it here. Invalid/missing language defaults to zh.
+// backend answers in the site's current language. The backend now honors a
+// `language` field too (agent update 2026-11-11: per-request system prompt),
+// so the proxy sends it as well; the prepended instruction stays as a
+// backstop for older/direct callers. Invalid/missing language defaults to zh.
 const LANG_INSTRUCTIONS = {
   zh: "请用中文回答以下问题：",
   vi: "Hãy trả lời bằng tiếng Việt cho câu hỏi sau:",
@@ -140,7 +141,7 @@ export async function assistant(ctx) {
         const up = await fetch(upstreamUrl, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ message: forwarded }),
+          body: JSON.stringify({ message: forwarded, language: lang }),
           signal: ctrl.signal,
         });
         if (!up.ok)
