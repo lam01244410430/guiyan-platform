@@ -1,0 +1,101 @@
+/* design-systems/guiyan/tokens.css
+ * Structured token bindings for Guiyan 夜剧场 (Night Theatre).
+ * Deep pine, cinnabar, gold on warm paper — serif display, sans data,
+ * flat surfaces. Canonical compiled tokens; DESIGN.md is the prose.
+ * No blue, no gradients, no hex outside :root.
+ */
+
+:root {
+  /* Brand ground */
+  --pine: #0b3d36;
+  --pine-light: #14564d;
+  --pine-deep: #0b4f47;
+  --pine-soft: #dff2ee;
+
+  /* Page & surfaces */
+  --bg: #f7f3ec;
+  --surface: #fffdf8;
+  --surface2: #f3ecdf;
+
+  /* Ink */
+  --ink: #1c1710;
+  --ink2: #5d5344;
+  --ink3: #8a7d68;
+
+  /* Lines */
+  --line: #ddd2bf;
+  --line2: #cbbd9f;
+
+  /* Cinnabar — the one accent (cap 2 visible uses per screen) */
+  --red: #c8452c;
+  --red-deep: #a83a20;
+  --red-soft: #fdece7;
+  --red-soft-deep: #f9dcd2;
+
+  /* Gold — highlight only */
+  --gold: #c9a24b;
+  --gold-bar: #b8860b;
+  --gold-ink: #7c5a10;
+  --gold-soft: #fdf3d7;
+
+  /* Jade — success */
+  --jade: #0d6e5f;
+  --jade-soft: #dcf2ea;
+
+  /* Sidebar */
+  --sidebar-bg: #0b3d36;
+  --sidebar-text: #f5eedd;
+  --sidebar-text-dim: #b9d4c9;
+  --sidebar-active-bg: #14564d;
+  --sidebar-line: rgba(245, 238, 221, 0.16);
+
+  /* Overlay (mobile drawer backdrop) */
+  --overlay: rgba(28, 23, 16, 0.45);
+
+  /* Chart */
+  --chart-grid: #e8e0d2;
+  --chart-area: rgba(11, 61, 54, 0.08);
+
+  /* Type */
+  --font-display: "Noto Serif SC", "Songti SC", serif;
+  --font-body: "Noto Sans SC", "Be Vietnam Pro", system-ui, sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, monospace;
+  --text-xs: 12px;
+  --text-sm: 13.5px;
+  --text-base: 15px;
+  --text-lg: 18px;
+  --text-xl: 22px;
+  --text-2xl: 28px;
+  --text-3xl: 34px;
+  --leading-body: 1.6;
+  --leading-tight: 1.15;
+  --tracking-display: 0.04em;
+
+  /* Space */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 14px;
+  --space-5: 16px;
+  --space-6: 18px;
+  --space-7: 20px;
+  --space-8: 24px;
+  --space-9: 28px;
+  --space-10: 34px;
+  --space-11: 36px;
+
+  /* Radii — cards 14, controls 9, chips 99 (small pills only) */
+  --radius-sm: 9px;
+  --radius-md: 14px;
+  --radius-lg: 20px;
+  --radius-chip: 99px;
+
+  /* Elevation — flat by default */
+  --shadow-hover: 0 2px 16px rgba(28, 23, 16, 0.06);
+  --shadow-menu: 0 8px 24px rgba(28, 23, 16, 0.12);
+
+  /* Motion */
+  --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+  --duration-enter: 200ms;
+  --duration-exit: 140ms;
+}

@@ -1,9 +1,11 @@
 /* Shared search box (redesign 2026-11-11) — one per admin view.
    Controlled: the query state lives in AdminDashboard; this component
    only renders the field and reports changes. No fetch, no filtering,
-   no debounce (at most ~310 rows, filtered synchronously in render). */
+   no debounce (at most ~310 rows, filtered synchronously in render).
+   The search icon is inlined (not <img>) so currentColor renders ink3
+   — through <img> it resolved to black at 0.6 opacity. Path data copied
+   verbatim from admin/assets/icons/ui-search.svg. */
 import { useRef } from "react";
-import searchIcon from "../icons/ui-search.svg";
 
 export default function SearchBox({ id, label, placeholder, value, onChange, resultCount, countText }) {
   const inputRef = useRef(null);
@@ -17,7 +19,7 @@ export default function SearchBox({ id, label, placeholder, value, onChange, res
     <div className="search-box">
       <label htmlFor={id}>{label}</label>
       <div className="search-input">
-        <img className="search-ic" data-icon="ui:search" src={searchIcon} alt="" aria-hidden="true" />
+        <svg className="search-ic" data-icon="ui:search" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="8" /><path d="m21 21l-4.34-4.34" /></svg>
         <input
           ref={inputRef}
           id={id}

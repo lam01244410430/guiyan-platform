@@ -20,14 +20,33 @@ import SearchBox from "./SearchBox.jsx";
 // come from web/assets/js/data.js, which dragged the whole 866 KB data
 // file (i18n + base64 images) into the admin bundle as a separate chunk.
 import { catZh } from "./cats.js";
-import iconDashboard from "../icons/ui-layout-dashboard.svg";
-import iconReceipt from "../icons/ui-receipt.svg";
-import iconUsers from "../icons/ui-users.svg";
-import iconLayers from "../icons/ui-layers.svg";
-import iconClipboard from "../icons/ui-clipboard-list.svg";
-import iconChart from "../icons/ui-chart-line.svg";
-import iconScroll from "../icons/ui-scroll-text.svg";
-import iconAlert from "../icons/ui-triangle-alert.svg";
+/* Nav icons are inlined (not <img>) so currentColor inherits the button
+   colour — the gold active icon (DESIGN.md §5) is impossible through
+   <img>, where currentColor resolves to black. Path data copied verbatim
+   from admin/assets/icons/*.svg (stroke-width 1.7 per §6, 1.6–1.8px);
+   the icon files themselves are untouched. */
+const NAV_ICONS = {
+  overview: (<><rect width="7" height="9" x="3" y="3" rx="1" /><rect width="7" height="5" x="14" y="3" rx="1" /><rect width="7" height="9" x="14" y="12" rx="1" /><rect width="7" height="5" x="3" y="16" rx="1" /></>),
+  orders: (<><path d="M12 17V7m4 1h-6a2 2 0 0 0 0 4h4a2 2 0 0 1 0 4H8" /><path d="M4 3a1 1 0 0 1 1-1a1.3 1.3 0 0 1 .7.2l.933.6a1.3 1.3 0 0 0 1.4 0l.934-.6a1.3 1.3 0 0 1 1.4 0l.933.6a1.3 1.3 0 0 0 1.4 0l.933-.6a1.3 1.3 0 0 1 1.4 0l.934.6a1.3 1.3 0 0 0 1.4 0l.933-.6A1.3 1.3 0 0 1 19 2a1 1 0 0 1 1 1v18a1 1 0 0 1-1 1a1.3 1.3 0 0 1-.7-.2l-.933-.6a1.3 1.3 0 0 0-1.4 0l-.934.6a1.3 1.3 0 0 1-1.4 0l-.933-.6a1.3 1.3 0 0 0-1.4 0l-.933.6a1.3 1.3 0 0 1-1.4 0l-.934-.6a1.3 1.3 0 0 0-1.4 0l-.933.6a1.3 1.3 0 0 1-.7.2a1 1 0 0 1-1-1z" /></>),
+  users: (<><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2M16 3.128a4 4 0 0 1 0 7.744M22 21v-2a4 4 0 0 0-3-3.87" /><circle cx="9" cy="7" r="4" /></>),
+  resources: (<><path d="M12.83 2.18a2 2 0 0 0-1.66 0L2.6 6.08a1 1 0 0 0 0 1.83l8.58 3.91a2 2 0 0 0 1.66 0l8.58-3.9a1 1 0 0 0 0-1.83z" /><path d="M2 12a1 1 0 0 0 .58.91l8.6 3.91a2 2 0 0 0 1.65 0l8.58-3.9A1 1 0 0 0 22 12" /><path d="M2 17a1 1 0 0 0 .58.91l8.6 3.91a2 2 0 0 0 1.65 0l8.58-3.9A1 1 0 0 0 22 17" /></>),
+  demands: (<><rect width="8" height="4" x="8" y="2" rx="1" ry="1" /><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2m4 7h4m-4 5h4m-8-5h.01M8 16h.01" /></>),
+  trends: (<><path d="M3 3v16a2 2 0 0 0 2 2h16" /><path d="m19 9-5 5-4-4-3 3" /></>),
+  analysis: (<><path d="M15 12h-5m5-4h-5m9 9V5a2 2 0 0 0-2-2H4" /><path d="M8 21h12a2 2 0 0 0 2-2v-1a1 1 0 0 0-1-1H11a1 1 0 0 0-1 1v1a2 2 0 1 1-4 0V5a2 2 0 1 0-4 0v2a1 1 0 0 0 1 1h3" /></>),
+  alerts: (<><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3" /><path d="M12 9v4" /><path d="M12 17h.01" /></>),
+};
+function NavIcon({ v }) {
+  return (
+    <svg className="ic" data-icon={v.iconName} viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">{NAV_ICONS[v.id]}</svg>
+  );
+}
+/* fmtMoney() returns one string ("¥158,028"); split the ¥ out so only
+   the unit renders gold in the hero numeral (DESIGN.md §2). adminApi.js
+   is out of scope, so the split stays local. */
+function heroMoney(v) {
+  const s = fmtMoney(v);
+  return (<><em>¥</em>{s.slice(1)}</>);
+}
 
 /* Order status breakdown: one row per status — label + bar sized to the
    real share + count. All six canonical statuses always render (a status
@@ -36,14 +55,14 @@ import iconAlert from "../icons/ui-triangle-alert.svg";
 const ORDER_STATUS = ["pending", "confirmed", "paid", "completed", "cancelled", "refunded"];
 const DEMAND_STATUS = { approved: "已通过", pending: "待审核", rejected: "已拒绝" };
 const VIEWS = [
-  { id: "overview", label: "总览", icon: iconDashboard, iconName: "ui:layout-dashboard", group: "main" },
-  { id: "orders", label: "订单", icon: iconReceipt, iconName: "ui:receipt", group: "main" },
-  { id: "users", label: "用户", icon: iconUsers, iconName: "ui:users", group: "main" },
-  { id: "resources", label: "资源", icon: iconLayers, iconName: "ui:layers", group: "main" },
-  { id: "demands", label: "需求", icon: iconClipboard, iconName: "ui:clipboard-list", group: "main" },
-  { id: "trends", label: "趋势统计", icon: iconChart, iconName: "ui:chart-line", group: "premium" },
-  { id: "analysis", label: "经营分析", icon: iconScroll, iconName: "ui:scroll-text", group: "premium" },
-  { id: "alerts", label: "预警中心", icon: iconAlert, iconName: "ui:triangle-alert", group: "premium" },
+  { id: "overview", label: "总览", iconName: "ui:layout-dashboard", group: "main" },
+  { id: "orders", label: "订单", iconName: "ui:receipt", group: "main" },
+  { id: "users", label: "用户", iconName: "ui:users", group: "main" },
+  { id: "resources", label: "资源", iconName: "ui:layers", group: "main" },
+  { id: "demands", label: "需求", iconName: "ui:clipboard-list", group: "main" },
+  { id: "trends", label: "趋势统计", iconName: "ui:chart-line", group: "premium" },
+  { id: "analysis", label: "经营分析", iconName: "ui:scroll-text", group: "premium" },
+  { id: "alerts", label: "预警中心", iconName: "ui:triangle-alert", group: "premium" },
 ];
 const PREMIUM_VIEWS = ["trends", "analysis", "alerts"];
 const FILTERS = [
@@ -59,7 +78,7 @@ const ALERT_KINDS = [
 function OrderRow({ o }) {
   return (
     <tr>
-      <td>{o.code}</td><td>{o.user_name || ""}</td><td>{o.resource_name || ""}</td>
+      <td className="code">{o.code}</td><td>{o.user_name || ""}</td><td>{o.resource_name || ""}</td>
       <td className="num">{fmtMoney(o.amount)}</td><td>{o.booking_date || ""}</td>
       <td><span className={"pill " + o.status}>{STATUS[o.status] || o.status}</span></td>
     </tr>
@@ -78,7 +97,23 @@ export default function AdminDashboard() {
   // change so a query never leaks into another view. Changing `period`
   // inside trends/analysis does NOT reset it (same view).
   const [query, setQuery] = useState("");
-  function changeView(v) { setView(v); setQuery(""); }
+  function changeView(v) { setView(v); setQuery(""); setDrawerOpen(false); }
+  // Mobile drawer (≤860px): open state + Esc closes + focus returns to
+  // the hamburger. Desktop sidebar is unaffected (drawer CSS only
+  // applies at ≤860px).
+  const [drawerOpen, setDrawerOpen] = useState(false);
+  const hamburgerRef = useRef(null);
+  useEffect(() => {
+    if (!drawerOpen) return;
+    function onKey(e) {
+      if (e.key === "Escape") {
+        setDrawerOpen(false);
+        if (hamburgerRef.current) hamburgerRef.current.focus();
+      }
+    }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [drawerOpen]);
   const [whoName, setWhoName] = useState("管理员");
   const [forbidden, setForbidden] = useState(false);
   const [toastMsg, setToastMsg] = useState("");
@@ -314,13 +349,13 @@ export default function AdminDashboard() {
     <>
       <a className="skip-link" href="#top">跳到主要内容</a>
       <div id="app" className="admin-app">
-        <aside className="sidebar">
+        <aside className={"sidebar" + (drawerOpen ? " open" : "")} id="adminSidebar">
           <div className="mark">桂演<small>Admin Console</small></div>
           <nav>
             {VIEWS.filter((v) => v.group === "main").map((v) => (
               <button key={v.id} type="button" data-view={v.id} className={view === v.id ? "on" : ""}
                 aria-current={view === v.id ? "page" : undefined} onClick={() => changeView(v.id)}>
-                <img className="ic" data-icon={v.iconName} src={v.icon} alt="" width="18" height="18" />
+                <NavIcon v={v} />
                 {v.label}
               </button>
             ))}
@@ -329,7 +364,7 @@ export default function AdminDashboard() {
             {VIEWS.filter((v) => v.group === "premium").map((v) => (
               <button key={v.id} type="button" data-view={v.id} className={view === v.id ? "on" : ""}
                 aria-current={view === v.id ? "page" : undefined} onClick={() => changeView(v.id)}>
-                <img className="ic" data-icon={v.iconName} src={v.icon} alt="" width="18" height="18" />
+                <NavIcon v={v} />
                 {v.label}
               </button>
             ))}
@@ -339,15 +374,21 @@ export default function AdminDashboard() {
             <button type="button" id="logoutBtn" onClick={doLogout}>退出</button>
           </div>
         </aside>
+        <div className={"drawer-backdrop" + (drawerOpen ? " open" : "")} aria-hidden="true" onClick={() => setDrawerOpen(false)}></div>
         <main className="main" id="top" tabIndex={-1}>
           <div className="main-head">
+            <button type="button" className="menu-btn" ref={hamburgerRef}
+              aria-expanded={drawerOpen ? "true" : "false"} aria-controls="adminSidebar" aria-label="打开导航菜单"
+              onClick={() => setDrawerOpen(!drawerOpen)}>
+              <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16" /></svg>
+            </button>
             <h1><span id="pageTitle">{titles[view][0]}</span><span className="sub" id="pageSub">{titles[view][1]}</span></h1>
             <span className="badge">{canWrite ? "管理操作 · 审计留痕" : "仅查看 · 只读"}</span>
           </div>
 
           <section className={"view" + (view === "overview" ? " on" : "")} id="view-overview">
             <div className="stats">
-              <div className="stat hero"><span>总收入</span><b id="statRevenue">{stats ? fmtMoney(stats.revenue_cents) : "¥0"}</b></div>
+              <div className="stat hero"><span>总收入</span><b id="statRevenue">{heroMoney(stats ? stats.revenue_cents : 0)}</b></div>
               <div className="stat"><span>用户</span><b id="statUsers">{stats ? stats.users : 0}</b></div>
               <div className="stat"><span>订单</span><b id="statOrders">{stats ? stats.orders : 0}</b></div>
               <div className="stat"><span>资源</span><b id="statResources">{stats ? stats.resources : 0}</b></div>
@@ -542,7 +583,7 @@ export default function AdminDashboard() {
               <>
                 <h2 className="report-title">{reportTitle}</h2>
                 <div className="stats">
-                  <div className="stat hero"><span>总收入</span><b>{fmtMoney(analysis.kpis.revenue)}</b><small className="def">{analysis.definitions.revenue}</small></div>
+                  <div className="stat hero"><span>总收入</span><b>{heroMoney(analysis.kpis.revenue)}</b><small className="def">{analysis.definitions.revenue}</small></div>
                   <div className="stat"><span>历史订单</span><b>{analysis.kpis.orders}</b><small className="def">{analysis.definitions.orders}</small></div>
                   <div className="stat"><span>有效付费订单</span><b>{analysis.kpis.paidOrders}</b></div>
                   <div className="stat"><span>在售资源</span><b>{analysis.kpis.resources}</b></div>
