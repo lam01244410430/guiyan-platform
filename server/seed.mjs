@@ -489,6 +489,199 @@ function seed(db, passwords) {
     "这是毕业实习演示平台，所有订单、支付、AI输出和对接结果均为模拟。",
     now,
   );
+  // ---- Phase 2 — additive seed (2026-11-11) ----
+  // Adds 100 extra users + their linked orders/comments/favorites/
+  // demands/messages BESIDE the demo data above. Nothing above is
+  // changed: admin, demo, supplier and the 36 visitors stay as the
+  // fallback demo set, and the 22 resources above (+40 catalog rows)
+  // are untouched. All new users share ONE public demo password
+  // (same class as demo123/admin123): "guiyan2026" — demo-only,
+  // never a real credential.
+  // NOTE: the users table has no email/phone column yet (registration
+  // in Phase 3 owns that), so each new user's email is the derived
+  // address <username>@example.com (fictional, documented here and
+  // asserted in tests/seed-integrity.test.mjs); no phone number is
+  // invented or stored. All names are fictional Guangxi audience
+  // names; dates spread 2026-08-15..2026-11-08, never in the future
+  // relative to the seed "now" (2026-11-09). New orders only use the
+  // 22 resources above, whose prices are known here, so
+  // amount = quantity * resource price always holds.
+  const SEED_USER_PASSWORD = "guiyan2026";
+  const seedSurnames = [
+    ["李", "li"], ["王", "wang"], ["陈", "chen"], ["黄", "huang"],
+    ["刘", "liu"], ["韦", "wei"], ["陆", "lu"], ["罗", "luo"],
+    ["覃", "qin"], ["梁", "liang"], ["赵", "zhao"], ["周", "zhou"],
+    ["吴", "wu"], ["莫", "mo"], ["农", "nong"], ["蒙", "meng"],
+    ["岑", "cen"], ["甘", "gan"], ["潘", "pan"], ["何", "he"],
+  ];
+  const seedGivenFirst = [
+    ["晓", "xiao"], ["文", "wen"], ["悦", "yue"], ["宁", "ning"],
+    ["璐", "lu"], ["星", "xing"], ["清", "qing"], ["予", "yu"],
+    ["言", "yan"], ["可", "ke"], ["禾", "he"], ["欣", "xin"],
+    ["伟", "wei"], ["敏", "min"], ["杰", "jie"], ["静", "jing"],
+    ["强", "qiang"], ["丽", "li"], ["军", "jun"], ["芳", "fang"],
+  ];
+  const seedGivenSecond = [
+    ["明", "ming"], ["华", "hua"], ["峰", "feng"], ["雪", "xue"], ["阳", "yang"],
+  ];
+  const seedCities = ["南宁", "柳州", "桂林", "北海", "梧州", "玉林", "百色", "钦州", "贵港", "崇左"];
+  const seedUserHash = hashPassword(SEED_USER_PASSWORD);
+  const seedUserCreated = (i) => {
+    const base = Date.UTC(2026, 7, 15, 8, 0, 0) + Math.floor((i * 85) / 99) * 86400000 + (i % 9) * 3600000;
+    return new Date(base).toISOString();
+  };
+  for (let i = 0; i < 100; i++) {
+    const [surname, surnamePy] = seedSurnames[i % 20];
+    const [given1, given1Py] = seedGivenFirst[i % 20];
+    const [given2, given2Py] = seedGivenSecond[Math.floor(i / 20)];
+    const username = `${surnamePy}${given1Py}${given2Py}${String(i + 1).padStart(2, "0")}`;
+    user.run(
+      username,
+      seedUserHash,
+      `${surname}${given1}${given2}`,
+      "user",
+      seedCities[i % 10],
+      19 + ((i * 7) % 42),
+      i % 2 ? "男" : "女",
+      ["H5", "微信小程序", "猫眼", "抖音"][i % 4],
+      categories[i % 10].id,
+      i % 3 !== 0 ? 1 : 0,
+      seedUserCreated(i),
+    );
+    // New users occupy ids 40..139 (demo users are 1..39, insert order).
+  }
+  // Orders: 0 for every 10th new user, else 1–3 (resources 1..22 only).
+  const seedOrder = db.prepare(
+    "INSERT INTO orders(code,user_id,resource_id,quantity,amount,booking_date,status,channel,note,escrow,created_at) VALUES(?,?,?,?,?,?,?,?,?,?,?)",
+  );
+  let seedOrderN = 0;
+  for (let i = 0; i < 100; i++) {
+    if (i % 10 === 9) continue;
+    const count = 1 + (i % 3);
+    for (let k = 0; k < count; k++) {
+      const n = seedOrderN++;
+      const resourceId = (n * 7 % 22) + 1;
+      const quantity = n % 4 === 0 ? 2 : 1;
+      const price = rows[resourceId - 1][3];
+      const status = ["completed", "completed", "paid", "pending", "confirmed", "cancelled"][n % 6];
+      const created = new Date(
+        Math.min(
+          Date.parse(seedUserCreated(i)) + (1 + (n % 10)) * 86400000,
+          Date.UTC(2026, 10, 9, 8, 0, 0),
+        ),
+      );
+      const booking = new Date(created.getTime() + (7 + (n % 20)) * 86400000);
+      seedOrder.run(
+        `GY2026${String(200001 + n).padStart(6, "0")}`,
+        40 + i,
+        resourceId,
+        quantity,
+        quantity * price,
+        booking.toISOString().slice(0, 10),
+        status,
+        ["H5", "微信小程序", "H5", "猫眼", "抖音"][n % 5],
+        "新增种子用户订单",
+        status === "completed" ? "已结算" : status === "paid" ? "模拟托管中" : "未支付",
+        created.toISOString(),
+      );
+    }
+  }
+  // Favorites: 0 for every 5th new user (i%5==4), else 1–2.
+  // Resources 1..22 only: FK is checked per statement and the
+  // catalog resources 23..62 are inserted AFTER seed, so a favorite
+  // pointing at 23..62 would fail first boot.
+  const seedFavorite = db.prepare(
+    "INSERT INTO favorites(user_id,resource_id) VALUES(?,?)",
+  );
+  for (let i = 0; i < 100; i++) {
+    if (i % 5 === 4) continue;
+    const count = 1 + (i % 2);
+    for (let k = 0; k < count; k++)
+      seedFavorite.run(40 + i, ((i * 7 + k * 13) % 22) + 1);
+  }
+  // Comments: 1 for i%5<2, plus a 2nd for i%10==0.
+  const seedCommentTexts = [
+    "演出很有广西特色，舞美和音乐都很用心，值得二刷。",
+    "场馆交通方便，座位视野不错，期待更多周末场次。",
+    "第一次带孩子来看，互动环节很适合亲子，体验很好。",
+    "票价合理，线上选座很方便，入场核验也很顺畅。",
+    "节目编排紧凑，民族元素融合得自然，推荐给朋友了。",
+    "音响效果比预想的好，就是散场时人流稍挤。",
+    "文创产品设计很用心，已经买了帆布袋当伴手礼。",
+    "线上点播画质清晰，在家也能感受剧场氛围。",
+    "希望增加桂林、柳州的巡演场次，不用总跑南宁。",
+    "整体体验不错，客服回复及时，下次还会再来。",
+  ];
+  const seedComment = db.prepare(
+    "INSERT INTO comments(user_id,resource_id,rating,content,status,created_at) VALUES(?,?,?,?,?,?)",
+  );
+  for (let i = 0; i < 100; i++) {
+    if (i % 5 >= 2) continue;
+    const count = i % 10 === 0 ? 2 : 1;
+    for (let k = 0; k < count; k++) {
+      const created = new Date(
+        Math.min(
+          Date.parse(seedUserCreated(i)) + (2 + ((i + k) % 20)) * 86400000,
+          Date.UTC(2026, 10, 9, 8, 0, 0),
+        ),
+      );
+      seedComment.run(
+        40 + i,
+        ((i * 11 + k * 17) % 22) + 1, // resources 1..22 only (see favorites note on FK timing)
+        [5, 4, 5, 3, 4, 2, 5, 4, 3, 5][i % 10],
+        seedCommentTexts[(i + k) % 10],
+        i % 4 === 0 ? "pending" : "approved",
+        created.toISOString(),
+      );
+    }
+  }
+  // Demands: 1 for i%4==0.
+  const seedDemandTitles = [
+    ["寻民族歌舞团队，合作社区文化活动", "artist", 600000, "希望30分钟左右的民族歌舞节目，适合社区广场演出。"],
+    ["小剧场档期咨询，计划举办青年戏剧展", "venue", 900000, "需要容纳150—250人的小剧场，档期在12月，周末优先。"],
+    ["非遗手作体验课，研学团定制", "heritage", 300000, "约40名学生，半天手作体验，需要讲解与材料包。"],
+    ["文创伴手礼批量采购", "creative", 120000, "企业年会伴手礼，200份左右，带广西纹样元素。"],
+  ];
+  for (let i = 0; i < 100; i++) {
+    if (i % 4 !== 0) continue;
+    const [title, category, budget, description] = seedDemandTitles[(i / 4) % 4];
+    demand.run(
+      40 + i,
+      title,
+      category,
+      budget,
+      seedCities[i % 10],
+      description,
+      i % 8 === 0 ? "approved" : "pending",
+      new Date(
+        Math.min(
+          Date.parse(seedUserCreated(i)) + (1 + (i % 12)) * 86400000,
+          Date.UTC(2026, 10, 9, 8, 0, 0),
+        ),
+      ).toISOString(),
+    );
+  }
+  // Messages: 1 for i%10<3; even i: admin -> user, odd i: user -> admin.
+  const seedMessage = db.prepare(
+    "INSERT INTO messages(user_id,sender_id,title,content,created_at) VALUES(?,?,?,?,?)",
+  );
+  const seedMessageTexts = [
+    ["订单提醒", "您有一笔新增种子订单已生成，可在“我的订单”中查看详情（演示数据）。"],
+    ["欢迎来到桂演", "欢迎加入桂演，这里汇集广西演出剧目、场馆与非遗体验，祝观演愉快。"],
+    ["活动推荐", "本周末南宁有多场民族歌舞演出，热门场次余票不多，可提前选座。"],
+  ];
+  for (let i = 0; i < 100; i++) {
+    if (i % 10 >= 3) continue;
+    const [title, content] = seedMessageTexts[i % 3];
+    const created = new Date(
+      Math.min(
+        Date.parse(seedUserCreated(i)) + (1 + (i % 7)) * 86400000,
+        Date.UTC(2026, 10, 9, 8, 0, 0),
+      ),
+    ).toISOString();
+    if (i % 2 === 0) seedMessage.run(40 + i, 1, title, content, created);
+    else seedMessage.run(1, 40 + i, title, content, created);
+  }
   for (const [k, v] of Object.entries({
     platformName: "桂演",
     alertThreshold: 5,
