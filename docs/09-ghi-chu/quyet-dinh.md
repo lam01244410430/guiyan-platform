@@ -4,6 +4,9 @@ Ghi mọi quyết định của Lam (ai quyết, khi nào, nội dung). Quyết 
 
 | Ngày | Ai | Quyết định |
 |---|---|---|
+| 2026-11-11 | Lam | Chuyển full React + Redis: migration React 19 + Vite MPA + Node + PostgreSQL + Redis (Upstash trên Vercel, docker local; fail-open cache), giữ nguyên API/DB/URL/design tokens; seed mới ~100 user + 1 admin; thêm đăng ký; premium dashboard React làm sau migration, dùng lại backend admin-insights đã giữ. |
+| 2026-11-11 | Lam | Dữ liệu demo đang live + tài khoản demo/demo123 được GIỮ LẠI tạm thời đề phòng lỗi — seed mới thêm vào bên cạnh, không xóa demo. Chỉ bỏ demo sau khi migration + seed mới kiểm chứng ổn định, và cần Lam duyệt riêng lúc đó. DB Neon production không reset. |
+| 2026-11-11 | Lam | Lộ trình tuần tự, một giai đoạn một commit: (1) migration → (2) seed → (3) đăng ký → (4) docs → (5) premium dashboard → (6) các mục còn lại; xong một giai đoạn mới sang giai đoạn sau; commit nào cũng cần Lam duyệt riêng. |
 | 2026-11-10 | Lam | Tiếng Trung là ngôn ngữ mặc định của web (trước đó là tiếng Việt); header dùng max trang, logo trái, tài khoản phải; khi đăng nhập chỉ hiện "Hi + tên" + menu thả xuống; chọn ngôn ngữ tối giản (chỉ 3 ngôn ngữ thật); viết lại skill giao diện chính + tạo bộ docs kiến trúc `docs/`. |
 | 2026-11-10 | Lam | Admin là web hoàn toàn riêng biệt; yêu thích phải đăng nhập mới lưu, lưu trên tài khoản user. |
 | 2026-11-10 | Lam | Audit bảo mật đầy đủ chỉ chạy khi hệ thống hoàn thiện, không chạy bây giờ. |

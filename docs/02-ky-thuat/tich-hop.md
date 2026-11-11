@@ -13,14 +13,25 @@
 
 - Project `guiyan-platform`, id `prj_QBg081xC5J9uR2fP2erejqqJbRkg`, scope `lam01244410430`, region `sin1`. Live: https://guiyan-platform.vercel.app
 - Deploy **chỉ bằng Vercel CLI thật** (`npx -y vercel@65.14.0`); connector MCP của Muse bị chặn scope (403) — không dùng.
-- Biến môi trường Production: `DATABASE_URL` (pooled), `DATABASE_URL_UNPOOLED`, `DEMO_PASSWORD`/`ADMIN_PASSWORD`, 4 biến `AWS_*`.
-- Cấu hình (xem `03-van-hanh/deploy.md`): Root Directory phải là `.` (không phải `server`), framework Vite, entry `server/index.mjs`, `vercel.json` dùng `routes` (không phải `rewrites`).
+- Biến môi trường Production: `DATABASE_URL` (pooled), `DATABASE_URL_UNPOOLED`, `DEMO_PASSWORD`/`ADMIN_PASSWORD`, 4 biến `AWS_*`. **Chưa có** `UPSTASH_REDIS_REST_URL` / `UPSTASH_REDIS_REST_TOKEN` — pending Lam tạo Upstash (xem mục Redis ở trên); build vẫn chạy, cache trên production tạm tắt (fail-open).
+- Cấu hình (xem `03-van-hanh/deploy.md`): Root Directory phải là `.` (không phải `server`), framework Vite, entry `server/index.mjs`, `vercel.json` dùng `routes` (không phải `rewrites`). `vercel.json` hiện tại: `buildCommand: "npm run build"`, `outputDirectory: "dist"` (xem `05-kien-truc/web.md` về flatten-dist).
 
 ## GitHub
 
 - Repo https://github.com/lam01244410430/guiyan-platform.git, nhánh `main` là nguồn sự thật.
 - Push **chỉ qua SSH key trên máy EC2** (`~/.ssh/id_ed25519_github`); PAT đã chết (401). Máy này không có SSH key GitHub.
 - File > ~200KB phải tách thành chunk 128KB khi chuyển qua EC2 (egress proxy gãy ở ~1MB), ghép lại rồi kiểm tra md5.
+
+## Redis / Upstash (thêm giai đoạn 1, 2026-11-11)
+
+- **Vị trí:** `server/lib/cache.mjs`, dùng bởi `routes/resources.mjs`, `routes/assistant.mjs`, `routes/admin.mjs`, `routes/admin-insights.mjs`. Session vẫn ở Postgres (bảng `sessions`), không chuyển sang Redis.
+- **Fail-open tuyệt đối:** Redis chết, timeout, hay thiếu dependency đều chỉ ghi log (tên key + mã lỗi, không ghi giá trị/URL/token) rồi đọc thẳng Postgres; không có phương thức cache nào ném lỗi ra request. Timeout mỗi thao tác 1s, timeout kết nối 3s; client node-redis tắt offline queue và không tự nối lại để lỗi nhanh thay vì xếp hàng chờ.
+- **Driver (thứ tự ưu tiên, cái đầu khớp sẽ thắng):**
+  1. **Upstash REST** — khi có đủ cả `UPSTASH_REDIS_REST_URL` + `UPSTASH_REDIS_REST_TOKEN` (dùng `@upstash/redis`, HTTP không trạng thái, an toàn cho Vercel serverless). ⚠️ **PENDING:** chưa có 2 biến này trên Vercel — cần Lam tạo tài khoản Upstash (hoặc qua Vercel Marketplace); code tự nhận biến khi có, không cần sửa code.
+  2. **node-redis RESP** — khi có `REDIS_URL` (dev/test: docker redis, vd `REDIS_URL=redis://127.0.0.1:6380`).
+  3. **Tắt** — không có biến nào: mọi phương thức thành no-op, API đọc thẳng Postgres.
+- **Key / TTL (namespace `guiyan:*`):** `guiyan:resources:list` 300s (chỉ list tài nguyên không lọc, sort=hot; query có lọc bỏ qua cache), `guiyan:resources:hot` 300s (top-3 hot cho assistant), `guiyan:admin:stats:total` 60s, `guiyan:admin:stats:{day|week|month|quarter}` 60s, `guiyan:admin:analysis:{day|week|month|quarter}` 60s. Xóa cache (bust) theo nhóm: tạo/chuyển trạng thái đơn → bust stats + analysis + resources; tạo/duyệt nhu cầu → bust stats; kích hoạt/xử lý cảnh báo mô phỏng → bust analysis. Header `X-Cache: HIT/MISS` cho biết nguồn dữ liệu (xem `api.md`).
+- **Dev local:** chạy một container Redis dùng một lần, mở cổng 6380, rồi đặt `REDIS_URL=redis://127.0.0.1:6380` khi chạy server/test; dừng/xóa container sau khi xong (máy EC2 free-tier, Postgres/Redis chỉ bật khi test).
 
 ## WeChat mini-program
 
