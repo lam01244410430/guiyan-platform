@@ -11,6 +11,7 @@
 import test, { before, after } from "node:test";
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
+import http from "node:http";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -34,6 +35,29 @@ const serverDir = path.resolve(
 const BOOKING_DATE = "2026-12-20";
 
 let proc;
+let serverStderr = "";
+// Stub for the trial AI backend behind POST /api/assistant/chat. Never call
+// the real trial IP (34.96.190.102) from any test. Behaviour is per-test
+// via the mutable stubHandler; the default answers like a healthy upstream.
+let stubServer;
+let stubPort;
+// Last upstream request body received by the stub (parsed JSON, or null).
+let stubSeen = null;
+let stubHandler = async (req, res) => {
+  res.writeHead(200, { "Content-Type": "application/json" });
+  res.end(JSON.stringify({ reply: "stub xin chào" }));
+};
+function stubJson(status, body, { raw = false, delayMs = 0 } = {}) {
+  return async (req, res) => {
+    if (delayMs) await new Promise((r) => setTimeout(r, delayMs));
+    try {
+      res.writeHead(status, { "Content-Type": "application/json" });
+      res.end(raw ? body : JSON.stringify(body));
+    } catch {
+      // Client (server-side timeout) may already have gone away; ignore.
+    }
+  };
+}
 async function req(p, { method = "GET", body, token } = {}) {
   const res = await fetch(BASE + p, {
     method,
@@ -54,13 +78,43 @@ async function req(p, { method = "GET", body, token } = {}) {
 }
 
 before(async () => {
+  stubServer = http.createServer((req, res) => {
+    const chunks = [];
+    req.on("data", (c) => chunks.push(c));
+    req.on("end", () => {
+      try {
+        stubSeen = JSON.parse(Buffer.concat(chunks).toString() || "{}");
+      } catch {
+        stubSeen = null;
+      }
+      Promise.resolve(stubHandler(req, res)).catch(() => {
+        try {
+          res.writeHead(500);
+          res.end();
+        } catch {
+          // ignore
+        }
+      });
+    });
+  });
+  await new Promise((resolve) => stubServer.listen(0, "127.0.0.1", resolve));
+  stubPort = stubServer.address().port;
   proc = spawn("node", ["server.mjs"], {
     cwd: serverDir,
-    env: { ...process.env, DATABASE_URL, PORT: String(PORT) },
+    env: {
+      ...process.env,
+      DATABASE_URL,
+      PORT: String(PORT),
+      AI_CHAT_URL: `http://127.0.0.1:${stubPort}/api/chat`,
+      AI_CHAT_TIMEOUT_MS: "200",
+    },
     stdio: ["ignore", "pipe", "pipe"],
   });
   proc.stdout.on("data", (d) => process.stderr.write(`[server] ${d}`));
-  proc.stderr.on("data", (d) => process.stderr.write(`[server:err] ${d}`));
+  proc.stderr.on("data", (d) => {
+    serverStderr += String(d);
+    process.stderr.write(`[server:err] ${d}`);
+  });
   const deadline = Date.now() + 60000;
   for (;;) {
     try {
@@ -93,6 +147,7 @@ before(async () => {
 
 after(() => {
   if (proc && !proc.killed) proc.kill("SIGTERM");
+  if (stubServer) stubServer.close();
 });
 
 test("health reports postgres mode", async () => {
@@ -363,6 +418,187 @@ test("assistant answers by rule from live data", async () => {
 
   const empty = await req("/api/assistant?q=");
   assert.equal(empty.status, 400);
+});
+
+test("assistant chat proxies to the AI backend", async () => {
+  stubHandler = stubJson(200, { reply: "stub xin chào" });
+  const r = await req("/api/assistant/chat", {
+    method: "POST",
+    body: { message: "hello" },
+  });
+  assert.equal(r.status, 200, JSON.stringify(r.json));
+  assert.equal(r.json.reply, "stub xin chào");
+  assert.equal(r.json.source, "ai");
+  assert.equal("fallback" in r.json, false);
+});
+
+test("assistant chat forwards a language instruction, no language field upstream", async () => {
+  stubHandler = stubJson(200, { reply: "stub xin chào" });
+  const instructions = {
+    zh: "请用中文回答以下问题：",
+    vi: "Hãy trả lời bằng tiếng Việt cho câu hỏi sau:",
+    en: "Please answer in English to the following question:",
+  };
+  for (const [language, instruction] of Object.entries(instructions)) {
+    stubSeen = null;
+    const r = await req("/api/assistant/chat", {
+      method: "POST",
+      body: { message: "what time is the show?", language },
+    });
+    assert.equal(r.status, 200, JSON.stringify(r.json));
+    assert.equal(r.json.source, "ai");
+    assert.ok(stubSeen, "stub must have received the upstream request");
+    assert.ok(
+      stubSeen.message.startsWith(instruction),
+      `forwarded message must start with the ${language} instruction: ${JSON.stringify(stubSeen.message)}`,
+    );
+    assert.ok(stubSeen.message.includes("what time is the show?"));
+    assert.equal("language" in stubSeen, false, "no language field upstream");
+  }
+});
+
+test("assistant chat defaults an omitted or invalid language to zh", async () => {
+  stubHandler = stubJson(200, { reply: "stub xin chào" });
+  const zhInstruction = "请用中文回答以下问题：";
+  for (const body of [{ message: "hello" }, { message: "hello", language: "fr" }, { message: "hello", language: 123 }]) {
+    stubSeen = null;
+    const r = await req("/api/assistant/chat", { method: "POST", body });
+    assert.equal(r.status, 200, JSON.stringify(r.json));
+    assert.ok(stubSeen.message.startsWith(zhInstruction), JSON.stringify(stubSeen));
+    assert.equal("language" in stubSeen, false);
+  }
+});
+
+test("assistant chat fallback returns kind and items", async () => {
+  stubHandler = stubJson(500, { error: "boom" });
+  const refund = await req("/api/assistant/chat", {
+    method: "POST",
+    body: { message: "怎么退款" },
+  });
+  assert.equal(refund.status, 200, JSON.stringify(refund.json));
+  assert.equal(refund.json.source, "rules");
+  assert.equal(refund.json.fallback, true);
+  assert.equal(refund.json.kind, "refund");
+
+  const hello = await req("/api/assistant/chat", {
+    method: "POST",
+    body: { message: "hello" },
+  });
+  assert.equal(hello.json.kind, "hello");
+
+  const hot = await req("/api/assistant/chat", {
+    method: "POST",
+    body: { message: "今晚有什么热门演出" },
+  });
+  assert.equal(hot.json.kind, "hot");
+  assert.equal(hot.json.items.length, 3);
+
+  const heritage = await req("/api/assistant/chat", {
+    method: "POST",
+    body: { message: "非遗体验有哪些" },
+  });
+  assert.equal(heritage.json.kind, "heritage");
+  assert.ok(heritage.json.items.length >= 6);
+});
+
+test("assistant chat falls back to data.detail", async () => {
+  stubHandler = stubJson(200, { detail: "stub detail" });
+  const r = await req("/api/assistant/chat", {
+    method: "POST",
+    body: { message: "hello" },
+  });
+  assert.equal(r.status, 200, JSON.stringify(r.json));
+  assert.equal(r.json.reply, "stub detail");
+  assert.equal(r.json.source, "ai");
+});
+
+test("assistant chat falls open to rules on upstream 500", async () => {
+  stubHandler = stubJson(500, { error: "boom" });
+  const q = "怎么退款";
+  const get = await req("/api/assistant?q=" + encodeURIComponent(q));
+  assert.equal(get.status, 200);
+  const post = await req("/api/assistant/chat", {
+    method: "POST",
+    body: { message: q },
+  });
+  assert.equal(post.status, 200, JSON.stringify(post.json));
+  assert.equal(post.json.source, "rules");
+  assert.equal(post.json.fallback, true);
+  // Fallback reuses the rule engine: identical to the live GET answer.
+  assert.equal(post.json.reply, get.json.answer);
+});
+
+test("assistant chat falls open on upstream timeout", async () => {
+  // AI_CHAT_TIMEOUT_MS=200 for this server; the stub answers after 1000 ms.
+  stubHandler = stubJson(200, { reply: "too late" }, { delayMs: 1000 });
+  const r = await req("/api/assistant/chat", {
+    method: "POST",
+    body: { message: "hello" },
+  });
+  assert.equal(r.status, 200, JSON.stringify(r.json));
+  assert.equal(r.json.source, "rules");
+  assert.equal(r.json.fallback, true);
+});
+
+test("assistant chat falls open on bad upstream JSON", async () => {
+  stubHandler = stubJson(200, "not-json{", { raw: true });
+  const r = await req("/api/assistant/chat", {
+    method: "POST",
+    body: { message: "hello" },
+  });
+  assert.equal(r.status, 200, JSON.stringify(r.json));
+  assert.equal(r.json.source, "rules");
+  assert.equal(r.json.fallback, true);
+});
+
+test("assistant chat falls open on empty upstream reply", async () => {
+  stubHandler = stubJson(200, {});
+  const emptyObj = await req("/api/assistant/chat", {
+    method: "POST",
+    body: { message: "hello" },
+  });
+  assert.equal(emptyObj.status, 200, JSON.stringify(emptyObj.json));
+  assert.equal(emptyObj.json.source, "rules");
+  assert.equal(emptyObj.json.fallback, true);
+
+  stubHandler = stubJson(200, { reply: " " });
+  const blank = await req("/api/assistant/chat", {
+    method: "POST",
+    body: { message: "hello" },
+  });
+  assert.equal(blank.status, 200, JSON.stringify(blank.json));
+  assert.equal(blank.json.source, "rules");
+  assert.equal(blank.json.fallback, true);
+});
+
+test("assistant chat validates the message", async () => {
+  for (const body of [{}, { message: "" }, { message: "   " }, { message: 123 }, { message: "x".repeat(1001) }]) {
+    const r = await req("/api/assistant/chat", { method: "POST", body });
+    assert.equal(r.status, 400, JSON.stringify({ body, r }));
+  }
+  stubHandler = stubJson(200, { reply: "stub xin chào" });
+  const ok = await req("/api/assistant/chat", {
+    method: "POST",
+    body: { message: "x".repeat(1000) },
+  });
+  assert.equal(ok.status, 200, JSON.stringify(ok.json));
+});
+
+test("assistant chat never logs the message", async () => {
+  const sentinel = `SENTINEL-${Math.random().toString(36).slice(2)}`;
+  stubHandler = stubJson(200, { reply: "stub xin chào" });
+  const r = await req("/api/assistant/chat", {
+    method: "POST",
+    body: { message: sentinel },
+  });
+  assert.equal(r.status, 200, JSON.stringify(r.json));
+  // Give the server's stderr pipe a moment to flush, then check.
+  await new Promise((resolve) => setTimeout(resolve, 300));
+  assert.equal(
+    serverStderr.includes(sentinel),
+    false,
+    "server stderr must not contain the chat message",
+  );
 });
 
 test("admin stats series covers all four periods with zero-filled buckets", async () => {

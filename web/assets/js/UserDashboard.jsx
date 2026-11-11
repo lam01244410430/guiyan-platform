@@ -9,6 +9,7 @@ import {
   restoreUser, fmtMoney, statusKey,
 } from "./apiClient.js";
 import { Header, LoginDialog, RegisterDialog, Toast } from "./chrome.jsx";
+import AiChat from "./AiChat.jsx";
 
 export default function UserDashboard() {
   const [lang, setLangState] = useState(langState.lang);
@@ -276,6 +277,7 @@ export default function UserDashboard() {
         onRegisterClick={() => { setLoginOpen(false); setRegisterErr(""); setRegisterOpen(true); }} />
       <RegisterDialog open={registerOpen} err={registerErr} onClose={() => setRegisterOpen(false)} onRegister={doRegister}
         onLoginClick={() => { setRegisterOpen(false); setLoginOpen(true); }} />
+      <AiChat lang={lang} />
       <Toast msg={toastMsg} />
     </>
   );

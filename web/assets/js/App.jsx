@@ -15,6 +15,7 @@ import {
   mergeDemands, mapApiOrder, STATUS,
 } from "./apiClient.js";
 import { Header, LoginDialog, RegisterDialog, Toast } from "./chrome.jsx";
+import AiChat from "./AiChat.jsx";
 import heroImg from "../img/hero.webp";
 import spotlightImg from "../img/spotlight.webp";
 
@@ -793,6 +794,7 @@ export default function App() {
         </form>
       </div>
 
+      <AiChat lang={lang} />
       <Toast msg={toastMsg} />
     </>
   );

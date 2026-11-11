@@ -172,7 +172,10 @@ vercel link            # 关联一个 Vercel 项目（或在控制台 Import 本
 - Environment Variables：`DATABASE_URL`（Neon PostgreSQL 连接串，
   在 Vercel 控制台设置；**永远不要提交到仓库**）。同时设置
   `DEMO_PASSWORD` 与 `ADMIN_PASSWORD`（首次启动前，决定演示账号
-  的密码；取值见原小组文档《08 运行与最终交付说明》）。对象存储
+  的密码；取值见原小组文档《08 运行与最终交付说明》）。AI 聊天代理
+  另需 `AI_CHAT_URL`（上游试用后端地址，默认
+  `http://34.96.190.102/api/chat`）与 `AI_CHAT_TIMEOUT_MS`（上游超
+  时毫秒数，默认 `25000`）。对象存储
   也需要四个变量：`AWS_ACCESS_KEY_ID`、`AWS_SECRET_ACCESS_KEY`、
   `AWS_ENDPOINT_URL_S3`、`AWS_REGION`（`neon deploy` 写入本地
   `.env.local` 的同名变量；线上要在 Vercel 控制台再填一份，否则

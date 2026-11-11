@@ -18,12 +18,13 @@ web/
   user.html             # shell dashboard user + <script type="module" src="assets/js/userMain.jsx">
   assets/
     css/main.css        # toàn bộ style (xem "Hệ thống thiết kế" dưới) — giữ nguyên
-    js/data.js          # i18n (zh/vi/en, 177 key/ngôn ngữ — đếm lại 2026-11-11, xem dưới)
+    js/data.js          # i18n (zh/vi/en, 185 key/ngôn ngữ — đếm lại 2026-11-11, xem dưới)
                         #   + CATS/RES/DEMANDS/CATIMG nhúng (không đổi dữ liệu)
     js/main.jsx         # entry trang chính: createRoot + <App/>
     js/userMain.jsx     # entry user.html: createRoot + <UserDashboard/>
     js/App.jsx          # SPA khách: header, hero, sections, đặt vé, yêu thích, trợ lý, đăng nhập/đăng ký
     js/UserDashboard.jsx# dashboard user (profile, đơn của tôi, yêu thích, nhu cầu)
+    js/AiChat.jsx       # nút chat nổi + panel (dùng chung index + user.html)
     js/chrome.jsx       # Header, LoginDialog, RegisterDialog, Toast (dùng chung 2 entry)
     js/apiClient.js     # client API (token sessionStorage, mọi call có tiền tố /api)
     img/hero.webp       # ảnh hero
@@ -33,9 +34,9 @@ web/
 - Design tokens, CSS, header "Hi + tên", responsive và hành vi giữ nguyên 100% so với bản vanilla (parity đã kiểm chứng; xem "Hành vi" dưới). Hai hàm `updateAuthUI()` cũ nay là component `Header` dùng chung trong `chrome.jsx`.
 - `vercel.json` copy `dist/` (kết quả build) khi deploy, không copy trực tiếp `web/` nữa.
 
-## i18n — 177 key/ngôn ngữ (đếm lại 2026-11-11)
+## i18n — 185 key/ngôn ngữ (đếm lại 2026-11-11)
 
-`web/assets/js/data.js`, biến `I18N`: **zh 177, vi 177, en 177** — 3 thứ tiếng có tập key giống hệt nhau (không key nào chỉ có ở 1 tiếng). Giai đoạn 1 là 165 key; giai đoạn 3 (đăng ký) thêm **12 key**: `registerBtn`, `registerTitle`, `namePh`, `emailPh`, `registerFailed`, `regUserTaken`, `regUserInvalid`, `regPassShort`, `regNameRequired`, `regEmailInvalid`, `regToRegister`, `regToLogin`. Ngôn ngữ mặc định vẫn tiếng Trung (zh); chọn ngôn ngữ vẫn bằng dropdown 3 mục.
+`web/assets/js/data.js`, biến `I18N`: **zh 185, vi 185, en 185** — 3 thứ tiếng có tập key giống hệt nhau (không key nào chỉ có ở 1 tiếng). Giai đoạn 1 là 165 key; giai đoạn 3 (đăng ký) thêm **12 key**: `registerBtn`, `registerTitle`, `namePh`, `emailPh`, `registerFailed`, `regUserTaken`, `regUserInvalid`, `regPassShort`, `regNameRequired`, `regEmailInvalid`, `regToRegister`, `regToLogin`; chat AI nổi thêm **8 key**: `aiChatTitle`, `aiChatTrial`, `aiChatGreeting`, `aiChatPh`, `aiChatThinking`, `aiChatOpen`, `aiChatClose`, `aiChatNote`. `sendBtn` và `quicks` được dùng chung (không thêm key mới). Ngôn ngữ mặc định vẫn tiếng Trung (zh); chọn ngôn ngữ vẫn bằng dropdown 3 mục.
 
 ## Hệ thống thiết kế (nguồn sự thật: `~/workspace/custom-skills/guiyan-platform/SKILL.md`)
 
@@ -50,6 +51,7 @@ web/
 
 ## Hành vi
 
+- **Chat AI nổi (thử nghiệm):** nút tròn cố định góc dưới-phải (`web/assets/js/AiChat.jsx`, `z-index: 100` — trên ngăn "Vé của tôi" 95, dưới toast 120 và hộp đăng nhập 130), bấm mở panel chat; dùng chung cho trang chính (`App.jsx`) và dashboard user (`UserDashboard.jsx`), kể cả khi chưa đăng nhập (ẩn danh, như trợ lý rule-based); không có ở admin/mini-program; chat nội tuyến (`#ai`) giữ nguyên không đổi. Panel ghi nhãn 试用版 (`aiChatTrial`) + dòng ghi chú `aiChatNote` nêu rõ 2 giới hạn thật: backend thử nghiệm có thể trả lời bằng tiếng Việt và chưa biết giá vé (lấy giá trên trang làm chuẩn). Gọi qua proxy cùng-origin `POST /api/assistant/chat` (`server/routes/assistant.mjs`, `AI_CHAT_URL` mặc định `http://34.96.190.102/api/chat`, timeout server 25 s / client 30 s, biến `AI_CHAT_TIMEOUT_MS` chỉ để test timeout); lỗi/timeout/JSON hỏng → fail-open sang rule-based `GET /api/assistant?q=` rồi `ansFallback` local; không bao giờ trả 5xx vì lỗi upstream, không log nội dung tin nhắn. Không giới hạn tốc độ (rate limit) ở v1 — follow-up. Lịch sử chat chỉ nằm trong state component (đổi trang là mất, không `localStorage`); chips快捷问题 luôn hiện; `Esc` đóng panel và trả focus về nút. Trả lời theo ngôn ngữ hiện tại của trang (zh/vi/en): proxy thêm một dòng hướng dẫn bằng ngôn ngữ đích vào đầu tin nhắn chuyển tiếp (backend bỏ qua trường `language` nên không gửi trường này lên upstream); khi fail-open, proxy trả thêm `kind` và client render câu trả lời từ key i18n sẵn có theo ngôn ngữ hiện tại, lời chào cũng đổi theo ngôn ngữ khi chat còn trống (lịch sử đã hiện giữ nguyên).
 - **Yêu thích phải đăng nhập, lưu trên tài khoản:** chưa đăng nhập bấm tim → toast `favLogin` + mở hộp đăng nhập, không lưu local. Đã đăng nhập: tim chỉ đổi khi server xác nhận (`POST /api/favorites`); lỗi API không fallback local. Đăng xuất xóa tim.
 - **Offline graceful fallback:** API không tới được thì dùng dữ liệu nhúng trong `data.js`, không vỡ trang (trừ đăng nhập — hộp đăng nhập báo lỗi trực tiếp).
 - **Mô phỏng luôn ghi nhãn:** thanh toán, AI, blockchain là mô phỏng.
