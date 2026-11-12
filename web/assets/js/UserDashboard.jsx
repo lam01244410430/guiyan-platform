@@ -5,7 +5,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { langState, t, fmt, CATS, catName, unitName } from "./data.js";
 import {
-  apiGet, apiPost, currentUser, getToken, setToken, clearToken,
+  apiGet, apiPost, apiPatch, currentUser, getToken, setToken, clearToken,
   restoreUser, fmtMoney, statusKey, downloadText,
 } from "./apiClient.js";
 import { Header, LoginDialog, RegisterDialog, Toast } from "./chrome.jsx";
@@ -40,6 +40,10 @@ export default function UserDashboard() {
   // modal below use `contract` / `setContract`, but no state for them was
   // ever declared — the dashboard would throw on render. Declared here.
   const [contract, setContract] = useState(null);
+  // Wave 4 #14 — inbox (system messages only; #13's decision messages
+  // are read out here). Clicking a message marks it read.
+  const [usrMessages, setUsrMessages] = useState([]);
+  const [usrUnread, setUsrUnread] = useState(0);
   const toastTimer = useRef(null);
   const ordersHRef = useRef(null);
 
@@ -72,11 +76,14 @@ export default function UserDashboard() {
       usrLoadOrders(), apiGet("/api/favorites"), apiGet("/api/demands"),
       apiGet("/api/profile").catch(function () { return null; }),
       apiGet("/api/recommendations?limit=5").catch(function () { return null; }),
+      apiGet("/api/messages").catch(function () { return null; }),
     ]).then(function (res) {
       setUsrFavs(res[1].favorites || []);
       setUsrDemands((res[2].demands || []).filter(function (d) { return d.user_id === u.id; }));
       setUsrProfile(res[3] ? res[3].profile || null : null);
       setUsrRecs(res[4] ? res[4].recommendations || [] : []);
+      setUsrMessages(res[5] ? res[5].messages || [] : []);
+      setUsrUnread(res[5] ? res[5].unread || 0 : 0);
       setGate(false);
     }).catch(function (e) {
       if (e && e.status === 401) { clearToken(); setUser(null); setGate(true); return; }
@@ -157,6 +164,28 @@ export default function UserDashboard() {
   }
   function downloadContract() {
     if (contract) downloadText(contract.content, contract.code + "-模拟协议.txt");
+  }
+
+  /* Wave 4 #14 — inbox: mark one message read, or all of them. The list
+     and the badge update locally; a 401 re-opens the login gate. */
+  function markMessageRead(m) {
+    if (m.is_read) return;
+    apiPatch("/api/messages/" + encodeURIComponent(m.id) + "/read", {}).then(function () {
+      setUsrMessages((prev) => prev.map((x) => (x.id === m.id ? { ...x, is_read: 1 } : x)));
+      setUsrUnread((n) => Math.max(0, n - 1));
+    }).catch(function (e) {
+      if (e && e.status === 401) { clearToken(); setUser(null); setGate(true); return; }
+      toast(t("loadErr"));
+    });
+  }
+  function markAllMessagesRead() {
+    apiPatch("/api/messages/read-all", {}).then(function () {
+      setUsrMessages((prev) => prev.map((x) => ({ ...x, is_read: 1 })));
+      setUsrUnread(0);
+    }).catch(function (e) {
+      if (e && e.status === 401) { clearToken(); setUser(null); setGate(true); return; }
+      toast(t("loadErr"));
+    });
   }
 
   /* Wave 4 #13 — refund/dispute flow. A paid order offers 申请退款
@@ -303,6 +332,24 @@ export default function UserDashboard() {
                     </div>
                   )) : <div className="db-empty">{t("emptyOrders")}</div>}
                 </div>
+              </section>
+
+              {/* Wave 4 #14 — inbox, next to 我的订单：system messages only
+                  (#13's after-sales decision messages are read out here).
+                  Clicking a message marks it read; the unread count is
+                  the badge on the inbox heading. */}
+              <section className="db-sec">
+                <h3>{t("inboxTitle")}{usrUnread > 0 && (<span className="pill paid" style={{ marginLeft: 8 }}>{usrUnread}</span>)}</h3>
+                <div className="db-list" id="inboxList">
+                  {usrMessages.length ? usrMessages.map((m) => (
+                    <div key={m.id} className="order" role="button" tabIndex={0} onClick={() => markMessageRead(m)} onKeyDown={(e) => { if (e.key === "Enter") markMessageRead(m); }}>
+                      <h4>{!m.is_read && (<span aria-label="unread" style={{ color: "var(--red)" }}>● </span>)}{m.title}</h4>
+                      <span className="code">{String(m.created_at || "").slice(0, 16)}</span>
+                      <div className="row"><span style={{ fontSize: 13 }}>{m.content}</span></div>
+                    </div>
+                  )) : <div className="db-empty">{t("inboxEmpty")}</div>}
+                </div>
+                {usrUnread > 0 && (<div style={{ marginTop: 10 }}><button type="button" className="mini" onClick={markAllMessagesRead}>{t("inboxMarkAll")}</button></div>)}
               </section>
 
               <section className="db-sec">

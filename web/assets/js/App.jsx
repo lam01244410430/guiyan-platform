@@ -15,6 +15,7 @@ import {
   mergeDemands, mapApiOrder, STATUS,
 } from "./apiClient.js";
 import { Header, LoginDialog, RegisterDialog, Toast } from "./chrome.jsx";
+import { matchesSearch } from "./search.js";
 import AiChat from "./AiChat.jsx";
 import heroImg from "../img/hero.webp";
 import spotlightImg from "../img/spotlight.webp";
@@ -400,12 +401,28 @@ export default function App() {
     store.q = q; store.cat = "all"; store.shown = 12; setHeroQ(q); rerender();
     document.getElementById("catalog").scrollIntoView({ behavior: "smooth" });
   }
+  /* Wave 4 #14 — search via matchesSearch (search.js, port of zhou
+     src/search.js): alias groups + lexicon splitting, every token must
+     match; tags come from APIRES (the RES tuple has none). Price compares
+     r[3] (yuan); min > max counts as no price filter (Q8). Rating reads
+     APIRES[idx].rating; review_count === 0 never matches while a rating
+     filter is active (Q8). */
   function filtered() {
+    const pMin = parseFloat(store.priceMin), pMax = parseFloat(store.priceMax);
+    const priceOff = !Number.isNaN(pMin) && !Number.isNaN(pMax) && pMin > pMax;
     const list = RES.map(function (r, i) { return { r, i }; }).filter(function (o) {
       const r = o.r;
       if (store.cat !== "all" && r[1] !== store.cat) return false;
       if (store.city !== "all" && r[2] !== store.city) return false;
-      if (store.q) { const hay = (r[0] + r[2] + catZh(r[1]) + desc(r, lang)).toLowerCase(); if (hay.indexOf(store.q.toLowerCase()) < 0) return false; }
+      if (store.q && !matchesSearch({ name: r[0], description: desc(r, lang), city: r[2], category: catZh(r[1]), tags: APIRES[o.i] ? APIRES[o.i].tags : [] }, store.q)) return false;
+      if (!priceOff) {
+        if (!Number.isNaN(pMin) && r[3] < pMin) return false;
+        if (!Number.isNaN(pMax) && r[3] > pMax) return false;
+      }
+      if (store.minRating > 0) {
+        const api = APIRES[o.i];
+        if (!api || !api.review_count || !(api.rating >= store.minRating)) return false;
+      }
       return true;
     });
     if (store.pref) { list.sort(function (a, b) { return (b.r[1] === store.pref) - (a.r[1] === store.pref) || b.r[5] - a.r[5]; }); }
@@ -440,6 +457,9 @@ export default function App() {
   }
 
   /* ---- derived render data ---- */
+  /* Wave 4 #14 — the rating select only exists on the live catalog
+     (APIRES); the offline fallback catalog has no rating, so it hides. */
+  const hasApiRatings = Object.keys(APIRES).length > 0;
   const list = filtered();
   const show = list.slice(0, store.shown);
   const cities = [];
@@ -548,6 +568,18 @@ export default function App() {
               <option value="desc">{t("sortDesc")}</option>
               <option value="name">{t("sortName")}</option>
             </select>
+            {/* Wave 4 #14 — price min/max (yuan) + rating filter. Rating
+                reads APIRES (live catalog only); hidden on the fallback
+                catalog, which has no rating. */}
+            <input id="priceMin" type="number" min="0" step="1" style={{ width: 110 }} value={store.priceMin} onChange={(e) => { store.priceMin = e.target.value; store.shown = 12; rerender(); }} placeholder={t("priceMinPh")} aria-label={t("priceMinPh")} />
+            <input id="priceMax" type="number" min="0" step="1" style={{ width: 110 }} value={store.priceMax} onChange={(e) => { store.priceMax = e.target.value; store.shown = 12; rerender(); }} placeholder={t("priceMaxPh")} aria-label={t("priceMaxPh")} />
+            {hasApiRatings && (
+              <select id="ratingSel" aria-label="Rating" value={store.minRating} onChange={(e) => { store.minRating = Number(e.target.value); store.shown = 12; rerender(); }}>
+                <option value={0}>{t("ratingAll")}</option>
+                <option value={4}>{t("rating4")}</option>
+                <option value={4.5}>{t("rating45")}</option>
+              </select>
+            )}
           </div>
           <p className="resultline" id="resultLine">
             {fmt(t("results"), { a: show.length, b: list.length })}{store.pref ? fmt(t("prefSuffix"), { c: catName(store.pref) }) : ""}
@@ -1006,7 +1038,9 @@ function WxBody({ lang, onOpenDetail, onSelectDemand }) {
   }
   const list = RES.map(function (r, i) { return { r, i }; }).filter(function (o) {
     if (store.wxTab === "catalog" && store.wxCat !== "all" && o.r[1] !== store.wxCat) return false;
-    if (store.wxQ) { const hay = (o.r[0] + o.r[2] + catZh(o.r[1]) + desc(o.r, lang)).toLowerCase(); if (hay.indexOf(store.wxQ.toLowerCase()) < 0) return false; }
+    /* Wave 4 #14 — same matchesSearch() as the web catalog (no second
+       search implementation); tags from APIRES, fallback has none. */
+    if (store.wxQ && !matchesSearch({ name: o.r[0], description: desc(o.r, lang), city: o.r[2], category: catZh(o.r[1]), tags: APIRES[o.i] ? APIRES[o.i].tags : [] }, store.wxQ)) return false;
     return true;
   }).sort(function (a, b) { return b.r[5] - a.r[5]; });
   if (store.wxTab === "home") {

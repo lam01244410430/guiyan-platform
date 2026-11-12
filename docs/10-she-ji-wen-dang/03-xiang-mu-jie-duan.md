@@ -301,3 +301,55 @@ Lam 可在 commit 前推翻。
 真实退款/扣款（批准文案只写"已模拟退款"）、改 5 个旧转移的行为、改支付模拟、新增表、
 migration、申诉以外的客服渠道、收件箱读取界面（#14 做）。
 
+### #14 搜索 + 通知（search + notifications）
+
+- 搜索：新文件 `web/assets/js/search.js`（纯 JS，无 JSX，可被 node:test 直接 import，
+  仿照 `wave3.test.mjs` import `data.js` 的先例），移植 zhou `src/search.js`（58 行，
+  仅客户端）的 `matchesSearch()` + 6 组同义词（14 词，原样保留——广西文化词汇，与 Lam
+  数据匹配）+ 13 词词库（逐词核对过 Lam 的数据：`织锦`/`抛绣球`/`民歌`/`非物质文化遗产`/
+  `文化创意` 5 词在 Lam 数据中不存在，但仍保留——词库只用来切分 query，不编造数据）。
+  规则：query 按空白/标点切分，**每个 token 都必须匹配**（`tokens.every`）；token 属于
+  某同义词组时，该组任意一词出现即匹配；不匹配原文的 token 再用词库切分（长词优先）。
+- 搜索范围（Q7 默认值）：`name + city + catZh(category) + 当前语言的 description + tags`；
+  tags 通过 `APIRES[APIID2IDX[id]].tags` 查找（tuple `RES` 本身没有 tags）。仅离线 fallback
+  目录的资源没有 tags，搜索时范围缺少 tags——可接受。
+- `App.jsx` 的 `filtered()`（原 `:312-326` 的 `hay.indexOf(q)` 单子串匹配）改用
+  `matchesSearch(...)`；原有 `cat`/`city` 过滤与排序不动。小程序预览（`App.jsx:879` 附近）
+  原有重复的 `hay` 逻辑改用同一函数，不留两份搜索实现。服务端搜索（ILIKE）不动。
+- 价格过滤：`data.js` 的 state 新增 `priceMin`/`priceMax`（元，空 = 不过滤）、
+  `minRating`（0 = 不过滤）；目录搜索行旁加两个数字输入（最低价/最高价）+ 一个评分下拉框
+  （全部 / 4分及以上 / 4.5分及以上，Q8 默认值）。价格比 `r[3]`（元）；min > max 时视为
+  不过滤，不报错、不破坏页面。
+- 评分过滤（Q8 默认值）：读 `APIRES[idx].rating`（服务端已有的 AVG）；`review_count === 0`
+  的资源在已选评分过滤时**永不匹配**（0 表示"尚未评价"，不是"得了 0 分"）；离线 fallback
+  目录（无 `APIRES`）时隐藏评分下拉框。
+- 收件箱接口：新文件 `server/routes/messages.mjs`，在 `server/index.mjs` 按其他路由注册：
+  `GET /api/messages`（需登录，只返回本人消息，最新在前，`?limit=` 默认 20、最大 50，
+  返回 `{messages: [{id, title, content, is_read, created_at}], unread}`）；
+  `PATCH /api/messages/:id/read`（标为已读，只限本人消息，否则 404）；
+  `PATCH /api/messages/read-all`（全部标为已读，Q9 默认值：做，代码量小）。
+  不做给其他用户发消息（只读系统消息）、不做用户间聊天。
+- 收件箱 UI：`UserDashboard.jsx`，在"我的订单"旁新增收件箱区块：列出消息（标题 + 内容 +
+  时间 + 未读圆点），点击一条即标为已读；收件箱按钮上有未读数徽标。#13 的 `notify()` 调用
+  已写入售后决定消息（标题"订单售后处理结果"），本项只做读出。
+- i18n：新增 8 个 key（价格占位 2 个 + 评分下拉 3 个 + 收件箱 3 个），中越英三语集合相等，
+  共 271 key（测试 `wave3.test.mjs` 的计数同步更新）。
+- 测试：`tests/wave4.test.mjs` 追加 8 个 `search.js` 单元测试（双向同义词、多 token AND、
+  词库切分、无匹配、大小写不敏感、空 query、tags 参与匹配）+ 5 个收件箱 API 测试
+  （未登录 401、看不到他人消息、unread 计数正确、mark-read + read-all、端到端：
+  下单 → 退款 → 批准 → `GET /api/messages` 看到决定消息，复用 #13 的流程）。
+  UI（过滤控件、收件箱列表与徽标）无 jsdom 测试架，只做 build + 浏览器 live 检查。
+
+### 开放问题 Q7/Q8/Q9（plan §7，#14 适用默认值）
+
+Q7 搜索范围含 tags（经 `APIRES[APIID2IDX[id]].tags` 查找；fallback 资源无 tags，可接受）。
+Q8 评分阈值：全部 / 4分及以上 / 4.5分及以上；`review_count === 0` 在已选评分过滤时永不匹配；
+min > max 视为不过滤，不报错；fallback 目录时隐藏评分下拉框。
+Q9 做 `PATCH /api/messages/read-all`；未读徽标在用户端收件箱按钮上；#13 决定消息标题为
+"订单售后处理结果"（订单号 + 结果 + 理由，写明模拟）。以上均为工作默认值，Lam 可在 commit 前推翻。
+
+### 不属于 #14
+
+评价/评论表单与接口（#24）、给其他用户发消息/用户间聊天、`POST /api/sync`（Q14 默认值：不做）、
+改服务端搜索（ILIKE 保持原样）、改 `cat`/`city` 过滤与排序逻辑。
+

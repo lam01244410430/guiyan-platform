@@ -29,6 +29,7 @@ import { listResources, getResource, getAvailability, viewResource } from "./rou
 import { login, logout, register } from "./routes/auth.mjs";
 import { listOrders, createOrder, transitionOrder, getOrderContract } from "./routes/orders.mjs";
 import { listDemands, createDemand } from "./routes/demands.mjs";
+import { listMessages, markMessageRead, markAllMessagesRead } from "./routes/messages.mjs";
 import { listFavorites, toggleFavorite, deleteFavorite } from "./routes/favorites.mjs";
 import { ANSWERS, assistant } from "./routes/assistant.mjs";
 import { getProfile, getRecommendations } from "./routes/profile.mjs";
@@ -155,6 +156,9 @@ export async function createApp({ database }) {
       if (await createOrder(ctx)) return;
       if (await transitionOrder(ctx)) return;
       if (await getOrderContract(ctx)) return;
+      if (await listMessages(ctx)) return;
+      if (await markMessageRead(ctx)) return;
+      if (await markAllMessagesRead(ctx)) return;
       if (await listDemands(ctx)) return;
       if (await createDemand(ctx)) return;
       if (await listFavorites(ctx)) return;

@@ -72,6 +72,9 @@ export function apiFetch(path, opts) {
 export function apiGet(path) { return apiFetch(path, { method: "GET" }); }
 export function apiPost(path, body) { return apiFetch(path, { method: "POST", body }); }
 export function apiDel(path) { return apiFetch(path, { method: "DELETE" }); }
+/* Wave 4 #14 — PATCH (inbox mark-read). The admin bundle has its own copy
+   in adminApi.js; this one is for the customer dashboard. */
+export function apiPatch(path, body) { return apiFetch(path, { method: "PATCH", body }); }
 
 /* Wave 4 #15 — download a text file in the browser (simulated agreement).
    The admin bundle has its own copy in adminApi.js (admin must not import

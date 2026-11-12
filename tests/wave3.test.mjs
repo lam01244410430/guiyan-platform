@@ -421,7 +421,7 @@ test("wave3 #11b: recommendations userId gate (demo 403, admin 200, anon 401)", 
   assert.equal(missing.status, 404);
 });
 
-test("wave3 i18n: 263 keys in zh/vi/en with equal sets (255 after #15 + 8 Wave 4 #13 refund/dispute keys)", async () => {
+test("wave3 i18n: 271 keys in zh/vi/en with equal sets (263 after #13 + 8 Wave 4 #14 search/inbox keys)", async () => {
   const data = await import(
     path.resolve(
       path.dirname(fileURLToPath(import.meta.url)),
@@ -433,8 +433,8 @@ test("wave3 i18n: 263 keys in zh/vi/en with equal sets (255 after #15 + 8 Wave 4
     )
   );
   const counts = data.LANGS.map((l) => Object.keys(data.I18N[l]).length);
-  assert.deepEqual(counts, [263, 263, 263]);
-  for (const k of ["profileTitle", "profileBasic", "profileSpending", "profileShowPref", "profileBehavior", "profileChannel", "profileAge", "profileGender", "profileRegion", "profileRegionNote", "profileActiveCity", "profilePricePref", "profilePriceBand", "profileFrequency", "profileFrequencyValue", "profileStoredValue", "profileGenre", "profileArtist", "profileVenue", "profileShowType", "profileTimeSlot", "profileTimeNote", "profilePayment", "profileSharing", "profileRepeat", "profileSource", "profileSuggestion", "recTitle", "recScore", "availLeft", "availBooked", "availFree", "availService", "seatTitle", "seatNote", "bookedDates", "metaTitle", "metaDuration", "metaTeam", "metaGenre", "metaExperience", "metaAgency", "metaProcess", "metaAddress", "metaFacilities", "metaModel", "metaDeposit", "metaUsage", "metaScope", "metaTerm", "metaTerritory", "metaRights", "metaCertificate", "metaSpecification", "metaShipping", "metaPlayback", "metaIncludes", "metaPartner", "metaKind", "metaChannels", "metaServiceNote", "lightTitle", "lightNote", "lightRotate", "lightColor", "digiStart", "digiPause", "digiNote", "contractBtn", "contractDownload", "stRefundRequested", "stDisputed", "actDispute", "refundReasonPh", "refundWaiting", "disputeWaiting", "refundReasonLbl", "refundDecisionLbl"]) {
+  assert.deepEqual(counts, [271, 271, 271]);
+  for (const k of ["profileTitle", "profileBasic", "profileSpending", "profileShowPref", "profileBehavior", "profileChannel", "profileAge", "profileGender", "profileRegion", "profileRegionNote", "profileActiveCity", "profilePricePref", "profilePriceBand", "profileFrequency", "profileFrequencyValue", "profileStoredValue", "profileGenre", "profileArtist", "profileVenue", "profileShowType", "profileTimeSlot", "profileTimeNote", "profilePayment", "profileSharing", "profileRepeat", "profileSource", "profileSuggestion", "recTitle", "recScore", "availLeft", "availBooked", "availFree", "availService", "seatTitle", "seatNote", "bookedDates", "metaTitle", "metaDuration", "metaTeam", "metaGenre", "metaExperience", "metaAgency", "metaProcess", "metaAddress", "metaFacilities", "metaModel", "metaDeposit", "metaUsage", "metaScope", "metaTerm", "metaTerritory", "metaRights", "metaCertificate", "metaSpecification", "metaShipping", "metaPlayback", "metaIncludes", "metaPartner", "metaKind", "metaChannels", "metaServiceNote", "lightTitle", "lightNote", "lightRotate", "lightColor", "digiStart", "digiPause", "digiNote", "contractBtn", "contractDownload", "stRefundRequested", "stDisputed", "actDispute", "refundReasonPh", "refundWaiting", "disputeWaiting", "refundReasonLbl", "refundDecisionLbl", "priceMinPh", "priceMaxPh", "ratingAll", "rating4", "rating45", "inboxTitle", "inboxEmpty", "inboxMarkAll"]) {
     for (const l of data.LANGS) assert.ok(k in data.I18N[l], `${k} missing in ${l}`);
   }
 });

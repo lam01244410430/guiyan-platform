@@ -20,6 +20,7 @@ import { spawn } from "node:child_process";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import pg from "pg";
+import { matchesSearch } from "../web/assets/js/search.js";
 
 const DATABASE_URL = process.env.DATABASE_URL;
 if (!DATABASE_URL)
@@ -604,6 +605,187 @@ test("wave4 #13: refund/dispute by another user is 403; admin may call them", as
   assert.equal(refundAdmin.status, 200, JSON.stringify(refundAdmin.json));
   assert.equal(refundAdmin.json.status, "refund_requested");
   assert.equal((await myOrder(token, order.id)).refund_reason, "管理员代申请");
+});
+
+// --- #14: search.js unit tests (no server needed) ---------------------------
+// Port of zhou tests/search.test.mjs: alias both ways, multi-token AND,
+// lexicon splitting, no-match, case-insensitive. Resource shape is the one
+// App.jsx passes in: {name, description, city, category, tags}.
+
+function sres(name, description, city, category, tags) {
+  return { name, description, city, category, tags: tags || [] };
+}
+
+test("wave4 #14 search: alias works both ways (山歌 <-> 民歌)", async () => {
+  const folk = sres("刘三姐", "壮族民歌经典", "桂林", "演出剧目", ["民歌"]);
+  assert.equal(matchesSearch(folk, "山歌"), true);
+  assert.equal(matchesSearch(folk, "民歌"), true);
+  const mountain = sres("山歌大会", "山歌对唱", "南宁", "演出剧目", []);
+  assert.equal(matchesSearch(mountain, "民歌"), true);
+  assert.equal(matchesSearch(mountain, "山歌"), true);
+});
+
+test("wave4 #14 search: alias 织锦 matches 壮锦, 场馆 group matches 剧场", async () => {
+  const brocade = sres("壮锦织造体验", "手工织锦", "崇左", "非遗体验", []);
+  assert.equal(matchesSearch(brocade, "织锦"), true);
+  assert.equal(matchesSearch(brocade, "壮锦"), true);
+  const venue = sres("广西文化艺术中心", "大型演出场馆", "南宁", "演出场馆", []);
+  assert.equal(matchesSearch(venue, "剧场"), true);
+  assert.equal(matchesSearch(venue, "场地"), true);
+});
+
+test("wave4 #14 search: multi-token query is AND (南宁 民歌)", async () => {
+  const inNanning = sres("刘三姐", "壮族民歌经典", "南宁", "演出剧目", ["民歌"]);
+  const inGuilin = sres("刘三姐", "壮族民歌经典", "桂林", "演出剧目", ["民歌"]);
+  assert.equal(matchesSearch(inNanning, "南宁 民歌"), true);
+  assert.equal(matchesSearch(inGuilin, "南宁 民歌"), false);
+  assert.equal(matchesSearch(inNanning, "南宁 山歌"), true);
+});
+
+test("wave4 #14 search: lexicon splits a spaceless query (南宁民歌)", async () => {
+  const inNanning = sres("刘三姐", "壮族民歌经典", "南宁", "演出剧目", ["民歌"]);
+  const inGuilin = sres("刘三姐", "壮族民歌经典", "桂林", "演出剧目", ["民歌"]);
+  assert.equal(matchesSearch(inNanning, "南宁民歌"), true);
+  assert.equal(matchesSearch(inGuilin, "南宁民歌"), false);
+});
+
+test("wave4 #14 search: no match when a token is absent", async () => {
+  const r = sres("刘三姐", "壮族民歌经典", "南宁", "演出剧目", ["民歌"]);
+  assert.equal(matchesSearch(r, "北海 音乐会"), false);
+  assert.equal(matchesSearch(r, "不存在的词"), false);
+});
+
+test("wave4 #14 search: case-insensitive for latin letters", async () => {
+  const r = sres("Live 音乐会", "Live music night", "南宁", "演出剧目", []);
+  assert.equal(matchesSearch(r, "live"), true);
+  assert.equal(matchesSearch(r, "LIVE"), true);
+  assert.equal(matchesSearch(r, "Live 音乐会"), true);
+});
+
+test("wave4 #14 search: empty query matches everything", async () => {
+  const r = sres("刘三姐", "壮族民歌经典", "南宁", "演出剧目", ["民歌"]);
+  assert.equal(matchesSearch(r, ""), true);
+  assert.equal(matchesSearch(r, "   "), true);
+});
+
+test("wave4 #14 search: tags (and category) are in the haystack", async () => {
+  const tagged = sres("周末亲子营", "手作体验", "桂林", "非遗体验", ["亲子"]);
+  assert.equal(matchesSearch(tagged, "亲子"), true);
+  const untagged = sres("周末亲子营", "手作体验", "桂林", "非遗体验", []);
+  assert.equal(matchesSearch(untagged, "亲子"), true);
+  const noTagNoName = sres("手作体验", "手工活动", "桂林", "非遗体验", ["亲子"]);
+  assert.equal(matchesSearch(noTagNoName, "亲子"), true);
+  assert.equal(matchesSearch(tagged, "非遗体验"), true);
+});
+
+// --- #14: inbox API ----------------------------------------------------------
+
+async function freshUser(prefix) {
+  const uname = prefix + Date.now().toString(36) + Math.floor(Math.random() * 1000);
+  const reg = await req("/api/auth/register", {
+    method: "POST",
+    body: { username: uname, password: "guiyan2026", name: "收件箱测试" },
+  });
+  assert.equal(reg.status, 200, JSON.stringify(reg.json));
+  return reg.json.token;
+}
+
+// Full after-sales flow for a fresh user: create + confirm + pay + refund
+// + admin approve. Each step writes one notify() message, so the user ends
+// with exactly 5 unread messages, the last one the #13 decision message.
+async function refundedOrderFor(token, admin, resourceId, bookingDate) {
+  const order = await paidOrder(token, resourceId, 1, bookingDate);
+  const refund = await req(`/api/orders/${order.id}/refund`, {
+    method: "POST",
+    token,
+    body: { reason: "去不了" },
+  });
+  assert.equal(refund.status, 200, JSON.stringify(refund.json));
+  const approve = await req(`/api/orders/${order.id}/approveRefund`, {
+    method: "POST",
+    token: admin,
+  });
+  assert.equal(approve.status, 200, JSON.stringify(approve.json));
+  return order;
+}
+
+test("wave4 #14 inbox: GET /api/messages needs login (401)", async () => {
+  const anon = await req("/api/messages");
+  assert.equal(anon.status, 401, JSON.stringify(anon.json));
+  const anonPatch = await req("/api/messages/read-all", { method: "PATCH" });
+  assert.equal(anonPatch.status, 401, JSON.stringify(anonPatch.json));
+});
+
+test("wave4 #14 inbox: user B sees none of user A's messages (404 on read)", async () => {
+  const demo = await login();
+  const mine = await req("/api/messages", { token: demo });
+  assert.equal(mine.status, 200, JSON.stringify(mine.json));
+  assert.ok(mine.json.messages.length > 0, "demo must have seed messages");
+  assert.equal(typeof mine.json.unread, "number");
+
+  const other = await freshUser("w4i14b");
+  const theirs = await req("/api/messages", { token: other });
+  assert.equal(theirs.status, 200, JSON.stringify(theirs.json));
+  assert.deepEqual(theirs.json.messages, []);
+  assert.equal(theirs.json.unread, 0);
+
+  const readOther = await req(`/api/messages/${mine.json.messages[0].id}/read`, {
+    method: "PATCH",
+    token: other,
+  });
+  assert.equal(readOther.status, 404, JSON.stringify(readOther.json));
+});
+
+test("wave4 #14 inbox: unread count is exact for a fresh user", async () => {
+  const token = await freshUser("w4i14c");
+  const admin = await adminLogin();
+  const s = await pickShow(1);
+  await refundedOrderFor(token, admin, s.id, D3);
+  const inbox = await req("/api/messages", { token });
+  assert.equal(inbox.status, 200, JSON.stringify(inbox.json));
+  assert.equal(inbox.json.messages.length, 5, JSON.stringify(inbox.json.messages));
+  assert.equal(inbox.json.unread, 5);
+  assert.ok(inbox.json.messages.every((m) => m.is_read === 0));
+  assert.ok(inbox.json.messages.every((m) => typeof m.title === "string" && typeof m.content === "string" && typeof m.created_at === "string"));
+});
+
+test("wave4 #14 inbox: mark-read drops the badge, read-all clears it", async () => {
+  const token = await freshUser("w4i14d");
+  const admin = await adminLogin();
+  const s = await pickShow(1);
+  await refundedOrderFor(token, admin, s.id, D3);
+  const before = await req("/api/messages", { token });
+  assert.equal(before.json.unread, 5);
+  const first = before.json.messages[0];
+
+  const mark = await req(`/api/messages/${first.id}/read`, { method: "PATCH", token });
+  assert.equal(mark.status, 200, JSON.stringify(mark.json));
+  const mid = await req("/api/messages", { token });
+  assert.equal(mid.json.unread, 4);
+  assert.equal(mid.json.messages.find((m) => m.id === first.id).is_read, 1);
+  // Marking an already-read message again is still 200 (idempotent).
+  const again = await req(`/api/messages/${first.id}/read`, { method: "PATCH", token });
+  assert.equal(again.status, 200, JSON.stringify(again.json));
+
+  const all = await req("/api/messages/read-all", { method: "PATCH", token });
+  assert.equal(all.status, 200, JSON.stringify(all.json));
+  const after = await req("/api/messages", { token });
+  assert.equal(after.json.unread, 0);
+  assert.ok(after.json.messages.every((m) => m.is_read === 1));
+});
+
+test("wave4 #14 inbox: end-to-end, approve writes the decision message (reuses #13 flow)", async () => {
+  const token = await freshUser("w4i14e");
+  const admin = await adminLogin();
+  const s = await pickShow(1);
+  const order = await refundedOrderFor(token, admin, s.id, D3);
+  const inbox = await req("/api/messages", { token });
+  assert.equal(inbox.status, 200, JSON.stringify(inbox.json));
+  const decision = inbox.json.messages.find((m) => m.title === "订单售后处理结果");
+  assert.ok(decision, JSON.stringify(inbox.json.messages));
+  assert.ok(decision.content.includes(order.code), decision.content);
+  assert.ok(decision.content.includes("已模拟退款"), decision.content);
+  assert.ok(decision.content.includes("模拟"), decision.content);
 });
 
 // --- #13 B-035: a re-requested refund must not carry the old decision ----

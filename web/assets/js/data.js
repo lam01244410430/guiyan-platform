@@ -13,7 +13,7 @@ heroSearchPh:"找剧目、场馆、艺人、非遗体验…",heroSearchPhShort:"
 sRes:"项演艺资源",sShow:"台演出剧目",sVenue:"座场馆与舞台",sCity:"座城市",sCat:"大资源品类",sDem:"条合作需求",
 catTitle:"十大资源版图",catSub:"一个目录，装下整个广西演艺生态",catNote:"每个品类共享同一套库存与档期规则，挑选、比价、预订一气呵成。",
 cat2Title:"今晚，上什么戏？",cat2Sub:"搜索、筛选、排序，即刻预订",cat2Note:"价格以人民币（¥）计，点开任意卡片即可查看详情并预订。",
-allChip:"全部",allCities:"全部城市",searchPh:"按名称、城市或标签搜索…",sortHot:"人气最高",sortAsc:"价格从低到高",sortDesc:"价格从高到低",sortName:"名称 A–Z",
+allChip:"全部",allCities:"全部城市",searchPh:"按名称、城市或标签搜索…",sortHot:"人气最高",sortAsc:"价格从低到高",sortDesc:"价格从高到低",sortName:"名称 A–Z",priceMinPh:"最低价（元）",priceMaxPh:"最高价（元）",ratingAll:"全部评分",rating4:"4分及以上",rating45:"4.5分及以上",inboxTitle:"收件箱",inboxEmpty:"暂无通知",inboxMarkAll:"全部标为已读",
 results:"显示 {a} / {b} 项 · 点开卡片查看详情并预订",prefSuffix:" · 已优先推荐「{c}」",emptyRes:"没有符合的资源，换个关键词或城市试试。",
 moreBtn:"查看更多资源",viewsUnit:"次浏览",favAdd:"已加入收藏",favRemove:"已取消收藏",favLogin:"请先登录，再收藏",
 spotKicker:"演艺＋文旅",spotTitle:"当一场演出，变成一趟旅行",spotText:"看演出的同时游山水、宿老城——「演艺＋漓江文旅套餐」（¥398/人）与「滨海音乐会与酒店套餐」（¥568/人），把门票、风景与住宿装进一份订单。",
@@ -78,7 +78,7 @@ heroSearchPh:"Tìm vở diễn, nhà hát, nghệ nhân, trải nghiệm di sả
 sRes:"tài nguyên biểu diễn",sShow:"vở diễn & kịch mục",sVenue:"nhà hát & sân khấu",sCity:"thành phố phủ sóng",sCat:"danh mục tài nguyên",sDem:"nhu cầu hợp tác đang mở",
 catTitle:"Mười danh mục tài nguyên",catSub:"Một danh mục thống nhất cho toàn bộ hệ sinh thái diễn nghệ Quảng Tây",catNote:"Mọi danh mục dùng chung quy tắc tồn kho và lịch trống — chọn, so giá và đặt chỗ liền mạch.",
 cat2Title:"Tối nay, xem vở gì?",cat2Sub:"Tìm kiếm, lọc, sắp xếp và đặt chỗ ngay",cat2Note:"Giá tính bằng nhân dân tệ (¥); chạm vào thẻ để xem chi tiết và đặt chỗ.",
-allChip:"Tất cả",allCities:"Mọi thành phố",searchPh:"Tìm theo tên, thành phố, thẻ…",sortHot:"Được xem nhiều nhất",sortAsc:"Giá thấp → cao",sortDesc:"Giá cao → thấp",sortName:"Theo tên A–Z",
+allChip:"Tất cả",allCities:"Mọi thành phố",searchPh:"Tìm theo tên, thành phố, thẻ…",sortHot:"Được xem nhiều nhất",sortAsc:"Giá thấp → cao",sortDesc:"Giá cao → thấp",sortName:"Theo tên A–Z",priceMinPh:"Giá thấp nhất (¥)",priceMaxPh:"Giá cao nhất (¥)",ratingAll:"Mọi mức đánh giá",rating4:"Từ 4 điểm trở lên",rating45:"Từ 4.5 điểm trở lên",inboxTitle:"Hộp thư",inboxEmpty:"Chưa có thông báo",inboxMarkAll:"Đánh dấu đã đọc tất cả",
 results:"Hiển thị {a} / {b} tài nguyên · Nhấn vào thẻ để xem chi tiết và đặt chỗ",prefSuffix:" · đang ưu tiên gợi ý {c}",emptyRes:"Không tìm thấy tài nguyên phù hợp. Thử từ khóa hoặc thành phố khác nhé.",
 moreBtn:"Xem thêm tài nguyên",viewsUnit:"lượt xem",favAdd:"Đã thêm vào yêu thích",favRemove:"Đã bỏ yêu thích",favLogin:"Vui lòng đăng nhập để lưu yêu thích",
 spotKicker:"演艺＋文旅 · Diễn nghệ + du lịch",spotTitle:"Khi một vở diễn trở thành chuyến đi",spotText:"Xem diễn, dạo sơn thủy, ngủ lại phố cổ — gói “演艺＋漓江文旅套餐” (¥398/người) và “滨海音乐会与酒店套餐” (¥568/người) gói vé, cảnh đẹp và lưu trú vào một đơn duy nhất.",
@@ -143,7 +143,7 @@ heroSearchPh:"Search shows, venues, artists, heritage experiences…",heroSearch
 sRes:"performances & resources",sShow:"shows & productions",sVenue:"venues & stages",sCity:"cities covered",sCat:"resource categories",sDem:"open partner requests",
 catTitle:"Ten resource categories",catSub:"One catalog for the whole Guangxi performing-arts scene",catNote:"Every category shares the same stock and schedule rules — browse, compare and book in one flow.",
 cat2Title:"Tonight, what's on stage?",cat2Sub:"Search, filter, sort and book instantly",cat2Note:"Prices in CNY (¥). Open any card for details and booking.",
-allChip:"All",allCities:"All cities",searchPh:"Search by name, city or tag…",sortHot:"Most viewed",sortAsc:"Price: low to high",sortDesc:"Price: high to low",sortName:"Name A–Z",
+allChip:"All",allCities:"All cities",searchPh:"Search by name, city or tag…",sortHot:"Most viewed",sortAsc:"Price: low to high",sortDesc:"Price: high to low",sortName:"Name A–Z",priceMinPh:"Min price (¥)",priceMaxPh:"Max price (¥)",ratingAll:"Any rating",rating4:"4 stars & up",rating45:"4.5 stars & up",inboxTitle:"Inbox",inboxEmpty:"No messages yet",inboxMarkAll:"Mark all as read",
 results:"Showing {a} / {b} · Open a card for details and booking",prefSuffix:" · prioritising {c}",emptyRes:"No matching resources — try another keyword or city.",
 moreBtn:"Show more",viewsUnit:"views",favAdd:"Saved to favourites",favRemove:"Removed from favourites",favLogin:"Please sign in to save favourites",
 spotKicker:"演艺＋文旅 · Shows + travel",spotTitle:"When a show becomes a trip",spotText:"Watch a show, wander the riverscape, sleep in the old town — the Li River package (¥398/person) and the seaside concert-and-hotel package (¥568/person) bundle tickets, scenery and stay into one order.",
@@ -305,7 +305,7 @@ var DEMANDS = [
 [["文旅小团，寻找山歌与民俗体验资源","Đoàn văn–du nhỏ, tìm trải nghiệm sơn ca và dân tục","Small travel group seeks song & folk experiences"],"tourism",9000,"崇左",["Đoàn khoảng 20 người cần hành trình kết hợp sơn ca, trống đồng và thủ công.","约20人小团，需要山歌、铜鼓与手作结合的行程。","A group of about 20 wants an itinerary combining mountain songs, bronze drums and crafts."]]
 ];
 var money = function(n){ return "¥" + n.toLocaleString("zh-CN"); };
-var state = { cat:"all", q:"", city:"all", sort:"hot", shown:12, favs:{}, orders:[], seq:137, pref:null, wxTab:"home", wxCat:"all", wxQ:"" };
+var state = { cat:"all", q:"", city:"all", sort:"hot", shown:12, favs:{}, orders:[], seq:137, pref:null, wxTab:"home", wxCat:"all", wxQ:"", priceMin:"", priceMax:"", minRating:0 };
 
 // ESM exports (React entries import this module; no globals anymore).
 export { I18N, t, fmt, CATS, catName, catZh, CITYN, cityName, UNITN, unitName, CATIMG, RES, DEMANDS, money, state, li, L };
