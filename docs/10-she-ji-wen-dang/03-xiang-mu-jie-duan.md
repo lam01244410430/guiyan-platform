@@ -704,3 +704,9 @@ B-037 先，Wave 5 后。B-037 已提交（`4f89fb4`）；Wave 5 在干净树上
   表 + 独立事务）；Q5 小程序 URL（默认 Vercel 地址，保留离线回退）；Q6 报
   告下载（默认仅 .txt）；Q7 场馆映射（默认只按城市+类型）；Q8 提交分组
   （默认每项 1 commit）。
+
+## 小程序重建 — 去 demo 标注 + tab 我 + 微信登录（2026-11-12，重建计划已批，未 commit/未部署）
+
+Plan：`~/workspace/_work/guiyan-miniprogram-rebuild-plan.md`（352 行）。Lam 批准 2026-11-12 23:53（Q1–Q8 全部默认）。在 Wave 5 三个 commit（`bb4e225` / `0e12ff8` / `6961c4a`）后的干净树上实施；**未 commit、未 push、未部署**——部署 + 真机检查 + 按项提交是 Peter 的步骤。基线：176 test（164/0/12），smoke 30/0，i18n H5 335/335/335。最终：**184 test（172/0/12），smoke 30/0，H5 i18n 322/322/322，小程序 i18n 131/131/131**（两边 key 集相等）。
+
+- **A — AppID：** 仅改 `miniprogram/project.config.json:6`：`"touristappid"` → `"wx5fb461d54128ba71"`（Lam 提供的真实 AppID）；`urlCheck: false`、`libVersion: "trial"` 不变；JSON 已校验。**仍待 Lam：** 在微信开发者工具里用真实 AppID 编译 + 真机预览；Vercel 域名需加入小程序后台 request 合法域名，否则真机仍走离线数据。

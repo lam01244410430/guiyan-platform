@@ -2,7 +2,7 @@
   "description": "桂演 Guiyan — premium redesign mini-program (customer-facing, i18n zh/vi/en)",
   "miniprogramRoot": "./",
   "compileType": "miniprogram",
-  "appid": "touristappid",
+  "appid": "wx5fb461d54128ba71",
   "projectname": "guiyan-platform",
   "setting": {
     "urlCheck": false,
