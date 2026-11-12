@@ -78,5 +78,19 @@ export function apiDownloadCsv(path, filename) {
     })
     .catch(function (e) { if (timer) clearTimeout(timer); throw e; });
 }
+
+/* Wave 4 #15 — download a text file in the browser (simulated agreement).
+   The customer bundle has its own copy in web/assets/js/apiClient.js
+   (admin must not import that file, which pulls in data.js). */
+export function downloadText(text, filename) {
+  const blob = new Blob([text], { type: "text/plain;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(function () { URL.revokeObjectURL(url); }, 1000);
+}
+
 export function fmtMoney(cents) { return "¥" + ((typeof cents === "number" ? cents : 0) / 100).toLocaleString("zh-CN"); }
 export const STATUS = { pending: "待确认", confirmed: "已确认", paid: "已支付", completed: "已完成", cancelled: "已取消", refunded: "已退款" };

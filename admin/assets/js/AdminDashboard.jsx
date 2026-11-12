@@ -11,7 +11,7 @@
    audit_logs. Premium data loads lazily, only when its view opens. */
 import { useEffect, useRef, useState } from "react";
 import {
-  apiGet, apiPost, apiPatch, apiDownloadCsv, clearToken, currentUser, getToken, fmtMoney, STATUS,
+  apiGet, apiPost, apiPatch, apiDownloadCsv, downloadText, clearToken, currentUser, getToken, fmtMoney, STATUS,
 } from "./adminApi.js";
 import TrendChart from "./TrendChart.jsx";
 import SearchBox from "./SearchBox.jsx";
@@ -92,12 +92,13 @@ const ALERT_KINDS = [
   ["data", "数据异常"], ["sentiment", "潜在舆情风险"],
 ];
 
-function OrderRow({ o }) {
+function OrderRow({ o, onContract }) {
   return (
     <tr>
       <td className="code">{o.code}</td><td>{o.user_name || ""}</td><td>{o.resource_name || ""}</td>
       <td className="num">{fmtMoney(o.amount)}</td><td>{o.booking_date || ""}</td>
       <td><span className={"pill " + o.status}>{STATUS[o.status] || o.status}</span></td>
+      <td><button type="button" className="btn-view" onClick={() => onContract(o)}>协议 / 权益</button></td>
     </tr>
   );
 }
@@ -105,8 +106,9 @@ function OrderRow({ o }) {
 export default function AdminDashboard() {
   const [stats, setStats] = useState(null);
   const [orders, setOrders] = useState([]);
-  const [users, setUsers] = useState([]);
-  const [resources, setResources] = useState([]);
+  // Wave 4 #15: open simulated agreement ({title, content, code} | null).
+  const [contract, setContract] = useState(null);
+  const [users, setUsers] = useState([]);  const [resources, setResources] = useState([]);
   const [demands, setDemands] = useState([]);
   const [filter, setFilter] = useState("all");
   const [view, setView] = useState("overview");
@@ -269,6 +271,21 @@ export default function AdminDashboard() {
       if (e && e.status === 403) toast("无权导出");
       else toast("导出失败，请稍后重试");
     }).finally(function () { setCsvBusy(false); });
+  }
+
+  /* Wave 4 #15 — simulated agreement per order (具体功能 #12, port of
+     zhou Transactions.jsx): fetch the server-generated text and show it
+     in a modal; the .txt download is named <order-code>-模拟协议.txt. */
+  function openContract(o) {
+    apiGet("/api/orders/" + encodeURIComponent(o.id) + "/contract").then(function (d) {
+      setContract({ title: d.title, content: d.content, code: o.code });
+    }).catch(function (e) {
+      if (e && e.status === 401) { clearToken(); location.href = "/admin/index.html"; return; }
+      toast("加载协议失败，请稍后重试");
+    });
+  }
+  function downloadContract() {
+    if (contract) downloadText(contract.content, contract.code + "-模拟协议.txt");
   }
 
   function doReviewDemand(id, status) {
@@ -603,12 +620,12 @@ export default function AdminDashboard() {
               </div>
               <div className="tbl-wrap">
                 <table>
-                  <thead><tr><th scope="col" aria-sort={ariaSort("overview", "code")}>订单号<SortButton label="订单号" sortKey="code" tableId="overview" sort={sorts.overview} onToggle={toggleSort} /></th><th scope="col">用户</th><th scope="col">资源</th><th scope="col" className="num" aria-sort={ariaSort("overview", "amount")}>金额<SortButton label="金额" sortKey="amount" tableId="overview" sort={sorts.overview} onToggle={toggleSort} /></th><th scope="col" aria-sort={ariaSort("overview", "booking_date")}>预订日期<SortButton label="预订日期" sortKey="booking_date" tableId="overview" sort={sorts.overview} onToggle={toggleSort} /></th><th scope="col">状态</th></tr></thead>
+                  <thead><tr><th scope="col" aria-sort={ariaSort("overview", "code")}>订单号<SortButton label="订单号" sortKey="code" tableId="overview" sort={sorts.overview} onToggle={toggleSort} /></th><th scope="col">用户</th><th scope="col">资源</th><th scope="col" className="num" aria-sort={ariaSort("overview", "amount")}>金额<SortButton label="金额" sortKey="amount" tableId="overview" sort={sorts.overview} onToggle={toggleSort} /></th><th scope="col" aria-sort={ariaSort("overview", "booking_date")}>预订日期<SortButton label="预订日期" sortKey="booking_date" tableId="overview" sort={sorts.overview} onToggle={toggleSort} /></th><th scope="col">状态</th><th scope="col">协议</th></tr></thead>
                   <tbody id="recentBody">
                     {orders.length
-                      ? (overviewMatches.length ? sortedOverview.slice(0, 8).map((o) => <OrderRow key={o.code} o={o} />)
-                        : searchEmpty(6))
-                      : <tr><td colSpan="6"><div className="empty">暂无订单</div></td></tr>}
+                      ? (overviewMatches.length ? sortedOverview.slice(0, 8).map((o) => <OrderRow key={o.code} o={o} onContract={openContract} />)
+                        : searchEmpty(7))
+                      : <tr><td colSpan="7"><div className="empty">暂无订单</div></td></tr>}
                   </tbody>
                 </table>
               </div>
@@ -631,10 +648,10 @@ export default function AdminDashboard() {
             </div>
             <div className="tbl-wrap">
               <table>
-                <thead><tr><th scope="col" aria-sort={ariaSort("orders", "code")}>订单号<SortButton label="订单号" sortKey="code" tableId="orders" sort={sorts.orders} onToggle={toggleSort} /></th><th scope="col">用户</th><th scope="col">资源</th><th scope="col" className="num" aria-sort={ariaSort("orders", "amount")}>金额<SortButton label="金额" sortKey="amount" tableId="orders" sort={sorts.orders} onToggle={toggleSort} /></th><th scope="col" aria-sort={ariaSort("orders", "booking_date")}>预订日期<SortButton label="预订日期" sortKey="booking_date" tableId="orders" sort={sorts.orders} onToggle={toggleSort} /></th><th scope="col">状态</th></tr></thead>
+                <thead><tr><th scope="col" aria-sort={ariaSort("orders", "code")}>订单号<SortButton label="订单号" sortKey="code" tableId="orders" sort={sorts.orders} onToggle={toggleSort} /></th><th scope="col">用户</th><th scope="col">资源</th><th scope="col" className="num" aria-sort={ariaSort("orders", "amount")}>金额<SortButton label="金额" sortKey="amount" tableId="orders" sort={sorts.orders} onToggle={toggleSort} /></th><th scope="col" aria-sort={ariaSort("orders", "booking_date")}>预订日期<SortButton label="预订日期" sortKey="booking_date" tableId="orders" sort={sorts.orders} onToggle={toggleSort} /></th><th scope="col">状态</th><th scope="col">协议</th></tr></thead>
                 <tbody id="ordersBody">
-                  {filteredOrders.length ? sortedOrders.map((o) => <OrderRow key={o.code} o={o} />)
-                    : (q ? searchEmpty(6) : <tr><td colSpan="6"><div className="empty">暂无订单</div></td></tr>)}
+                  {filteredOrders.length ? sortedOrders.map((o) => <OrderRow key={o.code} o={o} onContract={openContract} />)
+                    : (q ? searchEmpty(7) : <tr><td colSpan="7"><div className="empty">暂无订单</div></td></tr>)}
                 </tbody>
               </table>
             </div>
@@ -1002,6 +1019,20 @@ export default function AdminDashboard() {
           </section>
         </main>
       </div>
+
+      {/* Wave 4 #15: simulated agreement modal (具体功能 #12). */}
+      {contract && (
+        <div className="contract-overlay" role="dialog" aria-modal="true" onClick={(e) => { if (e.target === e.currentTarget) setContract(null); }}>
+          <div className="contract-sheet">
+            <h3>{contract.title}</h3>
+            <pre className="contract-text">{contract.content}</pre>
+            <div className="contract-actions">
+              <button type="button" className="btn-approve" onClick={downloadContract}>下载模拟协议</button>
+              <button type="button" className="btn-reject" onClick={() => setContract(null)}>关闭</button>
+            </div>
+          </div>
+        </div>
+      )}
 
       <div className={"toast" + (toastMsg ? " show" : "")} id="toast" role="status">{toastMsg}</div>
     </>

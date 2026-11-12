@@ -73,6 +73,19 @@ export function apiGet(path) { return apiFetch(path, { method: "GET" }); }
 export function apiPost(path, body) { return apiFetch(path, { method: "POST", body }); }
 export function apiDel(path) { return apiFetch(path, { method: "DELETE" }); }
 
+/* Wave 4 #15 — download a text file in the browser (simulated agreement).
+   The admin bundle has its own copy in adminApi.js (admin must not import
+   this file, which pulls in data.js). */
+export function downloadText(text, filename) {
+  const blob = new Blob([text], { type: "text/plain;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(function () { URL.revokeObjectURL(url); }, 1000);
+}
+
 /* API amounts are integer cents; the SPA's money() formats a yuan number. */
 export function fmtMoney(cents) { return money((typeof cents === "number" ? cents : 0) / 100); }
 

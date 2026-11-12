@@ -6,7 +6,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { langState, t, fmt, CATS, catName, unitName } from "./data.js";
 import {
   apiGet, apiPost, currentUser, getToken, setToken, clearToken,
-  restoreUser, fmtMoney, statusKey,
+  restoreUser, fmtMoney, statusKey, downloadText,
 } from "./apiClient.js";
 import { Header, LoginDialog, RegisterDialog, Toast } from "./chrome.jsx";
 import AiChat from "./AiChat.jsx";
@@ -30,6 +30,11 @@ export default function UserDashboard() {
   // both calls degrade to null instead of rejecting usrLoad).
   const [usrProfile, setUsrProfile] = useState(null);
   const [usrRecs, setUsrRecs] = useState([]);
+  const [contractBusyId, setContractBusyId] = useState(null);
+  // Wave 4 #14 fix (working-tree defect from #15): openContract() and the
+  // modal below use `contract` / `setContract`, but no state for them was
+  // ever declared — the dashboard would throw on render. Declared here.
+  const [contract, setContract] = useState(null);
   const toastTimer = useRef(null);
   const ordersHRef = useRef(null);
 
@@ -79,7 +84,7 @@ export default function UserDashboard() {
     setUser(currentUser());
     usrLoad();
     const onKey = (e) => {
-      if (e.key === "Escape") { setMenuOpen(false); setNavOpen(false); }
+      if (e.key === "Escape") { setMenuOpen(false); setNavOpen(false); setContract(null); }
     };
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
@@ -125,6 +130,24 @@ export default function UserDashboard() {
       if (e && e.data && e.data.error) toast(e.data.error);
       usrLoadOrders();
     });
+  }
+
+  /* Wave 4 #15 — simulated agreement per order (具体功能 #12, port of
+     zhou Transactions.jsx): fetch the server-generated text and show it
+     in a modal; the .txt download is named <order-code>-模拟协议.txt. */
+  function openContract(o) {
+    setContractBusyId(o.id);
+    apiGet("/api/orders/" + encodeURIComponent(o.id) + "/contract").then(function (d) {
+      setContract({ title: d.title, content: d.content, code: o.code });
+      setContractBusyId(null);
+    }).catch(function (e) {
+      setContractBusyId(null);
+      if (e && e.status === 401) { clearToken(); setUser(null); setGate(true); return; }
+      toast((e && e.data && e.data.error) || t("loadErr"));
+    });
+  }
+  function downloadContract() {
+    if (contract) downloadText(contract.content, contract.code + "-模拟协议.txt");
   }
 
   function usrActs(o) {
@@ -254,7 +277,7 @@ export default function UserDashboard() {
                       <span className="code">{o.code} · {o.booking_date || ""} · {o.quantity} × {unitName(o.unit || "")} · {fmtMoney(o.amount)}</span>
                       <div className="row">
                         <span className={"pill " + o.status}>{t(statusKey(o.status))}</span>
-                        <span className="db-actions">{usrActs(o)}</span>
+                        <span className="db-actions">{usrActs(o)}<button type="button" className="mini" disabled={contractBusyId === o.id} onClick={() => openContract(o)}>{t("contractBtn")}</button></span>
                       </div>
                     </div>
                   )) : <div className="db-empty">{t("emptyOrders")}</div>}
@@ -343,6 +366,21 @@ export default function UserDashboard() {
 
       <LoginDialog open={loginOpen} err={loginErr} onClose={() => setLoginOpen(false)} onLogin={doLogin}
         onRegisterClick={() => { setLoginOpen(false); setRegisterErr(""); setRegisterOpen(true); }} />
+      {/* Wave 4 #15: simulated agreement modal (具体功能 #12). */}
+      {contract && (
+        <div className="overlay open" role="dialog" aria-modal="true" onClick={(e) => { if (e.target === e.currentTarget) setContract(null); }}>
+          <div className="sheet">
+            <div className="in">
+              <h3>{contract.title}</h3>
+              <pre className="contract-text">{contract.content}</pre>
+              <div className="acts">
+                <button type="button" className="btn red" onClick={downloadContract}>{t("contractDownload")}</button>
+                <button type="button" className="btn ghost" aria-label="Close" onClick={() => setContract(null)}>✕</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
       <RegisterDialog open={registerOpen} err={registerErr} onClose={() => setRegisterOpen(false)} onRegister={doRegister}
         onLoginClick={() => { setRegisterOpen(false); setLoginOpen(true); }} />
       <AiChat lang={lang} />

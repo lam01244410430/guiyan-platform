@@ -280,3 +280,77 @@ test("wave4 #12: multiple bookings on one day accumulate", async () => {
   assert.equal(av.json.dates.filter((d) => d.booking_date === D5).length, 2);
 });
 
+// --- #15: simulated agreement per order (具体功能 #12) -------------------
+
+test("wave4 #15: contract owner gets 200 with simulation header + scope/term lines", async () => {
+  const items = await listByCategory("copyright");
+  const item = items.find((r) => r.stock >= 1);
+  assert.ok(item, "need a copyright resource with stock");
+  const detail = await req(`/api/resources/${item.id}`);
+  assert.equal(detail.status, 200);
+  const meta = detail.json.resource.meta;
+  assert.ok(meta && typeof meta === "object", JSON.stringify(detail.json.resource));
+  const token = await login();
+  const order = await createOrder(token, item.id, 1, D1);
+  const c = await req(`/api/orders/${order.id}/contract`, { token });
+  assert.equal(c.status, 200, JSON.stringify(c.json));
+  assert.equal(c.json.title, "模拟服务与授权协议");
+  assert.ok(c.json.content.includes("【毕业实习演示文件，无真实合同效力】"), c.json.content);
+  assert.ok(c.json.content.includes(`订单：${order.code}`), c.json.content);
+  assert.ok(c.json.content.includes(`资源：${item.name}`), c.json.content);
+  assert.ok(c.json.content.includes(`日期：${D1}`), c.json.content);
+  assert.ok(c.json.content.includes("元（模拟）"), c.json.content);
+  if (meta.scope) assert.ok(c.json.content.includes(`授权范围：${meta.scope}`), c.json.content);
+  if (meta.term) assert.ok(c.json.content.includes(`期限：${meta.term}`), c.json.content);
+  if (meta.territory) assert.ok(c.json.content.includes(`区域：${meta.territory}`), c.json.content);
+  assert.ok(c.json.content.includes("设备押金："), c.json.content);
+  assert.ok(c.json.content.includes("仅展示，不收取"), c.json.content);
+  assert.ok(c.json.content.includes("服务流程：预约→审核→模拟支付→服务完成→模拟结算"), c.json.content);
+  assert.ok(c.json.content.includes("纠纷可通过订单申诉提交，资金状态仅为本地模拟。"), c.json.content);
+});
+
+test("wave4 #15: another user gets 403 on someone else's contract", async () => {
+  const items = await listByCategory("copyright");
+  const item = items.find((r) => r.stock >= 1);
+  assert.ok(item, "need a copyright resource with stock");
+  const order = await createOrder(await login(), item.id, 1, D2);
+  const uname = "wave4other" + Date.now().toString(36);
+  const reg = await req("/api/auth/register", {
+    method: "POST",
+    body: { username: uname, password: "guiyan2026", name: "协议测试" },
+  });
+  assert.equal(reg.status, 200, JSON.stringify(reg.json));
+  const other = await req(`/api/orders/${order.id}/contract`, { token: reg.json.token });
+  assert.equal(other.status, 403, JSON.stringify(other.json));
+});
+
+test("wave4 #15: admin gets 200 on any order's contract", async () => {
+  const items = await listByCategory("copyright");
+  const item = items.find((r) => r.stock >= 1);
+  assert.ok(item, "need a copyright resource with stock");
+  const order = await createOrder(await login(), item.id, 1, D3);
+  const c = await req(`/api/orders/${order.id}/contract`, { token: await adminLogin() });
+  assert.equal(c.status, 200, JSON.stringify(c.json));
+  assert.ok(c.json.content.includes(`订单：${order.code}`), c.json.content);
+});
+
+test("wave4 #15: missing order is 404, anonymous is 401", async () => {
+  const token = await login();
+  const missing = await req("/api/orders/999999/contract", { token });
+  assert.equal(missing.status, 404, JSON.stringify(missing.json));
+  const anon = await req("/api/orders/999999/contract");
+  assert.equal(anon.status, 401, JSON.stringify(anon.json));
+});
+
+test("wave4 #15: GET /api/resources/:id returns meta", async () => {
+  const shows = await listByCategory("show");
+  const s = shows.find((r) => r.meta && r.meta.duration != null);
+  assert.ok(s, "need a show with meta.duration in the list response");
+  const res = await req(`/api/resources/${s.id}`);
+  assert.equal(res.status, 200, JSON.stringify(res.json));
+  const meta = res.json.resource.meta;
+  assert.ok(meta && typeof meta === "object", JSON.stringify(res.json.resource));
+  assert.equal(meta.duration, s.meta.duration);
+  assert.ok(Object.keys(meta).length > 0, JSON.stringify(meta));
+});
+

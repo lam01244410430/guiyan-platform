@@ -421,7 +421,7 @@ test("wave3 #11b: recommendations userId gate (demo 403, admin 200, anon 401)", 
   assert.equal(missing.status, 404);
 });
 
-test("wave3 i18n: 221 keys in zh/vi/en with equal sets (214 + 7 Wave 4 #12 avail keys)", async () => {
+test("wave3 i18n: 255 keys in zh/vi/en with equal sets (221 after #12 + 34 Wave 4 #15 meta/preview/contract keys)", async () => {
   const data = await import(
     path.resolve(
       path.dirname(fileURLToPath(import.meta.url)),
@@ -433,8 +433,8 @@ test("wave3 i18n: 221 keys in zh/vi/en with equal sets (214 + 7 Wave 4 #12 avail
     )
   );
   const counts = data.LANGS.map((l) => Object.keys(data.I18N[l]).length);
-  assert.deepEqual(counts, [221, 221, 221]);
-  for (const k of ["profileTitle", "profileBasic", "profileSpending", "profileShowPref", "profileBehavior", "profileChannel", "profileAge", "profileGender", "profileRegion", "profileRegionNote", "profileActiveCity", "profilePricePref", "profilePriceBand", "profileFrequency", "profileFrequencyValue", "profileStoredValue", "profileGenre", "profileArtist", "profileVenue", "profileShowType", "profileTimeSlot", "profileTimeNote", "profilePayment", "profileSharing", "profileRepeat", "profileSource", "profileSuggestion", "recTitle", "recScore", "availLeft", "availBooked", "availFree", "availService", "seatTitle", "seatNote", "bookedDates"]) {
+  assert.deepEqual(counts, [255, 255, 255]);
+  for (const k of ["profileTitle", "profileBasic", "profileSpending", "profileShowPref", "profileBehavior", "profileChannel", "profileAge", "profileGender", "profileRegion", "profileRegionNote", "profileActiveCity", "profilePricePref", "profilePriceBand", "profileFrequency", "profileFrequencyValue", "profileStoredValue", "profileGenre", "profileArtist", "profileVenue", "profileShowType", "profileTimeSlot", "profileTimeNote", "profilePayment", "profileSharing", "profileRepeat", "profileSource", "profileSuggestion", "recTitle", "recScore", "availLeft", "availBooked", "availFree", "availService", "seatTitle", "seatNote", "bookedDates", "metaTitle", "metaDuration", "metaTeam", "metaGenre", "metaExperience", "metaAgency", "metaProcess", "metaAddress", "metaFacilities", "metaModel", "metaDeposit", "metaUsage", "metaScope", "metaTerm", "metaTerritory", "metaRights", "metaCertificate", "metaSpecification", "metaShipping", "metaPlayback", "metaIncludes", "metaPartner", "metaKind", "metaChannels", "metaServiceNote", "lightTitle", "lightNote", "lightRotate", "lightColor", "digiStart", "digiPause", "digiNote", "contractBtn", "contractDownload"]) {
     for (const l of data.LANGS) assert.ok(k in data.I18N[l], `${k} missing in ${l}`);
   }
 });

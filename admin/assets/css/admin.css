@@ -186,6 +186,15 @@ th .sort-btn:focus-visible{outline:2px solid var(--pine);outline-offset:1px}
 .btn-export{margin-left:auto;border:0;border-radius:9px;background:var(--pine);color:var(--sidebar-text);font-weight:700;font-size:13.5px;padding:13px 18px;white-space:nowrap}
 .btn-export:hover{background:var(--pine-deep)}
 .btn-export:disabled{opacity:.6;cursor:default}
+
+/* Wave 4 #15: per-order contract button + simulated agreement modal. */
+.btn-view{border:1px solid var(--line2);background:var(--surface);color:var(--ink);border-radius:9px;font-weight:700;font-size:12px;padding:6px 14px;white-space:nowrap}
+.btn-view:hover{background:var(--surface2)}
+.contract-overlay{position:fixed;inset:0;background:var(--overlay);z-index:60;display:flex;align-items:center;justify-content:center;padding:22px}
+.contract-sheet{background:var(--surface);color:var(--ink);width:100%;max-width:640px;max-height:88vh;overflow-y:auto;border-radius:16px;padding:26px 28px;box-shadow:var(--shadow-menu)}
+.contract-sheet h3{font-family:"Noto Serif SC",serif;font-size:20px;margin:0 0 14px}
+.contract-text{white-space:pre-wrap;word-break:break-word;font:inherit;font-size:13.5px;line-height:1.8;margin:0 0 16px}
+.contract-actions{display:flex;gap:10px;flex-wrap:wrap}
 .cache-note{font-size:12px;color:var(--ink3);margin:0 0 14px}
 .def-note{font-size:12px;color:var(--ink2);margin:10px 0 0}
 .stat small{display:block;font-size:12px;color:var(--ink2);margin-top:6px;line-height:1.5;font-weight:400}

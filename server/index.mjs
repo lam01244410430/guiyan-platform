@@ -27,7 +27,7 @@ import { serveStatic } from "./static.mjs";
 import { health, listCategories } from "./routes/misc.mjs";
 import { listResources, getResource, getAvailability, viewResource } from "./routes/resources.mjs";
 import { login, logout, register } from "./routes/auth.mjs";
-import { listOrders, createOrder, transitionOrder } from "./routes/orders.mjs";
+import { listOrders, createOrder, transitionOrder, getOrderContract } from "./routes/orders.mjs";
 import { listDemands, createDemand } from "./routes/demands.mjs";
 import { listFavorites, toggleFavorite, deleteFavorite } from "./routes/favorites.mjs";
 import { ANSWERS, assistant } from "./routes/assistant.mjs";
@@ -154,6 +154,7 @@ export async function createApp({ database }) {
       if (await listOrders(ctx)) return;
       if (await createOrder(ctx)) return;
       if (await transitionOrder(ctx)) return;
+      if (await getOrderContract(ctx)) return;
       if (await listDemands(ctx)) return;
       if (await createDemand(ctx)) return;
       if (await listFavorites(ctx)) return;

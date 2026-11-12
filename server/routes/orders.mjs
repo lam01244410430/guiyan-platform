@@ -161,3 +161,48 @@ export async function transitionOrder(ctx) {
   }
   return false;
 }
+
+// Wave 4 #15 — simulated service/licence agreement per order (具体功能 #12,
+// port of zhou guiyan-demo/server/index.mjs:910-928). Content is generated
+// on the fly from the order + resource meta: nothing is written to the DB
+// and no column is added. Login required; owner or admin only. Missing
+// order -> 404; another user's order -> 403.
+export async function getOrderContract(ctx) {
+  const { p, req, send, needUser, get } = ctx;
+  const m = p.match(/^\/api\/orders\/(\d+)\/contract$/);
+  if (m && req.method === "GET") {
+    const u = needUser();
+    const o = await get(
+      "SELECT o.*,r.name AS resource_name,r.meta AS resource_meta FROM orders o JOIN resources r ON r.id=o.resource_id WHERE o.id=?",
+      Number(m[1]),
+    );
+    assert(o, "订单不存在", 404);
+    assert(o.user_id === u.id || u.role === "admin", "无权查看此订单", 403);
+    let meta = {};
+    try {
+      meta = JSON.parse(o.resource_meta || "{}") || {};
+    } catch {
+      meta = {};
+    }
+    const yuan2 = (cents) =>
+      ((typeof cents === "number" ? cents : 0) / 100).toFixed(2);
+    send({
+      title: "模拟服务与授权协议",
+      content: [
+        "【毕业实习演示文件，无真实合同效力】",
+        `订单：${o.code}`,
+        `资源：${o.resource_name}`,
+        `日期：${o.booking_date}`,
+        `金额：${yuan2(o.amount)}元（模拟）`,
+        `授权范围：${meta.scope || "订单约定的资源服务"}`,
+        `期限：${meta.term || "预约日期当日"}`,
+        `区域：${meta.territory || "订单约定地点"}`,
+        `设备押金：${yuan2(meta.deposit || 0)}元（仅展示，不收取）`,
+        "服务流程：预约→审核→模拟支付→服务完成→模拟结算。",
+        "纠纷可通过订单申诉提交，资金状态仅为本地模拟。",
+      ].join("\n"),
+    });
+    return true;
+  }
+  return false;
+}

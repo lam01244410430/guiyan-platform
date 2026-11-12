@@ -22,6 +22,81 @@ import spotlightImg from "../img/spotlight.webp";
 function desc(r, lang) { return lang === "zh" ? r[6][1] : lang === "en" ? r[6][2] : r[6][0]; }
 function catCount(id) { return RES.filter(function (r) { return r[1] === id; }).length; }
 
+/* Wave 4 #15 — meta label map, port of zhou Resources.jsx:515-544,
+   adjusted to Lam's real meta keys (plan §4.3b). Only keys in this map
+   are rendered: seatRows/seatCols (seat-map #12), schedule (availability
+   #12) and preview (boolean flag) are excluded by omission, as is any
+   key with no label here. Labels are i18n keys; values come from the API
+   meta via APIRES (shared #12 change). */
+const META_LABELS = {
+  duration: "metaDuration", team: "metaTeam", genre: "metaGenre",
+  experience: "metaExperience", agency: "metaAgency", process: "metaProcess",
+  address: "metaAddress", facilities: "metaFacilities", model: "metaModel",
+  deposit: "metaDeposit", usage: "metaUsage", scope: "metaScope",
+  term: "metaTerm", territory: "metaTerritory", rights: "metaRights",
+  certificate: "metaCertificate", specification: "metaSpecification",
+  shipping: "metaShipping", delivery: "metaShipping", playback: "metaPlayback",
+  includes: "metaIncludes", partner: "metaPartner", kind: "metaKind",
+  channels: "metaChannels", serviceNote: "metaServiceNote",
+};
+function metaValue(key, v) {
+  /* deposit is stored in cents on the server; the UI shows yuan (label
+     already carries the 模拟 marker). Arrays render as a short list. */
+  if (key === "deposit") return money((typeof v === "number" ? v : 0) / 100);
+  if (Array.isArray(v)) return v.join("、");
+  return String(v);
+}
+
+/* Wave 4 #15 — lighting demo, port of zhou EquipmentPreview
+   (Resources.jsx:280-322). Equipment only, for ALL equipment (Q11),
+   not just meta.preview. Rotate +30° per click, colour picker recolours
+   the stage, 6 fixed dots. Simulation only — no real equipment is used. */
+function EquipmentPreview() {
+  const [angle, setAngle] = useState(0);
+  const [color, setColor] = useState("#26c6a1");
+  return (
+    <div className="equip-preview">
+      <div className="preview-controls">
+        <strong>{t("lightTitle")}</strong>
+        <button type="button" className="linklike" onClick={() => setAngle((a) => a + 30)}>{t("lightRotate")}</button>
+        <input aria-label={t("lightColor")} type="color" value={color} onChange={(e) => setColor(e.target.value)} />
+      </div>
+      <div className="stage-view" style={{ perspective: 600 }}>
+        <div style={{ transform: `rotateX(45deg) rotateZ(${angle}deg)`, background: color }} className="stage-platform">
+          {[1, 2, 3, 4, 5, 6].map((n) => (
+            <span key={n} style={{ left: `${10 + ((n - 1) % 3) * 35}%`, top: n > 3 ? "80%" : "8%" }}>●</span>
+          ))}
+        </div>
+      </div>
+      <p className="preview-note">{t("lightNote")}</p>
+    </div>
+  );
+}
+
+/* Wave 4 #15 — digital preview, port of zhou DigitalPreview
+   (Resources.jsx:323-346). Digital only: cover image + simulated
+   play/pause + progress bar (+1% per 500ms, 100 -> 0). No <video>
+   element: there is no real video stream. */
+function DigitalPreview({ image }) {
+  const [playing, setPlaying] = useState(false);
+  const [progress, setProgress] = useState(0);
+  useEffect(() => {
+    if (!playing) return;
+    const timer = setInterval(() => setProgress((p) => (p >= 100 ? 0 : p + 1)), 500);
+    return () => clearInterval(timer);
+  }, [playing]);
+  return (
+    <div className="digital-preview">
+      <img src={image} alt="" />
+      <button type="button" className="btn ghost" onClick={() => setPlaying((p) => !p)}>
+        {playing ? t("digiPause") : t("digiStart")}
+      </button>
+      <div className="progress"><i style={{ width: progress + "%" }} /></div>
+      <p className="preview-note">{t("digiNote")}</p>
+    </div>
+  );
+}
+
 const PREFS = [
   ["show", "爱看演出", "Thích xem diễn", "Live shows"],
   ["heritage", "迷非遗", "Mê di sản", "Heritage crafts"],
@@ -373,6 +448,14 @@ export default function App() {
   const heroStats = [[RES.length, t("sRes")], [catCount("show"), t("sShow")], [catCount("venue"), t("sVenue")], [7, t("sCity")], [CATS.length, t("sCat")], [DEMANDS.length, t("sDem")]];
   const narrow = typeof window !== "undefined" && window.innerWidth < 560;
   const cur = detailIdx != null ? RES[detailIdx] : null;
+  /* Wave 4 #15: renderable meta entries for the open detail (API meta via
+     APIRES; the offline fallback catalog has no meta, so the block hides).
+     Only keys in META_LABELS with a real value render — absent keys are
+     hidden, never invented, never shown as 暂无. */
+  const detailMeta = detailIdx != null && APIRES[detailIdx] ? APIRES[detailIdx].meta : null;
+  const metaEntries = detailMeta ? Object.entries(detailMeta).filter(function ([k, v]) {
+    return META_LABELS[k] && v !== undefined && v !== null && v !== "" && (!Array.isArray(v) || v.length > 0);
+  }) : [];
   const quicks = t("quicks");
 
   return (
@@ -759,6 +842,16 @@ export default function App() {
                   <span>{fmt(t("viewsMeta"), { n: cur[5] })}</span>
                   <span>{fmt(t("priceMeta"), { p: money(cur[3]), u: unitName(cur[4]) })}</span>
                 </div>
+                {metaEntries.length > 0 && (
+                  <div className="metalist">
+                    <h4>{t("metaTitle")}</h4>
+                    {metaEntries.map(([k, v]) => (
+                      <div key={k} className="row"><span className="k">{t(META_LABELS[k])}</span><span className="v">{metaValue(k, v)}</span></div>
+                    ))}
+                  </div>
+                )}
+                {cur[1] === "equipment" && <EquipmentPreview />}
+                {cur[1] === "digital" && <DigitalPreview image={CATIMG[cur[1]].replace("-card", "")} />}
                 <div className="flowline">
                   {t("flow").map((s, x) => (<span key={x} className={x === 0 ? "on" : undefined}>{s}</span>))}
                 </div>

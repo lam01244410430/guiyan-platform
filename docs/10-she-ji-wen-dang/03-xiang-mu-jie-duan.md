@@ -198,3 +198,50 @@ Q16 不缓存。以上均为工作默认值，Lam 可在 commit 前推翻。
 真实选座（指定座位、占座、单座状态）、改订单创建逻辑、改 `stock` 扣减规则、前端评价/筛选（#14）、
 meta 字段渲染（#15）、缓存档期结果。
 
+### #15 资源 meta 渲染 + 灯位示意 / 数字点播模拟 / 按单查看模拟协议
+
+- meta 渲染：详情浮层（`App.jsx`，views/价格块下方）。meta 已由共享改动带入客户端
+  （`apiClient.js` 的 `APIRES[idx].meta`，#12 做一次）；无 meta（离线 fallback 目录）时整个 meta 块隐藏，
+  不显示"暂无"。
+- 标签表（自 zhou `Resources.jsx:515-544` 移植，按 Lam 真实 key 调整）：duration→时长（分钟）、
+  team→演出团队、genre→剧种、experience→演出经历、agency→经纪机构、process→服务流程、address→地址、
+  facilities→设施（短列表）、model→型号、deposit→押金（分，模拟）（值按分÷100 显示为元）、
+  usage→使用说明、scope→授权范围、term→期限、territory→地域、rights→权益说明、certificate→证书编号、
+  specification→规格、shipping/delivery→配送/交付、playback→播放方式、includes→包含内容、partner→合作方、
+  kind→服务类型、channels→同步渠道（按普通 meta 列表显示）、serviceNote→说明。
+  只渲染 meta 里有值的 key；缺失的 key 隐藏，不编造、不显示"暂无"。不显示：`seatRows`/`seatCols`
+  （#12 座位图用）、`schedule`（#12 档期用）、`preview`（布尔标记）。不在标签表里的 key 也不渲染。
+- 灯位示意：只 category `equipment`，**全部**设备都显示（Q11 默认值；`preview` 只是一行数据上的标记，
+  不是功能开关）。移植 zhou `EquipmentPreview`（`Resources.jsx:280-322`）：旋转按钮（每次 +30°）+
+  颜色选择器改舞台颜色 + 6 个固定圆点。标题`舞台灯位示意（模拟数字孪生）`+
+  说明"仅演示灯位与颜色变化，不进行真实设备仿真。"——纯前端演示，不调用真实设备。
+- 数字点播模拟：只 category `digital`，移植 zhou `DigitalPreview`（`Resources.jsx:323-346`）：封面图 +
+  开始模拟点播/暂停模拟播放按钮 + 进度条（每 500ms +1%，100→0），**无 `<video>` 标签**。
+  标注"模拟播放进度与点播权益，无真实视频流。"
+- 按单查看模拟协议（具体功能 #12，不是 Wave 4 #12）：新接口 `GET /api/orders/:id/contract`
+  （`server/routes/orders.mjs`，与 #13 共用文件，改动独立划界）。需登录；仅订单主人或 admin；
+  订单不存在 → 404。内容当场由订单 + meta 生成，不写库、不加列（移植 zhou `index.mjs:910-928`）：
+  首行"【毕业实习演示文件，无真实合同效力】"；订单号、资源名、预约日期、金额（元 + 模拟）、
+  授权范围（`meta.scope` 或"订单约定的资源服务"）、期限（`meta.term` 或"预约日期当日"）、
+  区域（`meta.territory` 或"订单约定地点"）、设备押金（`meta.deposit` 或 0，按分÷100 显示为元，
+  "仅展示，不收取"）、服务流程（预约→审核→模拟支付→服务完成→模拟结算），
+  末行"纠纷可通过订单申诉提交，资金状态仅为本地模拟。"
+- UI：用户端订单卡（`UserDashboard.jsx`）与 admin 订单表（`AdminDashboard.jsx`）每单一个"协议 / 权益"按钮，
+  打开 modal `<pre>` 显示协议内容 + "下载模拟协议"按钮，下载文件名为 `<order-code>-模拟协议.txt`。
+- i18n：新增 34 个 key（meta 标签 24 个 + meta 区块标题 1 个 + 灯位示意 4 个 + 数字点播 3 个 + 协议 2 个），
+  中越英三语集合相等，共 255 key（测试 `wave3.test.mjs` 的计数同步更新）。
+- 测试：`tests/wave4.test.mjs` 追加 5 个 API 测试：主人 200（含模拟首行 + 授权范围/期限行）、他人 403、
+  admin 200、订单不存在 404、`GET /api/resources/:id` 返回 meta。UI（meta 行数、灯位旋转/变色、进度条、
+  协议 modal + 下载）无 jsdom 测试架，只做 build + 浏览器 live 检查。
+
+### 开放问题 Q10/Q11/Q12（plan §7，#15 适用默认值）
+
+Q10 缺失字段隐藏（不显示暂无）；channels 按普通 meta 列表显示。Q11 灯位示意对全部 equipment 显示。
+Q12 协议按钮用户端 + admin 订单表都有；下载文件 `<order-code>-模拟协议.txt`。以上均为工作默认值，
+Lam 可在 commit 前推翻。
+
+### 不属于 #15
+
+真实视频流、真实设备仿真/数字孪生 3D、协议文件落库、选座（#12 只做示意）、退款/申诉审批流（#13）、
+搜索/通知（#14）。
+

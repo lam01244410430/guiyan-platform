@@ -426,3 +426,24 @@ footer ul{list-style:none;margin:0;padding:0;display:grid;gap:6px}
 .seatgrid{display:flex;flex-wrap:wrap;gap:3px}
 .seatgrid i{width:8px;height:8px;border-radius:50%;background:var(--gold);opacity:.75}
 .seatnote{margin:8px 0 0;font-size:12.5px;color:var(--ink2)}
+
+/* Wave 4 #15: meta list + equipment lighting demo + digital preview + contract modal (detail overlay / user dashboard). */
+.metalist{margin-top:18px}
+.metalist h4{font-family:"Noto Serif SC",serif;font-size:16px;font-weight:900;margin:0 0 6px}
+.metalist .row{display:flex;gap:10px;padding:6px 0;border-bottom:1px solid var(--line);font-size:13.5px}
+.metalist .row:last-child{border-bottom:0}
+.metalist .k{flex:none;width:104px;color:var(--ink2);font-weight:700}
+.metalist .v{flex:1;min-width:0}
+.equip-preview{margin-top:18px}
+.preview-controls{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.preview-controls strong{font-family:"Noto Serif SC",serif;font-size:16px;font-weight:900}
+.preview-controls input[type="color"]{width:38px;height:28px;padding:0;border:1px solid var(--line2);border-radius:6px;background:var(--surface);cursor:pointer}
+.stage-view{margin-top:12px;overflow:hidden;border-radius:12px;background:var(--surface2)}
+.stage-platform{position:relative;height:150px;border-radius:12px;transition:transform .3s ease,background .3s ease}
+.stage-platform span{position:absolute;font-size:18px;color:#fff}
+.preview-note{margin:8px 0 0;font-size:12.5px;color:var(--ink2)}
+.digital-preview{margin-top:18px;display:grid;gap:10px}
+.digital-preview img{width:100%;border-radius:12px;aspect-ratio:21/9;object-fit:cover}
+.digital-preview .progress{height:8px;border-radius:99px;background:var(--surface2);overflow:hidden}
+.digital-preview .progress i{display:block;height:100%;background:var(--gold);transition:width .5s linear}
+.contract-text{white-space:pre-wrap;word-break:break-word;font:inherit;font-size:13.5px;line-height:1.8;margin:0 0 16px}
