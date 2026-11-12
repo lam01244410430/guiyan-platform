@@ -9,15 +9,17 @@
       <block wx:for="{{msgs}}" wx:key="index">
         <view class="msg {{item.who}}">{{item.text}}</view>
       </block>
+      <view class="quickrow">
+        <block wx:for="{{quicks}}" wx:key="index">
+          <view class="chip" bindtap="quick" data-q="{{item}}">{{item}}</view>
+        </block>
+      </view>
     </view>
-    <view class="quickrow">
-      <block wx:for="{{quicks}}" wx:key="index">
-        <view class="chip" bindtap="quick" data-q="{{item}}">{{item}}</view>
-      </block>
-    </view>
-    <view class="searchrow">
-      <input placeholder="{{L.chatPh}}" value="{{input}}" bindinput="onInput" confirm-type="send" bindconfirm="send" />
-      <view class="go" bindtap="send">{{L.sendBtn}}</view>
-    </view>
+  </view>
+</view>
+<view class="chatbar">
+  <view class="searchrow">
+    <input placeholder="{{L.chatPh}}" value="{{input}}" bindinput="onInput" confirm-type="send" bindconfirm="send" />
+    <view class="go" bindtap="send">{{L.sendBtn}}</view>
   </view>
 </view>
