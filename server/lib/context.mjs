@@ -31,6 +31,25 @@ export function createContext(database) {
     return fn();
   }
 
+  async function separateRead(fn) {
+    // Independent READ-ONLY transaction for the limiter check: a
+    // failing statement inside the request transaction aborts the
+    // whole transaction (Postgres 25P02), so a dead limiter table
+    // would turn every login into a 500 instead of failing open.
+    return db.request(fn, { write: false, success: () => true });
+  }
+
+  async function separateRequest(fn) {
+    // Independent transaction: commits even when the outer request rolls
+    // back (a failed login answers 401, which rolls its transaction
+    // back — see the OTP lesson). Skips the advisory lock: the outer
+    // request already holds it, and taking it again on a second
+    // connection would deadlock. Used by the login limiter
+    // (server/lib/rate-limit.mjs); counting writes must survive failed
+    // logins, or the limiter can never trip.
+    return db.request(fn, { write: true, success: () => true, lock: false });
+  }
+
   const resourceSelect = `
     SELECT r.*,
       COALESCE((SELECT AVG(rating) FROM comments c WHERE c.resource_id=r.id AND c.status='approved'),0) rating,
@@ -46,7 +65,7 @@ export function createContext(database) {
   }
 
   return {
-    all, get, run, audit, notify, transaction, resourceSelect, orderRows, storage,
+    all, get, run, audit, notify, transaction, separateRequest, separateRead, resourceSelect, orderRows, storage,
     dialect: db.dialect,
   };
 }

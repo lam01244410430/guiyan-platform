@@ -1,5 +1,13 @@
 import { randomBytes, scryptSync, timingSafeEqual } from "node:crypto";
 import { assert, text, safeUser, time } from "../lib/http.mjs";
+import {
+  clientIp,
+  countLoginFailures,
+  recordLoginFailure,
+  clearLoginFailures,
+  LOGIN_MAX_FAILURES,
+  LOGIN_LOCKED_MESSAGE,
+} from "../lib/rate-limit.mjs";
 
 const USERNAME_RE = /^[A-Za-z0-9_]{3,20}$/;
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -69,20 +77,56 @@ export async function register(ctx) {
 }
 
 export async function login(ctx) {
-  const { p, req, b, send, get, run, audit } = ctx;
+  const { p, req, b, send, get, run, audit, separateRequest, separateRead } = ctx;
   if (p === "/api/auth/login" && req.method === "POST") {
-    const u = await get(
-      "SELECT * FROM users WHERE username=?",
-      text(b.username, "账号", 40),
-    );
-    assert(u, "账号或密码不正确", 401);
+    const username = text(b.username, "账号", 40);
+    const ip = clientIp(req);
+    const limiter = { get, run, audit, separateRequest };
+    // Locked already? Checked before the password, so a correct
+    // password does not bypass the lock — and the check reveals
+    // nothing about whether the account exists. Fail-open: a dead
+    // limiter must never lock everyone out.
+    let locked = false;
+    try {
+      // Read-only transaction of its own: a failing check must not
+      // poison the request transaction (25P02) — fail-open depends
+      // on the outer transaction staying usable.
+      const n = await separateRead(() =>
+        countLoginFailures(get, ip, username),
+      );
+      locked = n >= LOGIN_MAX_FAILURES;
+    } catch (e) {
+      console.error("Login limiter check failed", { code: e.code });
+    }
+    if (locked) {
+      send({ error: LOGIN_LOCKED_MESSAGE }, 429);
+      return true;
+    }
+    const u = await get("SELECT * FROM users WHERE username=?", username);
+    if (!u) {
+      try {
+        await recordLoginFailure(limiter, ip, username, null);
+      } catch (e) {
+        console.error("Login limiter record failed", { code: e.code });
+      }
+      assert(false, "账号或密码不正确", 401);
+    }
     const [salt, expected] = u.password.split(":");
     const actual = scryptSync(text(b.password, "密码", 100), salt, 32);
-    assert(
-      timingSafeEqual(actual, Buffer.from(expected, "hex")),
-      "账号或密码不正确",
-      401,
-    );
+    if (!timingSafeEqual(actual, Buffer.from(expected, "hex"))) {
+      try {
+        await recordLoginFailure(limiter, ip, username, u);
+      } catch (e) {
+        console.error("Login limiter record failed", { code: e.code });
+      }
+      assert(false, "账号或密码不正确", 401);
+    }
+    // Success clears the counter for this (ip, username) pair.
+    try {
+      await clearLoginFailures(limiter, ip, username);
+    } catch (e) {
+      console.error("Login limiter clear failed", { code: e.code });
+    }
     const newToken = randomBytes(32).toString("hex");
     await run(
       "INSERT INTO sessions VALUES(?,?,?)",

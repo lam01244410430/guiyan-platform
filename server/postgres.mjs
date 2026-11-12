@@ -164,15 +164,18 @@ export async function openPostgresStore(
       };
     },
     close: () => pool.end(),
-    async request(fn, { write, success }) {
+    async request(fn, { write, success, lock = true }) {
       const client = await pool.connect();
       try {
         await client.query(
           write ? "BEGIN" : "BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY",
         );
-        if (write) {
+        if (write && lock) {
           // Small shared demo: serialize writes across all Vercel instances.
           // The lock is held before reading order state or checking availability.
+          // lock:false is for nested transactions (login limiter): the outer
+          // request already holds this lock, and taking it again on a
+          // second connection would deadlock.
           await client.query("SELECT pg_advisory_xact_lock($1)", [writeLock]);
         }
         const result = await context.run(client, fn);

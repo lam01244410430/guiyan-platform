@@ -12,6 +12,8 @@ CREATE TABLE IF NOT EXISTS users(id INTEGER PRIMARY KEY, username TEXT UNIQUE NO
     CREATE TABLE IF NOT EXISTS settings(key TEXT PRIMARY KEY, value TEXT NOT NULL);
     CREATE TABLE IF NOT EXISTS verification_codes(id INTEGER PRIMARY KEY, user_id INTEGER REFERENCES users(id), channel TEXT NOT NULL, target TEXT NOT NULL, code TEXT NOT NULL, expires_at TEXT NOT NULL, attempts INTEGER NOT NULL DEFAULT 0, used_at TEXT, verified_at TEXT, created_at TEXT NOT NULL);
     CREATE INDEX IF NOT EXISTS idx_vcode_lookup ON verification_codes(user_id,channel,target);
+    CREATE TABLE IF NOT EXISTS login_attempts(id INTEGER PRIMARY KEY, ip TEXT NOT NULL, username TEXT NOT NULL, attempted_at TEXT NOT NULL);
+    CREATE INDEX IF NOT EXISTS idx_login_attempts_lookup ON login_attempts(ip,username,attempted_at);
     CREATE INDEX IF NOT EXISTS idx_order_resource_date ON orders(resource_id,booking_date,status);
     CREATE INDEX IF NOT EXISTS idx_order_user ON orders(user_id);
     CREATE INDEX IF NOT EXISTS idx_comments_resource ON comments(resource_id,status);

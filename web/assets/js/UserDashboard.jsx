@@ -234,6 +234,7 @@ export default function UserDashboard() {
       } else { setLoginErr(t("loginFailed")); }
     }).catch(function (e) {
       if (e && e.status === 401) { setLoginErr(t("loginFailed")); }
+      else if (e && e.status === 429) { setLoginErr(t("loginLocked")); }
       else { setLoginErr(t("loadErr")); }
     });
   }
