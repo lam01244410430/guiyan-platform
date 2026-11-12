@@ -403,7 +403,7 @@ function getLang() {
     var l = wx.getStorageSync('guiyan-lang');
     if (l === 'zh' || l === 'vi' || l === 'en') return l;
   } catch (e) {}
-  return 'vi';
+  return 'zh';
 }
 
 function setLang(code) {
@@ -415,7 +415,7 @@ function setLang(code) {
 function langIndex() {
   var l = getLang();
   for (var i = 0; i < LANGS.length; i++) if (LANGS[i].code === l) return i;
-  return 1;
+  return 0;
 }
 
 function t(key, lang) {

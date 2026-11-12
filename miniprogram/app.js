@@ -10,7 +10,7 @@
 var api = require('./utils/api.js');
 App({
   onLaunch: function () {
-    var lang = 'vi';
+    var lang = 'zh';
     try {
       var saved = wx.getStorageSync('guiyan-lang');
       if (saved === 'zh' || saved === 'vi' || saved === 'en') lang = saved;
@@ -20,5 +20,5 @@ App({
     if (user) this.globalData.user = user;
     if (api.getBase()) api.checkHealth();
   },
-  globalData: { lang: 'vi', apiBase: 'https://guiyan-platform.vercel.app', apiAvailable: false, user: null }
+  globalData: { lang: 'zh', apiBase: 'https://guiyan-platform.vercel.app', apiAvailable: false, user: null }
 });
