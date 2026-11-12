@@ -1,5 +1,5 @@
-// Guiyan Wave 5 tests (#29 login rate limit) — run against a REAL
-// PostgreSQL 16, never a mock. Same harness shape as
+// Guiyan Wave 5 tests (#29 login rate limit; #27 miniprogram apiBase)
+// — run against a REAL PostgreSQL 16, never a mock. Same harness shape as
 // PostgreSQL 16, never a mock. Same harness shape as
 // tests/account-otp.test.mjs: spawn server/server.mjs on TEST_PORT
 // (default 3107) and talk to it over HTTP. DATABASE_URL must point at a
@@ -242,4 +242,34 @@ test("wave5 #29: fail-open — login still works when the limiter store is gone"
   }
   // The recreated table works again: a fresh lockout still trips.
   await lockUser(me.username, me.password);
+});
+
+// --- #27: miniprogram apiBase -------------------------------------------
+// Static checks (no DB needed, but they run in the shared suite): the
+// default apiBase is the production Vercel URL, and Zhou's hardcoded IP
+// appears nowhere in the miniprogram. Compile-testing in WeChat DevTools
+// is Lam's step, not the agents'.
+
+const repoRoot = path.resolve(
+  path.dirname(fileURLToPath(import.meta.url)),
+  "..",
+);
+const miniprogramDir = path.resolve(repoRoot, "miniprogram");
+
+test("wave5 #27: miniprogram apiBase defaults to the production Vercel URL", async () => {
+  const appJs = await readFile(path.resolve(miniprogramDir, "app.js"), "utf-8");
+  assert.match(appJs, /apiBase:\s*'https:\/\/guiyan-platform\.vercel\.app'/);
+});
+
+test("wave5 #27: no hardcoded Zhou IP anywhere in the miniprogram", async () => {
+  let found = "";
+  try {
+    found = execFileSync("grep", ["-r", "120.24.109.101", miniprogramDir], {
+      encoding: "utf-8",
+    });
+  } catch (e) {
+    // grep exits 1 when there is no match — that is the expected outcome.
+    assert.equal(e.status, 1, "grep failed: " + e.message);
+  }
+  assert.equal(found, "");
 });
