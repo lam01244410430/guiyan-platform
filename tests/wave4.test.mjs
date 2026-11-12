@@ -354,3 +354,292 @@ test("wave4 #15: GET /api/resources/:id returns meta", async () => {
   assert.ok(Object.keys(meta).length > 0, JSON.stringify(meta));
 });
 
+// --- #13: refund/dispute flow ----------------------------------------------
+// Wave 4 #13 BEHAVIOR CHANGE (Q2): refund no longer completes at once.
+// paid -> refund_requested waits for an admin decision; only approveRefund
+// moves it to refunded. No earlier test asserted refund -> refunded
+// directly, so no old test needed updating for this change; the flow
+// below pins the new behavior instead.
+
+async function paidOrder(token, resourceId, quantity, bookingDate) {
+  const created = await createOrder(token, resourceId, quantity, bookingDate);
+  const confirm = await req(`/api/orders/${created.id}/confirm`, { method: "POST", token });
+  assert.equal(confirm.status, 200, JSON.stringify(confirm.json));
+  const pay = await req(`/api/orders/${created.id}/pay`, { method: "POST", token });
+  assert.equal(pay.status, 200, JSON.stringify(pay.json));
+  assert.equal(pay.json.status, "paid");
+  return created;
+}
+
+async function myOrder(token, id) {
+  const list = await req("/api/orders", { token });
+  assert.equal(list.status, 200, JSON.stringify(list.json));
+  const o = list.json.orders.find((x) => x.id === id);
+  assert.ok(o, `order ${id} missing from own list`);
+  return o;
+}
+
+async function stockOf(resourceId) {
+  const r = await req(`/api/resources/${resourceId}`);
+  assert.equal(r.status, 200, JSON.stringify(r.json));
+  return r.json.resource.stock;
+}
+
+async function pickShow(minStock = 1) {
+  const shows = await listByCategory("show");
+  const s = shows.find((r) => r.stock >= minStock);
+  assert.ok(s, `need a show with stock >= ${minStock}`);
+  return s;
+}
+
+test("wave4 #13: refund goes paid -> refund_requested, reason stored, stock held", async () => {
+  const token = await login();
+  const s = await pickShow(2);
+  const before = await stockOf(s.id);
+  const order = await paidOrder(token, s.id, 2, D4);
+  assert.equal(await stockOf(s.id), before - 2);
+  const r = await req(`/api/orders/${order.id}/refund`, {
+    method: "POST",
+    token,
+    body: { reason: "临时有事，去不了了" },
+  });
+  assert.equal(r.status, 200, JSON.stringify(r.json));
+  assert.equal(r.json.status, "refund_requested");
+  const mine = await myOrder(token, order.id);
+  assert.equal(mine.status, "refund_requested");
+  assert.equal(mine.refund_reason, "临时有事，去不了了");
+  assert.equal(mine.escrow, "模拟托管中");
+  // Q3: an intermediate state holds the stock — nothing is returned yet.
+  assert.equal(await stockOf(s.id), before - 2);
+});
+
+test("wave4 #13: approveRefund moves refund_requested -> refunded, returns stock", async () => {
+  const token = await login();
+  const admin = await adminLogin();
+  const s = await pickShow(1);
+  const before = await stockOf(s.id);
+  const order = await paidOrder(token, s.id, 1, D4);
+  await req(`/api/orders/${order.id}/refund`, { method: "POST", token, body: { reason: "改期" } });
+  const r = await req(`/api/orders/${order.id}/approveRefund`, { method: "POST", token: admin });
+  assert.equal(r.status, 200, JSON.stringify(r.json));
+  assert.equal(r.json.status, "refunded");
+  const mine = await myOrder(token, order.id);
+  assert.equal(mine.status, "refunded");
+  assert.equal(mine.refund_decision, "审核通过，已模拟退款");
+  assert.equal(mine.refund_reason, "改期");
+  assert.equal(mine.escrow, "已模拟退款");
+  // Final state: the stock comes back.
+  assert.equal(await stockOf(s.id), before);
+});
+
+test("wave4 #13: approveRefund also works from disputed", async () => {
+  const token = await login();
+  const admin = await adminLogin();
+  const s = await pickShow(1);
+  const order = await paidOrder(token, s.id, 1, D5);
+  const d = await req(`/api/orders/${order.id}/dispute`, { method: "POST", token, body: { reason: "与商家有争议" } });
+  assert.equal(d.status, 200, JSON.stringify(d.json));
+  assert.equal(d.json.status, "disputed");
+  const r = await req(`/api/orders/${order.id}/approveRefund`, { method: "POST", token: admin });
+  assert.equal(r.status, 200, JSON.stringify(r.json));
+  assert.equal(r.json.status, "refunded");
+  const mine = await myOrder(token, order.id);
+  assert.equal(mine.refund_decision, "审核通过，已模拟退款");
+  assert.equal(mine.escrow, "已模拟退款");
+});
+
+test("wave4 #13: rejectRefund needs a reason; with one it returns to paid", async () => {
+  const token = await login();
+  const admin = await adminLogin();
+  const s = await pickShow(1);
+  const order = await paidOrder(token, s.id, 1, D5);
+  await req(`/api/orders/${order.id}/refund`, { method: "POST", token, body: { reason: "想退" } });
+  const noReason = await req(`/api/orders/${order.id}/rejectRefund`, { method: "POST", token: admin, body: {} });
+  assert.equal(noReason.status, 400, JSON.stringify(noReason.json));
+  assert.equal((await myOrder(token, order.id)).status, "refund_requested");
+  const r = await req(`/api/orders/${order.id}/rejectRefund`, {
+    method: "POST",
+    token: admin,
+    body: { reason: "已过可退时限" },
+  });
+  assert.equal(r.status, 200, JSON.stringify(r.json));
+  assert.equal(r.json.status, "paid");
+  const mine = await myOrder(token, order.id);
+  assert.equal(mine.refund_decision, "已过可退时限");
+  assert.equal(mine.refund_reason, "想退");
+  assert.equal(mine.escrow, "模拟托管中");
+});
+
+test("wave4 #13: dispute -> disputed; resolve settles; rejectDispute needs a reason", async () => {
+  const token = await login();
+  const admin = await adminLogin();
+  const s = await pickShow(1);
+  // resolve path
+  const o1 = await paidOrder(token, s.id, 1, D4);
+  const d1 = await req(`/api/orders/${o1.id}/dispute`, { method: "POST", token, body: { reason: "座位与描述不符" } });
+  assert.equal(d1.status, 200, JSON.stringify(d1.json));
+  assert.equal(d1.json.status, "disputed");
+  assert.equal((await myOrder(token, o1.id)).refund_reason, "座位与描述不符");
+  const res = await req(`/api/orders/${o1.id}/resolve`, { method: "POST", token: admin });
+  assert.equal(res.status, 200, JSON.stringify(res.json));
+  assert.equal(res.json.status, "completed");
+  assert.equal((await myOrder(token, o1.id)).escrow, "已结算");
+  // rejectDispute path
+  const o2 = await paidOrder(token, s.id, 1, D5);
+  await req(`/api/orders/${o2.id}/dispute`, { method: "POST", token, body: { reason: "申诉理由" } });
+  const noReason = await req(`/api/orders/${o2.id}/rejectDispute`, { method: "POST", token: admin, body: {} });
+  assert.equal(noReason.status, 400, JSON.stringify(noReason.json));
+  assert.equal((await myOrder(token, o2.id)).status, "disputed");
+  const rej = await req(`/api/orders/${o2.id}/rejectDispute`, {
+    method: "POST",
+    token: admin,
+    body: { reason: "申诉不成立" },
+  });
+  assert.equal(rej.status, 200, JSON.stringify(rej.json));
+  assert.equal(rej.json.status, "paid");
+  assert.equal((await myOrder(token, o2.id)).refund_decision, "申诉不成立");
+});
+
+test("wave4 #13: wrong-direction transitions are 400", async () => {
+  const token = await login();
+  const admin = await adminLogin();
+  const s = await pickShow(1);
+  const pending = await createOrder(token, s.id, 1, D4);
+  const refundPending = await req(`/api/orders/${pending.id}/refund`, { method: "POST", token });
+  assert.equal(refundPending.status, 400, JSON.stringify(refundPending.json));
+  const paid = await paidOrder(token, s.id, 1, D5);
+  for (const [action, by] of [["approveRefund", admin], ["resolve", admin], ["rejectRefund", admin], ["rejectDispute", admin]]) {
+    const r = await req(`/api/orders/${paid.id}/${action}`, { method: "POST", token: by, body: { reason: "x" } });
+    assert.equal(r.status, 400, `${action} on paid: ${JSON.stringify(r.json)}`);
+  }
+  const disputed = await paidOrder(token, s.id, 1, D4);
+  await req(`/api/orders/${disputed.id}/dispute`, { method: "POST", token, body: { reason: "争议" } });
+  const again = await req(`/api/orders/${disputed.id}/dispute`, { method: "POST", token, body: { reason: "再申诉" } });
+  assert.equal(again.status, 400, JSON.stringify(again.json));
+  const refundDisputed = await req(`/api/orders/${disputed.id}/refund`, { method: "POST", token });
+  assert.equal(refundDisputed.status, 400, JSON.stringify(refundDisputed.json));
+});
+
+test("wave4 #13: the four decisions are admin-only (owner gets 403)", async () => {
+  const token = await login();
+  const admin = await adminLogin();
+  const s = await pickShow(1);
+  const o1 = await paidOrder(token, s.id, 1, D4);
+  await req(`/api/orders/${o1.id}/refund`, { method: "POST", token, body: { reason: "想退" } });
+  for (const action of ["approveRefund", "rejectRefund"]) {
+    const r = await req(`/api/orders/${o1.id}/${action}`, { method: "POST", token, body: { reason: "我自己批" } });
+    assert.equal(r.status, 403, `${action} by owner: ${JSON.stringify(r.json)}`);
+  }
+  assert.equal((await myOrder(token, o1.id)).status, "refund_requested");
+  const o2 = await paidOrder(token, s.id, 1, D5);
+  await req(`/api/orders/${o2.id}/dispute`, { method: "POST", token, body: { reason: "争议" } });
+  for (const action of ["resolve", "rejectDispute"]) {
+    const r = await req(`/api/orders/${o2.id}/${action}`, { method: "POST", token, body: { reason: "我自己判" } });
+    assert.equal(r.status, 403, `${action} by owner: ${JSON.stringify(r.json)}`);
+  }
+  assert.equal((await myOrder(token, o2.id)).status, "disputed");
+  // Admin can still decide both orders afterwards.
+  assert.equal((await req(`/api/orders/${o1.id}/approveRefund`, { method: "POST", token: admin })).status, 200);
+  assert.equal((await req(`/api/orders/${o2.id}/resolve`, { method: "POST", token: admin })).status, 200);
+});
+
+test("wave4 #13: admin calling an old transition on someone else's order is still 403", async () => {
+  const token = await login();
+  const admin = await adminLogin();
+  const s = await pickShow(1);
+  const pending = await createOrder(token, s.id, 1, D4);
+  const confirm = await req(`/api/orders/${pending.id}/confirm`, { method: "POST", token: admin });
+  assert.equal(confirm.status, 403, JSON.stringify(confirm.json));
+  await req(`/api/orders/${pending.id}/confirm`, { method: "POST", token });
+  const pay = await req(`/api/orders/${pending.id}/pay`, { method: "POST", token: admin });
+  assert.equal(pay.status, 403, JSON.stringify(pay.json));
+  const paid = await paidOrder(token, s.id, 1, D5);
+  const complete = await req(`/api/orders/${paid.id}/complete`, { method: "POST", token: admin });
+  assert.equal(complete.status, 403, JSON.stringify(complete.json));
+  const cancel = await req(`/api/orders/${pending.id}/cancel`, { method: "POST", token: admin });
+  assert.equal(cancel.status, 403, JSON.stringify(cancel.json));
+  // The orders are untouched by the admin attempts.
+  assert.equal((await myOrder(token, pending.id)).status, "confirmed");
+  assert.equal((await myOrder(token, paid.id)).status, "paid");
+});
+
+test("wave4 #13: an admin decision writes a notify message to the owner", async () => {
+  const token = await login();
+  const admin = await adminLogin();
+  const s = await pickShow(1);
+  const order = await paidOrder(token, s.id, 1, D4);
+  await req(`/api/orders/${order.id}/refund`, { method: "POST", token, body: { reason: "去不了" } });
+  await req(`/api/orders/${order.id}/approveRefund`, { method: "POST", token: admin });
+  const pool = new pg.Pool({ connectionString: DATABASE_URL, max: 1 });
+  try {
+    const { rows } = await pool.query(
+      "SELECT * FROM messages WHERE user_id=(SELECT id FROM users WHERE username='demo') AND title='订单售后处理结果' ORDER BY id DESC LIMIT 1",
+    );
+    assert.equal(rows.length, 1, "expected one after-sales message for the owner");
+    assert.ok(rows[0].content.includes(order.code), rows[0].content);
+    assert.ok(rows[0].content.includes("已模拟退款"), rows[0].content);
+    assert.ok(rows[0].content.includes("模拟"), rows[0].content);
+  } finally {
+    await pool.end();
+  }
+});
+
+test("wave4 #13: refund/dispute by another user is 403; admin may call them", async () => {
+  const token = await login();
+  const admin = await adminLogin();
+  const s = await pickShow(1);
+  const uname = "w4o13" + Date.now().toString(36);
+  const reg = await req("/api/auth/register", {
+    method: "POST",
+    body: { username: uname, password: "guiyan2026", name: "售后测试" },
+  });
+  assert.equal(reg.status, 200, JSON.stringify(reg.json));
+  const other = reg.json.token;
+  const order = await paidOrder(token, s.id, 1, D5);
+  const refundOther = await req(`/api/orders/${order.id}/refund`, { method: "POST", token: other });
+  assert.equal(refundOther.status, 403, JSON.stringify(refundOther.json));
+  const disputeOther = await req(`/api/orders/${order.id}/dispute`, { method: "POST", token: other });
+  assert.equal(disputeOther.status, 403, JSON.stringify(disputeOther.json));
+  const refundAdmin = await req(`/api/orders/${order.id}/refund`, { method: "POST", token: admin, body: { reason: "管理员代申请" } });
+  assert.equal(refundAdmin.status, 200, JSON.stringify(refundAdmin.json));
+  assert.equal(refundAdmin.json.status, "refund_requested");
+  assert.equal((await myOrder(token, order.id)).refund_reason, "管理员代申请");
+});
+
+// --- #13 B-035: a re-requested refund must not carry the old decision ----
+// paid -> refund (A) -> rejectRefund (B) -> paid -> refund (C): the second
+// request overwrites refund_reason with C and clears refund_decision, so
+// the stale rejection B never shows on a pending request again.
+
+test("wave4 #13 B-035: refund after a rejected refund clears the old refund_decision", async () => {
+  const token = await login();
+  const admin = await adminLogin();
+  const s = await pickShow(1);
+  const order = await paidOrder(token, s.id, 1, D5);
+  const r1 = await req(`/api/orders/${order.id}/refund`, {
+    method: "POST",
+    token,
+    body: { reason: "理由A" },
+  });
+  assert.equal(r1.status, 200, JSON.stringify(r1.json));
+  assert.equal(r1.json.status, "refund_requested");
+  const rej = await req(`/api/orders/${order.id}/rejectRefund`, {
+    method: "POST",
+    token: admin,
+    body: { reason: "理由B" },
+  });
+  assert.equal(rej.status, 200, JSON.stringify(rej.json));
+  assert.equal(rej.json.status, "paid");
+  assert.equal((await myOrder(token, order.id)).refund_decision, "理由B");
+  const r2 = await req(`/api/orders/${order.id}/refund`, {
+    method: "POST",
+    token,
+    body: { reason: "理由C" },
+  });
+  assert.equal(r2.status, 200, JSON.stringify(r2.json));
+  assert.equal(r2.json.status, "refund_requested");
+  const mine = await myOrder(token, order.id);
+  assert.equal(mine.status, "refund_requested");
+  assert.equal(mine.refund_reason, "理由C");
+  assert.equal(mine.refund_decision, "");
+});

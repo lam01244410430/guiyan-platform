@@ -60,6 +60,12 @@ export async function openPostgresStore(
       await client.query(
         "ALTER TABLE comments ADD COLUMN IF NOT EXISTS dimensions TEXT NOT NULL DEFAULT '{}'",
       );
+      // Wave 4 #13: admin decision on a refund/dispute (approval text or
+      // the admin's rejection reason). Same idempotent pattern as above;
+      // the user's own reason stays in orders.refund_reason.
+      await client.query(
+        "ALTER TABLE orders ADD COLUMN IF NOT EXISTS refund_decision TEXT DEFAULT ''",
+      );
       // Phase 3 (registration): optional email on users. Fresh databases
       // get it from schema.mjs; existing ones (incl. live Neon) get it
       // here, same precedent as the dimensions column above.

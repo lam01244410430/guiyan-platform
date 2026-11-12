@@ -89,7 +89,10 @@ export function downloadText(text, filename) {
 /* API amounts are integer cents; the SPA's money() formats a yuan number. */
 export function fmtMoney(cents) { return money((typeof cents === "number" ? cents : 0) / 100); }
 
-export const STATUS = { pending: "stPending", confirmed: "stConfirmed", paid: "stPaid", completed: "stCompleted", cancelled: "stCancelled", refunded: "stRefunded" };
+/* Wave 4 #13: refund_requested / disputed are real Lam states now (the
+   approval flow); they get their own labels instead of being folded into
+   another status. */
+export const STATUS = { pending: "stPending", confirmed: "stConfirmed", paid: "stPaid", completed: "stCompleted", cancelled: "stCancelled", refunded: "stRefunded", refund_requested: "stRefundRequested", disputed: "stDisputed" };
 export function statusKey(status) { return STATUS[status] || "stPending"; }
 
 /* ---- server data merged into the embedded catalog (unchanged logic) ---- */
@@ -154,7 +157,7 @@ export function mapApiOrder(o) {
   if (o.resource_id != null && APIID2IDX[o.resource_id] != null) idx = APIID2IDX[o.resource_id];
   if (idx < 0) { for (let i = 0; i < RES.length; i++) { if (RES[i][0] === o.resource_name) { idx = i; break; } } }
   if (idx < 0) return null;
-  let st = o.status === "refund_requested" ? "refunded" : o.status;
+  let st = o.status;
   if (!STATUS[st]) st = "pending";
   return { code: o.code || ("GY" + o.id), idx, qty: o.quantity || 1, date: String(o.booking_date || "").slice(0, 10), total: (o.amount || 0) / 100, status: st, apiId: o.id };
 }

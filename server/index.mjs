@@ -11,9 +11,9 @@
 // - Order confirm is done by the order owner (demo simplification: there
 //   is no operator UI in this redesign; in production confirm/reject is
 //   the operator's job).
-// - Refund goes paid -> refunded directly (simulated refund completes at
-//   once, escrow "已模拟退款"); the original had an intermediate
-//   refund_requested state approved by an operator, which has no UI here.
+// - Refund goes paid -> refund_requested and waits for an admin decision
+//   (Wave 4 #13); approveRefund moves it to refunded, escrow "已模拟退款".
+//   The original had the same intermediate state, approved by an operator.
 // - Registration (POST /api/auth/register, phase 3) creates a fixed-role
 //   user and auto-logs them in. No email verification in this phase:
 //   there is no email provider, and email is optional.

@@ -30,6 +30,11 @@ export default function UserDashboard() {
   // both calls degrade to null instead of rejecting usrLoad).
   const [usrProfile, setUsrProfile] = useState(null);
   const [usrRecs, setUsrRecs] = useState([]);
+  // Wave 4 #13: per-order refund/dispute reason typed by the user (sent
+  // as {reason} with the refund/dispute call) + the order id currently
+  // running an action (buttons disabled meanwhile, demands pattern).
+  const [refundReasons, setRefundReasons] = useState({});
+  const [usrActBusyId, setUsrActBusyId] = useState(null);
   const [contractBusyId, setContractBusyId] = useState(null);
   // Wave 4 #14 fix (working-tree defect from #15): openContract() and the
   // modal below use `contract` / `setContract`, but no state for them was
@@ -121,11 +126,15 @@ export default function UserDashboard() {
     usrLoad();
   }
 
-  function usrOrderAction(act, id) {
-    apiPost("/api/orders/" + encodeURIComponent(id) + "/" + act, {}).then(function () {
+  function usrOrderAction(act, id, reason) {
+    if (usrActBusyId !== null) return;
+    setUsrActBusyId(id);
+    apiPost("/api/orders/" + encodeURIComponent(id) + "/" + act, reason ? { reason } : {}).then(function () {
       toast(t("statusToast"));
+      setUsrActBusyId(null);
       usrLoadOrders();
     }).catch(function (e) {
+      setUsrActBusyId(null);
       if (e && e.status === 401) { clearToken(); setUser(null); setGate(true); return; }
       if (e && e.data && e.data.error) toast(e.data.error);
       usrLoadOrders();
@@ -150,11 +159,18 @@ export default function UserDashboard() {
     if (contract) downloadText(contract.content, contract.code + "-模拟协议.txt");
   }
 
+  /* Wave 4 #13 — refund/dispute flow. A paid order offers 申请退款
+     (refund, with a reason input — the same reason box serves 申诉) and
+     申诉 (dispute). refund_requested/disputed orders show the waiting
+     status; a refunded order shows the admin's decision. */
   function usrActs(o) {
     if (o.status === "pending") return (<><button type="button" className="mini" data-act="confirm" data-id={o.id} onClick={() => usrOrderAction("confirm", o.id)}>{t("actConfirm")}</button><button type="button" className="mini" data-act="cancel" data-id={o.id} onClick={() => usrOrderAction("cancel", o.id)}>{t("actCancel")}</button></>);
     if (o.status === "confirmed") return (<><button type="button" className="mini red" data-act="pay" data-id={o.id} onClick={() => usrOrderAction("pay", o.id)}>{fmt(t("actPay"), { amt: fmtMoney(o.amount) })}</button><button type="button" className="mini" data-act="cancel" data-id={o.id} onClick={() => usrOrderAction("cancel", o.id)}>{t("actCancel")}</button></>);
-    if (o.status === "paid") return (<><button type="button" className="mini red" data-act="complete" data-id={o.id} onClick={() => usrOrderAction("complete", o.id)}>{t("actComplete")}</button><button type="button" className="mini" data-act="refund" data-id={o.id} onClick={() => usrOrderAction("refund", o.id)}>{t("actRefund")}</button></>);
+    if (o.status === "paid") return (<><button type="button" className="mini red" data-act="complete" data-id={o.id} onClick={() => usrOrderAction("complete", o.id)}>{t("actComplete")}</button><input type="text" maxLength={500} placeholder={t("refundReasonPh")} aria-label={t("refundReasonPh")} style={{ width: 150 }} value={refundReasons[o.id] || ""} onChange={(e) => setRefundReasons((prev) => ({ ...prev, [o.id]: e.target.value }))} /><button type="button" className="mini" data-act="refund" data-id={o.id} disabled={usrActBusyId === o.id} onClick={() => usrOrderAction("refund", o.id, refundReasons[o.id] || "")}>{t("actRefund")}</button><button type="button" className="mini" data-act="dispute" data-id={o.id} disabled={usrActBusyId === o.id} onClick={() => usrOrderAction("dispute", o.id, refundReasons[o.id] || "")}>{t("actDispute")}</button></>);
     if (o.status === "completed") return (<span style={{ fontSize: 12.5, color: "var(--ink2)" }}>{t("doneNote")}</span>);
+    if (o.status === "refund_requested") return (<span style={{ fontSize: 12.5, color: "var(--ink2)" }}>{t("refundWaiting")}</span>);
+    if (o.status === "disputed") return (<span style={{ fontSize: 12.5, color: "var(--ink2)" }}>{t("disputeWaiting")}</span>);
+    if (o.status === "refunded" && o.refund_decision) return (<span style={{ fontSize: 12.5, color: "var(--ink2)" }}>{o.refund_decision}</span>);
     return null;
   }
 
@@ -279,6 +295,11 @@ export default function UserDashboard() {
                         <span className={"pill " + o.status}>{t(statusKey(o.status))}</span>
                         <span className="db-actions">{usrActs(o)}<button type="button" className="mini" disabled={contractBusyId === o.id} onClick={() => openContract(o)}>{t("contractBtn")}</button></span>
                       </div>
+                      {/* Wave 4 #13: the reason already sent, while the
+                          after-sales case is waiting for an admin decision. */}
+                      {(o.status === "refund_requested" || o.status === "disputed") && o.refund_reason ? (
+                        <div className="row"><span style={{ fontSize: 12.5, color: "var(--ink2)" }}>{t("refundReasonLbl")}：{o.refund_reason}</span></div>
+                      ) : null}
                     </div>
                   )) : <div className="db-empty">{t("emptyOrders")}</div>}
                 </div>

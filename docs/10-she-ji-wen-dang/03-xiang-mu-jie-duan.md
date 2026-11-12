@@ -245,3 +245,59 @@ Lam 可在 commit 前推翻。
 真实视频流、真实设备仿真/数字孪生 3D、协议文件落库、选座（#12 只做示意）、退款/申诉审批流（#13）、
 搜索/通知（#14）。
 
+### #13 退款/申诉审批流（refund/dispute flow）
+
+- **行为变化（Q2 默认值，本项的目的）：** `refund` 不再 `paid → refunded` 直接完成，改为
+  `paid → refund_requested` 等待管理员审批；只有管理员批准后订单才变为 `refunded`。旧测试中
+  没有断言 `refund → refunded` 的，因此无需改写旧测试；新流程由新增的 Wave 4 #13 测试覆盖，
+  其余断言不变。
+- 状态机（`server/routes/orders.mjs` 的 `transitions` 表，保留原有 5 项，新增 6 项，方法仍为 POST，
+  不改 zhou 的 PATCH）：`refund: ["paid", "refund_requested"]`；
+  `approveRefund: [["refund_requested", "disputed"], "refunded"]`；
+  `rejectRefund: ["refund_requested", "paid"]`；`dispute: ["paid", "disputed"]`；
+  `rejectDispute: ["disputed", "paid"]`；`resolve: ["disputed", "completed"]`。路由正则同步新增
+  5 个动作（`refund` 已有）。
+- 权限两层（替换原来只允许订单主人的 `:103` 断言；旧动作不放宽）：
+  层 1——订单主人或 admin 才能调用，否则 403；层 2——4 个决定（`approveRefund`/`resolve`/
+  `rejectRefund`/`rejectDispute`）仅 admin；`refund`/`dispute` 由主人（或 admin）调用。
+  Admin 调用旧动作（`confirm`/`pay`/`complete`/`cancel`）处理他人订单时仍 403，与改动前一致。
+- 新列 `refund_decision`：`ALTER TABLE orders ADD COLUMN IF NOT EXISTS refund_decision TEXT DEFAULT ''`
+  （`server/postgres.mjs`，沿用已有列的追加模式；无 migration 目录）。不加 `paid_at`/`refunded_at`
+  （Q4 默认值）；`created_at` + 状态已够用。
+- 更新语句：批准时 `refund_decision` 为"审核通过，已模拟退款"；拒绝时把管理员填写的 `reason`
+  存入 `refund_decision`，`refund_reason` 仍保留用户申请退款的理由。`rejectRefund`/`rejectDispute`
+  缺 `reason` → 400（Q6 默认值）。托管（escrow）沿用 Lam 现有映射：`refunded` →"已模拟退款"，
+  `completed`（经 `resolve`）→"已结算"；其余状态保持原 escrow。
+- 库存（Q3 默认值）：`refund_requested`/`disputed` 是中间状态，**不退库存**；只有最终状态
+  `cancelled`/`refunded` 才退库存（沿用 `:134-137` 的原有判断，不动）。
+- 通知：复用已有的 `notify()`；管理员决定后给订单主人发站内消息，标题"订单售后处理结果"，
+  内容含订单号 + 处理结果 + 理由，并写明款项为模拟（未真实扣款/退款）。消息由 #14 的收件箱读出。
+- Admin UI（`AdminDashboard.jsx` 订单表）：新增"售后"操作列；`refund_requested` 的订单显示
+  同意退款 / 拒绝退款；`disputed` 的订单显示 驳回申诉 / 调解完成并结算。复用需求审核的
+  `reviewBusyId` 模式（处理中禁用按钮）。订单行下方显示 售后原因 + 平台处理说明
+  （`refund_reason` / `refund_decision`）。
+- 用户 UI（`UserDashboard.jsx` 的 `usrActs()`）：`paid` 的订单显示 申请退款（调用 `refund`，
+  附理由输入，复用下单时的理由输入模式）+ 申诉（调用 `dispute`）；`refund_requested`/`disputed`
+  的订单显示等待状态 + 已提交的理由；`refunded` 的订单显示管理员的处理说明。状态中文：
+  `refund_requested` 为"退款申请中"，`disputed` 为"纠纷处理中"，补入 `apiClient.js` 的状态表 + i18n。
+- i18n：新增 8 个 key（状态 2 个 + 申诉按钮 1 个 + 理由输入占位 1 个 + 等待状态 2 个 +
+  售后原因/处理说明标签 2 个），中越英三语集合相等，共 263 key（测试 `wave3.test.mjs` 的计数同步更新）。
+- 测试：`tests/wave4.test.mjs` 追加 10 个 API 测试：6 个转移方向正确 + 方向错误 → 400；
+  4 个决定仅 admin（主人调用 → 403）；admin 调用旧动作处理他人订单 → 仍 403；拒绝缺理由 → 400；
+  `refund_decision`/`refund_reason` 已保存；库存只在最终状态退回；管理员决定后主人收到通知消息；
+  旧订单测试仍通过。UI（admin 售后按钮、用户端理由输入与等待状态）无 jsdom 测试架，
+  只做 build + 浏览器 live 检查。
+
+### 开放问题 Q2/Q3/Q4/Q5/Q6/Q9（plan §7，#13 适用默认值）
+
+Q2 `refund` 改为等审批（`paid → refund_requested`）；Q3 等待期间不退库存；
+Q4 不加 `paid_at`/`refunded_at`，只加 `refund_decision`；Q5 `dispute` 由主人或 admin 调用；
+Q6 拒绝必须填理由，缺理由 → 400，理由存入 `refund_decision`；
+Q9 决定通知标题为"订单售后处理结果"（订单号 + 结果 + 理由，写明模拟）。以上均为工作默认值，
+Lam 可在 commit 前推翻。
+
+### 不属于 #13
+
+真实退款/扣款（批准文案只写"已模拟退款"）、改 5 个旧转移的行为、改支付模拟、新增表、
+migration、申诉以外的客服渠道、收件箱读取界面（#14 做）。
+

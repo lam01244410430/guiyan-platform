@@ -102,10 +102,11 @@ export async function answerRules(ctx, q) {
   }
   // Wave 3 #8, logged-in support intents — port of zhou assistants.mjs
   // supportAnswer(), reading the caller's OWN orders via ctx.orderRows.
-  // Checked BEFORE the generic refund/book branches below. Refund groups
-  // follow Lam's REAL order states (pending/confirmed/paid/completed/
-  // cancelled/refunded); zhou's refund_requested/disputed groups are
-  // dropped — Lam's state machine has no such states.
+  // Checked BEFORE the generic refund/book branches below. The groups
+  // below still list only the six pre-#13 states: Wave 4 #13 added
+  // refund_requested/disputed as real order states, but they have no
+  // group here yet, so an order in either state is invisible to this
+  // answer (P3-2: grouping them is a separate, deferred fix).
   if (ctx.session) {
     const orders = await ctx.orderRows(ctx.session);
     if (/退款|退票|退订|退钱|cancel|refund|能退|怎么退|改签/.test(s)) {

@@ -92,7 +92,7 @@ export async function createOrder(ctx) {
 
 export async function transitionOrder(ctx) {
   const { p, req, b, send, needUser, get, run, transaction, notify, audit, cache } = ctx;
-  const m = p.match(/^\/api\/orders\/(\d+)\/(confirm|pay|complete|cancel|refund)$/);
+  const m = p.match(/^\/api\/orders\/(\d+)\/(confirm|pay|complete|cancel|refund|approveRefund|rejectRefund|dispute|rejectDispute|resolve)$/);
   if (m && req.method === "POST") {
     const u = needUser(),
       [, id, action] = m,
@@ -101,13 +101,30 @@ export async function transitionOrder(ctx) {
         Number(id),
       );
     assert(o, "订单不存在", 404);
-    assert(o.user_id === u.id, "无权操作此订单", 403);
+    // Wave 4 #13 — two-layer permission (replaces the owner-only assert:
+    // an admin could not approve anything under it).
+    // Layer 1: owner or admin. Layer 2: the 4 after-sales decisions are
+    // admin-only. Old actions keep the owner-only rule — an admin calling
+    // confirm/pay/complete/cancel on someone else's order still gets 403.
+    const DECISIONS = ["approveRefund", "resolve", "rejectRefund", "rejectDispute"];
+    if (DECISIONS.includes(action))
+      assert(u.role === "admin", "仅管理员可处理售后", 403);
+    else if (action === "refund" || action === "dispute")
+      assert(o.user_id === u.id || u.role === "admin", "无权操作此订单", 403);
+    else assert(o.user_id === u.id, "无权操作此订单", 403);
     const transitions = {
       confirm: ["pending", "confirmed"],
       pay: ["confirmed", "paid"],
       complete: ["paid", "completed"],
       cancel: [["pending", "confirmed"], "cancelled"],
-      refund: ["paid", "refunded"],
+      // Wave 4 #13 (Q2): refund no longer completes at once — paid goes
+      // to refund_requested and waits for an admin decision.
+      refund: ["paid", "refund_requested"],
+      approveRefund: [["refund_requested", "disputed"], "refunded"],
+      rejectRefund: ["refund_requested", "paid"],
+      dispute: ["paid", "disputed"],
+      rejectDispute: ["disputed", "paid"],
+      resolve: ["disputed", "completed"],
     };
     const [from, to] = transitions[action];
     assert(
@@ -115,9 +132,22 @@ export async function transitionOrder(ctx) {
       "当前状态不允许该操作",
       400,
     );
+    // Wave 4 #13: refund_decision holds the admin's decision. Approval
+    // writes the fixed simulated-refund text; a rejection stores the
+    // admin's reason (Q6: missing reason -> 400 via text()). The user's
+    // own reason stays in refund_reason.
+    let decision = o.refund_decision || "";
+    // B-035: a fresh refund/dispute starts a new round — drop the
+    // previous admin decision so a re-requested order does not carry
+    // a stale one (refund_reason is overwritten with the new reason
+    // below, but decision was only overwritten on a decision action).
+    if (action === "refund" || action === "dispute") decision = "";
+    else if (action === "approveRefund") decision = "审核通过，已模拟退款";
+    else if (action === "rejectRefund" || action === "rejectDispute")
+      decision = text(b.reason || "", "拒绝原因", 500);
     await transaction(async () => {
       await run(
-        "UPDATE orders SET status=?,escrow=?,refund_reason=? WHERE id=?",
+        "UPDATE orders SET status=?,escrow=?,refund_reason=?,refund_decision=? WHERE id=?",
         to,
         to === "paid"
           ? "模拟托管中"
@@ -128,7 +158,10 @@ export async function transitionOrder(ctx) {
               : o.escrow,
         action === "refund"
           ? text(b.reason || "用户申请退款", "申请原因", 500)
-          : o.refund_reason,
+          : action === "dispute"
+            ? text(b.reason || "用户发起申诉", "申诉原因", 500)
+            : o.refund_reason,
+        decision,
         o.id,
       );
       if (["cancelled", "refunded"].includes(to) && !bookingType(o))
@@ -137,11 +170,30 @@ export async function transitionOrder(ctx) {
           o.quantity,
           o.resource_id,
         );
-      await notify(
-        o.user_id,
-        "订单状态更新",
-        `${o.code} · ${o.resource_name} → ${to}。${action === "pay" ? "这是模拟支付，未扣款。" : ""}`,
-      );
+      // Wave 4 #13 (Q9): an admin decision notifies the order owner with
+      // its own title (order code + result + reason); the money stays
+      // simulated. Other transitions keep the old title.
+      if (DECISIONS.includes(action)) {
+        const result =
+          action === "approveRefund"
+            ? "退款申请已通过，已模拟退款"
+            : action === "rejectRefund"
+              ? "退款申请未通过"
+              : action === "rejectDispute"
+                ? "申诉已驳回"
+                : "纠纷已调解完成，订单已结算";
+        await notify(
+          o.user_id,
+          "订单售后处理结果",
+          `${o.code} · ${o.resource_name}：${result}。${action === "approveRefund" ? "" : "原因：" + decision + "。"}该处理为模拟，未产生真实扣款/退款。`,
+        );
+      } else {
+        await notify(
+          o.user_id,
+          "订单状态更新",
+          `${o.code} · ${o.resource_name} → ${to}。${action === "pay" ? "这是模拟支付，未扣款。" : ""}`,
+        );
+      }
       await audit(u, `订单操作 ${action}`, o.code);
     });
     // A status change moves revenue between buckets (paid/completed) and

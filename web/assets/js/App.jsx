@@ -291,7 +291,7 @@ export default function App() {
 
   function handleOrderAction(act, oi) {
     const o = store.orders[+oi]; if (!o) return;
-    const map = { confirm: "confirmed", pay: "paid", complete: "completed", cancel: "cancelled", refund: "refunded" };
+    const map = { confirm: "confirmed", pay: "paid", complete: "completed", cancel: "cancelled", refund: "refund_requested" };
     if (!map[act]) return;
     if (o.apiId != null && isApiAvailable() && getToken()) {
       const ep = { confirm: "confirm", pay: "pay", complete: "complete", cancel: "cancel", refund: "refund" }[act];

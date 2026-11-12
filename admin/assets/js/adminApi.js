@@ -93,4 +93,4 @@ export function downloadText(text, filename) {
 }
 
 export function fmtMoney(cents) { return "¥" + ((typeof cents === "number" ? cents : 0) / 100).toLocaleString("zh-CN"); }
-export const STATUS = { pending: "待确认", confirmed: "已确认", paid: "已支付", completed: "已完成", cancelled: "已取消", refunded: "已退款" };
+export const STATUS = { pending: "待确认", confirmed: "已确认", paid: "已支付", completed: "已完成", cancelled: "已取消", refunded: "已退款", refund_requested: "退款申请中", disputed: "纠纷处理中" };

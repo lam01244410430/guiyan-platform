@@ -109,7 +109,8 @@ DEMO_PASSWORD=... ADMIN_PASSWORD=...
 
 三个管理接口仅允许会话用户 `role=admin`；未登录或非管理员统一返回
 403 `{"error":"无权访问管理后台"}`。顾客订单权限不变：确认仍只允许
-订单本人操作；退款仍为 `paid → refunded`，没有新增管理员审批。
+订单本人操作；退款改为 `paid → refund_requested` 等管理员审批后才到 `refunded`
+（Wave 4 #13），4 个售后决定仅管理员可做。
 
 `index.mjs` 中的 if-chain 保持原路由检查顺序，新管理接口在原接口之后。
 `createRequestHandler` 仍在成功提交事务后才发送响应，错误与 404 处理不变。

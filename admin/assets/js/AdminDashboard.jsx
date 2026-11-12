@@ -53,10 +53,10 @@ function heroMoney(v) {
 }
 
 /* Order status breakdown: one row per status — label + bar sized to the
-   real share + count. All six canonical statuses always render (a status
+   real share + count. All eight canonical statuses always render (a status
    missing from orders_by_status counts as 0); the total comes from the
    same /api/admin/stats response. No invented figures. */
-const ORDER_STATUS = ["pending", "confirmed", "paid", "completed", "cancelled", "refunded"];
+const ORDER_STATUS = ["pending", "confirmed", "paid", "completed", "cancelled", "refunded", "refund_requested", "disputed"];
 const DEMAND_STATUS = { approved: "已通过", pending: "待审核", rejected: "已拒绝" };
 const VIEWS = [
   { id: "overview", label: "总览", iconName: "ui:layout-dashboard", group: "main" },
@@ -74,6 +74,7 @@ const PREMIUM_VIEWS = ["trends", "analysis", "alerts"];
 const FILTERS = [
   ["all", "全部"], ["pending", "待确认"], ["confirmed", "已确认"], ["paid", "已支付"],
   ["completed", "已完成"], ["cancelled", "已取消"], ["refunded", "已退款"],
+  ["refund_requested", "退款申请中"], ["disputed", "纠纷处理中"],
 ];
 const PERIODS = [["day", "日"], ["week", "周"], ["month", "月"], ["quarter", "季"]];
 // Wave 3 #9: rule field labels, port of zhou TagRules.jsx:4-14. Amounts
@@ -92,14 +93,44 @@ const ALERT_KINDS = [
   ["data", "数据异常"], ["sentiment", "潜在舆情风险"],
 ];
 
-function OrderRow({ o, onContract }) {
+/* Wave 4 #13: after-sales actions per order row. refund_requested shows
+   同意退款 / 拒绝退款; disputed shows 驳回申诉 / 调解完成并结算. Buttons
+   follow the demands-review pattern (reviewBusyId, disabled while
+   processing). The reason + platform decision render under the row, port
+   of zhou Transactions.jsx:248-252. */
+function OrderRow({ o, onContract, onReview, reviewBusyId }) {
+  const busy = reviewBusyId === o.id;
   return (
-    <tr>
-      <td className="code">{o.code}</td><td>{o.user_name || ""}</td><td>{o.resource_name || ""}</td>
-      <td className="num">{fmtMoney(o.amount)}</td><td>{o.booking_date || ""}</td>
-      <td><span className={"pill " + o.status}>{STATUS[o.status] || o.status}</span></td>
-      <td><button type="button" className="btn-view" onClick={() => onContract(o)}>协议 / 权益</button></td>
-    </tr>
+    <>
+      <tr>
+        <td className="code">{o.code}</td><td>{o.user_name || ""}</td><td>{o.resource_name || ""}</td>
+        <td className="num">{fmtMoney(o.amount)}</td><td>{o.booking_date || ""}</td>
+        <td><span className={"pill " + o.status}>{STATUS[o.status] || o.status}</span></td>
+        <td><button type="button" className="btn-view" onClick={() => onContract(o)}>协议 / 权益</button></td>
+        <td>
+          {o.status === "refund_requested" ? (
+            <span className="row-actions">
+              <button type="button" className="btn-approve" disabled={busy} onClick={() => onReview(o.id, "approveRefund")}>{busy ? "处理中…" : "同意退款"}</button>
+              <button type="button" className="btn-reject" disabled={busy} onClick={() => onReview(o.id, "rejectRefund")}>{busy ? "处理中…" : "拒绝退款"}</button>
+            </span>
+          ) : o.status === "disputed" ? (
+            <span className="row-actions">
+              <button type="button" className="btn-reject" disabled={busy} onClick={() => onReview(o.id, "rejectDispute")}>{busy ? "处理中…" : "驳回申诉"}</button>
+              <button type="button" className="btn-approve" disabled={busy} onClick={() => onReview(o.id, "resolve")}>{busy ? "处理中…" : "调解完成并结算"}</button>
+            </span>
+          ) : ""}
+        </td>
+      </tr>
+      {o.refund_reason || o.refund_decision ? (
+        <tr>
+          <td colSpan="8">
+            {o.refund_reason ? (<span>售后原因：{o.refund_reason}</span>) : null}
+            {o.refund_reason && o.refund_decision ? "　" : null}
+            {o.refund_decision ? (<span>平台处理说明：{o.refund_decision}</span>) : null}
+          </td>
+        </tr>
+      ) : null}
+    </>
   );
 }
 
@@ -304,6 +335,32 @@ export default function AdminDashboard() {
     }).finally(function () { setReviewBusyId(null); });
   }
 
+  /* Wave 4 #13 — admin after-sales decisions on an order (same
+     reviewBusyId pattern as demands). Rejections ask for a reason up
+     front: the server requires it (Q6) and stores it in refund_decision.
+     The list is reloaded so refund_reason/refund_decision render fresh. */
+  function doReviewOrder(id, action) {
+    if (reviewBusyId !== null) return;
+    let reason = "";
+    if (action === "rejectRefund" || action === "rejectDispute") {
+      reason = window.prompt("请填写拒绝原因", "") || "";
+      if (!reason.trim()) { toast("请填写拒绝原因"); return; }
+    }
+    setReviewBusyId(id);
+    apiPost("/api/orders/" + id + "/" + action, reason ? { reason } : {}).then(function (d) {
+      setOrders(function (os) { return os.map(function (o) { return o.id === id ? { ...o, status: d.status } : o; }); });
+      apiGet("/api/admin/orders").then(function (r) { setOrders(r.orders || []); }).catch(function () {});
+      apiGet("/api/admin/stats").then(setStats).catch(function () {});
+      loadAudit();
+      toast("已处理");
+    }).catch(function (e) {
+      if (e && e.status === 403) toast("无权处理");
+      else if (e && e.status === 400) toast((e.data && e.data.error) || "当前状态不允许该操作");
+      else if (e && e.status === 404) toast("订单不存在");
+      else toast("处理失败，请稍后重试");
+    }).finally(function () { setReviewBusyId(null); });
+  }
+
   function doTriggerAlert(kind) {
     if (triggerBusy) return;
     setTriggerBusy(kind);
@@ -402,7 +459,7 @@ export default function AdminDashboard() {
 
   const titles = {
     overview: ["总览", "运营数据一览"],
-    orders: ["全部订单", "共 " + orders.length + " 单 · 仅查看"],
+    orders: ["全部订单", "共 " + orders.length + " 单 · 可处理售后"],
     users: ["全部用户", "共 " + users.length + " 人"],
     tagrules: ["标签规则", "自动标签规则 · 保存后立即重算"],
     aicopy: ["文案生成", "本地模板 · 未接入大模型"],
@@ -592,7 +649,7 @@ export default function AdminDashboard() {
               <div className="stat"><span>资源</span><b id="statResources">{stats ? stats.resources : 0}</b></div>
               <div className="stat"><span>需求</span><b id="statDemands">{stats ? stats.demands : 0}</b></div>
             </div>
-            <div className="note">订单、用户、资源仅查看；需求可在需求页审核，操作留痕。支付与 AI 均为模拟。</div>
+            <div className="note">订单可在订单页处理售后；用户、资源仅查看；需求可在需求页审核，操作留痕。支付与 AI 均为模拟。</div>
             <div className="sec">
               <h2>订单状态</h2>
               <div id="orderBreakdown">
@@ -620,12 +677,12 @@ export default function AdminDashboard() {
               </div>
               <div className="tbl-wrap">
                 <table>
-                  <thead><tr><th scope="col" aria-sort={ariaSort("overview", "code")}>订单号<SortButton label="订单号" sortKey="code" tableId="overview" sort={sorts.overview} onToggle={toggleSort} /></th><th scope="col">用户</th><th scope="col">资源</th><th scope="col" className="num" aria-sort={ariaSort("overview", "amount")}>金额<SortButton label="金额" sortKey="amount" tableId="overview" sort={sorts.overview} onToggle={toggleSort} /></th><th scope="col" aria-sort={ariaSort("overview", "booking_date")}>预订日期<SortButton label="预订日期" sortKey="booking_date" tableId="overview" sort={sorts.overview} onToggle={toggleSort} /></th><th scope="col">状态</th><th scope="col">协议</th></tr></thead>
+                  <thead><tr><th scope="col" aria-sort={ariaSort("overview", "code")}>订单号<SortButton label="订单号" sortKey="code" tableId="overview" sort={sorts.overview} onToggle={toggleSort} /></th><th scope="col">用户</th><th scope="col">资源</th><th scope="col" className="num" aria-sort={ariaSort("overview", "amount")}>金额<SortButton label="金额" sortKey="amount" tableId="overview" sort={sorts.overview} onToggle={toggleSort} /></th><th scope="col" aria-sort={ariaSort("overview", "booking_date")}>预订日期<SortButton label="预订日期" sortKey="booking_date" tableId="overview" sort={sorts.overview} onToggle={toggleSort} /></th><th scope="col">状态</th><th scope="col">协议</th><th scope="col">售后</th></tr></thead>
                   <tbody id="recentBody">
                     {orders.length
-                      ? (overviewMatches.length ? sortedOverview.slice(0, 8).map((o) => <OrderRow key={o.code} o={o} onContract={openContract} />)
-                        : searchEmpty(7))
-                      : <tr><td colSpan="7"><div className="empty">暂无订单</div></td></tr>}
+                      ? (overviewMatches.length ? sortedOverview.slice(0, 8).map((o) => <OrderRow key={o.code} o={o} onContract={openContract} onReview={doReviewOrder} reviewBusyId={reviewBusyId} />)
+                        : searchEmpty(8))
+                      : <tr><td colSpan="8"><div className="empty">暂无订单</div></td></tr>}
                   </tbody>
                 </table>
               </div>
@@ -648,10 +705,10 @@ export default function AdminDashboard() {
             </div>
             <div className="tbl-wrap">
               <table>
-                <thead><tr><th scope="col" aria-sort={ariaSort("orders", "code")}>订单号<SortButton label="订单号" sortKey="code" tableId="orders" sort={sorts.orders} onToggle={toggleSort} /></th><th scope="col">用户</th><th scope="col">资源</th><th scope="col" className="num" aria-sort={ariaSort("orders", "amount")}>金额<SortButton label="金额" sortKey="amount" tableId="orders" sort={sorts.orders} onToggle={toggleSort} /></th><th scope="col" aria-sort={ariaSort("orders", "booking_date")}>预订日期<SortButton label="预订日期" sortKey="booking_date" tableId="orders" sort={sorts.orders} onToggle={toggleSort} /></th><th scope="col">状态</th><th scope="col">协议</th></tr></thead>
+                <thead><tr><th scope="col" aria-sort={ariaSort("orders", "code")}>订单号<SortButton label="订单号" sortKey="code" tableId="orders" sort={sorts.orders} onToggle={toggleSort} /></th><th scope="col">用户</th><th scope="col">资源</th><th scope="col" className="num" aria-sort={ariaSort("orders", "amount")}>金额<SortButton label="金额" sortKey="amount" tableId="orders" sort={sorts.orders} onToggle={toggleSort} /></th><th scope="col" aria-sort={ariaSort("orders", "booking_date")}>预订日期<SortButton label="预订日期" sortKey="booking_date" tableId="orders" sort={sorts.orders} onToggle={toggleSort} /></th><th scope="col">状态</th><th scope="col">协议</th><th scope="col">售后</th></tr></thead>
                 <tbody id="ordersBody">
-                  {filteredOrders.length ? sortedOrders.map((o) => <OrderRow key={o.code} o={o} onContract={openContract} />)
-                    : (q ? searchEmpty(7) : <tr><td colSpan="7"><div className="empty">暂无订单</div></td></tr>)}
+                  {filteredOrders.length ? sortedOrders.map((o) => <OrderRow key={o.code} o={o} onContract={openContract} onReview={doReviewOrder} reviewBusyId={reviewBusyId} />)
+                    : (q ? searchEmpty(8) : <tr><td colSpan="8"><div className="empty">暂无订单</div></td></tr>)}
                 </tbody>
               </table>
             </div>
