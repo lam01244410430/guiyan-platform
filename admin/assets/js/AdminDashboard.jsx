@@ -327,6 +327,14 @@ export default function AdminDashboard() {
     if (contract) downloadText(contract.content, contract.code + "-模拟协议.txt");
   }
 
+  // Wave 5 #23 — download the report text exactly as shown on screen
+  // (title + body = analysis.report). No new endpoint, no audit row.
+  function downloadReport() {
+    if (!analysis || typeof analysis.report !== "string") return;
+    downloadText(analysis.report, "guiyan-analysis-" + period + ".txt");
+    toast("报告已下载");
+  }
+
   function doReviewDemand(id, status) {
     if (reviewBusyId !== null) return;
     setReviewBusyId(id);
@@ -1142,6 +1150,16 @@ export default function AdminDashboard() {
                           <small className="def">热门预约星期 {v.peak} · 关联剧目 {v.performances}场</small>
                           <small className="def">上座率 {v.seatOccupancy === null ? "暂无关联售票样本" : v.seatOccupancy + "%"}</small>
                           <small className="def">场均票房 {v.averageRevenue === null ? "暂无" : fmtMoney(v.averageRevenue)}</small>
+                          {v.recommendations && v.recommendations.length ? (
+                            <Fragment>
+                              <small className="def">推荐剧目：</small>
+                              {v.recommendations.map((r) => (
+                                <small key={r.id} className="def">· {r.name} — {r.reason}</small>
+                              ))}
+                            </Fragment>
+                          ) : (
+                            <small className="def">推荐剧目：暂无匹配剧目</small>
+                          )}
                         </div>
                       ))}
                     </div>
@@ -1154,7 +1172,7 @@ export default function AdminDashboard() {
                   ))}
                 </div>
                 <div className="sec">
-                  <h2>完整报告</h2>
+                  <h2>完整报告 <button type="button" className="btn-export" onClick={downloadReport}>下载报告</button></h2>
                   <div className="report"><pre>{reportBody}</pre></div>
                 </div>
                 <p className="def-note">{analysis.definitions.revenue}；{analysis.definitions.orders}；{analysis.definitions.series}；{analysis.definitions.users}。</p>

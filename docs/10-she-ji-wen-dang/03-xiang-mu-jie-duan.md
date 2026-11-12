@@ -628,11 +628,11 @@ commit duy nhất với toàn bộ account-tabs (Lam duyệt gộp 1 commit 2026
   → tab hiện 426ms, 6 dòng orders, không lỗi. Trial agent trên GCP không bị
   chạm (chromadb + agent-ai.service vẫn active).
 
-## Wave 5 — 加固 + 小程序（已实现并验证；Lam 已审批，按项提交中）
+## Wave 5 — 加固 + 小程序（已实现、验证、部署并提交）
 
 计划：`~/workspace/_work/guiyan-wave5-plan.md`。顺序 Lam 已定（2026-11-12 20:06）：
 B-037 先，Wave 5 后。B-037 已提交（`4f89fb4`）；Wave 5 在干净树上实现，
-三项全部验证通过；已部署（`guiyan-platform-b0qzv2z8z`）并通过 live check；按项提交中（#29、#27 已提交）。
+三项全部验证通过；已部署（`guiyan-platform-b0qzv2z8z`）并通过 live check；三项已提交。
 
 - **#29 登录限流（新建，两边都没有）：** `POST /api/auth/login` 目前无任何限流
   （`auth.mjs` 的 `login` 无计数；全站 grep 限流只命中 OTP 的 429）。默认设计：
@@ -653,11 +653,23 @@ B-037 先，Wave 5 后。B-037 已提交（`4f89fb4`）；Wave 5 在干净树上
   微信开发者工具打开（tourist AppID 可本地预览）检查 6 页 + 在线数据；真机
   测试需换真实 AppID（替换 `touristappid`）+ 在小程序管理后台把 Vercel 域名
   加入 request 合法域名。`project.config.json` 的 `appid` 仍为 `touristappid`。
+- **#23 场馆剧目推荐 + 报告下载：** 后端已算好每场馆 Top-3 推荐
+  （`admin-insights.mjs` 的 `buildAnalysis`：分数 = 共有类型关键词 ×10 +
+  同城 3，类型为歌舞/音乐/话剧/民歌/舞蹈；理由保留“需核实”字样），但管理端
+  场馆卡片（`AdminDashboard.jsx:1135–1149`）不显示（grep `recommendation` 为
+  0 命中）——本轮只改管理端 UI，把推荐列在每张场馆卡下。报告文本已有
+  （`report`，`"模拟经营分析报告"`），但没有下载按钮——默认加 .txt 下载
+  （复用 `downloadText` 模式，文件名 `guiyan-analysis-<period>.txt`，不新增
+  接口）；场馆 CSV 端点为可选项（Q6）。**venueId 数据不存在：** `linked`
+  按 `meta.venueId` 过滤恒为空，`performances` / `seatOccupancy` / 票房恒为
+  空并显示“暂无关联售票样本”——这是数据现状，不是缺陷，不得编造映射；
+  是否由 Lam/小组提供 show→venue 映射见 Q7。需求匹配保持不变；面向用户
+  的推荐（`GET /api/recommendations`）已有，不动。
 - **顺序与提交：** #29 → #27 → #23，每项 1 个 commit（同 Wave 4），每项验证：
   build + `npm test` + smoke 30/0（新 DB）；基线 163 test（151/0/12）、
   i18n 334（+新 key）。不在本轮：B-038/039/040/041、phase 7 真实 AIGC（延期，
   无经费）、phase 8 Docker、82 模块路线图、OAuth（Lam 已延期）。
-- **实施结果（2026-11-12，EC2 验证，3 项全部 PASS；按项提交中：#29、#27 已提交）：**
+- **实施结果（2026-11-12，EC2 验证，3 项全部 PASS；三项已提交）：**
   - **#29：** 新表 `login_attempts` + `server/lib/rate-limit.mjs`（5 次/小时/
     IP+用户名，429 `"登录尝试过多，请稍后再试"`，独立事务计数 + fail-open，
     锁定写 1 条审计 `"登录受限"`）；`auth.mjs` 登录流程 + `context.mjs`
@@ -673,6 +685,20 @@ B-037 先，Wave 5 后。B-037 已提交（`4f89fb4`）；Wave 5 在干净树上
     无硬编码 IP（仅 localhost 注释举例）。测试 2 个（apiBase 默认值 +
     grep `120.24.109.101` 为 0）。验证：build PASS，174 test 162/0/12，
     smoke 30/0。微信开发者工具编译测试仍是 **Lam 的步骤**（未做）。
+  - **#23：** 仅改管理端 UI：`AdminDashboard.jsx` 场馆卡下渲染
+    `v.recommendations`（Top-3，名称 + `reason` 原文，空时
+    “暂无匹配剧目”）+ 完整报告区加按钮“下载报告”（`downloadReport`，
+    复用 `downloadText`，下 `analysis.report` 原文——与屏上标题+正文
+    逐字节一致，文件名 `guiyan-analysis-<period>.txt`，无新接口、无审
+    计行）；后端 0 改动。**无 i18n key 新增**（管理端无 i18n 系统，文案
+    硬编码中文，与管理端其余文案一致；i18n 仍为 335）。测试 2 个（analysis
+    契约：`venues[].recommendations` 恒为数组、≤3、分数降序/id 升序 +
+    静态检查 UI 接线）。验证：build PASS，176 test 164/0/12，smoke 30/0。
+    验证中有 1 次全量运行出现 5 fail（wave3 #9 + wave4 #12，均为旧测试
+    对共享 disposable DB 的状态假设），**同一代码、同一新 DB 重跑即全
+    PASS，且 smoke 内嵌 run 也 PASS**——属旧测试偶发不稳定，非 Wave 5
+    回归；另有 1 次运行因容器被 smoke 脚本删后未重建导致
+    ECONNREFUSED（验证操作失误，已重建容器后重跑 PASS）。
 - **待 Lam 决定的问题（Q1–Q8，见计划文件，均有默认值）：** Q1 限流范围（默认
   仅登录）；Q2 计数键（默认 IP+用户名）；Q3 数值 5 次/小时；Q4 存储（默认 DB
   表 + 独立事务）；Q5 小程序 URL（默认 Vercel 地址，保留离线回退）；Q6 报

@@ -1,5 +1,5 @@
-// Guiyan Wave 5 tests (#29 login rate limit; #27 miniprogram apiBase)
-// — run against a REAL PostgreSQL 16, never a mock. Same harness shape as
+// Guiyan Wave 5 tests (#29 login rate limit; #27 miniprogram apiBase;
+// #23 venue recommendations + report download) — run against a REAL
 // PostgreSQL 16, never a mock. Same harness shape as
 // tests/account-otp.test.mjs: spawn server/server.mjs on TEST_PORT
 // (default 3107) and talk to it over HTTP. DATABASE_URL must point at a
@@ -272,4 +272,60 @@ test("wave5 #27: no hardcoded Zhou IP anywhere in the miniprogram", async () => 
     assert.equal(e.status, 1, "grep failed: " + e.message);
   }
   assert.equal(found, "");
+});
+
+// --- #23: venue recommendations + report download ------------------------
+// Backend contract (the admin UI renders venues[].recommendations verbatim;
+// the download reuses downloadText, so only the contract + the static UI
+// wiring are testable here — the click itself is a browser check).
+// No backend change: recommendations already come from buildAnalysis.
+
+async function adminLogin() {
+  const r = await req("/api/auth/login", {
+    method: "POST",
+    body: { username: "admin", password: process.env.ADMIN_PASSWORD },
+  });
+  assert.equal(r.status, 200);
+  assert.equal(r.json.user.role, "admin");
+  return r.json.token;
+}
+
+test("wave5 #23: analysis returns venue recommendations (top-3, score order)", async () => {
+  const token = await adminLogin();
+  const r = await req("/api/admin/analysis?period=month", { token });
+  assert.equal(r.status, 200, JSON.stringify(r.json));
+  assert.ok(Array.isArray(r.json.venues) && r.json.venues.length > 0);
+  for (const v of r.json.venues) {
+    // Always an array, never null — even when nothing matches.
+    assert.ok(Array.isArray(v.recommendations), "venue " + v.id + " recommendations must be an array");
+    assert.ok(v.recommendations.length <= 3, "venue " + v.id + " at most 3 recommendations");
+    for (let i = 0; i < v.recommendations.length; i++) {
+      const rec = v.recommendations[i];
+      assert.equal(typeof rec.id, "number");
+      assert.equal(typeof rec.name, "string");
+      assert.ok(rec.name.length > 0);
+      assert.equal(typeof rec.score, "number");
+      assert.equal(typeof rec.reason, "string");
+      assert.ok(rec.reason.length > 0);
+      if (i > 0) {
+        const prev = v.recommendations[i - 1];
+        assert.ok(
+          rec.score < prev.score || (rec.score === prev.score && rec.id > prev.id),
+          "venue " + v.id + " recommendations must be score-desc, id-asc",
+        );
+      }
+    }
+  }
+});
+
+test("wave5 #23: admin UI renders recommendations and offers a report download", async () => {
+  const dash = await readFile(
+    path.resolve(repoRoot, "admin", "assets", "js", "AdminDashboard.jsx"),
+    "utf-8",
+  );
+  assert.ok(dash.includes("v.recommendations"), "venue card must render v.recommendations");
+  assert.ok(dash.includes("推荐剧目"), "venue card must label the recommendations");
+  assert.ok(dash.includes("downloadReport"), "report download handler must exist");
+  assert.ok(dash.includes("guiyan-analysis-"), "download filename must be guiyan-analysis-<period>.txt");
+  assert.ok(dash.includes("下载报告"), "download button must be labelled");
 });
