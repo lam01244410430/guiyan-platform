@@ -39,7 +39,7 @@ export function createContext(database) {
 
   async function orderRows(user) {
     return await all(
-      `SELECT o.*,r.name AS resource_name,r.image,r.category,r.unit FROM orders o
+      `SELECT o.*,r.name AS resource_name,r.image,r.category,r.city,r.unit FROM orders o
        JOIN resources r ON r.id=o.resource_id WHERE o.user_id=? ORDER BY o.id DESC`,
       user.id,
     );

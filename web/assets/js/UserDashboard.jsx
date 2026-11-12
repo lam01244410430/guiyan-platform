@@ -1,7 +1,10 @@
 /* Guiyan user dashboard (React) — port of web/assets/js/user.js +
    web/user.html. Uses only existing customer endpoints (GET /api/orders,
    /api/favorites, /api/demands; POST /api/orders/:id/<action>). Order
-   actions follow the same state machine as the SPA's My Tickets drawer. */
+   actions follow the same state machine as the SPA's My Tickets drawer.
+   Account tabs (2026-11-12): the page is split into tabs instead of one
+   long stacked page — info / orders / favs / demands / inbox first
+   (password / email / social tabs land with their own steps). */
 import { useCallback, useEffect, useRef, useState } from "react";
 import { langState, t, fmt, CATS, catName, unitName } from "./data.js";
 import {
@@ -10,6 +13,39 @@ import {
 } from "./apiClient.js";
 import { Header, LoginDialog, RegisterDialog, Toast } from "./chrome.jsx";
 import AiChat from "./AiChat.jsx";
+import SortButton from "./SortButton.jsx";
+import { sortRows, cycleDirection } from "./sortUtils.js";
+
+/* Account tabs (step 1: the five tabs with content; password / email /
+   social join in their own steps). Labels reuse existing i18n keys where
+   the text matches (usrOrders / usrFavs / usrDemands / inboxTitle). */
+const ACCT_TABS = [
+  ["info", "tabInfo"],
+  ["password", "tabPassword"],
+  ["email", "tabEmail"],
+  ["phone", "tabPhone"],
+  ["social", "tabSocial"],
+  ["orders", "usrOrders"],
+  ["favs", "usrFavs"],
+  ["demands", "usrDemands"],
+  ["inbox", "inboxTitle"],
+];
+const ACCT_TAB_IDS = ACCT_TABS.map(([id]) => id);
+/* Orders table: filter tabs in status order + "all" first. */
+const ORDER_STATUSES = ["pending", "confirmed", "paid", "completed", "cancelled", "refunded", "refund_requested", "disputed"];
+const ORDER_SORTS = {
+  code: (o) => o.code || "",
+  amount: (o) => o.amount || 0,
+  booking_date: (o) => o.booking_date || "",
+};
+
+function readTabFromUrl() {
+  try {
+    const v = new URLSearchParams(location.search).get("tab");
+    if (v && ACCT_TAB_IDS.includes(v)) return v;
+  } catch (e) {}
+  return "info";
+}
 
 export default function UserDashboard() {
   const [lang, setLangState] = useState(langState.lang);
@@ -44,14 +80,66 @@ export default function UserDashboard() {
   // are read out here). Clicking a message marks it read.
   const [usrMessages, setUsrMessages] = useState([]);
   const [usrUnread, setUsrUnread] = useState(0);
+  // Account tabs: which tab is shown (default "info", or ?tab= when valid).
+  const [acctTab, setAcctTab] = useState(readTabFromUrl);
+  // Orders table (Shopee-format, client-side only): status filter, search
+  // box, and sort (order number / amount / booking date, admin pattern).
+  const [ordFilter, setOrdFilter] = useState("all");
+  const [ordQuery, setOrdQuery] = useState("");
+  const [ordSort, setOrdSort] = useState(null); // {key, dir} | null
+  // Account tabs step 2: avatar display URL + profile edit form state.
+  const [avatarUrl, setAvatarUrl] = useState(null);
+  const [profForm, setProfForm] = useState({ name: "", city: "", age: "", gender: "" });
+  const [profMsg, setProfMsg] = useState("");
+  const [avatarBusy, setAvatarBusy] = useState(false);
+  const [avatarMsg, setAvatarMsg] = useState("");
+  const avatarInputRef = useRef(null);
+  // Account tabs step 3: change-password form state.
+  const [pwForm, setPwForm] = useState({ current: "", next: "", confirm: "" });
+  const [pwMsg, setPwMsg] = useState("");
+  // Account tabs step 4: change-email form state.
+  const [emailForm, setEmailForm] = useState("");
+  const [emailMsg, setEmailMsg] = useState("");
+  // OTP for contact changes (2026-11-12): the 6-digit code typed by the
+  // user + the demo code returned by send-otp (simulated delivery — the
+  // code is shown in the UI, labelled 模拟，未真实发送） + the in-flight
+  // flag for the send button. Email and phone each keep their own copy.
+  const [emailCode, setEmailCode] = useState("");
+  const [emailDemo, setEmailDemo] = useState(null);
+  const [emailOtpBusy, setEmailOtpBusy] = useState(false);
+  // OTP phone tab (2026-11-12): mirrors the email tab exactly.
+  const [phoneForm, setPhoneForm] = useState("");
+  const [phoneMsg, setPhoneMsg] = useState("");
+  const [phoneCode, setPhoneCode] = useState("");
+  const [phoneDemo, setPhoneDemo] = useState(null);
+  const [phoneOtpBusy, setPhoneOtpBusy] = useState(false);
+  // Account tabs step 5: social-links form state. The server stores the
+  // links as one JSON string (user.social_links); parse defensively.
+  const [socialForm, setSocialForm] = useState({ douyin: "", wechat: "", xiaohongshu: "" });
+  const [socialMsg, setSocialMsg] = useState("");
+  function parseSocial(u) {
+    try {
+      const v = typeof u?.social_links === "string" ? JSON.parse(u.social_links) : u?.social_links;
+      return v && typeof v === "object" && !Array.isArray(v) ? v : {};
+    } catch { return {}; }
+  }
   const toastTimer = useRef(null);
-  const ordersHRef = useRef(null);
 
   const toast = useCallback((msg) => {
     setToastMsg(msg);
     if (toastTimer.current) clearTimeout(toastTimer.current);
     toastTimer.current = setTimeout(() => setToastMsg(""), 2600);
   }, []);
+
+  function switchTab(id) {
+    if (!ACCT_TAB_IDS.includes(id)) id = "info";
+    setAcctTab(id);
+    try {
+      const u = new URL(location.href);
+      u.searchParams.set("tab", id);
+      history.replaceState(null, "", u.toString());
+    } catch (e) {}
+  }
 
   function changeLang(l) {
     if (l === lang) return;
@@ -85,6 +173,14 @@ export default function UserDashboard() {
       setUsrMessages(res[5] ? res[5].messages || [] : []);
       setUsrUnread(res[5] ? res[5].unread || 0 : 0);
       setGate(false);
+      // Avatar: resolve the stored key to a presigned URL for the header
+      // chip + the info tab. Any failure falls back to the initial letter.
+      const cu = currentUser();
+      if (cu && cu.avatar) {
+        apiGet("/api/storage/url?key=" + encodeURIComponent(cu.avatar)).then(function (d) {
+          setAvatarUrl(d.url);
+        }).catch(function () { setAvatarUrl(null); });
+      } else setAvatarUrl(null);
     }).catch(function (e) {
       if (e && e.status === 401) { clearToken(); setUser(null); setGate(true); return; }
       toast(t("loadErr"));
@@ -102,6 +198,18 @@ export default function UserDashboard() {
     return () => document.removeEventListener("keydown", onKey);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  useEffect(() => {
+    if (!user) return;
+    const soc = parseSocial(user);
+    setSocialForm({ douyin: soc.douyin || "", wechat: soc.wechat || "", xiaohongshu: soc.xiaohongshu || "" });
+    setProfForm({
+      name: user.name || "",
+      city: user.city || "",
+      age: user.age == null ? "" : String(user.age),
+      gender: user.gender || "",
+    });
+  }, [user]);
 
   function doLogin(u, pw) {
     setLoginErr("");
@@ -131,6 +239,179 @@ export default function UserDashboard() {
     if (tk) apiPost("/api/auth/logout", {}).catch(function () {});
     clearToken(); setUser(null); setMenuOpen(false);
     usrLoad();
+  }
+
+  function doSaveProfile() {
+    setProfMsg("");
+    const ageNum = profForm.age.trim() === "" ? null : Number(profForm.age);
+    if (ageNum !== null && !Number.isSafeInteger(ageNum)) {
+      setProfMsg(t("loadErr"));
+      return;
+    }
+    apiPatch("/api/account/profile", {
+      name: profForm.name.trim(),
+      city: profForm.city.trim(),
+      age: ageNum,
+      gender: profForm.gender,
+    }).then(function (d) {
+      if (d && d.user) { setToken(getToken(), d.user); setUser(d.user); }
+      toast(t("admResSaved"));
+    }).catch(function (e) {
+      setProfMsg((e && e.data && e.data.error) || t("loadErr"));
+    });
+  }
+
+  /* Avatar upload: downscale on a canvas first (phone photos are several
+     MB and the storage limit is 200KB), then POST the JPEG base64. The
+     server generates the key — the client never chooses one. */
+  function downscaleImage(file) {
+    return new Promise((resolve, reject) => {
+      const url = URL.createObjectURL(file);
+      const img = new Image();
+      img.onload = () => {
+        URL.revokeObjectURL(url);
+        let w = img.naturalWidth, h = img.naturalHeight;
+        const maxDim = 512;
+        if (w > maxDim || h > maxDim) {
+          const k = Math.min(maxDim / w, maxDim / h);
+          w = Math.round(w * k); h = Math.round(h * k);
+        }
+        const canvas = document.createElement("canvas");
+        canvas.width = w; canvas.height = h;
+        canvas.getContext("2d").drawImage(img, 0, 0, w, h);
+        const attempt = (q) => {
+          canvas.toBlob((blob) => {
+            if (!blob) { reject(new Error("bad image")); return; }
+            if (blob.size <= 200000 || q <= 0.5) resolve(blob);
+            else attempt(q - 0.2);
+          }, "image/jpeg", q);
+        };
+        attempt(0.85);
+      };
+      img.onerror = () => { URL.revokeObjectURL(url); reject(new Error("bad image")); };
+      img.src = url;
+    });
+  }
+
+  async function doAvatarUpload(e) {
+    const file = e.target.files && e.target.files[0];
+    e.target.value = "";
+    if (!file) return;
+    if (!file.type || !file.type.startsWith("image/")) { setAvatarMsg(t("avatarBadType")); return; }
+    setAvatarBusy(true); setAvatarMsg("");
+    try {
+      const blob = await downscaleImage(file);
+      if (blob.size > 200000) { setAvatarMsg(t("avatarTooBig")); setAvatarBusy(false); return; }
+      const b64 = await new Promise((resolve, reject) => {
+        const r = new FileReader();
+        r.onload = () => resolve(String(r.result).split(",")[1]);
+        r.onerror = () => reject(new Error("read"));
+        r.readAsDataURL(blob);
+      });
+      const d = await apiPost("/api/account/avatar", { content_base64: b64, content_type: "image/jpeg" });
+      if (d && d.avatarKey) {
+        const nu = { ...currentUser(), avatar: d.avatarKey };
+        setToken(getToken(), nu); setUser(nu);
+        const u2 = await apiGet("/api/storage/url?key=" + encodeURIComponent(d.avatarKey));
+        setAvatarUrl(u2.url);
+        toast(t("admResSaved"));
+      }
+    } catch (err) {
+      setAvatarMsg((err && err.data && err.data.error) || t("loadErr"));
+    }
+    setAvatarBusy(false);
+  }
+
+  function doChangePassword() {
+    setPwMsg("");
+    if (pwForm.next !== pwForm.confirm) { setPwMsg(t("pwMismatch")); return; }
+    apiPost("/api/auth/change-password", {
+      currentPassword: pwForm.current,
+      newPassword: pwForm.next,
+    }).then(function () {
+      setPwForm({ current: "", next: "", confirm: "" });
+      toast(t("admResSaved"));
+    }).catch(function (e) {
+      setPwMsg((e && e.data && e.data.error) || t("loadErr"));
+    });
+  }
+
+  // OTP for contact changes (2026-11-12): ask the server for a code for
+  // the target currently typed in the tab's form. The server returns the
+  // demo code (simulated delivery) and the UI shows it in the note below
+  // the code input. A server error (bad format, duplicate, cooldown)
+  // lands in the tab's message line, like every other save error.
+  function doSendOtp(channel) {
+    const target = channel === "email" ? emailForm : phoneForm;
+    if (channel === "email") { setEmailMsg(""); setEmailOtpBusy(true); }
+    else { setPhoneMsg(""); setPhoneOtpBusy(true); }
+    apiPost("/api/account/send-otp", { channel, target }).then(function (res) {
+      if (channel === "email") {
+        setEmailDemo(res && res.code ? String(res.code) : null);
+        setEmailOtpBusy(false);
+      } else {
+        setPhoneDemo(res && res.code ? String(res.code) : null);
+        setPhoneOtpBusy(false);
+      }
+    }).catch(function (e) {
+      if (channel === "email") {
+        setEmailMsg((e && e.data && e.data.error) || t("loadErr"));
+        setEmailOtpBusy(false);
+      } else {
+        setPhoneMsg((e && e.data && e.data.error) || t("loadErr"));
+        setPhoneOtpBusy(false);
+      }
+    });
+  }
+
+  // OTP for contact changes (2026-11-12): save = verify first, then
+  // patch. verify-otp always answers 200 with {valid} (a wrong code must
+  // increment the server-side attempts counter, and a 400 response would
+  // roll the increment back — see server/routes/account.mjs), so an
+  // invalid code lands in the tab message and PATCH never runs.
+  function doChangeEmail() {
+    setEmailMsg("");
+    apiPost("/api/account/verify-otp", { channel: "email", target: emailForm, code: emailCode }).then(function (v) {
+      if (!v || !v.valid) { setEmailMsg((v && v.error) || t("loadErr")); return; }
+      return apiPatch("/api/account/email", { email: emailForm, code: emailCode }).then(function (res) {
+        setEmailForm("");
+        setEmailCode("");
+        setEmailDemo(null);
+        if (res && res.user) { setUser(res.user); setToken(getToken(), res.user); }
+        toast(t("admResSaved"));
+      });
+    }).catch(function (e) {
+      setEmailMsg((e && e.data && e.data.error) || t("loadErr"));
+    });
+  }
+
+  function doChangePhone() {
+    setPhoneMsg("");
+    apiPost("/api/account/verify-otp", { channel: "phone", target: phoneForm, code: phoneCode }).then(function (v) {
+      if (!v || !v.valid) { setPhoneMsg((v && v.error) || t("loadErr")); return; }
+      return apiPatch("/api/account/phone", { phone: phoneForm, code: phoneCode }).then(function (res) {
+        setPhoneForm("");
+        setPhoneCode("");
+        setPhoneDemo(null);
+        if (res && res.user) { setUser(res.user); setToken(getToken(), res.user); }
+        toast(t("admResSaved"));
+      });
+    }).catch(function (e) {
+      setPhoneMsg((e && e.data && e.data.error) || t("loadErr"));
+    });
+  }
+
+  function doSaveSocial() {
+    setSocialMsg("");
+    apiPatch("/api/account/social", socialForm).then(function (res) {
+      if (res && res.social) {
+        const nu = { ...user, social_links: JSON.stringify(res.social) };
+        setUser(nu); setToken(getToken(), nu);
+      }
+      toast(t("admResSaved"));
+    }).catch(function (e) {
+      setSocialMsg((e && e.data && e.data.error) || t("loadErr"));
+    });
   }
 
   function usrOrderAction(act, id, reason) {
@@ -203,24 +484,43 @@ export default function UserDashboard() {
     return null;
   }
 
+  /* Orders table (Shopee-format, client-side only): filter by status,
+     search by code / resource name, sort by code / amount / date. The
+     server order (ORDER BY o.id DESC, newest first) is the default. */
+  function ordToggleSort(tableId, sortKey) {
+    setOrdSort((prev) => {
+      if (prev && prev.key === sortKey) return { key: sortKey, dir: cycleDirection(prev.dir) };
+      return { key: sortKey, dir: "asc" };
+    });
+  }
+  const ordCounts = {};
+  for (const o of usrOrders) ordCounts[o.status] = (ordCounts[o.status] || 0) + 1;
+  const ordShown = sortRows(usrOrders.filter((o) => {
+    if (ordFilter !== "all" && o.status !== ordFilter) return false;
+    if (ordQuery) {
+      const q = ordQuery.trim().toLowerCase();
+      if (q && !((o.code || "").toLowerCase().includes(q) || (o.resource_name || "").toLowerCase().includes(q))) return false;
+    }
+    return true;
+  }), ordSort ? ORDER_SORTS[ordSort.key] : null, ordSort ? ordSort.dir : null);
+
   const u = user;
   const prof = u ? [
-    ["lblName", u.name || ""],
     ["lblUsername", u.username || ""],
-    ["lblCity", u.city || "—"],
-    ["lblAge", (u.age == null ? "—" : u.age)],
+    ["lblId", u.id],
     ["lblChannel", u.channel || "—"],
     ["lblPref", catName(u.preference || "—")],
     ["lblVerified", u.verified ? t("verifiedYes") : t("verifiedNo")],
+    ["lblCreated", String(u.created_at || "").slice(0, 10)],
   ] : [];
 
   return (
     <>
       <Header
-        variant="user" user={user} lang={lang} onLangChange={changeLang}
+        variant="user" user={user ? { ...user, avatarUrl } : null} lang={lang} onLangChange={changeLang}
         cartCount={0} onOpenDrawer={() => {}}
         onLoginClick={() => setLoginOpen(true)} onLogout={doLogout}
-        onMenuOrders={() => { if (ordersHRef.current) ordersHRef.current.scrollIntoView({ behavior: "smooth", block: "start" }); }}
+        onMenuOrders={() => switchTab("orders")}
         menuOpen={menuOpen} onToggleMenu={() => setMenuOpen((v) => !v)} onCloseMenu={() => setMenuOpen(false)}
         navOpen={navOpen} onToggleNav={() => setNavOpen((v) => !v)} onNavLinkClick={() => setNavOpen(false)}
       />
@@ -240,151 +540,287 @@ export default function UserDashboard() {
 
           {!gate && (
             <div id="usrMain">
-              <section className="db-sec">
-                <h3>{t("usrProfile")}</h3>
-                <div className="db-profile" id="profileRows">
-                  {prof.map(([k, v]) => (
-                    <div key={k} className="row"><span className="k">{t(k)}</span><span className="v">{String(v)}</span></div>
-                  ))}
-                </div>
-              </section>
-
-              <div className="db-stats">
-                <div className="db-stat"><b id="myStatOrders">{usrOrders.length}</b><span>{t("usrOrders")}</span></div>
-                <div className="db-stat"><b id="myStatFavs">{usrFavs.length}</b><span>{t("usrFavs")}</span></div>
-                <div className="db-stat"><b id="myStatDemands">{usrDemands.length}</b><span>{t("usrDemands")}</span></div>
+              <div className="acct-tabs" role="tablist" id="acctTabs">
+                {ACCT_TABS.map(([id, labelKey]) => (
+                  <button key={id} type="button" role="tab" aria-selected={acctTab === id}
+                    className={"acct-tab" + (acctTab === id ? " on" : "")}
+                    onClick={() => switchTab(id)}>
+                    {t(labelKey)}
+                    {id === "inbox" && usrUnread > 0 && (<span className="pill paid" style={{ marginLeft: 6 }}>{usrUnread}</span>)}
+                  </button>
+                ))}
               </div>
 
-              {usrProfile && usrProfile.portrait ? (
+              {acctTab === "info" && (<>
                 <section className="db-sec">
-                  <h3>{t("profileTitle")}</h3>
-                  {/* 5 grouped blocks, verbatim 甲方 group titles. TBD
-                      placeholders (暂无 / 暂无数据 / 尚未接入) are shown
-                      literally, never hidden — see profiles.mjs. */}
-                  <h4 className="db-group">{t("profileBasic")}</h4>
+                  <h3>{t("avatarTitle")}</h3>
                   <div className="db-profile">
-                    <div className="row"><span className="k">{t("profileAge")}</span><span className="v">{usrProfile.portrait.basic.age == null ? "—" : usrProfile.portrait.basic.age}</span></div>
-                    <div className="row"><span className="k">{t("profileGender")}</span><span className="v">{usrProfile.portrait.basic.gender}</span></div>
-                    <div className="row"><span className="k">{t("profileRegion")}</span><span className="v">{usrProfile.portrait.basic.region}（{t("profileRegionNote")}）</span></div>
-                    <div className="row"><span className="k">{t("profileActiveCity")}</span><span className="v">{usrProfile.portrait.basic.activeCity}</span></div>
-                  </div>
-                  <h4 className="db-group">{t("profileSpending")}</h4>
-                  <div className="db-profile">
-                    <div className="row"><span className="k">{t("profilePricePref")}</span><span className="v">{fmtMoney(usrProfile.portrait.spending.pricePreference)}</span></div>
-                    <div className="row"><span className="k">{t("profilePriceBand")}</span><span className="v">{usrProfile.portrait.spending.priceBand}{usrProfile.portrait.spending.priceDistribution.length ? "（" + usrProfile.portrait.spending.priceDistribution.map(function (d) { return d.name + " ×" + d.count; }).join("、") + "）" : ""}</span></div>
-                    <div className="row"><span className="k">{t("profileFrequency")}</span><span className="v">{fmt(t("profileFrequencyValue"), { paid: usrProfile.portrait.spending.frequency.paidCount, total: usrProfile.portrait.spending.frequency.orderCount })}</span></div>
-                    <div className="row"><span className="k">{t("profileStoredValue")}</span><span className="v">{usrProfile.portrait.spending.storedValue}</span></div>
-                  </div>
-                  <h4 className="db-group">{t("profileShowPref")}</h4>
-                  <div className="db-profile">
-                    <div className="row"><span className="k">{t("profileGenre")}</span><span className="v">{usrProfile.portrait.showPref.genre}</span></div>
-                    <div className="row"><span className="k">{t("profileArtist")}</span><span className="v">{usrProfile.portrait.showPref.artist}</span></div>
-                    <div className="row"><span className="k">{t("profileVenue")}</span><span className="v">{usrProfile.portrait.showPref.venue}</span></div>
-                    <div className="row"><span className="k">{t("profileShowType")}</span><span className="v">{catName(usrProfile.portrait.showPref.showType)}</span></div>
-                  </div>
-                  <h4 className="db-group">{t("profileBehavior")}</h4>
-                  <div className="db-profile">
-                    <div className="row"><span className="k">{t("profileTimeSlot")}</span><span className="v">{usrProfile.portrait.behavior.purchaseWindow}（{t("profileTimeNote")}）</span></div>
-                    <div className="row"><span className="k">{t("profilePayment")}</span><span className="v">{usrProfile.portrait.behavior.payment}</span></div>
-                    <div className="row"><span className="k">{t("profileSharing")}</span><span className="v">{usrProfile.portrait.behavior.sharing}</span></div>
-                    <div className="row"><span className="k">{t("profileRepeat")}</span><span className="v">{usrProfile.portrait.behavior.repeat}</span></div>
-                  </div>
-                  <h4 className="db-group">{t("profileChannel")}</h4>
-                  <div className="db-profile">
-                    <div className="row"><span className="k">{t("profileSource")}</span><span className="v">{usrProfile.portrait.channel.source}</span></div>
-                    <div className="row"><span className="k">{t("profileSuggestion")}</span><span className="v">{usrProfile.suggestion}</span></div>
+                    <div className="row" style={{ alignItems: "center" }}>
+                      <span className="k">{t("avatarTitle")}</span>
+                      <span className="v">
+                        <span className="avatar-lg">{avatarUrl ? <img src={avatarUrl} alt="" /> : (u.name || u.username || "?").charAt(0).toUpperCase()}</span>
+                      </span>
+                      <span>
+                        <input ref={avatarInputRef} type="file" accept="image/*" style={{ display: "none" }} onChange={doAvatarUpload} />
+                        <button type="button" className="mini" disabled={avatarBusy} onClick={() => avatarInputRef.current && avatarInputRef.current.click()}>{t("avatarChange")}</button>
+                      </span>
+                    </div>
+                    <div className="row"><span className="k"></span><span className="v" style={{ fontWeight: 400, color: "var(--ink2)", fontSize: 13 }}>{t("avatarHint")}</span></div>
+                    {avatarMsg ? <div className="row"><span className="k"></span><span className="v" style={{ color: "var(--red)" }}>{avatarMsg}</span></div> : null}
                   </div>
                 </section>
-              ) : null}
 
-              {usrRecs.length ? (
                 <section className="db-sec">
-                  <h3>{t("recTitle")}</h3>
-                  <div className="db-list" id="recsList">
-                    {usrRecs.map((r) => (
-                      <div key={r.resourceId} className="order">
-                        <h4><a href={"index.html?detail=" + r.resourceId}>{r.resource ? r.resource.name : ""}</a></h4>
-                        <span className="code">{r.resource ? r.resource.city + " · " + fmtMoney(r.resource.price) + "/" + unitName(r.resource.unit || "") : ""}</span>
-                        <div className="row"><span style={{ fontSize: 12.5, color: "var(--ink2)" }}>{r.reason}</span><span className="code">{fmt(t("recScore"), { n: r.score })}</span></div>
-                      </div>
+                  <h3>{t("profEditTitle")}</h3>
+                  <div className="db-profile">
+                    <div className="row"><span className="k">{t("lblName")}</span><span className="v"><input type="text" maxLength={50} value={profForm.name} onChange={(e) => setProfForm((p) => ({ ...p, name: e.target.value }))} /></span></div>
+                    <div className="row"><span className="k">{t("lblCity")}</span><span className="v"><input type="text" maxLength={20} value={profForm.city} onChange={(e) => setProfForm((p) => ({ ...p, city: e.target.value }))} /></span></div>
+                    <div className="row"><span className="k">{t("lblAge")}</span><span className="v"><input type="number" min={1} max={120} value={profForm.age} onChange={(e) => setProfForm((p) => ({ ...p, age: e.target.value }))} /></span></div>
+                    <div className="row"><span className="k">{t("profileGender")}</span><span className="v"><select value={profForm.gender} onChange={(e) => setProfForm((p) => ({ ...p, gender: e.target.value }))}><option value="">{t("genderNone")}</option><option value="男">{t("genderMale")}</option><option value="女">{t("genderFemale")}</option></select></span></div>
+                    <div className="row"><span className="k"></span><span className="v"><button type="button" className="btn red" onClick={doSaveProfile}>{t("admResSave")}</button>{profMsg ? <span style={{ color: "var(--red)", marginLeft: 12 }}>{profMsg}</span> : null}</span></div>
+                  </div>
+                </section>
+
+                <section className="db-sec">
+                  <h3>{t("usrProfile")}</h3>
+                  <div className="db-profile" id="profileRows">
+                    {prof.map(([k, v]) => (
+                      <div key={k} className="row"><span className="k">{t(k)}</span><span className="v">{String(v)}</span></div>
                     ))}
                   </div>
                 </section>
-              ) : null}
 
-              <section className="db-sec">
-                <h3 ref={ordersHRef}>{t("usrOrders")}</h3>
-                <div className="db-list" id="ordersList">
-                  {usrOrders.length ? usrOrders.map((o) => (
-                    <div key={o.id} className="order">
-                      <h4>{o.resource_name || ""}</h4>
-                      <span className="code">{o.code} · {o.booking_date || ""} · {o.quantity} × {unitName(o.unit || "")} · {fmtMoney(o.amount)}</span>
-                      <div className="row">
-                        <span className={"pill " + o.status}>{t(statusKey(o.status))}</span>
-                        <span className="db-actions">{usrActs(o)}<button type="button" className="mini" disabled={contractBusyId === o.id} onClick={() => openContract(o)}>{t("contractBtn")}</button></span>
+                <div className="db-stats">
+                  <div className="db-stat"><b id="myStatOrders">{usrOrders.length}</b><span>{t("usrOrders")}</span></div>
+                  <div className="db-stat"><b id="myStatFavs">{usrFavs.length}</b><span>{t("usrFavs")}</span></div>
+                  <div className="db-stat"><b id="myStatDemands">{usrDemands.length}</b><span>{t("usrDemands")}</span></div>
+                </div>
+
+                {usrProfile && usrProfile.portrait ? (
+                  <section className="db-sec">
+                    <h3>{t("profileTitle")}</h3>
+                    {/* 5 grouped blocks, verbatim 甲方 group titles. TBD
+                        placeholders (暂无 / 暂无数据 / 尚未接入) are shown
+                        literally, never hidden — see profiles.mjs. */}
+                    <h4 className="db-group">{t("profileBasic")}</h4>
+                    <div className="db-profile">
+                      <div className="row"><span className="k">{t("profileAge")}</span><span className="v">{usrProfile.portrait.basic.age == null ? "—" : usrProfile.portrait.basic.age}</span></div>
+                      <div className="row"><span className="k">{t("profileGender")}</span><span className="v">{usrProfile.portrait.basic.gender}</span></div>
+                      <div className="row"><span className="k">{t("profileRegion")}</span><span className="v">{usrProfile.portrait.basic.region}（{t("profileRegionNote")}）</span></div>
+                      <div className="row"><span className="k">{t("profileActiveCity")}</span><span className="v">{usrProfile.portrait.basic.activeCity}</span></div>
+                    </div>
+                    <h4 className="db-group">{t("profileSpending")}</h4>
+                    <div className="db-profile">
+                      <div className="row"><span className="k">{t("profilePricePref")}</span><span className="v">{fmtMoney(usrProfile.portrait.spending.pricePreference)}</span></div>
+                      <div className="row"><span className="k">{t("profilePriceBand")}</span><span className="v">{usrProfile.portrait.spending.priceBand}{usrProfile.portrait.spending.priceDistribution.length ? "（" + usrProfile.portrait.spending.priceDistribution.map(function (d) { return d.name + " ×" + d.count; }).join("、") + "）" : ""}</span></div>
+                      <div className="row"><span className="k">{t("profileFrequency")}</span><span className="v">{fmt(t("profileFrequencyValue"), { paid: usrProfile.portrait.spending.frequency.paidCount, total: usrProfile.portrait.spending.frequency.orderCount })}</span></div>
+                      <div className="row"><span className="k">{t("profileStoredValue")}</span><span className="v">{usrProfile.portrait.spending.storedValue}</span></div>
+                    </div>
+                    <h4 className="db-group">{t("profileShowPref")}</h4>
+                    <div className="db-profile">
+                      <div className="row"><span className="k">{t("profileGenre")}</span><span className="v">{usrProfile.portrait.showPref.genre}</span></div>
+                      <div className="row"><span className="k">{t("profileArtist")}</span><span className="v">{usrProfile.portrait.showPref.artist}</span></div>
+                      <div className="row"><span className="k">{t("profileVenue")}</span><span className="v">{usrProfile.portrait.showPref.venue}</span></div>
+                      <div className="row"><span className="k">{t("profileShowType")}</span><span className="v">{catName(usrProfile.portrait.showPref.showType)}</span></div>
+                    </div>
+                    <h4 className="db-group">{t("profileBehavior")}</h4>
+                    <div className="db-profile">
+                      <div className="row"><span className="k">{t("profileTimeSlot")}</span><span className="v">{usrProfile.portrait.behavior.purchaseWindow}（{t("profileTimeNote")}）</span></div>
+                      <div className="row"><span className="k">{t("profilePayment")}</span><span className="v">{usrProfile.portrait.behavior.payment}</span></div>
+                      <div className="row"><span className="k">{t("profileSharing")}</span><span className="v">{usrProfile.portrait.behavior.sharing}</span></div>
+                      <div className="row"><span className="k">{t("profileRepeat")}</span><span className="v">{usrProfile.portrait.behavior.repeat}</span></div>
+                    </div>
+                    <h4 className="db-group">{t("profileChannel")}</h4>
+                    <div className="db-profile">
+                      <div className="row"><span className="k">{t("profileSource")}</span><span className="v">{usrProfile.portrait.channel.source}</span></div>
+                      <div className="row"><span className="k">{t("profileSuggestion")}</span><span className="v">{usrProfile.suggestion}</span></div>
+                    </div>
+                  </section>
+                ) : null}
+
+                {usrRecs.length ? (
+                  <section className="db-sec">
+                    <h3>{t("recTitle")}</h3>
+                    <div className="db-list" id="recsList">
+                      {usrRecs.map((r) => (
+                        <div key={r.resourceId} className="order">
+                          <h4><a href={"index.html?detail=" + r.resourceId}>{r.resource ? r.resource.name : ""}</a></h4>
+                          <span className="code">{r.resource ? r.resource.city + " · " + fmtMoney(r.resource.price) + "/" + unitName(r.resource.unit || "") : ""}</span>
+                          <div className="row"><span style={{ fontSize: 12.5, color: "var(--ink2)" }}>{r.reason}</span><span className="code">{fmt(t("recScore"), { n: r.score })}</span></div>
+                        </div>
+                      ))}
+                    </div>
+                  </section>
+                ) : null}
+              </>)}
+
+              {acctTab === "password" && (
+                <section className="db-sec">
+                  <h3>{t("tabPassword")}</h3>
+                  <div className="db-profile">
+                    <div className="row"><span className="k">{t("pwCurrent")}</span><span className="v"><input type="password" autoComplete="current-password" value={pwForm.current} onChange={(e) => setPwForm((p) => ({ ...p, current: e.target.value }))} /></span></div>
+                    <div className="row"><span className="k">{t("pwNew")}</span><span className="v"><input type="password" autoComplete="new-password" value={pwForm.next} onChange={(e) => setPwForm((p) => ({ ...p, next: e.target.value }))} /></span></div>
+                    <div className="row"><span className="k">{t("pwConfirm")}</span><span className="v"><input type="password" autoComplete="new-password" value={pwForm.confirm} onChange={(e) => setPwForm((p) => ({ ...p, confirm: e.target.value }))} /></span></div>
+                    <div className="row"><span className="k"></span><span className="v"><button type="button" className="btn red" onClick={doChangePassword}>{t("admResSave")}</button>{pwMsg ? <span style={{ color: "var(--red)", marginLeft: 12 }}>{pwMsg}</span> : null}</span></div>
+                  </div>
+                </section>
+              )}
+
+              {acctTab === "email" && (
+                <section className="db-sec">
+                  <h3>{t("tabEmail")}</h3>
+                  <div className="db-profile">
+                    <div className="row"><span className="k">{t("emailCurrent")}</span><span className="v">{user.email || t("emailNone")}</span></div>
+                    <div className="row"><span className="k">{t("emailNew")}</span><span className="v"><input type="email" value={emailForm} placeholder={user.email || "example@mail.com"} onChange={(e) => setEmailForm(e.target.value)} /></span></div>
+                    <div className="row"><span className="k">{t("otpCode")}</span><span className="v"><input type="text" inputMode="numeric" maxLength={6} value={emailCode} placeholder={t("otpCodePh")} onChange={(e) => setEmailCode(e.target.value)} /> <button type="button" className="btn" disabled={emailOtpBusy} onClick={() => doSendOtp("email")}>{t("otpSend")}</button></span></div>
+                    {emailDemo ? <div className="row"><span className="k"></span><span className="v"><span className="acct-note">{fmt(t("otpDemoNote"), { code: emailDemo })}</span></span></div> : null}
+                    <div className="row"><span className="k"></span><span className="v"><button type="button" className="btn red" onClick={doChangeEmail}>{t("admResSave")}</button>{emailMsg ? <span style={{ color: "var(--red)", marginLeft: 12 }}>{emailMsg}</span> : null}</span></div>
+                  </div>
+                </section>
+              )}
+
+              {acctTab === "phone" && (
+                <section className="db-sec">
+                  <h3>{t("tabPhone")}</h3>
+                  <div className="db-profile">
+                    <div className="row"><span className="k">{t("phoneCurrent")}</span><span className="v">{user.phone || t("phoneNone")}</span></div>
+                    <div className="row"><span className="k">{t("phoneNew")}</span><span className="v"><input type="tel" value={phoneForm} placeholder="+84 912 345 678" onChange={(e) => setPhoneForm(e.target.value)} /></span></div>
+                    <div className="row"><span className="k">{t("otpCode")}</span><span className="v"><input type="text" inputMode="numeric" maxLength={6} value={phoneCode} placeholder={t("otpCodePh")} onChange={(e) => setPhoneCode(e.target.value)} /> <button type="button" className="btn" disabled={phoneOtpBusy} onClick={() => doSendOtp("phone")}>{t("otpSend")}</button></span></div>
+                    {phoneDemo ? <div className="row"><span className="k"></span><span className="v"><span className="acct-note">{fmt(t("otpDemoNote"), { code: phoneDemo })}</span></span></div> : null}
+                    <div className="row"><span className="k"></span><span className="v"><button type="button" className="btn red" onClick={doChangePhone}>{t("admResSave")}</button>{phoneMsg ? <span style={{ color: "var(--red)", marginLeft: 12 }}>{phoneMsg}</span> : null}</span></div>
+                  </div>
+                </section>
+              )}
+
+              {acctTab === "social" && (
+                <section className="db-sec">
+                  <h3>{t("tabSocial")}</h3>
+                  <p className="acct-note">{t("socialNote")}</p>
+                  <div className="db-profile">
+                    <div className="row"><span className="k">{t("socDouyin")}</span><span className="v"><input type="text" maxLength={100} value={socialForm.douyin} placeholder={t("socDouyin")} onChange={(e) => setSocialForm((f) => ({ ...f, douyin: e.target.value }))} /></span></div>
+                    <div className="row"><span className="k">{t("socWechat")}</span><span className="v"><input type="text" maxLength={100} value={socialForm.wechat} placeholder={t("socWechat")} onChange={(e) => setSocialForm((f) => ({ ...f, wechat: e.target.value }))} /></span></div>
+                    <div className="row"><span className="k">{t("socXiaohongshu")}</span><span className="v"><input type="text" maxLength={100} value={socialForm.xiaohongshu} placeholder={t("socXiaohongshu")} onChange={(e) => setSocialForm((f) => ({ ...f, xiaohongshu: e.target.value }))} /></span></div>
+                    <div className="row"><span className="k"></span><span className="v"><button type="button" className="btn red" onClick={doSaveSocial}>{t("admResSave")}</button>{socialMsg ? <span style={{ color: "var(--red)", marginLeft: 12 }}>{socialMsg}</span> : null}</span></div>
+                    {Object.entries(parseSocial(user)).map(function ([key, val]) {
+                      const label = key === "douyin" ? t("socDouyin") : key === "wechat" ? t("socWechat") : t("socXiaohongshu");
+                      const isUrl = typeof val === "string" && val.startsWith("https://");
+                      return (
+                        <div className="row" key={key}><span className="k">{label}</span><span className="v">{isUrl ? <a href={val} target="_blank" rel="noreferrer">{val}</a> : val}</span></div>
+                      );
+                    })}
+                  </div>
+                </section>
+              )}
+
+              {acctTab === "orders" && (
+                <section className="db-sec">
+                  <h3>{t("usrOrders")}</h3>
+                  <div className="filters" id="ordFilters">
+                    <button key="all" type="button" className={"chip" + (ordFilter === "all" ? " on" : "")} onClick={() => setOrdFilter("all")}>{t("allChip")} ({usrOrders.length})</button>
+                    {ORDER_STATUSES.map((s) => (
+                      <button key={s} type="button" className={"chip" + (ordFilter === s ? " on" : "")} onClick={() => setOrdFilter(s)}>{t(statusKey(s))} ({ordCounts[s] || 0})</button>
+                    ))}
+                  </div>
+                  <div className="filters" style={{ marginTop: 10 }}>
+                    <input className="q" type="search" value={ordQuery} onChange={(e) => setOrdQuery(e.target.value)} placeholder={t("ordSearchPh")} aria-label={t("ordSearchPh")} />
+                  </div>
+                  <div className="db-scroll">
+                    <table className="db-table" id="ordersTable">
+                      <thead><tr>
+                        <th>{t("colResource")}</th>
+                        <th>{t("ordColCode")} <SortButton label={t("ordColCode")} sortKey="code" tableId="orders" sort={ordSort} onToggle={ordToggleSort} /></th>
+                        <th>{t("ordColDate")} <SortButton label={t("ordColDate")} sortKey="booking_date" tableId="orders" sort={ordSort} onToggle={ordToggleSort} /></th>
+                        <th>{t("ordColQty")}</th>
+                        <th className="num">{t("ordColAmount")} <SortButton label={t("ordColAmount")} sortKey="amount" tableId="orders" sort={ordSort} onToggle={ordToggleSort} /></th>
+                        <th>{t("colStatus")}</th>
+                        <th>{t("ordColActions")}</th>
+                      </tr></thead>
+                      <tbody id="ordersBody">
+                        {ordShown.length ? ordShown.map((o) => (
+                          <>
+                            <tr key={o.id}>
+                              <td>
+                                <span className="ord-res">
+                                  {o.image ? <img src={o.image} alt="" className="ord-thumb" /> : null}
+                                  <span>{o.resource_name || ""}<small>{(o.city || "") + " · " + catName(o.category || "")}</small></span>
+                                </span>
+                              </td>
+                              <td><span className="code">{o.code}</span></td>
+                              <td>{o.booking_date || ""}</td>
+                              <td>{o.quantity} × {unitName(o.unit || "")}</td>
+                              <td className="num">{fmtMoney(o.amount)}</td>
+                              <td><span className={"pill " + o.status}>{t(statusKey(o.status))}</span></td>
+                              <td><span className="db-actions">{usrActs(o)}<button type="button" className="mini" disabled={contractBusyId === o.id} onClick={() => openContract(o)}>{t("contractBtn")}</button></span></td>
+                            </tr>
+                            {/* Wave 4 #13: the reason already sent, while the
+                                after-sales case is waiting for an admin decision. */}
+                            {(o.status === "refund_requested" || o.status === "disputed") && o.refund_reason ? (
+                              <tr key={o.id + "-reason"}>
+                                <td colSpan="7"><span style={{ fontSize: 12.5, color: "var(--ink2)" }}>{t("refundReasonLbl")}：{o.refund_reason}</span></td>
+                              </tr>
+                            ) : null}
+                          </>
+                        )) : <tr><td colSpan="7"><div className="db-empty" dangerouslySetInnerHTML={{ __html: t("emptyOrders") }}></div></td></tr>}
+                      </tbody>
+                    </table>
+                  </div>
+                </section>
+              )}
+
+              {acctTab === "inbox" && (
+                <section className="db-sec">
+                  <h3>{t("inboxTitle")}</h3>
+                  <div className="db-list" id="inboxList">
+                    {usrMessages.length ? usrMessages.map((m) => (
+                      <div key={m.id} className="order" role="button" tabIndex={0} onClick={() => markMessageRead(m)} onKeyDown={(e) => { if (e.key === "Enter") markMessageRead(m); }}>
+                        <h4>{!m.is_read && (<span aria-label="unread" style={{ color: "var(--red)" }}>● </span>)}{m.title}</h4>
+                        <span className="code">{String(m.created_at || "").slice(0, 16)}</span>
+                        <div className="row"><span style={{ fontSize: 13 }}>{m.content}</span></div>
                       </div>
-                      {/* Wave 4 #13: the reason already sent, while the
-                          after-sales case is waiting for an admin decision. */}
-                      {(o.status === "refund_requested" || o.status === "disputed") && o.refund_reason ? (
-                        <div className="row"><span style={{ fontSize: 12.5, color: "var(--ink2)" }}>{t("refundReasonLbl")}：{o.refund_reason}</span></div>
-                      ) : null}
-                    </div>
-                  )) : <div className="db-empty">{t("emptyOrders")}</div>}
-                </div>
-              </section>
+                    )) : <div className="db-empty">{t("inboxEmpty")}</div>}
+                  </div>
+                  {usrUnread > 0 && (<div style={{ marginTop: 10 }}><button type="button" className="mini" onClick={markAllMessagesRead}>{t("inboxMarkAll")}</button></div>)}
+                </section>
+              )}
 
-              {/* Wave 4 #14 — inbox, next to 我的订单：system messages only
-                  (#13's after-sales decision messages are read out here).
-                  Clicking a message marks it read; the unread count is
-                  the badge on the inbox heading. */}
-              <section className="db-sec">
-                <h3>{t("inboxTitle")}{usrUnread > 0 && (<span className="pill paid" style={{ marginLeft: 8 }}>{usrUnread}</span>)}</h3>
-                <div className="db-list" id="inboxList">
-                  {usrMessages.length ? usrMessages.map((m) => (
-                    <div key={m.id} className="order" role="button" tabIndex={0} onClick={() => markMessageRead(m)} onKeyDown={(e) => { if (e.key === "Enter") markMessageRead(m); }}>
-                      <h4>{!m.is_read && (<span aria-label="unread" style={{ color: "var(--red)" }}>● </span>)}{m.title}</h4>
-                      <span className="code">{String(m.created_at || "").slice(0, 16)}</span>
-                      <div className="row"><span style={{ fontSize: 13 }}>{m.content}</span></div>
-                    </div>
-                  )) : <div className="db-empty">{t("inboxEmpty")}</div>}
-                </div>
-                {usrUnread > 0 && (<div style={{ marginTop: 10 }}><button type="button" className="mini" onClick={markAllMessagesRead}>{t("inboxMarkAll")}</button></div>)}
-              </section>
+              {acctTab === "favs" && (
+                <section className="db-sec">
+                  <h3>{t("usrFavs")}</h3>
+                  <div className="db-scroll">
+                    <table className="db-table">
+                      <thead><tr><th>{t("colName")}</th><th>{t("colResource")}</th><th>{t("colCity")}</th><th className="num">{t("colPrice")}</th><th></th></tr></thead>
+                      <tbody id="favsBody">
+                        {usrFavs.length ? usrFavs.map((r) => (
+                          <tr key={r.id}>
+                            <td>{r.name}</td><td>{catName(r.category)}</td><td>{r.city}</td>
+                            <td className="num">{fmtMoney(r.price)}</td>
+                            <td><a href="index.html#catalog">{t("goCatalog")}</a></td>
+                          </tr>
+                        )) : <tr><td colSpan="5"><div className="db-empty">{t("emptyFavs")}</div></td></tr>}
+                      </tbody>
+                    </table>
+                  </div>
+                </section>
+              )}
 
-              <section className="db-sec">
-                <h3>{t("usrFavs")}</h3>
-                <div className="db-scroll">
-                  <table className="db-table">
-                    <thead><tr><th>{t("colName")}</th><th>{t("colResource")}</th><th>{t("colCity")}</th><th className="num">{t("colPrice")}</th><th></th></tr></thead>
-                    <tbody id="favsBody">
-                      {usrFavs.length ? usrFavs.map((r) => (
-                        <tr key={r.id}>
-                          <td>{r.name}</td><td>{catName(r.category)}</td><td>{r.city}</td>
-                          <td className="num">{fmtMoney(r.price)}</td>
-                          <td><a href="index.html#catalog">{t("goCatalog")}</a></td>
-                        </tr>
-                      )) : <tr><td colSpan="5"><div className="db-empty">{t("emptyFavs")}</div></td></tr>}
-                    </tbody>
-                  </table>
-                </div>
-              </section>
-
-              <section className="db-sec">
-                <h3>{t("usrDemands")}</h3>
-                <div className="db-scroll">
-                  <table className="db-table">
-                    <thead><tr><th>{t("colTitle")}</th><th>{t("colResource")}</th><th className="num">{t("colBudget")}</th><th>{t("colCity")}</th><th>{t("colStatus")}</th></tr></thead>
-                    <tbody id="demsBody">
-                      {usrDemands.length ? usrDemands.map((d) => (
-                        <tr key={d.id}>
-                          <td>{d.title}</td><td>{catName(d.category)}</td>
-                          <td className="num">{fmtMoney(d.budget)}</td><td>{d.city}</td><td>{d.status || ""}</td>
-                        </tr>
-                      )) : <tr><td colSpan="5"><div className="db-empty">{t("emptyMyDemands")}</div></td></tr>}
-                    </tbody>
-                  </table>
-                </div>
-              </section>
+              {acctTab === "demands" && (
+                <section className="db-sec">
+                  <h3>{t("usrDemands")}</h3>
+                  <div className="db-scroll">
+                    <table className="db-table">
+                      <thead><tr><th>{t("colTitle")}</th><th>{t("colResource")}</th><th className="num">{t("colBudget")}</th><th>{t("colCity")}</th><th>{t("colStatus")}</th></tr></thead>
+                      <tbody id="demsBody">
+                        {usrDemands.length ? usrDemands.map((d) => (
+                          <tr key={d.id}>
+                            <td>{d.title}</td><td>{catName(d.category)}</td>
+                            <td className="num">{fmtMoney(d.budget)}</td><td>{d.city}</td><td>{d.status || ""}</td>
+                          </tr>
+                        )) : <tr><td colSpan="5"><div className="db-empty">{t("emptyMyDemands")}</div></td></tr>}
+                      </tbody>
+                    </table>
+                  </div>
+                </section>
+              )}
             </div>
           )}
         </div>

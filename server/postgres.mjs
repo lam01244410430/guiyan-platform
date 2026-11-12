@@ -72,6 +72,26 @@ export async function openPostgresStore(
       await client.query(
         "ALTER TABLE users ADD COLUMN IF NOT EXISTS email TEXT",
       );
+      // Account tabs (2026-11-12): avatar storage key (null = initial
+      // letter). Same idempotent pattern as email above.
+      await client.query(
+        "ALTER TABLE users ADD COLUMN IF NOT EXISTS avatar TEXT",
+      );
+      // Account tabs (2026-11-12): social links as one JSON object
+      // (keys: douyin/wechat/xiaohongshu; '{}' = none linked).
+      await client.query(
+        "ALTER TABLE users ADD COLUMN IF NOT EXISTS social_links TEXT DEFAULT '{}'",
+      );
+      // OTP for contact changes (2026-11-12, Lam): phone number, new
+      // column for the PATCH /api/account/phone endpoint. Same idempotent
+      // pattern as the columns above; verification_codes is a new table
+      // and comes from schema.mjs (CREATE TABLE IF NOT EXISTS runs on
+      // every setup, fresh and existing DBs alike); its `verified_at`
+      // column is part of the same CREATE TABLE (the table never existed
+      // on any live DB before this change, so no ALTER is needed).
+      await client.query(
+        "ALTER TABLE users ADD COLUMN IF NOT EXISTS phone TEXT",
+      );
       if (!(await client.query("SELECT COUNT(*) AS n FROM users")).rows[0].n) {
         // Batch adjacent inserts to keep first-time setup fast over the network.
         const groups = [];

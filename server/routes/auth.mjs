@@ -97,6 +97,37 @@ export async function login(ctx) {
   return false;
 }
 
+export async function changePassword(ctx) {
+  const { p, req, b, send, needUser, get, run, audit } = ctx;
+  if (p === "/api/auth/change-password" && req.method === "POST") {
+    const u = needUser();
+    // Current password must verify exactly like login (scrypt +
+    // timingSafeEqual); a wrong one is 401 and changes nothing.
+    const [salt, expected] = u.password.split(":");
+    const actual = scryptSync(text(b.currentPassword, "当前密码", 100), salt, 32);
+    assert(
+      timingSafeEqual(actual, Buffer.from(expected, "hex")),
+      "当前密码不正确",
+      401,
+    );
+    const next = typeof b.newPassword === "string" ? b.newPassword.trim() : "";
+    assert(next.length >= 6, "密码至少6位", 400);
+    assert(next.length <= 100, "密码不能超过100位", 400);
+    // New must differ from current (compared by hash, never plaintext).
+    const same = scryptSync(next, salt, 32);
+    assert(
+      !timingSafeEqual(same, Buffer.from(expected, "hex")),
+      "新密码不能与当前密码相同",
+      400,
+    );
+    await run("UPDATE users SET password=? WHERE id=?", hashPassword(next), u.id);
+    await audit(u, "修改密码", "修改密码");
+    send({ ok: true });
+    return true;
+  }
+  return false;
+}
+
 export async function logout(ctx) {
   const { p, req, send, run } = ctx;
   const token = req.headers.authorization?.replace(/^Bearer /, "");

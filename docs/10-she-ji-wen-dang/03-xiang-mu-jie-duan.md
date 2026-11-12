@@ -408,3 +408,160 @@ Q13 (a) 在 Wave 4 内做，排在 #14 之后；新建默认 `status = published
 
 图片上传、批量导入资源、改档期/推荐/统计的计算逻辑、改公开 `GET /api/resources` 的过滤规则、真实渠道对接
 （同步永远是模拟，标注"（模拟）"与"未发送外部请求"）。
+
+## Account tabs — 我的账户 chia tab（2026-11-12，plan đã duyệt）
+
+Trang 我的账户（H5 web, `user.html` → `web/assets/js/UserDashboard.jsx`）chia thành
+8 tab, mỗi tab một commit riêng, theo plan `guiyan-account-tabs-plan.md`
+(Lam duyệt 2026-11-12). Thứ tự: khung tab + bảng đơn → 账户信息 + avatar →
+修改密码 → 修改邮箱 → 社交账号。
+
+- **8 tab:** 账户信息（form sửa thông tin + avatar + portrait + 推荐，read-only
+  bên dưới）、修改密码、修改邮箱、社交账号、我的订单（bảng kiểu Shopee — chỉ
+  FORMAT, màu/font/ngôn ngữ giữ brand Guiyan）、我的收藏、我的需求、收件箱
+  （badge chưa đọc chuyển lên nút tab）。
+- **Điều hướng:** in-page `useState` + deep link `?tab=`（vd `user.html?tab=orders`，
+  giá trị sai → `info`）；header menu 我的订单 mở thẳng tab đơn. Không tạo
+  URL/file HTML mới.
+- **Bảng đơn:** tái dùng `.db-table` + `.db-scroll` đã có; cột 资源（thumbnail 48px
+  + tên + city · category）、订单号、预订日期、数量、金额、状态、操作
+  （`usrActs` + nút 协议 giữ nguyên logic, chỉ đổi chỗ hiển thị）；filter tabs
+  全部 + 8 trạng thái kèm số đếm (client-side)；sort 订单号/金额/预订日期 theo
+  pattern admin (copy `SortButton.jsx` + `sortUtils.js` sang web)；search box
+  lọc theo mã đơn/tên resource. Thêm 2 rule CSS `.pill.refund_requested`
+  (gold-soft) / `.pill.disputed` (red-soft) — trước đây 2 trạng thái này không
+  có nền.
+- **Endpoint mới:** `PATCH /api/account/profile` (name/city/age/gender; bỏ qua
+  username/role/channel/preference/verified nếu client gửi), `POST
+  /api/account/avatar`, `PATCH /api/account/email`, `PATCH
+  /api/account/social` (file mới `server/routes/account.mjs`) +
+  `POST /api/auth/change-password` (trong `server/routes/auth.mjs`).
+  Tất cả đều `needUser()` + chỉ sửa row của chính mình (`session.id`).
+- **Avatar:** cột mới `users.avatar TEXT` (schema + `ALTER TABLE ... ADD
+  COLUMN IF NOT EXISTS`); upload thật qua storage (kiểm `GET
+  /api/storage/health` trên live trước khi code: 200, bucket `uploads` —
+  làm upload, không cần fallback preset). Server tự sinh key
+  `avatars/{id}/{timestamp}-{random}.{jpg|png|webp}`, chỉ nhận `image/*`
+  (JPG/PNG/WebP), decode ≤200KB; xóa key cũ khi thay mới; client downscale
+  bằng canvas trước khi gửi. Hiển thị qua presigned URL (`GET
+  /api/storage/url?key=`), không có avatar thì giữ vòng tròn chữ cái đầu.
+- **Mật khẩu:** bắt buộc nhập đúng mật khẩu hiện tại (scrypt +
+  `timingSafeEqual`, như login); mới ≥6, ≤100 ký tự, khác mật khẩu cũ
+  (so bằng scrypt verify); **không đá session khác** (Q4 đã quyết).
+- **Email:** trim + lowercase (mới — register hiện chỉ trim); kiểm `EMAIL_RE`
+  + ≤100 ký tự; kiểm trùng bằng SELECT → 409 (không thêm UNIQUE index đợt
+  này); không cho xóa email qua endpoint; **từ 2026-11-12: đổi email bắt
+  buộc nhập mã OTP mô phỏng — xem mục OTP bên dưới** (trước đó không xác
+  minh, email mới có hiệu lực ngay); `verified` không đổi.
+- **Social:** 1 cột JSON `users.social_links TEXT DEFAULT '{}'`, keys cố định
+  抖音 / 微信 / 小红书（微博 = 0 kết quả toàn repo, không gồm）; value ≤100
+  ký tự, chuỗi rỗng = xóa link; key lạ/token/code → 400. Chỉ lưu + hiển thị
+  text, link chỉ khi giá trị là URL `https://` đầy đủ; ghi rõ
+  "仅展示，不验证归属". Không OAuth (tính năng riêng, đã hoãn).
+- **Audit:** "修改资料" / "更换头像" / "修改密码" / "修改邮箱" / "更新社交账号".
+- **Rủi ro đã biết, không giấu:** chưa có rate limit (Wave 5 #29 mới làm);
+  đổi mật khẩu/email/avatar chỉ được bảo vệ bằng mật khẩu hiện tại + audit.
+- **Không làm:** OAuth/xác minh sở hữu, gửi email/SMS xác minh thật (chỉ có
+  OTP mô phỏng — xem mục OTP bên dưới), xử lý ảnh phía server, mini-program,
+  Wave 5, đổi logic Wave 4, đổi admin, UNIQUE index cho email, phân trang
+  server cho `GET /api/orders`.
+
+## Đổi email / số điện thoại bằng mã OTP mô phỏng（2026-11-12，Lam ra lệnh 18:37）
+
+Đổi email trước đây lưu ngay không cần xác minh; đổi số điện thoại chưa có
+chỗ nào. Lam yêu cầu cả hai đều nhận OTP trước khi đổi. Gộp chung vào 1
+commit duy nhất với toàn bộ account-tabs (Lam duyệt gộp 1 commit 2026-11-12).
+
+- **Không có provider:** dự án không có nhà cung cấp email/SMS, không ngân
+  sách mua (phase 7 hoãn vì tiền) → OTP **MÔ PHỎNG**: server sinh mã và trả
+  về ngay trong response của `POST /api/account/send-otp`; UI hiển thị mã
+  demo, ghi rõ `模拟，未真实发送`. Không thêm provider/SDK/key nào; không
+  bao giờ ghi "đã gửi email/SMS thật". Đăng ký tài khoản (`POST
+  /api/auth/register`) vẫn không xác minh — OTP chỉ áp dụng cho đổi email /
+  số điện thoại của tài khoản đã đăng nhập.
+- **Bảng mới `verification_codes`** (pattern `CREATE TABLE IF NOT EXISTS`
+  trong `server/schema.mjs`, không migration): `id`, `user_id` (FK users),
+  `channel` (`email` | `phone`), `target` (email đã lowercase / số điện
+  thoại đã chuẩn hóa), `code` (6 chữ số, TEXT), `expires_at`, `attempts`
+  (mặc định 0), `used_at` (NULL = chưa dùng), `verified_at` (NULL = chưa
+  xác minh — verify-otp ghi khi mã đúng), `created_at` (ISO string,
+  như sessions). Index `(user_id, channel, target)`.
+- **Quy tắc mã (đã quyết, không hỏi lại):** 6 chữ số ngẫu nhiên
+  (`crypto.randomInt`); hiệu lực **5 phút**; **dùng 1 lần** (`used_at` ghi
+  khi PATCH thành công); tối đa **5 lần thử sai** cho mỗi mã (lần đúng thứ 6
+  cũng 400); gửi lại cách nhau **60 giây** cho mỗi (user, channel, target);
+  tối đa **5 lần gửi / giờ** cho mỗi target; gửi mã mới vô hiệu hóa mã cũ
+  chưa dùng của cùng (user, channel, target) — chỉ mã mới nhất còn hiệu
+  lực. Mã sai định dạng (không phải 6 chữ số) → 400, không tính lượt thử.
+  **Luồng xác minh 2 bước (bắt buộc vì transaction — xem dưới):** mã đúng
+  được xác minh trước qua `POST /api/account/verify-otp` (đánh dấu
+  `verified_at`), rồi `PATCH` mới tiêu thụ mã (`used_at`) và đổi liên hệ.
+  Mã chưa verified thì PATCH → 400.
+- **Vì sao verify-otp luôn trả 200:** mọi request ghi trong codebase chạy
+  trong MỘT transaction; response ≥400 hoặc throw đều ROLLBACK toàn bộ
+  request (`createRequestHandler` trong `server/index.mjs` + `db.request`
+  trong `server/postgres.mjs`: commit chỉ khi status < 400). Lần thử sai
+  phải tăng cột `attempts` — mà tăng rồi trả 400 thì lần tăng bị rollback
+  mất, nên 5 lần sai không bao giờ chết mã (đã phát hiện bằng test lỗi
+  2026-11-12: 5 lần sai xong mã đúng vẫn đổi được). Vì vậy verify-otp
+  LUÔN trả 200 kèm `{valid, error?, attempts_left}` để lần thử được
+  commit; UI/PATCH chỉ đọc `valid`. Đây là quy tắc kiến trúc chung, không
+  riêng OTP: **validate trước, write sau, không bao giờ throw sau khi đã
+  write trong cùng request**.
+- **Endpoint mới `POST /api/account/send-otp`** (`server/routes/account.mjs`,
+  cần đăng nhập): body `{channel: "email"|"phone", target}`. Kiểm tra định
+  dạng target (email: `EMAIL_RE` + ≤100; phone: bỏ khoảng trắng, `^\+?\d{9,15}$`);
+  trùng với user khác → 409; gửi quá nhanh → 429; quá 5 lần/giờ → 429.
+  Trả `{channel, target, code, expires_in_seconds: 300}` — mã trả về công
+  khai vì là mô phỏng (ghi rõ trong comment code + UI). Audit `"发送验证码"`.
+- **Endpoint mới `POST /api/account/verify-otp`:** body `{channel, target,
+  code}`. Tìm mã chưa dùng mới nhất của (user, channel, target): không có
+  → `{valid:false}`; đã verified → `{valid:true}`; hết hạn / hết lượt thử
+  → `{valid:false}` + lý do; sai mã → `attempts` + 1 rồi trả `{valid:false,
+  attempts_left}`; đúng mã → ghi `verified_at`, trả `{valid:true}`. Luôn
+  trả 200 (lý do ở trên). Không audit (lần thử sai không phải thay đổi
+  dữ liệu liên hệ; lần gửi mã đã audit `"发送验证码"`).
+- **`PATCH /api/account/email` đổi thành bắt buộc `{email, code}`:**
+  giữ mọi rule cũ (trim + lowercase, `EMAIL_RE`, ≤100, trùng → 409,
+  không cho xóa, `verified` không đổi, audit `"修改邮箱"`); thêm bước tiêu
+  thụ mã đã verified: mã phải đúng (user, channel `email`, target = email
+  đã lowercase), đã có `verified_at`, chưa hết hạn, chưa dùng — sai → 400,
+  hết hạn → 400, chưa verify → 400, dùng lại mã cũ → 400. Kiểm trùng (409)
+  chạy TRƯỚC khi tiêu thụ mã để không đốt mã khi email đã bị người khác
+  lấy. Tiêu thụ đúng thì ghi `used_at` rồi mới cập nhật email.
+- **Số điện thoại (mới):** cột mới `users.phone TEXT` (schema + `ALTER TABLE
+  ... ADD COLUMN IF NOT EXISTS` trong `server/postgres.mjs`, như avatar /
+  social_links); endpoint mới `PATCH /api/account/phone {phone, code}`
+  mirror email (chuẩn hóa bỏ khoảng trắng, `^\+?\d{9,15}$`, trùng →
+  409, không cho xóa, mã phải đã verified, audit `"修改手机号"`); tab mới
+  **修改手机号** (tab thứ 9, sau 修改邮箱）, form mirror tab email: số hiện
+  tại / số mới / nút 获取验证码 + ô nhập 6 số + ghi chú mã demo.
+- **UI:** tab email thêm nút 获取验证码 + ô nhập 验证码 (6 số) + dòng ghi chú
+  mã demo `演示验证码：{code}（模拟，未真实发送）`; tab phone làm y hệt.
+  Nút 保存 gọi verify-otp trước, mã đúng mới gọi PATCH (xem lý do ở trên);
+  mã sai thì hiện lỗi verify ngay, không gọi PATCH. Sau khi gửi mã thành
+  công thì hiện ghi chú; lưu thành công thì toast "已保存" như cũ và xóa
+  form + mã demo. Lỗi server hiện nguyên văn (như các tab khác). i18n: 8 key
+  mới × 3 ngôn ngữ (`tabPhone`, `phoneCurrent`,
+  `phoneNew`, `phoneNone`, `otpSend`, `otpCode`, `otpCodePh`, `otpDemoNote`).
+- **Audit:** `"发送验证码"` / `"修改邮箱"` / `"修改手机号"`.
+- **Rủi ro đã biết, không giấu:** mã demo hiển thị ngay trên UI nên ai
+  nhìn màn hình cũng thấy mã — chấp nhận được trong demo mô phỏng, KHÔNG
+  dùng cho production thật (khi có provider thật, bỏ `code` khỏi response
+  và gửi qua email/SMS thật). Chưa có rate limit toàn cục (Wave 5 #29 mới
+  làm); gửi OTP chỉ giới hạn theo target như trên.
+- **Không làm:** provider email/SMS thật, gửi mã qua email/SMS, xác minh
+  email lúc đăng ký, UNIQUE index cho email/phone, đổi mật khẩu bằng OTP
+  (mật khẩu vẫn đổi bằng mật khẩu hiện tại).
+- **Test:** file mới `tests/account-otp.test.mjs` (send-otp trả mã 6 số;
+  verify-otp sai mã → 200 `{valid:false}` + `attempts_left` giảm; hết hạn
+  → `{valid:false}`; đúng mã đổi được + dùng lại → 400; 5 lần sai → mã
+  chết (verify đúng mã cũng `{valid:false}`); trùng email/phone → 409;
+  gửi lại trong 60s → 429; 5 lần gửi/giờ → lần 6 là 429; email/phone
+  không có mã → 400; gửi mã mới vô hiệu hóa mã cũ); test step 4 cũ trong
+  `tests/account-tabs.test.mjs` chuyển sang luồng OTP (gửi mã → verify →
+  PATCH); test i18n `wave3.test.mjs` cập nhật 323 → 331 key.
+- **Test:** file mới `tests/account-tabs.test.mjs` (~27 test API, DB dùng một
+  lần); test i18n `wave3.test.mjs` cập nhật số key theo số key mới thêm.
+  Kiểm live dùng tài khoản test mới đăng ký, không dùng demo/admin cho thao
+  tác đổi mật khẩu/email/avatar.

@@ -58,6 +58,9 @@ a{color:var(--red)}
 .user-chip{display:inline-flex;align-items:center;gap:8px;background:var(--ink);color:var(--bg);border:0;border-radius:99px;padding:5px 13px 5px 5px;font-family:inherit;font-weight:700;font-size:13.5px;white-space:nowrap;cursor:pointer}
 .user-chip .avatar{width:28px;height:28px;flex:none;border-radius:50%;background:var(--red);color:#fff;display:inline-grid;place-items:center;font-size:13px;font-weight:800}
 .user-chip .chev{flex:none;transition:transform .18s}
+.user-chip .avatar img{width:100%;height:100%;object-fit:cover;border-radius:50%;display:block}
+.avatar-lg{width:72px;height:72px;flex:none;border-radius:50%;background:var(--red);color:#fff;display:inline-grid;place-items:center;font-size:28px;font-weight:800;overflow:hidden}
+.avatar-lg img{width:100%;height:100%;object-fit:cover;display:block}
 .user-menu.open .user-chip .chev{transform:rotate(180deg)}
 .user-drop{position:absolute;right:0;top:calc(100% + 8px);min-width:208px;background:var(--surface);border:1px solid var(--line);border-radius:var(--r-md);box-shadow:var(--shadow);padding:6px;display:none;z-index:70}
 .user-menu.open .user-drop{display:block}
@@ -365,6 +368,8 @@ footer ul{list-style:none;margin:0;padding:0;display:grid;gap:6px}
 .pill.paid{background:var(--jade-soft);color:var(--jade)}
 .pill.completed{background:var(--jade);color:#fff}
 .pill.cancelled,.pill.refunded{background:var(--red-soft);color:var(--red)}
+.pill.refund_requested{background:var(--gold-soft);color:var(--gold)}
+.pill.disputed{background:var(--red-soft);color:var(--red)}
 .order .mini{border:1px solid var(--line2);background:transparent;border-radius:99px;padding:6px 13px;font-size:12.5px;font-weight:700;color:var(--ink)}
 .order .mini.red{background:var(--red);border-color:var(--red);color:#fff}
 .drawer .emptybox{text-align:center;color:var(--ink2);padding:44px 10px;font-size:14px}
@@ -405,6 +410,22 @@ footer ul{list-style:none;margin:0;padding:0;display:grid;gap:6px}
 .db-table td{padding:11px 14px;border-bottom:1px solid var(--line);vertical-align:middle}
 .db-table tr:last-child td{border-bottom:0}
 .db-table td.num,.db-table th.num{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
+/* Account tabs (2026-11-12): tab bar above the dashboard panels. */
+.acct-tabs{display:flex;gap:8px;flex-wrap:wrap;margin:0 0 22px}
+.acct-tab{border:1px solid var(--line2);background:var(--surface);color:var(--ink2);border-radius:99px;padding:8px 16px;font-size:13.5px;font-weight:700;cursor:pointer}
+.acct-tab.on{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+.acct-tab .pill{margin-left:6px}
+.acct-note{color:var(--ink2);font-size:13px;margin:-10px 0 14px}
+/* Orders table (Shopee-format): resource cell + sortable headers. */
+.ord-res{display:flex;gap:10px;align-items:center}
+.ord-res small{display:block;color:var(--ink2);font-size:12px;font-weight:400}
+.ord-thumb{width:48px;height:48px;flex:none;object-fit:cover;border-radius:9px}
+/* SortButton (copied from admin, active colour adapted: web has no
+   --pine, so the customer red is used instead). */
+th .sort-btn{display:inline-flex;align-items:center;justify-content:center;flex:none;width:20px;height:20px;margin-left:6px;padding:0;border:0;border-radius:9px;background:transparent;color:var(--ink3);vertical-align:middle}
+th .sort-btn:hover{background:var(--surface2);color:var(--ink2)}
+th .sort-btn.active{color:var(--red)}
+th .sort-btn:focus-visible{outline:2px solid var(--red);outline-offset:1px}
 .db-profile{background:var(--surface);border:1px solid var(--line);border-radius:var(--r-md);padding:8px 20px;margin-bottom:34px}
 .db-profile .row{display:flex;gap:16px;padding:11px 0;border-bottom:1px solid var(--line);font-size:14px}
 .db-profile .row:last-child{border-bottom:0}

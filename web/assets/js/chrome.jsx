@@ -104,7 +104,7 @@ export function Header(props) {
           <div className={"user-menu" + (props.menuOpen ? " open" : "")} id="loginState" ref={menuRef}>
             <button className="user-chip" id="userChip" type="button" aria-haspopup="menu" aria-expanded={props.menuOpen ? "true" : "false"}
               onClick={(e) => { e.stopPropagation(); props.onToggleMenu(); }}>
-              <span className="avatar" id="userAvatar">{name.charAt(0).toUpperCase()}</span>
+              <span className="avatar" id="userAvatar">{user.avatarUrl ? <img src={user.avatarUrl} alt="" /> : name.charAt(0).toUpperCase()}</span>
               <span id="loginName">{fmt(t("hiName"), { name })}</span>
               <svg className="chev" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round"><path d="M6 9l6 6 6-6" /></svg>
             </button>

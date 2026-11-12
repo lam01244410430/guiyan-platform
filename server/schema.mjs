@@ -1,5 +1,5 @@
 export const schema = `
-CREATE TABLE IF NOT EXISTS users(id INTEGER PRIMARY KEY, username TEXT UNIQUE NOT NULL, password TEXT NOT NULL, name TEXT NOT NULL, email TEXT, role TEXT NOT NULL DEFAULT 'user', city TEXT, age INTEGER, gender TEXT, channel TEXT, preference TEXT, verified INTEGER DEFAULT 0, created_at TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS users(id INTEGER PRIMARY KEY, username TEXT UNIQUE NOT NULL, password TEXT NOT NULL, name TEXT NOT NULL, email TEXT, avatar TEXT, social_links TEXT DEFAULT '{}', phone TEXT, role TEXT NOT NULL DEFAULT 'user', city TEXT, age INTEGER, gender TEXT, channel TEXT, preference TEXT, verified INTEGER DEFAULT 0, created_at TEXT NOT NULL);
     CREATE TABLE IF NOT EXISTS sessions(token TEXT PRIMARY KEY, user_id INTEGER REFERENCES users(id), expires_at TEXT NOT NULL);
     CREATE TABLE IF NOT EXISTS resources(id INTEGER PRIMARY KEY, name TEXT NOT NULL, category TEXT NOT NULL, city TEXT NOT NULL, price INTEGER NOT NULL, unit TEXT NOT NULL, description TEXT NOT NULL, image TEXT NOT NULL, capacity INTEGER DEFAULT 0, stock INTEGER DEFAULT 100, tags TEXT DEFAULT '[]', meta TEXT DEFAULT '{}', status TEXT DEFAULT 'published', owner_id INTEGER REFERENCES users(id), views INTEGER DEFAULT 0, created_at TEXT NOT NULL);
     CREATE TABLE IF NOT EXISTS orders(id INTEGER PRIMARY KEY, code TEXT UNIQUE NOT NULL, user_id INTEGER REFERENCES users(id), resource_id INTEGER REFERENCES resources(id), quantity INTEGER NOT NULL, amount INTEGER NOT NULL, booking_date TEXT NOT NULL, status TEXT NOT NULL, channel TEXT NOT NULL, note TEXT DEFAULT '', escrow TEXT DEFAULT '未支付', refund_reason TEXT DEFAULT '', created_at TEXT NOT NULL);
@@ -10,6 +10,8 @@ CREATE TABLE IF NOT EXISTS users(id INTEGER PRIMARY KEY, username TEXT UNIQUE NO
     CREATE TABLE IF NOT EXISTS events(id INTEGER PRIMARY KEY, user_id INTEGER REFERENCES users(id), type TEXT NOT NULL, detail TEXT NOT NULL, created_at TEXT NOT NULL);
     CREATE TABLE IF NOT EXISTS audit_logs(id INTEGER PRIMARY KEY, user_id INTEGER REFERENCES users(id), action TEXT NOT NULL, detail TEXT NOT NULL, created_at TEXT NOT NULL);
     CREATE TABLE IF NOT EXISTS settings(key TEXT PRIMARY KEY, value TEXT NOT NULL);
+    CREATE TABLE IF NOT EXISTS verification_codes(id INTEGER PRIMARY KEY, user_id INTEGER REFERENCES users(id), channel TEXT NOT NULL, target TEXT NOT NULL, code TEXT NOT NULL, expires_at TEXT NOT NULL, attempts INTEGER NOT NULL DEFAULT 0, used_at TEXT, verified_at TEXT, created_at TEXT NOT NULL);
+    CREATE INDEX IF NOT EXISTS idx_vcode_lookup ON verification_codes(user_id,channel,target);
     CREATE INDEX IF NOT EXISTS idx_order_resource_date ON orders(resource_id,booking_date,status);
     CREATE INDEX IF NOT EXISTS idx_order_user ON orders(user_id);
     CREATE INDEX IF NOT EXISTS idx_comments_resource ON comments(resource_id,status);
