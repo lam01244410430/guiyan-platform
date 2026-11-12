@@ -1,15 +1,17 @@
 /* Guiyan admin dashboard (React) — port of admin/assets/js/dashboard.js +
    admin/dashboard.html. Loads /api/admin/stats, /api/admin/orders,
-   /api/admin/users and /api/admin/demands (admin role only) plus public
-   /api/resources. Demands come from the admin endpoint because the public
-   list hides pending ones; the stat card counts all demands.
+   /api/admin/users, /api/admin/demands and /api/admin/resources (admin
+   role only). Demands come from the admin endpoint because the public
+   list hides pending ones; the stat card counts all demands. Resources
+   come from the admin endpoint because the public list hides drafts.
    Premium views (Phase 5): 趋势统计 / 经营分析 / 预警中心 reuse the
    server/routes/admin-insights.mjs backend (stats by period, analysis,
    alerts, CSV export, demand review, audit logs). The 5 original views
-   stay read-only; the premium views have write actions (review demands,
-   trigger/resolve simulated alerts, export CSV) and every write lands in
-   audit_logs. Premium data loads lazily, only when its view opens. */
-import { useEffect, useRef, useState } from "react";
+   stay read-only except 资源 (Wave 4 #16: create/edit/publish/sync,
+   server/routes/admin-resources.mjs); the premium views have write actions
+   (review demands, trigger/resolve simulated alerts, export CSV) and
+   every write lands in audit_logs. Premium data loads lazily, only when its view opens. */
+import { Fragment, useEffect, useRef, useState } from "react";
 import {
   apiGet, apiPost, apiPatch, apiDownloadCsv, downloadText, clearToken, currentUser, getToken, fmtMoney, STATUS,
 } from "./adminApi.js";
@@ -21,7 +23,7 @@ import { cycleDirection, sortRows } from "./sortUtils.js";
 // verbatim copy of the CATS table (admin/assets/js/cats.js). It used to
 // come from web/assets/js/data.js, which dragged the whole 866 KB data
 // file (i18n + base64 images) into the admin bundle as a separate chunk.
-import { catZh } from "./cats.js";
+import { catZh, CATS } from "./cats.js";
 /* Nav icons are inlined (not <img>) so currentColor inherits the button
    colour — the gold active icon (DESIGN.md §5) is impossible through
    <img>, where currentColor resolves to black. Path data copied verbatim
@@ -206,6 +208,12 @@ export default function AdminDashboard() {
   const [copyBusy, setCopyBusy] = useState(false);
   const [tagFilter, setTagFilter] = useState("");
   const [reviewBusyId, setReviewBusyId] = useState(null);
+  // Wave 4 #16 resource management: the open create/edit form draft
+  // (null = closed; {id: null} = create, {id} = edit) + the id of the
+  // resource whose row action is in flight (same disabled-while-
+  // processing pattern as reviewBusyId).
+  const [resForm, setResForm] = useState(null);
+  const [resBusyId, setResBusyId] = useState(null);
   const [triggerBusy, setTriggerBusy] = useState("");
   const loadedRef = useRef({ trends: "", analysis: "", alerts: false, tagrules: false });
   // Monotonic request id: guards the lazy period fetches below against
@@ -240,7 +248,7 @@ export default function AdminDashboard() {
     setWhoName(u.name || u.username || "管理员");
     Promise.all([
       apiGet("/api/admin/stats"), apiGet("/api/admin/orders"), apiGet("/api/admin/users"),
-      apiGet("/api/resources"), apiGet("/api/admin/demands"),
+      apiGet("/api/admin/resources"), apiGet("/api/admin/demands"),
     ]).then(function (res) {
       setStats(res[0]);
       setOrders(res[1].orders || []);
@@ -359,6 +367,96 @@ export default function AdminDashboard() {
       else if (e && e.status === 404) toast("订单不存在");
       else toast("处理失败，请稍后重试");
     }).finally(function () { setReviewBusyId(null); });
+  }
+
+  /* Wave 4 #16 — admin resource management (create/edit/publish/
+     unpublish/simulated channel sync). Money: the form inputs yuan and
+     converts to integer cents before calling (the server only accepts
+     cents); image stays a static path string, no upload. The list loads
+     from GET /api/admin/resources (all rows including drafts), so a
+     resource just set to draft stays visible after a reload; the list
+     is still updated from the response to avoid a reload round-trip. */
+  function openResForm(r) {
+    setResForm(r ? {
+      id: r.id, name: r.name || "", category: r.category || "show",
+      city: r.city || "", priceYuan: String((r.price || 0) / 100),
+      unit: r.unit || "张", description: r.description || "",
+      image: r.image || "", capacity: String(r.capacity || 0),
+      stock: String(r.stock || 0), status: r.status || "published",
+    } : {
+      id: null, name: "", category: "show", city: "", priceYuan: "",
+      unit: "张", description: "", image: "", capacity: "0",
+      stock: "100", status: "published",
+    });
+  }
+  function editResForm(key, value) {
+    setResForm(function (f) { return f ? { ...f, [key]: value } : f; });
+  }
+  function saveResForm() {
+    if (!resForm || resBusyId !== null) return;
+    const priceYuan = Number(resForm.priceYuan);
+    if (!resForm.name.trim() || !resForm.city.trim() || !resForm.unit.trim()) { toast("请填写名称、城市与单位"); return; }
+    if (!Number.isFinite(priceYuan) || priceYuan < 0) { toast("价格（元）须为不小于 0 的数字"); return; }
+    const capacity = Number(resForm.capacity);
+    const stock = Number(resForm.stock);
+    if (!Number.isInteger(capacity) || capacity < 0 || !Number.isInteger(stock) || stock < 0) { toast("容量与库存须为不小于 0 的整数"); return; }
+    const body = {
+      name: resForm.name.trim(), category: resForm.category,
+      city: resForm.city.trim(), price: Math.round(priceYuan * 100),
+      unit: resForm.unit.trim(), description: resForm.description.trim(),
+      image: resForm.image.trim(), capacity, stock, status: resForm.status,
+    };
+    setResBusyId(resForm.id === null ? "new" : resForm.id);
+    const call = resForm.id === null
+      ? apiPost("/api/admin/resources", body)
+      : apiPatch("/api/admin/resources/" + resForm.id, body);
+    call.then(function (d) {
+      const saved = d.resource;
+      setResources(function (rs) {
+        return resForm.id === null ? rs.concat([saved])
+          : rs.map(function (r) { return r.id === saved.id ? saved : r; });
+      });
+      setResForm(null);
+      apiGet("/api/admin/stats").then(setStats).catch(function () {});
+      loadAudit();
+      toast("已保存");
+    }).catch(function (e) {
+      if (e && e.status === 403) toast("无权管理资源");
+      else if (e && e.status === 404) toast("资源不存在");
+      else toast((e && e.data && e.data.error) || "保存失败，请检查表单");
+    }).finally(function () { setResBusyId(null); });
+  }
+  function doToggleResStatus(r) {
+    if (resBusyId !== null) return;
+    const next = r.status === "published" ? "draft" : "published";
+    setResBusyId(r.id);
+    apiPatch("/api/admin/resources/" + r.id, { status: next }).then(function (d) {
+      const saved = d.resource;
+      setResources(function (rs) { return rs.map(function (x) { return x.id === saved.id ? saved : x; }); });
+      apiGet("/api/admin/stats").then(setStats).catch(function () {});
+      loadAudit();
+      toast(next === "published" ? "已上架" : "已下架");
+    }).catch(function (e) {
+      if (e && e.status === 403) toast("无权管理资源");
+      else if (e && e.status === 404) toast("资源不存在");
+      else toast((e && e.data && e.data.error) || "操作失败，请稍后重试");
+    }).finally(function () { setResBusyId(null); });
+  }
+  function doSyncRes(r) {
+    if (resBusyId !== null) return;
+    setResBusyId(r.id);
+    apiPost("/api/admin/resources/" + r.id + "/sync", {}).then(function (d) {
+      const saved = d.resource;
+      setResources(function (rs) { return rs.map(function (x) { return x.id === saved.id ? saved : x; }); });
+      loadAudit();
+      // The server message states no external request was sent; the
+      // sync itself is simulated (syncResult carries （模拟）).
+      toast(d.message || "已模拟同步");
+    }).catch(function (e) {
+      if (e && e.status === 403) toast("无权管理资源");
+      else if (e && e.status === 404) toast("资源不存在");
+      else toast((e && e.data && e.data.error) || "同步失败，请稍后重试");
+    }).finally(function () { setResBusyId(null); });
   }
 
   function doTriggerAlert(kind) {
@@ -574,7 +672,7 @@ export default function AdminDashboard() {
   // Badge reflects real write ability, not just the premium group:
   // 订单 exports CSV (writes an audit row) and 需求 approves/rejects
   // (writes audit + notifies), so both are write views too.
-  const canWrite = isPremium || view === "demands" || view === "orders" || view === "tagrules" || view === "aicopy";
+  const canWrite = isPremium || view === "demands" || view === "orders" || view === "tagrules" || view === "aicopy" || view === "resources";
   const reportLines = analysis && typeof analysis.report === "string" ? analysis.report.split("\n") : [];
   const reportTitle = reportLines.length ? reportLines[0] : "模拟经营分析报告";
   const reportBody = reportLines.length > 1 ? reportLines.slice(1).join("\n") : "";
@@ -649,7 +747,7 @@ export default function AdminDashboard() {
               <div className="stat"><span>资源</span><b id="statResources">{stats ? stats.resources : 0}</b></div>
               <div className="stat"><span>需求</span><b id="statDemands">{stats ? stats.demands : 0}</b></div>
             </div>
-            <div className="note">订单可在订单页处理售后；用户、资源仅查看；需求可在需求页审核，操作留痕。支付与 AI 均为模拟。</div>
+            <div className="note">订单可在订单页处理售后；用户仅查看；资源可在资源页管理；需求可在需求页审核，操作留痕。支付与 AI 均为模拟。</div>
             <div className="sec">
               <h2>订单状态</h2>
               <div id="orderBreakdown">
@@ -786,19 +884,65 @@ export default function AdminDashboard() {
             <div className="search-row">
               <SearchBox id="search-resources" label="搜索资源" placeholder="输入资源名、分类或城市…"
                 value={query} onChange={setQuery} resultCount={q ? filteredResources.length : null} />
+              <button type="button" className="btn-export" onClick={() => openResForm(null)}>添加资源</button>
             </div>
+            <div className="note">管理端写资源会改库存/容量/详情，直接影响档期余量、推荐与统计；操作留痕。价格输入元，保存时换算为分。图片只填静态路径（/images/…），不上传。</div>
+            {resForm ? (
+              <fieldset className="tag-rule">
+                <legend>{resForm.id === null ? "添加资源" : "编辑资源：" + resForm.name}</legend>
+                <label>资源名称 <input type="text" value={resForm.name} maxLength={80} onChange={(e) => editResForm("name", e.target.value)} /></label>
+                <label>分类 <select value={resForm.category} onChange={(e) => editResForm("category", e.target.value)}>
+                  {CATS.map(([id, name]) => (<option key={id} value={id}>{name}</option>))}
+                </select></label>
+                <label>城市 <input type="text" value={resForm.city} maxLength={30} onChange={(e) => editResForm("city", e.target.value)} /></label>
+                <label>价格（元） <input type="number" min={0} step="0.01" value={resForm.priceYuan} onChange={(e) => editResForm("priceYuan", e.target.value)} /></label>
+                <label>单位 <input type="text" value={resForm.unit} maxLength={10} onChange={(e) => editResForm("unit", e.target.value)} /></label>
+                <label>容量 <input type="number" min={0} value={resForm.capacity} onChange={(e) => editResForm("capacity", e.target.value)} /></label>
+                <label>库存 <input type="number" min={0} value={resForm.stock} onChange={(e) => editResForm("stock", e.target.value)} /></label>
+                <label>状态 <select value={resForm.status} onChange={(e) => editResForm("status", e.target.value)}>
+                  <option value="published">上架</option><option value="draft">下架</option>
+                </select></label>
+                <label>图片路径 <input type="text" value={resForm.image} maxLength={200} placeholder="/images/…" onChange={(e) => editResForm("image", e.target.value)} /></label>
+                <label>介绍 <input type="text" value={resForm.description} maxLength={3000} onChange={(e) => editResForm("description", e.target.value)} /></label>
+                <div>
+                  <button type="button" className="btn-export" disabled={resBusyId !== null} onClick={saveResForm}>{resBusyId !== null ? "保存中…" : "保存"}</button>{" "}
+                  <button type="button" className="btn-resolve" onClick={() => setResForm(null)}>取消</button>
+                </div>
+              </fieldset>
+            ) : null}
             <div className="tbl-wrap">
               <table>
-                <thead><tr><th scope="col" aria-sort={ariaSort("resources", "name")}>名称<SortButton label="名称" sortKey="name" tableId="resources" sort={sorts.resources} onToggle={toggleSort} /></th><th scope="col">分类</th><th scope="col">城市</th><th scope="col" className="num" aria-sort={ariaSort("resources", "price")}>价格<SortButton label="价格" sortKey="price" tableId="resources" sort={sorts.resources} onToggle={toggleSort} /></th><th scope="col" className="num" aria-sort={ariaSort("resources", "stock")}>库存<SortButton label="库存" sortKey="stock" tableId="resources" sort={sorts.resources} onToggle={toggleSort} /></th></tr></thead>
+                <thead><tr><th scope="col" aria-sort={ariaSort("resources", "name")}>名称<SortButton label="名称" sortKey="name" tableId="resources" sort={sorts.resources} onToggle={toggleSort} /></th><th scope="col">分类</th><th scope="col">城市</th><th scope="col" className="num" aria-sort={ariaSort("resources", "price")}>价格<SortButton label="价格" sortKey="price" tableId="resources" sort={sorts.resources} onToggle={toggleSort} /></th><th scope="col" className="num" aria-sort={ariaSort("resources", "stock")}>库存<SortButton label="库存" sortKey="stock" tableId="resources" sort={sorts.resources} onToggle={toggleSort} /></th><th scope="col">状态</th><th scope="col">操作</th></tr></thead>
                 <tbody id="resBody">
                   {resources.length
                     ? (filteredResources.length ? sortedResources.map((r) => (
-                      <tr key={r.id}>
-                        <td>{r.name}</td><td>{r.category}</td><td>{r.city}</td>
-                        <td className="num">{fmtMoney(r.price)}</td><td className="num">{r.stock}</td>
-                      </tr>
-                    )) : searchEmpty(5))
-                    : <tr><td colSpan="5"><div className="empty">暂无资源</div></td></tr>}
+                      <Fragment key={r.id}>
+                        <tr>
+                          <td>{r.name}</td><td>{catZh(r.category)}</td><td>{r.city}</td>
+                          <td className="num">{fmtMoney(r.price)}</td><td className="num">{r.stock}</td>
+                          <td>{r.status === "published" ? "上架" : "下架"}</td>
+                          <td>
+                            <span className="row-actions">
+                              <button type="button" className="btn-view" disabled={resBusyId !== null} onClick={() => openResForm(r)}>编辑</button>
+                              <button type="button" className="btn-view" disabled={resBusyId !== null} onClick={() => doToggleResStatus(r)}>{resBusyId === r.id ? "处理中…" : (r.status === "published" ? "下架" : "上架")}</button>
+                              {r.category === "show" ? (
+                                <button type="button" className="btn-view" disabled={resBusyId !== null} onClick={() => doSyncRes(r)}>{resBusyId === r.id ? "处理中…" : "同步渠道"}</button>
+                              ) : null}
+                            </span>
+                          </td>
+                        </tr>
+                        {r.meta && (r.meta.lastSync || r.meta.syncResult) ? (
+                          <tr>
+                            <td colSpan="7">
+                              {r.meta.lastSync ? (<span>最近模拟同步：{String(r.meta.lastSync).slice(0, 19).replace("T", " ")}</span>) : null}
+                              {r.meta.lastSync && r.meta.syncResult ? "　" : null}
+                              {r.meta.syncResult ? (<span>渠道同步结果：{r.meta.syncResult}</span>) : null}
+                            </td>
+                          </tr>
+                        ) : null}
+                      </Fragment>
+                    )) : searchEmpty(7))
+                    : <tr><td colSpan="7"><div className="empty">暂无资源</div></td></tr>}
                 </tbody>
               </table>
             </div>

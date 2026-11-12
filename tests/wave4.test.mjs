@@ -788,6 +788,274 @@ test("wave4 #14 inbox: end-to-end, approve writes the decision message (reuses #
   assert.ok(decision.content.includes("模拟"), decision.content);
 });
 
+// --- #16 / #22: admin resource management ----------------------------------
+// Q13 DECIDED 2026-11-12 (Lam, option (a)): admin manages resources in
+// Wave 4, after #14. Q14 DECIDED: POST /api/sync is NOT built, so there
+// is no test for it. Sync is FULLY SIMULATED (meta + audit only, no
+// external call) and labelled so in the response and in syncResult.
+
+async function deleteResource(id) {
+  const pool = new pg.Pool({ connectionString: DATABASE_URL, max: 1 });
+  try {
+    await pool.query("DELETE FROM resources WHERE id=$1", [id]);
+  } finally {
+    await pool.end();
+  }
+}
+
+async function auditRow(action) {
+  const pool = new pg.Pool({ connectionString: DATABASE_URL, max: 1 });
+  try {
+    const { rows } = await pool.query(
+      "SELECT * FROM audit_logs WHERE action=$1 ORDER BY id DESC LIMIT 1",
+      [action],
+    );
+    return rows[0] || null;
+  } finally {
+    await pool.end();
+  }
+}
+
+test("wave4 #16: create with missing/invalid fields is 400", async () => {
+  const admin = await adminLogin();
+  const bad = [
+    [{}, "empty body"],
+    [{ name: "测试", category: "show", city: "南宁", unit: "张" }, "missing price"],
+    [{ name: "测试", category: "nope", city: "南宁", price: 100, unit: "张" }, "bad category"],
+    [{ name: "测试", category: "show", city: "南宁", price: -1, unit: "张" }, "negative price"],
+    [{ name: "测试", category: "show", city: "南宁", price: 10.5, unit: "张" }, "non-integer price"],
+    [{ name: "测试", category: "show", city: "南宁", price: 100, unit: "张", meta: "not-an-object" }, "meta as string"],
+    [{ name: "测试", category: "show", city: "南宁", price: 100, unit: "张", status: "archived" }, "bad status"],
+    [{ name: "测试", category: "show", city: "南宁", price: 100, unit: "张", stock: -5 }, "negative stock"],
+  ];
+  for (const [body, why] of bad) {
+    const r = await req("/api/admin/resources", { method: "POST", token: admin, body });
+    assert.equal(r.status, 400, `${why}: ${JSON.stringify(r.json)}`);
+  }
+});
+
+test("wave4 #16: create + edit happy path (admin) with a meta object", async () => {
+  const admin = await adminLogin();
+  const created = await req("/api/admin/resources", {
+    method: "POST",
+    token: admin,
+    body: {
+      name: "Wave4测试资源", category: "show", city: "南宁",
+      price: 28000, unit: "张", description: "测试用资源",
+      stock: 50, meta: { duration: 90, team: "测试团队" },
+    },
+  });
+  assert.equal(created.status, 200, JSON.stringify(created.json));
+  assert.equal(created.json.ok, true);
+  assert.equal(typeof created.json.id, "number");
+  assert.equal(created.json.resource.name, "Wave4测试资源");
+  assert.equal(created.json.resource.price, 28000);
+  assert.equal(created.json.resource.status, "published");
+  assert.equal(created.json.resource.meta.duration, 90);
+  assert.equal(created.json.resource.meta.team, "测试团队");
+  const id = created.json.id;
+  try {
+    const edited = await req(`/api/admin/resources/${id}`, {
+      method: "PATCH",
+      token: admin,
+      body: { name: "Wave4测试资源改", price: 30000, meta: { duration: 120 } },
+    });
+    assert.equal(edited.status, 200, JSON.stringify(edited.json));
+    assert.equal(edited.json.resource.name, "Wave4测试资源改");
+    assert.equal(edited.json.resource.price, 30000);
+    assert.equal(edited.json.resource.meta.duration, 120);
+    // Untouched fields survive a partial edit.
+    assert.equal(edited.json.resource.city, "南宁");
+    assert.equal(edited.json.resource.stock, 50);
+    assert.equal(edited.json.resource.status, "published");
+    // The public read sees the edited row (still published).
+    const pub = await req(`/api/resources/${id}`);
+    assert.equal(pub.status, 200, JSON.stringify(pub.json));
+    assert.equal(pub.json.resource.name, "Wave4测试资源改");
+    // The create wrote an audit row.
+    const row = await auditRow("新增资源");
+    assert.ok(row, "expected an audit row for 新增资源");
+    assert.equal(row.detail, "Wave4测试资源");
+  } finally {
+    await deleteResource(id);
+  }
+});
+
+test("wave4 #16: non-admin gets 403 on create, edit and sync", async () => {
+  const user = await login();
+  const shows = await listByCategory("show");
+  const s = shows[0];
+  const create = await req("/api/admin/resources", {
+    method: "POST",
+    token: user,
+    body: { name: "x", category: "show", city: "南宁", price: 100, unit: "张" },
+  });
+  assert.equal(create.status, 403, JSON.stringify(create.json));
+  const edit = await req(`/api/admin/resources/${s.id}`, {
+    method: "PATCH",
+    token: user,
+    body: { name: "x" },
+  });
+  assert.equal(edit.status, 403, JSON.stringify(edit.json));
+  const sync = await req(`/api/admin/resources/${s.id}/sync`, { method: "POST", token: user });
+  assert.equal(sync.status, 403, JSON.stringify(sync.json));
+  // Anonymous is 403 too (the admin gate checks role, not just login).
+  const anonCreate = await req("/api/admin/resources", {
+    method: "POST",
+    body: { name: "x", category: "show", city: "南宁", price: 100, unit: "张" },
+  });
+  assert.equal(anonCreate.status, 403, JSON.stringify(anonCreate.json));
+  const anonSync = await req(`/api/admin/resources/${s.id}/sync`, { method: "POST" });
+  assert.equal(anonSync.status, 403, JSON.stringify(anonSync.json));
+  // Nothing changed on the resource.
+  const after = await req(`/api/resources/${s.id}`);
+  assert.equal(after.status, 200);
+  assert.notEqual(after.json.resource.name, "x");
+});
+
+test("wave4 #16: sync on a non-show resource is 400 (only show may sync)", async () => {
+  const admin = await adminLogin();
+  const venues = await listByCategory("venue");
+  const v = venues[0];
+  const r = await req(`/api/admin/resources/${v.id}/sync`, { method: "POST", token: admin });
+  assert.equal(r.status, 400, JSON.stringify(r.json));
+  assert.ok(r.json.error.includes("剧目"), JSON.stringify(r.json));
+  // And syncing a missing resource is 404, not 400.
+  const missing = await req("/api/admin/resources/999999/sync", { method: "POST", token: admin });
+  assert.equal(missing.status, 404, JSON.stringify(missing.json));
+  const missingEdit = await req("/api/admin/resources/999999", {
+    method: "PATCH",
+    token: admin,
+    body: { name: "x" },
+  });
+  assert.equal(missingEdit.status, 404, JSON.stringify(missingEdit.json));
+});
+
+test("wave4 #16: sync on a show writes meta.channels/lastSync/syncResult + audit, no external call", async () => {
+  const admin = await adminLogin();
+  const shows = await listByCategory("show");
+  const s = shows.find((r) => r.category === "show");
+  assert.ok(s, "need a show resource");
+  const r = await req(`/api/admin/resources/${s.id}/sync`, { method: "POST", token: admin });
+  assert.equal(r.status, 200, JSON.stringify(r.json));
+  assert.equal(r.json.ok, true);
+  // The response itself states no external request was sent, and the
+  // sync is labelled simulated — there is no external call to make.
+  assert.ok(r.json.message.includes("未发送外部请求"), JSON.stringify(r.json));
+  assert.ok(r.json.message.includes("模拟同步"), JSON.stringify(r.json));
+  const after = await req(`/api/resources/${s.id}`);
+  assert.equal(after.status, 200, JSON.stringify(after.json));
+  assert.deepEqual(after.json.resource.meta.channels, ["抖音", "小红书", "大麦"]);
+  assert.equal(typeof after.json.resource.meta.lastSync, "string");
+  assert.ok(after.json.resource.meta.lastSync.length > 0);
+  assert.equal(after.json.resource.meta.syncResult, "三渠道内容同步成功（模拟）");
+  const row = await auditRow("剧目渠道同步");
+  assert.ok(row, "expected an audit row for 剧目渠道同步");
+  assert.ok(row.detail.includes(s.name), row.detail);
+  assert.ok(row.detail.includes("（模拟）"), row.detail);
+});
+
+test("wave4 #16: status toggle published/draft works", async () => {
+  const admin = await adminLogin();
+  const created = await req("/api/admin/resources", {
+    method: "POST",
+    token: admin,
+    body: { name: "Wave4上下架测试", category: "creative", city: "桂林", price: 5000, unit: "件" },
+  });
+  assert.equal(created.status, 200, JSON.stringify(created.json));
+  const id = created.json.id;
+  try {
+    assert.equal(created.json.resource.status, "published");
+    const down = await req(`/api/admin/resources/${id}`, {
+      method: "PATCH",
+      token: admin,
+      body: { status: "draft" },
+    });
+    assert.equal(down.status, 200, JSON.stringify(down.json));
+    assert.equal(down.json.resource.status, "draft");
+    // A draft is hidden from the public read, like any unpublished row.
+    const hidden = await req(`/api/resources/${id}`);
+    assert.equal(hidden.status, 404, JSON.stringify(hidden.json));
+    const up = await req(`/api/admin/resources/${id}`, {
+      method: "PATCH",
+      token: admin,
+      body: { status: "published" },
+    });
+    assert.equal(up.status, 200, JSON.stringify(up.json));
+    assert.equal(up.json.resource.status, "published");
+    const visible = await req(`/api/resources/${id}`);
+    assert.equal(visible.status, 200, JSON.stringify(visible.json));
+    assert.equal(visible.json.resource.name, "Wave4上下架测试");
+    // An invalid status is 400 and leaves the row published.
+    const bad = await req(`/api/admin/resources/${id}`, {
+      method: "PATCH",
+      token: admin,
+      body: { status: "archived" },
+    });
+    assert.equal(bad.status, 400, JSON.stringify(bad.json));
+    assert.equal((await req(`/api/resources/${id}`)).json.resource.status, "published");
+  } finally {
+    await deleteResource(id);
+  }
+});
+
+// --- #16 gap fix: admin list endpoint --------------------------------------
+// GET /api/admin/resources exists because the public list only returns
+// published rows: a resource set to draft vanished from the admin table
+// on reload and could no longer be re-published from the UI. The public
+// GET /api/resources/:id on a draft -> 404 is already covered by the
+// status-toggle test above, so it is not duplicated here.
+
+test("wave4 #16: admin list includes drafts, newest first; public list hides them", async () => {
+  const admin = await adminLogin();
+  const created = await req("/api/admin/resources", {
+    method: "POST",
+    token: admin,
+    body: { name: "Wave4管理端列表测试", category: "creative", city: "桂林", price: 5000, unit: "件" },
+  });
+  assert.equal(created.status, 200, JSON.stringify(created.json));
+  const id = created.json.id;
+  try {
+    const down = await req(`/api/admin/resources/${id}`, {
+      method: "PATCH",
+      token: admin,
+      body: { status: "draft" },
+    });
+    assert.equal(down.status, 200, JSON.stringify(down.json));
+    assert.equal(down.json.resource.status, "draft");
+    // The admin list still shows the draft after the status change
+    // (this is the reload case: a draft must stay manageable).
+    const list = await req("/api/admin/resources", { token: admin });
+    assert.equal(list.status, 200, JSON.stringify(list.json));
+    assert.ok(Array.isArray(list.json.resources) && list.json.resources.length > 0);
+    const row = list.json.resources.find((r) => r.id === id);
+    assert.ok(row, "draft resource missing from the admin list");
+    assert.equal(row.status, "draft");
+    assert.equal(row.name, "Wave4管理端列表测试");
+    // Same row shape as the public list (resourceRow): tags/meta parsed.
+    assert.ok(Array.isArray(row.tags), JSON.stringify(row));
+    assert.ok(row.meta && typeof row.meta === "object", JSON.stringify(row));
+    // Newest first: ids strictly descending.
+    const ids = list.json.resources.map((r) => r.id);
+    assert.ok(ids.every((v, i) => i === 0 || ids[i - 1] > v), JSON.stringify(ids));
+    // The public list hides the same draft.
+    const pub = await req("/api/resources");
+    assert.equal(pub.status, 200, JSON.stringify(pub.json));
+    assert.ok(!pub.json.resources.some((r) => r.id === id), "draft leaked into the public list");
+  } finally {
+    await deleteResource(id);
+  }
+});
+
+test("wave4 #16: non-admin GET /api/admin/resources is 403", async () => {
+  const user = await login();
+  const r = await req("/api/admin/resources", { token: user });
+  assert.equal(r.status, 403, JSON.stringify(r.json));
+  // Anonymous is 403 too (the admin gate checks role, not just login).
+  const anon = await req("/api/admin/resources");
+  assert.equal(anon.status, 403, JSON.stringify(anon.json));
+});
+
 // --- #13 B-035: a re-requested refund must not carry the old decision ----
 // paid -> refund (A) -> rejectRefund (B) -> paid -> refund (C): the second
 // request overwrites refund_reason with C and clears refund_decision, so

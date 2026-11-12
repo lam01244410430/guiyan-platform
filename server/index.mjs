@@ -1,7 +1,11 @@
-// Guiyan API — customer routes and a read-only admin dashboard.
+// Guiyan API — customer routes and an admin dashboard.
 //
 // A focused subset of the original group demo API (guiyan-demo/server/
-// index.mjs). Admin dashboard added 2026-11-10, read-only.
+// index.mjs). Admin dashboard added 2026-11-10, read-only; Wave 4 #16
+// (2026-11-12) adds admin resource management
+// (server/routes/admin-resources.mjs) — the only admin writes to
+// resources; everything else admin stays read-only except demand
+// review, alert handling, tag rules and CSV export.
 // JSON only; Chinese canonical data (UI translation
 // stays client-side); all money in INTEGER cents; parameterised queries
 // only; every write runs inside a transaction (see createRequestHandler).
@@ -38,6 +42,7 @@ import { storageHealth, storageUpload, storageUrl, storageDelete } from "./route
 import { adminStats, adminOrders, adminUsers, adminDemands } from "./routes/admin.mjs";
 import { adminStatsSeries, adminAnalysis, adminAlerts, adminOrdersCsv, adminReviewDemand, adminAuditLogs } from "./routes/admin-insights.mjs";
 import { adminTagRules } from "./routes/tag-rules.mjs";
+import { createAdminResource, editAdminResource, listAdminResources, syncAdminResource } from "./routes/admin-resources.mjs";
 
 // Commit before sending the response, so the next request sees saved changes.
 function createRequestHandler(db, handle) {
@@ -183,6 +188,10 @@ export async function createApp({ database }) {
       if (await adminReviewDemand(ctx)) return;
       if (await adminAuditLogs(ctx)) return;
       if (await adminTagRules(ctx)) return;
+      if (await listAdminResources(ctx)) return;
+      if (await createAdminResource(ctx)) return;
+      if (await editAdminResource(ctx)) return;
+      if (await syncAdminResource(ctx)) return;
 
       send({ error: "接口不存在" }, 404);
     } catch (e) {

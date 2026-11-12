@@ -353,3 +353,58 @@ Q9 做 `PATCH /api/messages/read-all`；未读徽标在用户端收件箱按钮�
 评价/评论表单与接口（#24）、给其他用户发消息/用户间聊天、`POST /api/sync`（Q14 默认值：不做）、
 改服务端搜索（ILIKE 保持原样）、改 `cat`/`city` 过滤与排序逻辑。
 
+### #16 / #22 管理端资源管理（admin 资源管理；本项原为 gate，Lam 已批准在 Wave 4 内做）
+
+- **批准：** Q13 已决 2026-11-12 ~12:49 +08，Lam："sửa resource"，选 (a) 在 Wave 4 内做，
+  在 #12–#15 之后。**本项原为 gate（需 Lam 另行批准，见本章路线图表第 6 行），现已批准，
+  不再是 gate。** 默认值：新建资源 `status = published`；路由放在新文件
+  `server/routes/admin-resources.mjs`（`admin.mjs` 只有 92 行 4 个 GET 接口，保持干净，不往里加写接口）。
+- **权限变化（Wave 4 中最大的一次）：** 管理端此前按设计只读（`server/index.mjs:1`：
+  "Admin dashboard added 2026-11-10, read-only"；`admin.mjs` 只有 4 个 GET 接口；
+  资源视图 `AdminDashboard.jsx:711-731` 是只读表，0 个按钮）。做 #16 即管理端从只读变为
+  可管理资源；四个接口一律只允许 admin（`assert(session?.role === "admin", ...)`，
+  与 `admin.mjs:12` 同一写法），非 admin 一律 403。
+- 接口（新文件 `server/routes/admin-resources.mjs`，在 `server/index.mjs` 按其他路由注册）：
+  `POST /api/admin/resources`（新建；必填 `name/category/city/price/unit`，
+  `price` 为整数分 ≥ 0，按 Lam 的金额约定；`category` 须属于 `CATS` 的 10 个 id；
+  `meta` 若提供须为 JSON 对象，拒绝字符串；`status` 只接受 `published/draft`，
+  新建默认 `published`；写审计，沿用标签规则 PATCH 的审计先例 `更新标签规则`）；
+  `PATCH /api/admin/resources/:id`（修改；只校验提供的字段；资源不存在 → 404）；
+  `POST /api/admin/resources/:id/sync`（渠道同步；只允许 category `show`，与 zhou 一致，
+  非 show → 400；**完全模拟**——只写 `meta.channels/lastSync/syncResult` + 审计，
+  不发任何外部请求，响应文案须写"未发送外部请求"，`syncResult` 须标注"（模拟）"）；
+  `GET /api/admin/resources`（管理端列表；只允许 admin，返回全部资源含 draft，
+  按 id 倒序即最新在前，行结构与公开列表相同，不分页、不缓存）。
+- UI（`AdminDashboard.jsx` 资源视图）：新增 添加资源（新建表单）/ 编辑（修改表单）/
+  上架/下架（经 PATCH 改 `status`）/ 同步渠道（只对 show 资源，调 sync）。
+  meta 里有 `lastSync`/`syncResult` 时显示 最近模拟同步 / 渠道同步结果。
+  复用现有管理端模式（`reviewBusyId` 处理中禁用按钮；写操作审计留痕）。
+  金额：界面输入元，调接口前换算为整数分（服务端只收分）。
+- 不做：`POST /api/sync`（Q14 已决：不做——该接口会插入一单模拟已付款订单，
+  污染真实统计数据）；图片上传（`image` 仍为静态路径字符串 `/images/...`，不在 #16 做上传）。
+- 风险（Lam 已知悉后批准）：管理端写资源会改 `stock/capacity/meta`，直接影响
+  档期余量（#12）、推荐（#11）与统计；除 admin-only 门禁外本项不另加代码约束，
+  改价/改库存的权限即 admin 权限本身。另注意：公开接口 `GET /api/resources`
+  只返回已发布资源，下架为 draft 的资源在列表刷新后不再出现、无法再从界面
+  上架——因此管理端列表改取 `GET /api/admin/resources`（只允许 admin，返回
+  全部资源含 draft，按 id 倒序），draft 在刷新后仍可见、可重新上架；写操作
+  后仍用响应更新本地行，免一次重拉。
+- i18n：新增 20 个 key（资源表单与操作文案），中越英三语集合相等，共 291 key
+  （测试 `wave3.test.mjs` 的计数同步更新）。
+- 测试：`tests/wave4.test.mjs` 追加 8 个 API 测试：新建缺/错字段 → 400；
+  新建 + 修改 happy path（admin，含 meta 对象）；非 admin 调三个接口均 → 403；
+  sync 非 show 资源 → 400；sync show 资源写 `meta.channels/lastSync/syncResult` + 审计，
+  且不发外部请求；上架/下架切换 `published/draft` 正常；管理端列表返回 draft
+  资源（新建→下架→列表仍含该 draft，且公开列表不含它）；非 admin 调管理端列表 → 403。
+  UI（表单、按钮、同步结果显示）无 jsdom 测试架，只做 build + 浏览器 live 检查。
+
+### 开放问题 Q13/Q14（plan §7，#16 已决）
+
+Q13 (a) 在 Wave 4 内做，排在 #14 之后；新建默认 `status = published`；
+路由在新文件 `server/routes/admin-resources.mjs`。Q14 不做 `POST /api/sync`
+（插入模拟已付款订单会污染真实统计）。以上均为 Lam 已批准的决定，非工作默认值。
+
+### 不属于 #16
+
+图片上传、批量导入资源、改档期/推荐/统计的计算逻辑、改公开 `GET /api/resources` 的过滤规则、真实渠道对接
+（同步永远是模拟，标注"（模拟）"与"未发送外部请求"）。
