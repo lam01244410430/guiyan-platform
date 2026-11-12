@@ -3,7 +3,6 @@
   <view class="sec-title serif">{{L.aiTitle}}</view>
   <view class="sec-sub">{{L.aiSub}}</view>
   <view class="note">{{L.aiNote}}</view>
-  <view class="simnote">{{L.simAi}}</view>
   <view class="section">
     <view class="chatlog">
       <block wx:for="{{msgs}}" wx:key="index">

@@ -189,7 +189,6 @@ export default function AiChat({ lang }) {
           <div className="ai-panel-head">
             <span className="ai-mark">桂演</span>
             <b>{t("aiChatTitle")}</b>
-            <span className="ai-trial">{t("aiChatTrial")}</span>
             <button type="button" className="ai-close" aria-label={t("aiChatClose")} onClick={close}>✕</button>
           </div>
           <p className="ai-note">{t("aiChatNote")}</p>

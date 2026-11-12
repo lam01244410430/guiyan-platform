@@ -43,8 +43,7 @@ Page({
       'favOn', 'favOff', 'flow', 'viewsMeta', 'priceMeta', 'orderCreated',
       'actConfirm', 'actCancel', 'actPay', 'actComplete', 'actRefund',
       'doneNote', 'statusToast', 'stPending', 'stConfirmed', 'stPaid',
-      'stCompleted', 'stCancelled', 'stRefunded', 'simPay', 'simNote',
-      'ticketTitle', 'ticketCode', 'datePh', 'modalCancel', 'modalRefund',
+      'stCompleted', 'stCancelled', 'stRefunded', 'simPay',       'ticketTitle', 'ticketCode', 'datePh', 'modalCancel', 'modalRefund',
       'confirmBtn', 'cancelBtn', 'bookFirst', 'viewsUnit', 'myTickets'];
     var L = {};
     keys.forEach(function (k) { L[k] = i18n.t(k, lang); });

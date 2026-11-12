@@ -80,8 +80,6 @@ var STR = {
     tabHome: "首页",
     langLabel: "语言",
     simPay: "模拟支付",
-    simNote: "演示环境：不产生真实交易",
-    simAi: "规则客服（模拟）· 未接入大模型",
     favTitle: "我的收藏",
     emptyFav: "还没有收藏，点开资源按「收藏」即可保存。",
     emptyOrdersMini: "这里还没有订单。挑一项资源点「立即预订」，即可体验完整流程：预订 → 确认 → 支付 → 完成。",
@@ -133,8 +131,6 @@ var STR = {
     wxLoginFailed: "微信登录失败，请重试或关联已有账号",
     linkFailed: "关联失败，请检查账号或密码",
     loggedAs: "已登录：{name}",
-    onlineMode: "在线模式",
-    offlineMode: "离线模式",
   },
   vi: {
     brandTag: "Nền tảng diễn nghệ Quảng Tây",
@@ -213,8 +209,6 @@ var STR = {
     tabHome: "Trang chủ",
     langLabel: "Ngôn ngữ",
     simPay: "Thanh toán mô phỏng",
-    simNote: "Môi trường demo: không phát sinh giao dịch thật",
-    simAi: "Trợ lý theo quy tắc (mô phỏng) · chưa kết nối mô hình AI",
     favTitle: "Đã lưu",
     emptyFav: "Chưa có mục nào đã lưu — mở một tài nguyên và nhấn lưu.",
     emptyOrdersMini: "Chưa có đơn hàng nào. Chọn một tài nguyên và nhấn “Đặt ngay” để trải nghiệm đủ quy trình: đặt chỗ → xác nhận → thanh toán → hoàn tất.",
@@ -266,8 +260,6 @@ var STR = {
     wxLoginFailed: "Đăng nhập WeChat thất bại — thử lại hoặc liên kết tài khoản đã có",
     linkFailed: "Liên kết thất bại — kiểm tra tài khoản hoặc mật khẩu",
     loggedAs: "Đã đăng nhập: {name}",
-    onlineMode: "Đang trực tuyến",
-    offlineMode: "Ngoại tuyến",
   },
   en: {
     brandTag: "Guangxi Performing Arts",
@@ -346,8 +338,6 @@ var STR = {
     tabHome: "Home",
     langLabel: "Language",
     simPay: "Simulated payment",
-    simNote: "Demo only — no real transaction",
-    simAi: "Rule-based assistant (simulated) · no AI model connected",
     favTitle: "My favorites",
     emptyFav: "Nothing saved yet — open a resource and tap favorite.",
     emptyOrdersMini: "No orders yet. Open a resource and tap “Book now” to try the full flow: book → confirm → pay → complete.",
@@ -399,8 +389,6 @@ var STR = {
     wxLoginFailed: "WeChat sign-in failed — try again or link an existing account",
     linkFailed: "Linking failed — check your username or password",
     loggedAs: "Signed in as {name}",
-    onlineMode: "Online",
-    offlineMode: "Offline",
   }
 };
 

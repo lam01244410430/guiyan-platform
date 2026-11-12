@@ -26,8 +26,7 @@
       <view>{{L.totalLabel}}</view><view class="price">{{total}}</view>
     </view>
     <view class="btn" bindtap="book">{{L.bookNow}}</view>
-    <view class="simnote">{{L.simNote}}</view>
-  </view>
+    </view>
 
   <block wx:if="{{order}}">
     <view class="card">

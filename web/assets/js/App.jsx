@@ -489,8 +489,6 @@ export default function App() {
         navOpen={navOpen} onToggleNav={() => setNavOpen((v) => !v)} onNavLinkClick={() => setNavOpen(false)}
       />
 
-      <div className="wx-banner">{t("wxBanner")}</div>
-
       {/* ================= HERO ================= */}
       <div className="hero" id="top">
         <img className="hero-img" src={heroImg} alt="广西民族艺术舞台夜景" />
@@ -739,69 +737,10 @@ export default function App() {
       {/* ================= WECHAT MINI PROGRAM ================= */}
       <section id="wechat" style={{ paddingTop: 26 }}>
         <div className="wrap">
-          <div className="sec-head">
-            <h2><span>{t("wxTitle")}</span><span className="sub">{t("wxSub")}</span></h2>
-            <p>{t("wxNote")}</p>
-          </div>
-          <div className="wx-grid">
-            <div className="wx-copy">
-              <h3>{t("wxCopyTitle")}</h3>
-              <p>{t("wxCopyText")}</p>
-              <ul>
-                {[t("wxB1"), t("wxB2"), t("wxB3")].map((b, i) => (
-                  <li key={i}>
-                    <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round"><path d="M20 6L9 17l-5-5" /></svg>
-                    <span>{b}</span>
-                  </li>
-                ))}
-              </ul>
-              <div className="wx-steps">
-                <div><b>01</b><span>{t("wxS1")}</span></div>
-                <div><b>02</b><span>{t("wxS2")}</span></div>
-                <div><b>03</b><span>{t("wxS3")}</span></div>
-              </div>
-              <p style={{ marginTop: 16 }}><a href="https://github.com/lam01244410430/guiyan-platform.git" target="_blank" rel="noopener" style={{ fontWeight: 700 }}>{t("wxRepo")}</a></p>
-            </div>
-            <div className="wx-phone" role="region" aria-label="WeChat mini program preview">
-              <div className="wx-screen">
-                <div className="wx-status"><span>9:41</span><span>5G&nbsp;&nbsp;▰▰▰</span></div>
-                <div className="wx-head"><b><span className="zh">桂演</span> · Guiyan</b><span className="wx-capsule">···&nbsp;&nbsp;│&nbsp;&nbsp;◎</span></div>
-                <div className="wx-search">
-                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#999" strokeWidth="2" strokeLinecap="round"><circle cx="11" cy="11" r="7" /><path d="M20 20l-3.5-3.5" /></svg>
-                  <input id="wxQ" type="search" value={store.wxQ} onChange={(e) => { store.wxQ = e.target.value; if (store.wxTab === "home") store.wxTab = "catalog"; rerender(); }} placeholder={t("heroSearchPhShort")} aria-label="Search mini program" />
-                </div>
-                <div className="wx-chips" id="wxChips" style={{ display: (store.wxTab === "home" || store.wxTab === "catalog") ? "" : "none" }}>
-                  <button type="button" data-wxcat="all" className={store.wxCat === "all" ? "on" : ""} onClick={() => { store.wxCat = "all"; if (store.wxTab === "home") store.wxTab = "catalog"; rerender(); }}>{t("allChip")}</button>
-                  {CATS.map((c) => (
-                    <button key={c[0]} type="button" data-wxcat={c[0]} className={store.wxCat === c[0] ? "on" : ""}
-                      onClick={() => { store.wxCat = c[0]; if (store.wxTab === "home") store.wxTab = "catalog"; rerender(); }}>{catName(c[0])}</button>
-                  ))}
-                </div>
-                <div className="wx-body" id="wxBody">
-                  <WxBody
-                    lang={lang} onOpenDetail={openDetail}
-                    onSelectDemand={(i) => {
-                      const dem = DEMANDS[i];
-                      const m = RES.map(function (r, idx) { return { r, i: idx }; }).filter(function (o) { return o.r[1] === dem[1] && o.r[3] <= dem[2]; }).sort(function (a, b) { return b.r[5] - a.r[5]; })[0];
-                      if (m) openDetail(m.i);
-                    }}
-                  />
-                </div>
-                <nav className="wx-tabbar" id="wxTabs">
-                  {[
-                    ["home", "wxTabHome", <><svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round"><path d="M3 11l9-8 9 8" /><path d="M5 10v10h14V10" /></svg><span>{t("wxTabHome")}</span></>],
-                    ["catalog", "navCatalog", <><svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9"><rect x="3" y="3" width="8" height="8" rx="1.5" /><rect x="13" y="3" width="8" height="8" rx="1.5" /><rect x="3" y="13" width="8" height="8" rx="1.5" /><rect x="13" y="13" width="8" height="8" rx="1.5" /></svg><span>{t("navCatalog")}</span></>],
-                    ["demands", "navDemands", <><svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round"><path d="M4 6h16M4 12h16M4 18h10" /></svg><span>{t("navDemands")}</span></>],
-                    ["orders", "myTickets", <><svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round"><path d="M5 4h14v16l-2.3-1.6L14.4 20l-2.4-1.6L9.6 20l-2.3-1.6L5 20z" /><path d="M9 8h6M9 12h6" /></svg><span>{t("myTickets")}</span><b id="wxOrderCount" style={{ display: store.orders.length ? "grid" : "none" }}>{store.orders.length}</b></>],
-                  ].map(([tab, , content]) => (
-                    <button key={tab} type="button" data-wxtab={tab} className={store.wxTab === tab ? "on" : ""}
-                      onClick={() => { store.wxTab = tab; rerender(); }}>
-                      {content}
-                    </button>
-                  ))}
-                </nav>
-              </div>
-            </div>
+          <div className="wx-mini-card">
+            <h2>{t("wxCardTitle")}</h2>
+            <p>{t("wxCardText")}</p>
+            <p className="wx-mini-hint">{t("wxCardHint")}</p>
           </div>
         </div>
       </section>
@@ -974,82 +913,6 @@ export default function App() {
 
       <AiChat lang={lang} />
       <Toast msg={toastMsg} />
-    </>
-  );
-}
-
-/* WeChat mini-program preview pane (same data & booking as the web page). */
-function WxBody({ lang, onOpenDetail, onSelectDemand }) {
-  function wxCard(o) {
-    const r = o.r;
-    return (
-      <button key={o.i} type="button" className="wx-card" data-wxopen={o.i} onClick={() => onOpenDetail(o.i)}>
-        <img src={CATIMG[r[1]]} alt={r[0]} loading="lazy" />
-        <span style={{ flex: 1, minWidth: 0 }}>
-          <h4>{r[0]}</h4>
-          <p>{desc(r, lang)}</p>
-          <span style={{ display: "flex", gap: 8, alignItems: "baseline", marginTop: 5 }}>
-            <span className="pr">{money(r[3])}</span>
-            <span className="mt">/ {unitName(r[4])} · {cityName(r[2])} · {r[5]} {t("viewsUnit")}</span>
-          </span>
-        </span>
-      </button>
-    );
-  }
-
-  if (store.wxTab === "orders") {
-    return (
-      <>
-        {store.orders.length ? store.orders.map((o) => {
-          const r = RES[o.idx];
-          return (
-            <div key={o.code} className="wx-order">
-              <b style={{ fontFamily: "'Noto Serif SC',serif" }}>{r[0]}</b><br />
-              <span style={{ color: "#999", fontSize: 11.5 }}>{o.code} · {o.date} · {o.qty} × {unitName(r[4])} · {money(o.total)}</span><br />
-              <span className={"pill " + o.status} style={{ marginTop: 7, display: "inline-block" }}>{t(STATUS[o.status])}</span>
-            </div>
-          );
-        }) : <div className="wx-order" style={{ textAlign: "center", color: "#999", padding: "28px 12px" }} dangerouslySetInnerHTML={{ __html: t("emptyOrders") }}></div>}
-      </>
-    );
-  }
-  if (store.wxTab === "demands") {
-    return (
-      <>
-        {DEMANDS.map((d, i) => (
-          <button key={i} type="button" className="wx-card" data-wxdem={i} onClick={() => onSelectDemand(i)}>
-            <span style={{ flex: 1, minWidth: 0 }}>
-              <h4>{d[0][li()]}</h4>
-              <p>{lang === "zh" ? d[4][1] : lang === "en" ? d[4][2] : d[4][0]}</p>
-              <span style={{ display: "flex", gap: 8, marginTop: 5 }}>
-                <span className="pr">{money(d[2])}</span>
-                <span className="mt">{cityName(d[3])} · {catName(d[1])}</span>
-              </span>
-            </span>
-          </button>
-        ))}
-      </>
-    );
-  }
-  const list = RES.map(function (r, i) { return { r, i }; }).filter(function (o) {
-    if (store.wxTab === "catalog" && store.wxCat !== "all" && o.r[1] !== store.wxCat) return false;
-    /* Wave 4 #14 — same matchesSearch() as the web catalog (no second
-       search implementation); tags from APIRES, fallback has none. */
-    if (store.wxQ && !matchesSearch({ name: o.r[0], description: desc(o.r, lang), city: o.r[2], category: catZh(o.r[1]), tags: APIRES[o.i] ? APIRES[o.i].tags : [] }, store.wxQ)) return false;
-    return true;
-  }).sort(function (a, b) { return b.r[5] - a.r[5]; });
-  if (store.wxTab === "home") {
-    return (
-      <>
-        <div className="wx-hero"><span className="zh">桂演 Guiyan</span><p>{t("heroSub")} · {RES.length} {t("sRes")}</p></div>
-        <div style={{ fontWeight: 800, fontSize: 14, padding: "2px 2px 0" }}>{t("wxFeatured")}</div>
-        {list.slice(0, 4).map(wxCard)}
-      </>
-    );
-  }
-  return (
-    <>
-      {list.length ? list.map(wxCard) : <div className="wx-order" style={{ textAlign: "center", color: "#999", padding: "28px 12px" }}>{t("emptyRes")}</div>}
     </>
   );
 }

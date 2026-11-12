@@ -1,7 +1,6 @@
 <view class="wrap">
 <topbar bind:langchange="onLangChange" />
   <view class="sec-title serif">{{L.myTickets}}</view>
-  <view class="simnote">{{L.simNote}}</view>
 
   <view class="section">
     <view class="sec-title serif" style="font-size:32rpx">{{L.ordersSection}}</view>

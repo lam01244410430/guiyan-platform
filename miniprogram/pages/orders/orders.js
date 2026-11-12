@@ -30,7 +30,7 @@ Page({
       'favSection', 'ordersSection', 'actConfirm', 'actCancel', 'actPay',
       'actComplete', 'actRefund', 'doneNote', 'statusToast', 'stPending',
       'stConfirmed', 'stPaid', 'stCompleted', 'stCancelled', 'stRefunded',
-      'simPay', 'simNote', 'ticketTitle', 'modalCancel', 'modalRefund',
+      'simPay', 'ticketTitle', 'modalCancel', 'modalRefund',
       'confirmBtn', 'cancelBtn', 'viewsUnit'];
     var L = {};
     keys.forEach(function (k) { L[k] = i18n.t(k, lang); });
