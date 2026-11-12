@@ -73,6 +73,9 @@ function post(path, body, auth) {
 function del(path, auth) {
   return request({ method: 'DELETE', path: path, auth: !!auth });
 }
+function patch(path, body, auth) {
+  return request({ method: 'PATCH', path: path, data: body || {}, auth: !!auth });
+}
 
 // --- health / availability -----------------------------------------------
 function checkHealth() {
@@ -128,12 +131,38 @@ function login(username, password) {
 
 function logout() { clearSession(); }
 
-// Authenticated action without a token: open the login form on the home
-// tab instead of failing.
+// --- WeChat mini-program sign-in (layer 1 + layer 2, pages/me) ------------
+// wechatLogin(code): one-tap sign-in. Resolves {linked:false} when the
+// openid has no Guiyan account yet (the 我 tab then opens the link form);
+// resolves {token, user, linked:true} when linked. Sends the stored
+// token too, so an already signed-in user links their WeChat instead.
+function wechatLogin(code) {
+  return saveWechatSession(post('/api/auth/wechat-mini', { code: code }, !!getToken()));
+}
+// linkWechat(code, username, password): verify the Guiyan account once
+// and link this WeChat openid to it; later opens auto-login via layer 1.
+function linkWechat(code, username, password) {
+  return saveWechatSession(post('/api/auth/wechat-mini',
+    { code: code, username: username, password: password }));
+}
+function saveWechatSession(promise) {
+  return promise.then(function (res) {
+    if (res && res.token) saveToken(res.token);
+    if (res && res.user) {
+      saveUser(res.user);
+      var app = getAppSafe();
+      if (app && app.globalData) app.globalData.user = res.user;
+    }
+    return res || null;
+  });
+}
+
+// Authenticated action without a token: open the link/login form on the
+// 我 tab instead of failing.
 function promptLogin() {
   var app = getAppSafe();
-  if (app && app.globalData) app.globalData.showLogin = true;
-  try { wx.switchTab({ url: '/pages/index/index' }); } catch (e) {}
+  if (app && app.globalData) app.globalData.meShowLink = true;
+  try { wx.switchTab({ url: '/pages/me/me' }); } catch (e) {}
 }
 
 // --- money -----------------------------------------------------------------
@@ -289,9 +318,14 @@ function favIdxsFromApi(apiFavs) {
 }
 
 // Toggle a favorite on the server when online + logged in and the resource
-// exists on the server; otherwise (or on server failure) fall back to the
-// local toggle. Resolves to the new favorite state (true/false).
+// exists on the server. Online but logged out: open the link/login form
+// on the 我 tab and change nothing (no silent local save). Offline: keep
+// the local toggle. Resolves to the new favorite state (true/false).
 function toggleFav(idx) {
+  if (isOnline() && !getToken()) {
+    promptLogin();
+    return Promise.resolve(store.isFav(idx));
+  }
   if (!isOnline() || !getToken()) return Promise.resolve(store.toggleFav(idx));
   var apiId = apiIdForIdx(idx);
   if (apiId == null) return Promise.resolve(store.toggleFav(idx));
@@ -311,9 +345,11 @@ function toggleFav(idx) {
 
 module.exports = {
   getBase: getBase, isOnline: isOnline, checkHealth: checkHealth,
-  request: request, get: get, post: post, del: del,
-  getToken: getToken, getStoredUser: getStoredUser, ensureLogin: ensureLogin,
+  request: request, get: get, post: post, del: del, patch: patch,
+  getToken: getToken, getStoredUser: getStoredUser, saveUser: saveUser,
+  ensureLogin: ensureLogin,
   login: login, logout: logout, promptLogin: promptLogin,
+  wechatLogin: wechatLogin, linkWechat: linkWechat,
   centsToYuan: centsToYuan, yuanToCents: yuanToCents,
   mergeResources: mergeResources, getCatalog: getCatalog,
   resourceByIdx: resourceByIdx, apiIdForIdx: apiIdForIdx,

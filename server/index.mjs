@@ -31,6 +31,7 @@ import { serveStatic } from "./static.mjs";
 import { health, listCategories } from "./routes/misc.mjs";
 import { listResources, getResource, getAvailability, viewResource } from "./routes/resources.mjs";
 import { login, logout, register, changePassword } from "./routes/auth.mjs";
+import { wechatMini } from "./routes/oauth.mjs";
 import { patchProfile, uploadAvatar, sendOtp, verifyOtp, patchEmail, patchPhone, patchSocial } from "./routes/account.mjs";
 import { listOrders, createOrder, transitionOrder, getOrderContract } from "./routes/orders.mjs";
 import { listDemands, createDemand } from "./routes/demands.mjs";
@@ -159,6 +160,7 @@ export async function createApp({ database }) {
       if (await register(ctx)) return;
       if (await logout(ctx)) return;
       if (await changePassword(ctx)) return;
+      if (await wechatMini(ctx)) return;
       if (await patchProfile(ctx)) return;
       if (await uploadAvatar(ctx)) return;
       if (await sendOtp(ctx)) return;

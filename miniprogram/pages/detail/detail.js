@@ -218,5 +218,5 @@ Page({
         success: function (res) { if (res.confirm) run(); } });
     } else if (ACT_STATUS[action]) run();
   },
-  goOrders: function () { wx.switchTab({ url: '/pages/orders/orders' }); }
+  goOrders: function () { wx.navigateTo({ url: '/pages/orders/orders' }); }
 });

@@ -1,0 +1,62 @@
+<view class="wrap">
+<topbar bind:langchange="onLangChange" />
+  <view class="card">
+    <view style="display:flex;align-items:center">
+      <image wx:if="{{wxAvatar}}" class="me-avatar" src="{{wxAvatar}}" />
+      <view wx:else class="me-avatar me-avatar-ph serif">{{avatarChar}}</view>
+      <view style="flex:1;margin-left:24rpx;min-width:0">
+        <view class="serif" style="font-size:34rpx;font-weight:900">{{displayName}}</view>
+        <view class="note" style="margin-top:6rpx">{{linkStatus}}</view>
+      </view>
+    </view>
+    <block wx:if="{{!loggedUser}}">
+      <view class="btn" bindtap="wechatLogin">{{L.wechatLoginBtn}}</view>
+      <view class="btn ghost" bindtap="toggleLink">{{L.linkAccountBtn}}</view>
+      <block wx:if="{{showLink}}">
+        <view class="note">{{L.linkHint}}</view>
+        <input class="field" placeholder="{{L.userPh}}" value="{{linkUser}}" bindinput="onLinkUser" />
+        <input class="field" placeholder="{{L.passPh}}" value="{{linkPass}}" password bindinput="onLinkPass" />
+        <view class="btn" bindtap="doLink">{{L.linkAccountBtn}}</view>
+      </block>
+    </block>
+    <block wx:else>
+      <view class="btn ghost" bindtap="getWxProfile">{{L.wxProfileBtn}}</view>
+    </block>
+  </view>
+
+  <view class="section">
+    <view class="merow" bindtap="goOrders"><view>{{L.ordersSection}}</view><text class="arrow">›</text></view>
+    <view class="merow" bindtap="goOrders"><view>{{L.favSection}}</view><text class="arrow">›</text></view>
+    <view class="merow" bindtap="goDemands"><view>{{L.myDemandsRow}}</view><text class="arrow">›</text></view>
+  </view>
+
+  <view class="section" wx:if="{{loggedUser}}">
+    <view class="sec-title serif" style="font-size:32rpx">{{L.accountInfoRow}}</view>
+    <view class="card">
+      <view class="note" style="margin-top:0">{{L.nameLabel}}：{{profile.name || '-'}}</view>
+      <view class="note">{{L.cityLabel}}：{{profile.city || '-'}}</view>
+      <view class="note">{{L.ageLabel}}：{{profile.age || '-'}}</view>
+      <view class="note">{{L.genderLabel}}：{{genderText}}</view>
+      <view class="btn ghost" bindtap="toggleEdit">{{L.editProfileBtn}}</view>
+      <block wx:if="{{showEdit}}">
+        <input class="field" placeholder="{{L.nameLabel}}" value="{{editName}}" bindinput="onEditName" />
+        <input class="field" placeholder="{{L.cityLabel}}" value="{{editCity}}" bindinput="onEditCity" />
+        <input class="field" placeholder="{{L.ageLabel}}" value="{{editAge}}" type="number" bindinput="onEditAge" />
+        <picker mode="selector" range="{{genderNames}}" value="{{editGenderIdx}}" bindchange="onEditGender">
+          <view class="picker">{{L.genderLabel}}：{{genderNames[editGenderIdx]}} <text class="arrow">▾</text></view>
+        </picker>
+        <view class="btn" bindtap="saveProfile">{{L.saveBtn}}</view>
+      </block>
+    </view>
+  </view>
+
+  <view class="section">
+    <view class="sec-title serif" style="font-size:32rpx">{{L.settingsRow}}</view>
+    <picker mode="selector" range="{{langs}}" value="{{langIdx}}" bindchange="onLangChange">
+      <view class="merow"><view>{{L.langLabel}}</view><view class="sub">{{langName}}</view></view>
+    </picker>
+    <view class="merow" bindtap="toggleAbout"><view>{{L.aboutRow}}</view><text class="arrow">›</text></view>
+    <view class="note" wx:if="{{showAbout}}">{{L.aboutText}}</view>
+    <view wx:if="{{loggedUser}}" class="btn ghost" bindtap="doLogout">{{L.logoutBtn}}</view>
+  </view>
+</view>

@@ -4,6 +4,7 @@
     "pages/category/category",
     "pages/demands/demands",
     "pages/assistant/assistant",
+    "pages/me/me",
     "pages/orders/orders",
     "pages/detail/detail"
   ],
@@ -45,10 +46,10 @@
         "selectedIconPath": "assets/tab-chat-active.svg"
       },
       {
-        "pagePath": "pages/orders/orders",
-        "text": "我的票券",
-        "iconPath": "assets/tab-ticket.png",
-        "selectedIconPath": "assets/tab-ticket-active.png"
+        "pagePath": "pages/me/me",
+        "text": "我",
+        "iconPath": "assets/tab-me.svg",
+        "selectedIconPath": "assets/tab-me-active.svg"
       }
     ]
   },
