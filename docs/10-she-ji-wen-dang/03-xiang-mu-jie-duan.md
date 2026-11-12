@@ -565,3 +565,66 @@ commit duy nhất với toàn bộ account-tabs (Lam duyệt gộp 1 commit 2026
   lần); test i18n `wave3.test.mjs` cập nhật số key theo số key mới thêm.
   Kiểm live dùng tài khoản test mới đăng ký, không dùng demo/admin cho thao
   tác đổi mật khẩu/email/avatar.
+
+## B-037 — user.html kẹt ở “请先登录”（2026-11-12，plan sửa — Lam chọn B-037 trước, 20:06）
+
+- **Hiện tượng (mở từ kiểm live Wave 4, 2026-11-12):** mở `user.html` lần
+  đầu hiện `请先登录` dù header đã đăng nhập; tab chỉ hiện sau đó. Tải lại
+  bằng deep-link `?tab=...` có lần nán 15 giây+ (kiểm OTP 19:06–19:08);
+  các lần khác tab tự hiện sau ~5–8 giây.
+- **Cơ chế (Peter tự đọc code ở HEAD `060e02e`, đã kiểm chứng):**
+  `UserDashboard.jsx:60` `gate` bắt đầu `true`; `usrLoad` (~160–188) chạy
+  `Promise.all` 6 call — `/api/orders`, `/api/favorites`, `/api/demands`
+  (KHÔNG có `.catch`) + `/api/profile`, `/api/recommendations?limit=5`,
+  `/api/messages` (mỗi call có `.catch → null`) — và `setGate(false)` chỉ
+  chạy trong `.then`, tức chỉ khi cả 6 resolve. Lỗi không phải 401 từ 1
+  trong 3 call không `.catch` rơi vào `.catch` cuối, chỉ hiện toast
+  `loadErr`, cửa KHÔNG bao giờ đóng.
+- **Điểm mới so với suy luận ban đầu:** `apiClient.js` `apiFetch` abort mọi
+  request sau **5000ms** (AbortController). Call nào chậm hơn 5s không chỉ
+  làm chậm cửa — nó REJECT, `Promise.all` reject, cửa kẹt vĩnh viễn trong
+  lần tải đó (không retry). Trong file KHÔNG có retry, focus/visibility
+  listener hay interval; `usrLoad()` chỉ gọi từ: mount effect (`[]`, 1 lần),
+  `changeLang`, `doLogin`/`doRegister`, `doLogout`; `userMain.jsx` không có
+  StrictMode nên không double-effect ở production. Vì vậy “tự hiện sau
+  5–15s” KHÔNG thể là call chậm resolve sau 5s — mà phải là (a) lần tải đầu
+  resolve vừa kịp dưới 5s (function đã warm), hoặc (b) một lần mount /
+  `usrLoad` thứ hai (điều hướng lại qua 我的账户 = reload trang; đổi ngôn
+  ngữ = `changeLang`). Đây vẫn là suy luận từ báo cáo browser, chưa có log
+  đo trực tiếp — plan Bước 0 sẽ đo để xác nhận/phủ định.
+- **Hướng sửa (mặc định trong plan, chờ Lam duyệt):** tách cửa khỏi
+  `Promise.all` — cửa đóng ngay khi token + user đã lưu còn hợp lệ
+  (client-side), render khung tab ngay; mỗi tab tự tải dữ liệu riêng, có
+  loading/error riêng (tab lỗi không chặn tab khác hay cửa); thêm `.catch`
+  cho 3 call chưa có. Giữ nguyên: 401 → xóa token + cửa mở lại; avatar
+  presigned-URL lỗi → chữ cái đầu; thứ tự 9 tab; không endpoint mới,
+  không đổi DB, không đổi timeout 5s trong đợt này.
+- **Không làm trong đợt này:** đổi timeout `apiFetch`, tối ưu backend/DB
+  (trừ khi Bước 0 đo ra query chậm), B-038/039/040/041, Wave 5.
+- **Kết quả Bước 0 (đo, 2026-11-12 ~20:11–20:30):** (0a) live curl
+  testtabs1112: 6 endpoint 0,51–1,73s (cold + warm, kể cả song song) — không
+  endpoint nào quá 5s, p50 < 3s → không có nghi phạm đơn lẻ; (0b) disposable
+  DB: 6 endpoint 0,004–0,028s → không query chậm, không sửa backend; (0c)
+  headless Chrome + logging build tạm (không commit): `usrLoad` chạy đúng 1
+  lần/mount; với latency 6000ms, cả 6 call FAIL ở 5000–5001ms (AbortError) →
+  `Promise.all` REJECT → cửa KẸT vĩnh viễn (tái hiện xác định); tắt latency
+  + điều hướng lại → 6 call OK ~844–848ms, cửa mở ở t=984ms — giả thuyết H-B
+  (lần tải thứ hai) được chứng minh là đường hồi phục. Không có kết quả ngoài
+  H-A/H-B → làm Bước 1 theo plan.
+- **Sửa (Bước 1, đã verify, chưa commit/deploy — chờ Peter deploy + kiểm
+  live + duyệt commit):** module mới `web/assets/js/usrTabLoad.mjs` (loader
+  thuần từng tab: `decideGateOpen`, `loadTabOrders/Favs/Demands/Info/Inbox`,
+  `loadAllTabs` — loader không bao giờ reject; 401 → báo hết phiên; tab lỗi
+  → lỗi riêng tab); `UserDashboard.jsx` mở cửa ngay khi token + user đã lưu
+  hợp lệ (mount/login), mỗi tab có loading/error + nút thử lại riêng; 401 →
+  xóa token + cửa mở lại; logout xóa dữ liệu tab cũ; avatar lỗi → chữ cái
+  đầu; 9 tab giữ nguyên; không endpoint mới, không đổi DB, không đổi timeout
+  5s. i18n +3 key (`tabLoading`, `tabLoadErr`, `retryBtn`) × 3 ngôn ngữ →
+  334. Test mới `tests/b037-gate.test.mjs` (14 test). Verify trên GCP my-llm
+  (EC2 bận IMSF P05-01 Step 3): build PASS 2,66s; `npm test` 163 test (151
+  pass / 0 fail / 12 skip); smoke 30/0; kiểm headless bản fix: login → tab
+  hiện sau 816ms; latency 6s + reload → tab VẪN hiện (bản cũ: kẹt vĩnh viễn),
+  sau ~4,8s tab orders hiện lỗi riêng + nút thử lại, cửa vẫn mở; tắt latency
+  → tab hiện 426ms, 6 dòng orders, không lỗi. Trial agent trên GCP không bị
+  chạm (chromadb + agent-ai.service vẫn active).
+

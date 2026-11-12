@@ -15,6 +15,7 @@ import { Header, LoginDialog, RegisterDialog, Toast } from "./chrome.jsx";
 import AiChat from "./AiChat.jsx";
 import SortButton from "./SortButton.jsx";
 import { sortRows, cycleDirection } from "./sortUtils.js";
+import { decideGateOpen, loadAllTabs, loadTabOrders, loadTabFavs, loadTabDemands, loadTabInfo, loadTabInbox } from "./usrTabLoad.mjs";
 
 /* Account tabs (step 1: the five tabs with content; password / email /
    social join in their own steps). Labels reuse existing i18n keys where
@@ -63,7 +64,7 @@ export default function UserDashboard() {
   const [usrDemands, setUsrDemands] = useState([]);
   // Wave 3 #11b: own portrait + recommendations (fetched with the rest of
   // the dashboard data; a failure here must not block the whole page, so
-  // both calls degrade to null instead of rejecting usrLoad).
+  // both calls degrade to null instead of blocking the info tab).
   const [usrProfile, setUsrProfile] = useState(null);
   const [usrRecs, setUsrRecs] = useState([]);
   // Wave 4 #13: per-order refund/dispute reason typed by the user (sent
@@ -80,6 +81,10 @@ export default function UserDashboard() {
   // are read out here). Clicking a message marks it read.
   const [usrMessages, setUsrMessages] = useState([]);
   const [usrUnread, setUsrUnread] = useState(0);
+  // B-037: per-tab loading/error state — each tab loads its own data and
+  // reports its own failure; no tab (and never the gate) waits on another.
+  const [tabLoading, setTabLoading] = useState({ orders: false, favs: false, demands: false, info: false, inbox: false });
+  const [tabErr, setTabErr] = useState({ orders: false, favs: false, demands: false, info: false, inbox: false });
   // Account tabs: which tab is shown (default "info", or ?tab= when valid).
   const [acctTab, setAcctTab] = useState(readTabFromUrl);
   // Orders table (Shopee-format, client-side only): status filter, search
@@ -146,51 +151,60 @@ export default function UserDashboard() {
     langState.lang = l;
     setLangState(l);
     setMenuOpen(false);
-    usrLoad();
+    loadAllTabsNow();
   }
 
   useEffect(() => {
     document.documentElement.lang = lang === "zh" ? "zh-CN" : lang;
   }, [lang]);
 
-  const usrLoadOrders = useCallback(() => {
-    return apiGet("/api/orders").then(function (d) { setUsrOrders(d.orders || []); });
-  }, []);
+  /* B-037: setters handed to the pure tab loaders (usrTabLoad.mjs). A 401
+     from any tab reports an expired session: token cleared, gate back on. */
+  const tabSetters = {
+    setLoading: (key, v) => setTabLoading((prev) => ({ ...prev, [key]: v })),
+    setError: (key, v) => setTabErr((prev) => ({ ...prev, [key]: v })),
+    setOrders: setUsrOrders,
+    setFavs: setUsrFavs,
+    setDemands: setUsrDemands,
+    setProfile: setUsrProfile,
+    setRecs: setUsrRecs,
+    setMessages: setUsrMessages,
+    setUnread: setUsrUnread,
+    currentUser: () => currentUser(),
+    onAuthExpired: () => { clearToken(); setUser(null); setGate(true); },
+  };
 
-  const usrLoad = useCallback(() => {
-    const u = currentUser();
-    if (!getToken() || !u) { setGate(true); return; }
-    Promise.all([
-      usrLoadOrders(), apiGet("/api/favorites"), apiGet("/api/demands"),
-      apiGet("/api/profile").catch(function () { return null; }),
-      apiGet("/api/recommendations?limit=5").catch(function () { return null; }),
-      apiGet("/api/messages").catch(function () { return null; }),
-    ]).then(function (res) {
-      setUsrFavs(res[1].favorites || []);
-      setUsrDemands((res[2].demands || []).filter(function (d) { return d.user_id === u.id; }));
-      setUsrProfile(res[3] ? res[3].profile || null : null);
-      setUsrRecs(res[4] ? res[4].recommendations || [] : []);
-      setUsrMessages(res[5] ? res[5].messages || [] : []);
-      setUsrUnread(res[5] ? res[5].unread || 0 : 0);
-      setGate(false);
-      // Avatar: resolve the stored key to a presigned URL for the header
-      // chip + the info tab. Any failure falls back to the initial letter.
-      const cu = currentUser();
-      if (cu && cu.avatar) {
-        apiGet("/api/storage/url?key=" + encodeURIComponent(cu.avatar)).then(function (d) {
-          setAvatarUrl(d.url);
-        }).catch(function () { setAvatarUrl(null); });
-      } else setAvatarUrl(null);
-    }).catch(function (e) {
-      if (e && e.status === 401) { clearToken(); setUser(null); setGate(true); return; }
-      toast(t("loadErr"));
-    });
-  }, [toast, usrLoadOrders]);
+  /* B-037: reload every tab's data. Each tab is guarded on its own, so one
+     failing tab never blocks the others — and the gate is never touched
+     here: it opens on mount/login as soon as the token + cached user are
+     valid, and only a 401 closes it again. */
+  function loadAllTabsNow() {
+    loadAllTabs(apiGet, tabSetters);
+  }
+
+  /* Avatar: resolve the stored key to a presigned URL for the header chip +
+     the info tab. Any failure falls back to the initial letter. */
+  function resolveAvatar(u) {
+    if (u && u.avatar) {
+      apiGet("/api/storage/url?key=" + encodeURIComponent(u.avatar)).then(function (d) {
+        setAvatarUrl(d.url);
+      }).catch(function () { setAvatarUrl(null); });
+    } else setAvatarUrl(null);
+  }
 
   useEffect(() => {
     restoreUser();
-    setUser(currentUser());
-    usrLoad();
+    const u0 = currentUser();
+    setUser(u0);
+    /* B-037: open the tabs as soon as the stored token + user are valid
+       — never wait for a network call. Each tab then loads its own data. */
+    if (decideGateOpen(getToken(), u0)) {
+      setGate(false);
+      loadAllTabsNow();
+      resolveAvatar(u0);
+    } else {
+      setGate(true);
+    }
     const onKey = (e) => {
       if (e.key === "Escape") { setMenuOpen(false); setNavOpen(false); setContract(null); }
     };
@@ -216,7 +230,7 @@ export default function UserDashboard() {
     apiPost("/api/auth/login", { username: u, password: pw }).then(function (d) {
       if (d && d.token) {
         setToken(d.token, d.user || { username: u, name: u });
-        setUser(currentUser()); setLoginOpen(false); usrLoad();
+        setUser(currentUser()); setLoginOpen(false); setGate(false); loadAllTabsNow();
       } else { setLoginErr(t("loginFailed")); }
     }).catch(function (e) {
       if (e && e.status === 401) { setLoginErr(t("loginFailed")); }
@@ -228,7 +242,7 @@ export default function UserDashboard() {
     apiPost("/api/auth/register", f).then(function (d) {
       if (d && d.token) {
         setToken(d.token, d.user || { username: f.username, name: f.name });
-        setUser(currentUser()); setRegisterOpen(false); usrLoad();
+        setUser(currentUser()); setRegisterOpen(false); setGate(false); loadAllTabsNow();
       } else { setRegisterErr(t("registerFailed")); }
     }).catch(function (e) {
       setRegisterErr((e && e.data && e.data.error) || t("registerFailed"));
@@ -238,7 +252,14 @@ export default function UserDashboard() {
     const tk = getToken();
     if (tk) apiPost("/api/auth/logout", {}).catch(function () {});
     clearToken(); setUser(null); setMenuOpen(false);
-    usrLoad();
+    /* B-037: drop the previous account's tab data so the next login never
+       sees stale rows, and show the login gate again. */
+    setUsrOrders([]); setUsrFavs([]); setUsrDemands([]);
+    setUsrProfile(null); setUsrRecs([]); setUsrMessages([]); setUsrUnread(0);
+    setTabLoading({ orders: false, favs: false, demands: false, info: false, inbox: false });
+    setTabErr({ orders: false, favs: false, demands: false, info: false, inbox: false });
+    setAvatarUrl(null);
+    setGate(true);
   }
 
   function doSaveProfile() {
@@ -420,12 +441,12 @@ export default function UserDashboard() {
     apiPost("/api/orders/" + encodeURIComponent(id) + "/" + act, reason ? { reason } : {}).then(function () {
       toast(t("statusToast"));
       setUsrActBusyId(null);
-      usrLoadOrders();
+      loadTabOrders(apiGet, tabSetters);
     }).catch(function (e) {
       setUsrActBusyId(null);
       if (e && e.status === 401) { clearToken(); setUser(null); setGate(true); return; }
       if (e && e.data && e.data.error) toast(e.data.error);
-      usrLoadOrders();
+      loadTabOrders(apiGet, tabSetters);
     });
   }
 
@@ -596,6 +617,10 @@ export default function UserDashboard() {
                   <div className="db-stat"><b id="myStatDemands">{usrDemands.length}</b><span>{t("usrDemands")}</span></div>
                 </div>
 
+                {tabLoading.info ? <div className="db-empty">{t("tabLoading")}</div>
+                : tabErr.info ? (<><div className="db-empty">{t("tabLoadErr")}</div><div style={{ textAlign: "center" }}><button type="button" className="btn ghost" onClick={() => loadTabInfo(apiGet, tabSetters)}>{t("retryBtn")}</button></div></>)
+                : null}
+
                 {usrProfile && usrProfile.portrait ? (
                   <section className="db-sec">
                     <h3>{t("profileTitle")}</h3>
@@ -736,7 +761,9 @@ export default function UserDashboard() {
                         <th>{t("ordColActions")}</th>
                       </tr></thead>
                       <tbody id="ordersBody">
-                        {ordShown.length ? ordShown.map((o) => (
+                        {tabLoading.orders ? <tr><td colSpan="7"><div className="db-empty">{t("tabLoading")}</div></td></tr>
+                        : tabErr.orders ? <tr><td colSpan="7"><div className="db-empty">{t("tabLoadErr")}</div><div style={{ textAlign: "center" }}><button type="button" className="btn ghost" onClick={() => loadTabOrders(apiGet, tabSetters)}>{t("retryBtn")}</button></div></td></tr>
+                        : ordShown.length ? ordShown.map((o) => (
                           <>
                             <tr key={o.id}>
                               <td>
@@ -771,7 +798,9 @@ export default function UserDashboard() {
                 <section className="db-sec">
                   <h3>{t("inboxTitle")}</h3>
                   <div className="db-list" id="inboxList">
-                    {usrMessages.length ? usrMessages.map((m) => (
+                    {tabLoading.inbox ? <div className="db-empty">{t("tabLoading")}</div>
+                    : tabErr.inbox ? (<><div className="db-empty">{t("tabLoadErr")}</div><div style={{ textAlign: "center" }}><button type="button" className="btn ghost" onClick={() => loadTabInbox(apiGet, tabSetters)}>{t("retryBtn")}</button></div></>)
+                    : usrMessages.length ? usrMessages.map((m) => (
                       <div key={m.id} className="order" role="button" tabIndex={0} onClick={() => markMessageRead(m)} onKeyDown={(e) => { if (e.key === "Enter") markMessageRead(m); }}>
                         <h4>{!m.is_read && (<span aria-label="unread" style={{ color: "var(--red)" }}>● </span>)}{m.title}</h4>
                         <span className="code">{String(m.created_at || "").slice(0, 16)}</span>
@@ -790,7 +819,9 @@ export default function UserDashboard() {
                     <table className="db-table">
                       <thead><tr><th>{t("colName")}</th><th>{t("colResource")}</th><th>{t("colCity")}</th><th className="num">{t("colPrice")}</th><th></th></tr></thead>
                       <tbody id="favsBody">
-                        {usrFavs.length ? usrFavs.map((r) => (
+                        {tabLoading.favs ? <tr><td colSpan="5"><div className="db-empty">{t("tabLoading")}</div></td></tr>
+                        : tabErr.favs ? <tr><td colSpan="5"><div className="db-empty">{t("tabLoadErr")}</div><div style={{ textAlign: "center" }}><button type="button" className="btn ghost" onClick={() => loadTabFavs(apiGet, tabSetters)}>{t("retryBtn")}</button></div></td></tr>
+                        : usrFavs.length ? usrFavs.map((r) => (
                           <tr key={r.id}>
                             <td>{r.name}</td><td>{catName(r.category)}</td><td>{r.city}</td>
                             <td className="num">{fmtMoney(r.price)}</td>
@@ -810,7 +841,9 @@ export default function UserDashboard() {
                     <table className="db-table">
                       <thead><tr><th>{t("colTitle")}</th><th>{t("colResource")}</th><th className="num">{t("colBudget")}</th><th>{t("colCity")}</th><th>{t("colStatus")}</th></tr></thead>
                       <tbody id="demsBody">
-                        {usrDemands.length ? usrDemands.map((d) => (
+                        {tabLoading.demands ? <tr><td colSpan="6"><div className="db-empty">{t("tabLoading")}</div></td></tr>
+                        : tabErr.demands ? <tr><td colSpan="6"><div className="db-empty">{t("tabLoadErr")}</div><div style={{ textAlign: "center" }}><button type="button" className="btn ghost" onClick={() => loadTabDemands(apiGet, tabSetters)}>{t("retryBtn")}</button></div></td></tr>
+                        : usrDemands.length ? usrDemands.map((d) => (
                           <tr key={d.id}>
                             <td>{d.title}</td><td>{catName(d.category)}</td>
                             <td className="num">{fmtMoney(d.budget)}</td><td>{d.city}</td><td>{d.status || ""}</td>
