@@ -151,3 +151,50 @@ Q12 规则金额 giữ 分，UI 注明单位 + 示例。
 Segments + notify、分群站内通知、画像快照（`profile_snapshots` 表）、#22 管理资源、#25 退款/申诉审批流
 （`refund_requested`/`disputed` 状态）、LLM/DeepSeek 真调用、AIGC 真生图（阶段 7，暂缓缺钱）、rate limit（Wave 5）、
 小程序改动、数据大屏、真实选座/支付/区块链/KYC。
+
+## Wave 4 — Catalog + giao dịch（2026-11-12）
+
+顺序：#12 → #15 → #13 → #14 → #16/#22（已 duyệt 2026-11-12，做 luôn sau #14）。每 mục một commit riêng，
+mỗi commit cần Lam duyệt riêng trước khi đẩy；不改 Neon production，不改 demo data。
+
+### #12 场馆档期 + 座位布局示意（venue availability + seat-map）
+
+- 新接口 `GET /api/resources/:id/availability?date=`（`server/routes/resources.mjs`，按 Lam 的 REST 风格，
+  不照抄 zhou 的 `/api/availability?resourceId=`）。公开：已发布资源无需登录；未发布资源仅 admin 可查，
+  非 admin 返回 404（不泄露是否存在，与 `GET /api/resources/:id` 只返回已发布行一致）。
+- `date` 不传 → 默认当天（北京时间）；格式错误或早于演示基准日（`lib/http.mjs` 的 `date()`，基准 2026-11-09）
+  → 400。返回 `{id, date, mode, available, capacity, dates}`。
+- `mode`：venue/equipment → `rental`；service → `none`；show/heritage/tourism/digital/artist → `date`；
+  其余（copyright/creative）→ `global`。
+- `available`：`rental` → 0/1（当天有未取消/未退款的订单则 0，否则 1）；`date` → `stock − 当天已订数量`
+  （订单 `status NOT IN ('cancelled','refunded')`，复用 `orders.mjs:33` 的查询模式；Lam 没有 `daily_capacity` 列，
+  Q1 默认值：用 `stock` 当日容量，`capacity` 是总容量，不作日容量）；`none` → `null`；`global` → `stock`（忽略日期）。
+  `capacity` 返回 `stock`，供前端显示" còn X / Y"。`dates` 列出该资源未取消/未退款订单的
+  `{booking_date, status}`，按日期排序，供前端渲染已预约日期。
+- 不改表、不做 migration；不缓存（Q16 默认值：新订单必须立即反映在余量里，接口只有两次轻查询）。
+- 共享改动（与 #15 共用，做一次）：`web/assets/js/apiClient.js` 合并资源时保留 `meta`
+  （`APIRES[idx] = {..., meta: a.meta || {}}`）；之前 API 虽返回 meta，但合并时丢掉了，详情页拿不到。
+- 座位布局示意：仅 category `venue`，在详情浮层按 meta 的 `seatRows × seatCols` 渲染圆点
+  （广西文化艺术中心 20×20=400、南宁小剧场 11×20=220、目录场馆 10×18=180）；不点击、不选座、
+  不显示单座状态。标题 `座位布局示意` + 说明"示意图用于场地介绍，本项目按场地整体预约"。
+  meta 没有 `seatRows/seatCols` 的场馆不渲染网格（不编造座位数）。
+- 档期显示：在日期选择器下方，mode `date`/`global` 显示" còn X / Y"；mode `rental` 显示
+  "ngày này đã có đặt trước / còn trống"；rental 另渲染已预约日期 chips；换日期时重新请求接口。
+- i18n：新增 7 个 key（`availLeft` / `availBooked` / `availFree` / `availService` / `seatTitle` / `seatNote` /
+  `bookedDates`），中越英三语集合相等，共 221 key（测试 `wave3.test.mjs` 的计数同步更新）。
+  接口请求失败时不显示错误（沿用全站离线静默规则，详情页只隐藏档期行）。
+- 测试：新文件 `tests/wave4.test.mjs`（node:test，真 PostgreSQL 一次性库，不 mock），#12 共 8 个 API 测试：
+  rental 0/1、date 余量 = stock − 已订、service `null`、global = stock、日期错误/过去 → 400、
+  未发布 + 非 admin → 404（admin → 200）、`dates` 不含 cancelled/refunded、多单累计。
+  UI（座位圆点数、换日期刷新余量）无 jsdom 测试架，只做 build + 浏览器 live 检查。
+
+### 开放问题 Q1/Q15/Q16（plan §7，#12 适用默认值）
+
+Q1 日容量用 `stock`（无 `daily_capacity` 列）；Q15 路由用 Lam 风格 `/api/resources/:id/availability`；
+Q16 不缓存。以上均为工作默认值，Lam 可在 commit 前推翻。
+
+### 不属于 #12
+
+真实选座（指定座位、占座、单座状态）、改订单创建逻辑、改 `stock` 扣减规则、前端评价/筛选（#14）、
+meta 字段渲染（#15）、缓存档期结果。
+

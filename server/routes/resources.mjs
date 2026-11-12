@@ -1,4 +1,4 @@
-import { assert, resourceRow } from "../lib/http.mjs";
+import { assert, date, resourceRow } from "../lib/http.mjs";
 import { CACHE_KEYS, CACHE_TTLS } from "../lib/cache.mjs";
 
 export async function listResources(ctx) {
@@ -82,6 +82,72 @@ export async function getResource(ctx) {
     );
     assert(r, "资源不存在", 404);
     send({ resource: resourceRow(r) });
+    return true;
+  }
+  return false;
+}
+
+// Wave 4 #12 — availability by date (port of zhou
+// guiyan-demo/server/index.mjs GET /api/availability, re-routed to Lam's
+// REST shape GET /api/resources/:id/availability). Public for published
+// resources; unpublished only for admin (non-admin gets 404, same as
+// GET /api/resources/:id which only serves published rows). No cache
+// (Q16): a new order must be visible immediately. No schema change.
+// Mode map (Q1): Lam has no daily_capacity column, so `stock` is the
+// daily capacity for mode `date`; `capacity` is total capacity and is
+// never used as the daily capacity.
+function beijingToday() {
+  return new Date(Date.now() + 8 * 60 * 60 * 1000).toISOString().slice(0, 10);
+}
+
+export async function getAvailability(ctx) {
+  const { p, req, send, session, get, all, url } = ctx;
+  const m = p.match(/^\/api\/resources\/(\d+)\/availability$/);
+  if (m && req.method === "GET") {
+    const id = Number(m[1]);
+    const r = await get(
+      "SELECT id, category, stock, status FROM resources WHERE id=?",
+      id,
+    );
+    assert(r, "资源不存在", 404);
+    assert(
+      r.status === "published" || session?.role === "admin",
+      "资源不存在",
+      404,
+    );
+    const raw = url.searchParams.get("date");
+    const d = raw ? date(raw) : beijingToday();
+    const mode =
+      r.category === "venue" || r.category === "equipment"
+        ? "rental"
+        : r.category === "service"
+          ? "none"
+          : ["show", "heritage", "tourism", "digital", "artist"].includes(
+                r.category,
+              )
+            ? "date"
+            : "global";
+    const active = "status NOT IN ('cancelled','refunded')";
+    const dates = await all(
+      `SELECT booking_date, status FROM orders WHERE resource_id=? AND ${active} ORDER BY booking_date`,
+      id,
+    );
+    let available;
+    if (mode === "rental") {
+      available = dates.some((o) => o.booking_date === d) ? 0 : 1;
+    } else if (mode === "date") {
+      const booked = await get(
+        `SELECT COALESCE(SUM(quantity),0) AS n FROM orders WHERE resource_id=? AND booking_date=? AND ${active}`,
+        id,
+        d,
+      );
+      available = Math.max(0, r.stock - (booked?.n || 0));
+    } else if (mode === "none") {
+      available = null;
+    } else {
+      available = r.stock;
+    }
+    send({ id, date: d, mode, available, capacity: r.stock, dates });
     return true;
   }
   return false;

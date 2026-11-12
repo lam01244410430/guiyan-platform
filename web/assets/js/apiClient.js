@@ -110,7 +110,10 @@ export function mergeResources(data) {
       if (typeof a.views === "number") RES[idx][5] = a.views;
       /* embedded trilingual desc, category, city and unit are kept */
     }
-    APIRES[idx] = { id: a.id, stock: a.stock, capacity: a.capacity, rating: a.rating, review_count: a.review_count, status: a.status, tags: a.tags || [] };
+    /* Wave 4 shared (#12 seat-map, #15 meta render): keep the API meta
+       (seatRows/seatCols and the per-category detail fields). It was
+       dropped here before, so the detail overlay never saw it. */
+    APIRES[idx] = { id: a.id, stock: a.stock, capacity: a.capacity, rating: a.rating, review_count: a.review_count, status: a.status, tags: a.tags || [], meta: a.meta || {} };
     if (a.id != null) APIID2IDX[a.id] = idx;
   });
 }

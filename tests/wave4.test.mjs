@@ -1,0 +1,282 @@
+// Guiyan Wave 4 #12 tests (venue availability + seat-map backend) — run
+// against a REAL PostgreSQL 16, never a mock. Same harness shape as
+// tests/wave3.test.mjs: spawn server/server.mjs on TEST_PORT (default
+// 3104) and talk to it over HTTP. DATABASE_URL must point at a FRESH,
+// disposable database (the server seeds 62 resources + demo users on
+// first boot). Do not point it at any shared or production database.
+//
+// Run order inside `npm test`: api-pg.test.mjs and wave3.test.mjs run
+// BEFORE this file, so wave4 tests must never assert exact seed counts
+// for orders/stock — earlier tests create orders and move stock.
+// Expectations are computed from the live database (via the API) instead.
+//
+// Booking dates 2026-12-21..25 are used throughout: seed orders only
+// cover 2026-12-01..06, and api-pg uses 2026-12-20, so these dates start
+// clean on every resource. The seat-map itself has no jsdom harness in
+// this repo — it is checked by build + live browser, not here.
+import test, { before, after } from "node:test";
+import assert from "node:assert/strict";
+import { spawn } from "node:child_process";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+import pg from "pg";
+
+const DATABASE_URL = process.env.DATABASE_URL;
+if (!DATABASE_URL)
+  throw new Error(
+    "DATABASE_URL is required, e.g. postgres://guiyan:guiyan@localhost:5433/guiyan_test",
+  );
+if (!process.env.DEMO_PASSWORD || !process.env.ADMIN_PASSWORD)
+  throw new Error(
+    "DEMO_PASSWORD and ADMIN_PASSWORD are required (demo login tests)",
+  );
+
+const PORT = Number(process.env.TEST_PORT || 3104);
+const BASE = `http://127.0.0.1:${PORT}`;
+const serverDir = path.resolve(
+  path.dirname(fileURLToPath(import.meta.url)),
+  "..",
+  "server",
+);
+const D1 = "2026-12-21";
+const D2 = "2026-12-22";
+const D3 = "2026-12-23";
+const D4 = "2026-12-24";
+const D5 = "2026-12-25";
+
+let proc;
+
+async function req(p, { method = "GET", body, token } = {}) {
+  const res = await fetch(BASE + p, {
+    method,
+    headers: {
+      ...(body ? { "Content-Type": "application/json" } : {}),
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+    body: body ? JSON.stringify(body) : undefined,
+  });
+  const text = await res.text();
+  let json = null;
+  try {
+    json = JSON.parse(text);
+  } catch {
+    // keep json null; assertions below will fail with a clear message
+  }
+  return { status: res.status, json, text, headers: res.headers };
+}
+
+async function login(username = "demo", password = process.env.DEMO_PASSWORD) {
+  const r = await req("/api/auth/login", {
+    method: "POST",
+    body: { username, password },
+  });
+  assert.equal(r.status, 200, JSON.stringify(r.json));
+  return r.json.token;
+}
+
+async function adminLogin() {
+  const r = await req("/api/auth/login", {
+    method: "POST",
+    body: { username: "admin", password: process.env.ADMIN_PASSWORD },
+  });
+  assert.equal(r.status, 200, JSON.stringify(r.json));
+  assert.equal(r.json.user.role, "admin");
+  return r.json.token;
+}
+
+async function listByCategory(category) {
+  const r = await req(`/api/resources?category=${category}`);
+  assert.equal(r.status, 200, JSON.stringify(r.json));
+  assert.ok(Array.isArray(r.json.resources) && r.json.resources.length > 0, `no ${category} resources`);
+  return r.json.resources;
+}
+
+async function createOrder(token, resourceId, quantity, bookingDate) {
+  const r = await req("/api/orders", {
+    method: "POST",
+    body: { resourceId, quantity, booking_date: bookingDate },
+    token,
+  });
+  assert.equal(r.status, 200, JSON.stringify(r.json));
+  assert.equal(r.json.ok, true);
+  return r.json;
+}
+
+function beijingToday() {
+  return new Date(Date.now() + 8 * 60 * 60 * 1000).toISOString().slice(0, 10);
+}
+
+before(async () => {
+  proc = spawn("node", ["server.mjs"], {
+    cwd: serverDir,
+    env: {
+      ...process.env,
+      DATABASE_URL,
+      PORT: String(PORT),
+      // Dead port on purpose: wave4 never calls the trial backend.
+      AI_CHAT_URL: "http://127.0.0.1:1/api/chat",
+      AI_CHAT_TIMEOUT_MS: "200",
+    },
+    stdio: ["ignore", "pipe", "pipe"],
+  });
+  proc.stdout.on("data", (d) => process.stderr.write(`[wave4-server] ${d}`));
+  proc.stderr.on("data", (d) => process.stderr.write(`[wave4-server:err] ${d}`));
+  const deadline = Date.now() + 60000;
+  for (;;) {
+    try {
+      const r = await req("/api/health");
+      if (r.status === 200 && r.json?.ok) break;
+    } catch {
+      // not up yet
+    }
+    if (Date.now() > deadline)
+      throw new Error("wave4 server did not become healthy within 60s");
+    await new Promise((r) => setTimeout(r, 500));
+  }
+});
+
+after(() => {
+  if (proc && !proc.killed) proc.kill("SIGTERM");
+});
+
+// --- #12: venue availability (rental 0/1) ---------------------------------
+
+test("wave4 #12: rental venue is 1 on a free day, 0 once booked that day", async () => {
+  const venues = await listByCategory("venue");
+  const v = venues[0];
+  const free = await req(`/api/resources/${v.id}/availability?date=${D1}`);
+  assert.equal(free.status, 200, JSON.stringify(free.json));
+  assert.equal(free.json.id, v.id);
+  assert.equal(free.json.date, D1);
+  assert.equal(free.json.mode, "rental");
+  assert.equal(free.json.available, 1);
+  assert.equal(free.json.capacity, v.stock);
+  assert.ok(!free.json.dates.some((d) => d.booking_date === D1));
+
+  const token = await login();
+  await createOrder(token, v.id, 1, D1);
+  const booked = await req(`/api/resources/${v.id}/availability?date=${D1}`);
+  assert.equal(booked.status, 200);
+  assert.equal(booked.json.mode, "rental");
+  assert.equal(booked.json.available, 0);
+  assert.ok(booked.json.dates.some((d) => d.booking_date === D1));
+  const otherDay = await req(`/api/resources/${v.id}/availability?date=${D2}`);
+  assert.equal(otherDay.status, 200);
+  assert.equal(otherDay.json.available, 1);
+});
+
+// --- #12: date mode = live stock minus booked that day ---------------------
+
+test("wave4 #12: show availability is stock minus tickets booked that day", async () => {
+  const shows = await listByCategory("show");
+  const s = shows.find((r) => r.stock >= 10);
+  assert.ok(s, "need a show with stock >= 10");
+  const token = await login();
+  await createOrder(token, s.id, 2, D2);
+  const res = await req(`/api/resources/${s.id}`);
+  assert.equal(res.status, 200);
+  const stockNow = res.json.resource.stock;
+  const av = await req(`/api/resources/${s.id}/availability?date=${D2}`);
+  assert.equal(av.status, 200, JSON.stringify(av.json));
+  assert.equal(av.json.mode, "date");
+  assert.equal(av.json.capacity, stockNow);
+  assert.equal(av.json.available, stockNow - 2);
+  assert.ok(av.json.dates.some((d) => d.booking_date === D2));
+});
+
+// --- #12: service mode is null, date defaults to today (Beijing) ----------
+
+test("wave4 #12: service availability is null and date defaults to today", async () => {
+  const services = await listByCategory("service");
+  const s = services[0];
+  const av = await req(`/api/resources/${s.id}/availability`);
+  assert.equal(av.status, 200, JSON.stringify(av.json));
+  assert.equal(av.json.mode, "none");
+  assert.equal(av.json.available, null);
+  assert.equal(av.json.date, beijingToday());
+});
+
+// --- #12: global mode = stock, ignoring the date ---------------------------
+
+test("wave4 #12: global availability equals stock", async () => {
+  const items = await listByCategory("copyright");
+  const item = items[0];
+  const av = await req(`/api/resources/${item.id}/availability?date=${D1}`);
+  assert.equal(av.status, 200, JSON.stringify(av.json));
+  assert.equal(av.json.mode, "global");
+  assert.equal(av.json.available, item.stock);
+  assert.equal(av.json.capacity, item.stock);
+});
+
+// --- #12: bad/past date -> 400, missing resource -> 404 --------------------
+
+test("wave4 #12: bad or past date is 400, missing resource is 404", async () => {
+  const venues = await listByCategory("venue");
+  const v = venues[0];
+  for (const bad of ["not-a-date", "2026-13-01", "2026-11-01", "2026-02-30"]) {
+    const r = await req(`/api/resources/${v.id}/availability?date=${bad}`);
+    assert.equal(r.status, 400, `${bad}: ${JSON.stringify(r.json)}`);
+  }
+  const missing = await req("/api/resources/999999/availability");
+  assert.equal(missing.status, 404);
+});
+
+// --- #12: unpublished is 404 for non-admin, 200 for admin -----------------
+
+test("wave4 #12: unpublished resource is 404 for non-admin, 200 for admin", async () => {
+  const items = await listByCategory("creative");
+  const item = items[0];
+  const pool = new pg.Pool({ connectionString: DATABASE_URL, max: 1 });
+  try {
+    await pool.query("UPDATE resources SET status='draft' WHERE id=$1", [item.id]);
+    const anon = await req(`/api/resources/${item.id}/availability?date=${D1}`);
+    assert.equal(anon.status, 404, JSON.stringify(anon.json));
+    const user = await req(`/api/resources/${item.id}/availability?date=${D1}`, { token: await login() });
+    assert.equal(user.status, 404, JSON.stringify(user.json));
+    const admin = await req(`/api/resources/${item.id}/availability?date=${D1}`, { token: await adminLogin() });
+    assert.equal(admin.status, 200, JSON.stringify(admin.json));
+    assert.equal(admin.json.mode, "global");
+  } finally {
+    await pool.query("UPDATE resources SET status='published' WHERE id=$1", [item.id]);
+    await pool.end();
+  }
+});
+
+// --- #12: dates excludes cancelled/refunded ---------------------------------
+
+test("wave4 #12: dates lists active bookings only, not cancelled ones", async () => {
+  const venues = await listByCategory("venue");
+  const v = venues[1];
+  const token = await login();
+  const o1 = await createOrder(token, v.id, 1, D3);
+  const cancelled = await req(`/api/orders/${o1.id}/cancel`, { method: "POST", token });
+  assert.equal(cancelled.status, 200, JSON.stringify(cancelled.json));
+  assert.equal(cancelled.json.status, "cancelled");
+  await createOrder(token, v.id, 1, D4);
+  const av = await req(`/api/resources/${v.id}/availability?date=${D4}`);
+  assert.equal(av.status, 200, JSON.stringify(av.json));
+  assert.equal(av.json.available, 0);
+  const days = av.json.dates.map((d) => d.booking_date);
+  assert.ok(days.includes(D4), JSON.stringify(days));
+  assert.ok(!days.includes(D3), JSON.stringify(days));
+});
+
+// --- #12: multiple bookings on one day accumulate ---------------------------
+
+test("wave4 #12: multiple bookings on one day accumulate", async () => {
+  const shows = await listByCategory("show");
+  const s = shows.find((r) => r.stock >= 10);
+  assert.ok(s, "need a show with stock >= 10");
+  const token = await login();
+  await createOrder(token, s.id, 2, D5);
+  await createOrder(token, s.id, 3, D5);
+  const res = await req(`/api/resources/${s.id}`);
+  assert.equal(res.status, 200);
+  const stockNow = res.json.resource.stock;
+  const av = await req(`/api/resources/${s.id}/availability?date=${D5}`);
+  assert.equal(av.status, 200, JSON.stringify(av.json));
+  assert.equal(av.json.mode, "date");
+  assert.equal(av.json.available, stockNow - 5);
+  assert.equal(av.json.dates.filter((d) => d.booking_date === D5).length, 2);
+});
+

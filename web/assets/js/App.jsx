@@ -46,6 +46,7 @@ export default function App() {
   const [detailIdx, setDetailIdx] = useState(null);
   const [bkQty, setBkQty] = useState(1);
   const [bkDate, setBkDate] = useState("2026-12-05");
+  const [avail, setAvail] = useState(null); /* Wave 4 #12: {mode, available, capacity, dates} for the open detail + bkDate, null when unknown/offline */
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [toastMsg, setToastMsg] = useState("");
   const [chatMsgs, setChatMsgs] = useState([]);
@@ -90,6 +91,21 @@ export default function App() {
   useEffect(() => {
     if (match && matchBoxRef.current) matchBoxRef.current.scrollIntoView({ behavior: "smooth", block: "nearest" });
   }, [match]);
+
+  /* Wave 4 #12: availability for the open detail, re-fetched when the
+     date changes. Fire-and-forget like the view recording in openDetail:
+     a failed fetch just hides the availability row (offline fallback
+     keeps the local behaviour, no error is ever shown). */
+  useEffect(() => {
+    if (detailIdx == null) { setAvail(null); return; }
+    const rid = APIRES[detailIdx] && APIRES[detailIdx].id;
+    if (rid == null) { setAvail(null); return; }
+    let alive = true;
+    apiGet("/api/resources/" + rid + "/availability?date=" + encodeURIComponent(bkDate || "2026-12-05"))
+      .then(function (d) { if (alive) setAvail(d); })
+      .catch(function () { if (alive) setAvail(null); });
+    return function () { alive = false; };
+  }, [detailIdx, bkDate]);
 
   /* ---- API sync (same as loadApiData / refreshOrdersApi / loadFavoritesApi) ---- */
   const loadFavoritesApi = useCallback(() => {
@@ -754,11 +770,32 @@ export default function App() {
                     </select>
                   </label>
                 </div>
+                {avail && (
+                  <div className="availrow">
+                    {avail.mode === "rental"
+                      ? (avail.available ? t("availFree") : t("availBooked"))
+                      : avail.mode === "none"
+                        ? t("availService")
+                        : fmt(t("availLeft"), { a: avail.available, c: avail.capacity })}
+                  </div>
+                )}
+                {avail && avail.mode === "rental" && avail.dates && avail.dates.length > 0 && (
+                  <div className="availdates"><span>{t("bookedDates")}：</span>{avail.dates.map((d) => (<span key={d.booking_date} className="datechip">{d.booking_date}</span>))}</div>
+                )}
                 <div className="totalrow"><span>{t("totalLabel")}</span><b id="bkTotal">{money(cur[3] * bkQty)}</b></div>
                 <div className="acts">
                   <button type="button" className="btn red" id="bkGo" onClick={() => bookResource(detailIdx, bkQty, bkDate || "2026-12-05")}>{t("bookNow")}</button>
                   <button type="button" className="btn ghost" id="bkFav" onClick={() => toggleFav(detailIdx)}>{store.favs[detailIdx] ? t("favOn") : t("favOff")}</button>
                 </div>
+                {cur[1] === "venue" && APIRES[detailIdx] && APIRES[detailIdx].meta && Number.isSafeInteger(APIRES[detailIdx].meta.seatRows) && Number.isSafeInteger(APIRES[detailIdx].meta.seatCols) && (
+                  <div className="seatmap">
+                    <h4>{t("seatTitle")}</h4>
+                    <div className="seatgrid" aria-hidden="true">
+                      {Array.from({ length: APIRES[detailIdx].meta.seatRows * APIRES[detailIdx].meta.seatCols }).map((_, i) => (<i key={i} />))}
+                    </div>
+                    <p className="seatnote">{t("seatNote")}</p>
+                  </div>
+                )}
               </div>
             </>
           )}

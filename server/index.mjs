@@ -25,7 +25,7 @@ import { createContext } from "./lib/context.mjs";
 import { createCache } from "./lib/cache.mjs";
 import { serveStatic } from "./static.mjs";
 import { health, listCategories } from "./routes/misc.mjs";
-import { listResources, getResource, viewResource } from "./routes/resources.mjs";
+import { listResources, getResource, getAvailability, viewResource } from "./routes/resources.mjs";
 import { login, logout, register } from "./routes/auth.mjs";
 import { listOrders, createOrder, transitionOrder } from "./routes/orders.mjs";
 import { listDemands, createDemand } from "./routes/demands.mjs";
@@ -146,6 +146,7 @@ export async function createApp({ database }) {
       if (await listCategories(ctx)) return;
       if (await listResources(ctx)) return;
       if (await getResource(ctx)) return;
+      if (await getAvailability(ctx)) return;
       if (await viewResource(ctx)) return;
       if (await login(ctx)) return;
       if (await register(ctx)) return;

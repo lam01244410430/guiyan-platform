@@ -416,3 +416,13 @@ footer ul{list-style:none;margin:0;padding:0;display:grid;gap:6px}
 .db-actions .mini{border:1px solid var(--line2);background:transparent;border-radius:99px;padding:6px 13px;font-size:12.5px;font-weight:700;color:var(--ink);cursor:pointer}
 .db-actions .mini.red{background:var(--red);border-color:var(--red);color:#fff}
 .db-list{display:grid;gap:12px}
+
+/* Wave 4 #12: availability row + booked-date chips + seat-map 示意 (detail overlay). */
+.availrow{margin-top:10px;font-size:13.5px;font-weight:700;color:var(--gold)}
+.availdates{display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-top:8px;font-size:12.5px;color:var(--ink2)}
+.availdates .datechip{border:1px solid var(--line2);background:var(--surface);border-radius:99px;padding:3px 10px;font-size:12px;font-weight:600;color:var(--ink2)}
+.seatmap{margin-top:18px}
+.seatmap h4{font-family:"Noto Serif SC",serif;font-size:16px;font-weight:900;margin:0 0 10px}
+.seatgrid{display:flex;flex-wrap:wrap;gap:3px}
+.seatgrid i{width:8px;height:8px;border-radius:50%;background:var(--gold);opacity:.75}
+.seatnote{margin:8px 0 0;font-size:12.5px;color:var(--ink2)}
