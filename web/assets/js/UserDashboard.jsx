@@ -228,7 +228,6 @@ export default function UserDashboard() {
       <main className="db-page">
         <div className="wrap">
           <div className="sec-head">
-            <span className="no">01</span>
             <h2><span>{t("usrTitle")}</span><span className="sub">{t("usrSub")}</span></h2>
           </div>
 

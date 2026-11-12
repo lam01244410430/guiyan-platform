@@ -522,7 +522,6 @@ export default function App() {
       <section id="categories" style={{ paddingBottom: 8 }}>
         <div className="wrap">
           <div className="sec-head">
-            <span className="no">其一</span>
             <h2><span>{t("catTitle")}</span><span className="sub">{t("catSub")}</span></h2>
             <p>{t("catNote")}</p>
           </div>
@@ -544,7 +543,6 @@ export default function App() {
       <section id="catalog" style={{ paddingTop: 44 }}>
         <div className="wrap">
           <div className="sec-head">
-            <span className="no">其二</span>
             <h2><span>{t("cat2Title")}</span><span className="sub">{t("cat2Sub")}</span></h2>
             <p>{t("cat2Note")}</p>
           </div>
@@ -647,7 +645,6 @@ export default function App() {
       <section id="demands" style={{ paddingTop: 26 }}>
         <div className="wrap">
           <div className="sec-head">
-            <span className="no">其三</span>
             <h2><span>{t("demTitle")}</span><span className="sub">{t("demSub")}</span></h2>
             <p>{t("demNote")}</p>
             <p style={{ marginTop: 12 }}>
@@ -688,7 +685,6 @@ export default function App() {
       <section id="ai" style={{ paddingTop: 26 }}>
         <div className="wrap">
           <div className="sec-head">
-            <span className="no">其四</span>
             <h2><span>{t("aiTitle")}</span><span className="sub">{t("aiSub")}</span></h2>
             <p>{t("aiNote")}</p>
           </div>
@@ -744,7 +740,6 @@ export default function App() {
       <section id="wechat" style={{ paddingTop: 26 }}>
         <div className="wrap">
           <div className="sec-head">
-            <span className="no" style={{ borderColor: "#07c160", color: "#07c160" }}>微</span>
             <h2><span>{t("wxTitle")}</span><span className="sub">{t("wxSub")}</span></h2>
             <p>{t("wxNote")}</p>
           </div>

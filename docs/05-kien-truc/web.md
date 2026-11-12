@@ -40,7 +40,7 @@ web/
 
 ## Hệ thống thiết kế (nguồn sự thật: `~/workspace/custom-skills/guiyan-platform/SKILL.md`)
 
-- **Font:** display `"Noto Serif SC"` 600/700/900 (chữ 桂演, số chương 其一…, tiêu đề hero); body `"Be Vietnam Pro"` + `"Noto Sans SC"` + `system-ui`. Không dùng Inter.
+- **Font:** display `"Noto Serif SC"` 600/700/900 (chữ 桂演, tiêu đề hero); body `"Be Vietnam Pro"` + `"Noto Sans SC"` + `system-ui`. Không dùng Inter.
 - **Màu** (`:root` trong `main.css`, có dark mode): nền giấy `#f7f3ec`, mặt `#fffdf8`, chữ `#1c1710`, đỏ `#b03a1e`, vàng `#a97e1c`, ngọc `#0d6e5f`, đêm `#12100d`, kem `#f5eedd`; bo `20/14/9px`. Xanh WeChat `#07c160` chỉ dùng cho nút WeChat Mini. Không gradient tím-xanh, không 3 thẻ bằng nhau.
 - **Chiều rộng trang:** `.wrap` `max-width: 1240px`, căn giữa, `padding: 0 20px` — header, hero, sections, footer cùng một wrap nên mép thẳng hàng.
 - **Header (64px, sticky):** logo 桂演 đỏ ở **ngoài cùng bên trái**, nav đẩy sang phải (`margin-left: auto`), rồi chọn ngôn ngữ, nút WeChat Mini, Vé của tôi (kèm số đơn), khu vực tài khoản ở **ngoài cùng bên phải**. Mọi nút trên header đều là pill (`border-radius: 99px`); link nav không bao giờ xuống 2 dòng (`white-space: nowrap`).

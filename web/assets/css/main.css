@@ -119,7 +119,6 @@ a{color:var(--red)}
 /* ---------- sections ---------- */
 section{padding:76px 0}
 .sec-head{display:flex;align-items:flex-end;gap:22px;margin-bottom:30px;flex-wrap:wrap}
-.sec-head .no{font-family:"Noto Serif SC",serif;font-size:15px;font-weight:900;color:var(--red);border:1.5px solid var(--red);border-radius:99px;padding:5px 13px;letter-spacing:.08em}
 .sec-head h2{font-family:"Noto Serif SC",serif;font-size:clamp(28px,4.4vw,42px);font-weight:900;line-height:1.15;margin:0}
 .sec-head h2 .sub{display:block;font-family:"Be Vietnam Pro","Noto Sans SC",sans-serif;font-size:15px;font-weight:600;color:var(--ink2);letter-spacing:.01em;margin-top:6px}
 .sec-head p{margin:0 0 4px auto;max-width:380px;color:var(--ink2);font-size:14px}
