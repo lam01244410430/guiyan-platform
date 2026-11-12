@@ -56,7 +56,7 @@ Dùng lại backend `server/routes/admin-insights.mjs` đã có từ trước mi
 - **预警中心** (`GET/POST /api/admin/alerts`): trigger/resolve cảnh báo mô phỏng (ghi rõ mô phỏng), ngưỡng threshold=5; mục 操作审计 đọc `GET /api/admin/audit-logs` (60 dòng mới nhất).
 - **Duyệt nhu cầu**: `PATCH /api/admin/demands/:id` `{status: "approved"|"rejected"}` — nút chỉ hiện khi demand đang pending; CORS thêm `PATCH` (quyết định 23).
 - **Xuất CSV**: `GET /api/admin/orders.csv` (BOM `EF BB BF`, 311 dòng trên DB test mới, header 9 cột) — nút export ở view trends + orders.
-- **Lỗi đã sửa**: B-014 (quarter 500 — `nextBucket` + viết lại `buildSeries`), B-015 (sửa code), B-016/017/018/019 (sửa test). `npm test` 29 pass / 0 fail / 10 skip, smoke 30/0, curl matrix 25/25, review độc lập APPROVE (không P1; 4 P2 đã sửa: race đổi kỳ nhanh, badge chỉ xem sai ở 订单/需求， ghi chú "改判" thừa, `.gitignore` taste-skill). 11 P3 không blocker để sau commit (ghi trong báo cáo giai đoạn 5, chưa sửa).
+- **Lỗi đã sửa**: B-014 (quarter 500 — `nextBucket` + viết lại `buildSeries`), B-015 (sửa code), B-016/017/018/019 (sửa test). `npm test` 29 pass / 0 fail / 10 skip, smoke 30/0, curl matrix 25/25, review độc lập APPROVE (không P1; 4 P2 đã sửa: race đổi kỳ nhanh, badge chỉ xem sai ở 订单/需求， ghi chú "改判" thừa, `.gitignore` (thư mục snapshot kiểm tra giao diện)). 11 P3 không blocker để sau commit (ghi trong báo cáo giai đoạn 5, chưa sửa).
 
 ## Tìm kiếm (redesign 2026-11-11, chưa commit)
 

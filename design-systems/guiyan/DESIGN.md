@@ -7,8 +7,8 @@
 > per screen. Written after the bright 2026-11-11 redesign was judged
 > AI slop (white sidebar, `#fafbfc`, generic blue, pill buttons
 > everywhere) and rebuilt from the original night-theatre brand using
-> the OpenDesign method (`DESIGN.md` as brand contract; references:
-> `warm-editorial`, `editorial`, `craft/anti-ai-slop.md`).
+> our own brand-contract method (`DESIGN.md` as brand contract, with
+> tokens in `tokens.css` and `design-tokens.json`).
 
 ## 1. Visual Theme & Atmosphere
 
