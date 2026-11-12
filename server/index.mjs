@@ -25,15 +25,18 @@ import { createContext } from "./lib/context.mjs";
 import { createCache } from "./lib/cache.mjs";
 import { serveStatic } from "./static.mjs";
 import { health, listCategories } from "./routes/misc.mjs";
-import { listResources, getResource } from "./routes/resources.mjs";
+import { listResources, getResource, viewResource } from "./routes/resources.mjs";
 import { login, logout, register } from "./routes/auth.mjs";
 import { listOrders, createOrder, transitionOrder } from "./routes/orders.mjs";
 import { listDemands, createDemand } from "./routes/demands.mjs";
 import { listFavorites, toggleFavorite, deleteFavorite } from "./routes/favorites.mjs";
 import { ANSWERS, assistant } from "./routes/assistant.mjs";
+import { getProfile, getRecommendations } from "./routes/profile.mjs";
+import { aiCopy } from "./routes/ai-copy.mjs";
 import { storageHealth, storageUpload, storageUrl, storageDelete } from "./routes/storage.mjs";
 import { adminStats, adminOrders, adminUsers, adminDemands } from "./routes/admin.mjs";
 import { adminStatsSeries, adminAnalysis, adminAlerts, adminOrdersCsv, adminReviewDemand, adminAuditLogs } from "./routes/admin-insights.mjs";
+import { adminTagRules } from "./routes/tag-rules.mjs";
 
 // Commit before sending the response, so the next request sees saved changes.
 function createRequestHandler(db, handle) {
@@ -143,6 +146,7 @@ export async function createApp({ database }) {
       if (await listCategories(ctx)) return;
       if (await listResources(ctx)) return;
       if (await getResource(ctx)) return;
+      if (await viewResource(ctx)) return;
       if (await login(ctx)) return;
       if (await register(ctx)) return;
       if (await logout(ctx)) return;
@@ -155,6 +159,9 @@ export async function createApp({ database }) {
       if (await toggleFavorite(ctx)) return;
       if (await deleteFavorite(ctx)) return;
       if (await assistant(ctx)) return;
+      if (await getProfile(ctx)) return;
+      if (await getRecommendations(ctx)) return;
+      if (await aiCopy(ctx)) return;
       if (await storageHealth(ctx)) return;
       if (await storageUpload(ctx)) return;
       if (await storageUrl(ctx)) return;
@@ -169,6 +176,7 @@ export async function createApp({ database }) {
       if (await adminOrdersCsv(ctx)) return;
       if (await adminReviewDemand(ctx)) return;
       if (await adminAuditLogs(ctx)) return;
+      if (await adminTagRules(ctx)) return;
 
       send({ error: "接口不存在" }, 404);
     } catch (e) {

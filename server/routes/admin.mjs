@@ -1,5 +1,6 @@
 import { assert, safeUser } from "../lib/http.mjs";
 import { CACHE_KEYS, CACHE_TTLS } from "../lib/cache.mjs";
+import { profileRows } from "../lib/profiles.mjs";
 
 export async function adminStats(ctx) {
   const { req, p, send, session, get, all, url, cache, res } = ctx;
@@ -57,10 +58,21 @@ export async function adminOrders(ctx) {
 }
 
 export async function adminUsers(ctx) {
-  const { req, p, send, session, all } = ctx;
+  const { req, p, send, session, all, url } = ctx;
   if (p !== "/api/admin/users" || req.method !== "GET") return false;
   assert(session?.role === "admin", "无权访问管理后台", 403);
-  send({ users: (await all("SELECT * FROM users ORDER BY id DESC")).map(safeUser) });
+  // Wave 3 #9: tags are computed at read time from the shared rule
+  // engine (same tags as the analysis userSummary), never stored — so a
+  // rule change is reflected immediately, with no migration.
+  const byId = new Map(
+    (await profileRows(ctx)).map((r) => [r.id, r.tags]),
+  );
+  let users = (await all("SELECT * FROM users ORDER BY id DESC")).map(
+    (u) => ({ ...safeUser(u), tags: byId.get(u.id) || [] }),
+  );
+  const tag = url.searchParams.get("tag");
+  if (tag) users = users.filter((u) => u.tags.includes(tag));
+  send({ users });
   return true;
 }
 

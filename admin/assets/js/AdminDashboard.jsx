@@ -36,6 +36,8 @@ const NAV_ICONS = {
   trends: (<><path d="M3 3v16a2 2 0 0 0 2 2h16" /><path d="m19 9-5 5-4-4-3 3" /></>),
   analysis: (<><path d="M15 12h-5m5-4h-5m9 9V5a2 2 0 0 0-2-2H4" /><path d="M8 21h12a2 2 0 0 0 2-2v-1a1 1 0 0 0-1-1H11a1 1 0 0 0-1 1v1a2 2 0 1 1-4 0V5a2 2 0 1 0-4 0v2a1 1 0 0 0 1 1h3" /></>),
   alerts: (<><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3" /><path d="M12 9v4" /><path d="M12 17h.01" /></>),
+  tagrules: (<><path d="M12.586 2.586A2 2 0 0 0 11.172 2H4a2 2 0 0 0-2 2v7.172a2 2 0 0 0 .586 1.414l8.704 8.704a2.426 2.426 0 0 0 3.42 0l6.58-6.58a2.426 2.426 0 0 0 0-3.42z" /><circle cx="7.5" cy="7.5" r=".5" fill="currentColor" /></>),
+  aicopy: (<><path d="M12 20h9" /><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z" /></>),
 };
 function NavIcon({ v }) {
   return (
@@ -60,6 +62,8 @@ const VIEWS = [
   { id: "overview", label: "总览", iconName: "ui:layout-dashboard", group: "main" },
   { id: "orders", label: "订单", iconName: "ui:receipt", group: "main" },
   { id: "users", label: "用户", iconName: "ui:users", group: "main" },
+  { id: "tagrules", label: "标签规则", iconName: "ui:tags", group: "main" },
+  { id: "aicopy", label: "文案生成", iconName: "ui:pen", group: "main" },
   { id: "resources", label: "资源", iconName: "ui:layers", group: "main" },
   { id: "demands", label: "需求", iconName: "ui:clipboard-list", group: "main" },
   { id: "trends", label: "趋势统计", iconName: "ui:chart-line", group: "premium" },
@@ -72,6 +76,17 @@ const FILTERS = [
   ["completed", "已完成"], ["cancelled", "已取消"], ["refunded", "已退款"],
 ];
 const PERIODS = [["day", "日"], ["week", "周"], ["month", "月"], ["quarter", "季"]];
+// Wave 3 #9: rule field labels, port of zhou TagRules.jsx:4-14. Amounts
+// are stored in 分 (cents) — zhou's UI said 元 while its rules stored 分,
+// a 100x trap; Lam's form labels the unit as 分 (Q12 default).
+const TAG_FIELDS = [
+  ["spent", "累计支付（分）"], ["paid_count", "有效付费订单数"],
+  ["days_since_payment", "距上次消费（天）"], ["view_count", "浏览次数"],
+  ["favorite_count", "收藏数量"], ["preference", "兴趣分类"],
+  ["view_category", "浏览分类"], ["city", "城市"], ["channel", "来源渠道"],
+];
+const TAG_NUMERIC = ["spent", "paid_count", "days_since_payment", "view_count", "favorite_count"];
+const TAG_OPS = [["gte", "≥"], ["lte", "≤"], ["gt", ">"], ["lt", "<"], ["eq", "="]];
 const ALERT_KINDS = [
   ["sales", "销量突降"], ["verification", "核销异常"], ["inventory", "库存异常"],
   ["data", "数据异常"], ["sentiment", "潜在舆情风险"],
@@ -113,7 +128,7 @@ export default function AdminDashboard() {
       return out;
     });
   }
-  function changeView(v) { setView(v); setQuery(""); setSorts({}); setDrawerOpen(false); }
+  function changeView(v) { setView(v); setQuery(""); setSorts({}); setTagFilter(""); setDrawerOpen(false); }
   // Mobile drawer (≤860px): open state + Esc closes + focus returns to
   // the hamburger. Desktop sidebar is unaffected (drawer CSS only
   // applies at ≤860px).
@@ -143,9 +158,23 @@ export default function AdminDashboard() {
   const [threshold, setThreshold] = useState(5);
   const [auditLogs, setAuditLogs] = useState([]);
   const [csvBusy, setCsvBusy] = useState(false);
+  // Wave 3 #9 tag rules (lazy-loaded like the premium views) + the users
+  // view tag filter (client-side, composes with search/sort; the API's
+  // ?tag= filter exists so the endpoint is usable on its own).
+  const [tagRules, setTagRules] = useState(null);
+  // Wave 3 #8 operator card (analysis view): question + rule answer.
+  const [opQuery, setOpQuery] = useState("");
+  const [opReply, setOpReply] = useState("");
+  const [opBusy, setOpBusy] = useState(false);
+  const [tagRulesBusy, setTagRulesBusy] = useState(false);
+  // Wave 3 #10 copy template: prompt + generated result (3 channels).
+  const [copyPrompt, setCopyPrompt] = useState("");
+  const [copyResult, setCopyResult] = useState(null);
+  const [copyBusy, setCopyBusy] = useState(false);
+  const [tagFilter, setTagFilter] = useState("");
   const [reviewBusyId, setReviewBusyId] = useState(null);
   const [triggerBusy, setTriggerBusy] = useState("");
-  const loadedRef = useRef({ trends: "", analysis: "", alerts: false });
+  const loadedRef = useRef({ trends: "", analysis: "", alerts: false, tagrules: false });
   // Monotonic request id: guards the lazy period fetches below against
   // out-of-order responses when the user switches period quickly — only
   // the newest request may set state / mark its period loaded.
@@ -211,6 +240,12 @@ export default function AdminDashboard() {
         setAnalysis(d); loadedRef.current.analysis = period; setAnalysisStale(false);
       }).catch(loadFail);
     }
+    if (view === "tagrules" && !loadedRef.current.tagrules) {
+      loadedRef.current.tagrules = true;
+      apiGet("/api/admin/tag-rules").then(function (d) {
+        setTagRules(d.tagRules || []);
+      }).catch(loadFail);
+    }
     if (view === "alerts" && !loadedRef.current.alerts) {
       loadedRef.current.alerts = true;
       loadAlerts(); loadAudit();
@@ -269,10 +304,91 @@ export default function AdminDashboard() {
     }).catch(function () { toast("处理失败，请稍后重试"); });
   }
 
+  // Wave 3 #9 tag-rule editor helpers. Changing a condition's field
+  // resets op/value to the defaults, exactly like zhou TagRules.jsx
+  // (numeric -> gte/0, text -> eq/heritage or 南宁).
+  function editTagRule(i, key, value) {
+    setTagRules(function (rs) { return rs.map(function (r, n) { return n === i ? { ...r, [key]: value } : r; }); });
+  }
+  function editTagCond(i, j, key, value) {
+    setTagRules(function (rs) {
+      return rs.map(function (r, n) {
+        if (n !== i) return r;
+        return {
+          ...r,
+          conditions: r.conditions.map(function (c, k) {
+            if (k !== j) return c;
+            const next = { ...c, [key]: value };
+            if (key === "field") {
+              next.op = TAG_NUMERIC.indexOf(value) !== -1 ? "gte" : "eq";
+              next.value = TAG_NUMERIC.indexOf(value) !== -1 ? 0
+                : (value.indexOf("category") !== -1 || value === "preference" ? "heritage" : "南宁");
+            }
+            return next;
+          }),
+        };
+      });
+    });
+  }
+  function addTagRule() {
+    if (!tagRules || tagRules.length >= 20) { toast("最多配置20条标签规则"); return; }
+    setTagRules(tagRules.concat([{
+      id: "tag-" + Math.random().toString(36).slice(2, 8),
+      name: "新标签", enabled: true, match: "all",
+      conditions: [{ field: "spent", op: "gte", value: 0 }],
+    }]));
+  }
+  function saveTagRules() {
+    if (tagRulesBusy || !tagRules) return;
+    setTagRulesBusy(true);
+    apiPatch("/api/admin/tag-rules", { tagRules }).then(function (d) {
+      setTagRules(d.tagRules || tagRules);
+      toast("标签规则已保存，用户标签已重算");
+      // Tags changed: reload the users table and mark the analysis stale
+      // (its userSummary counts tags; the server already busted its cache).
+      apiGet("/api/admin/users").then(function (u) { setUsers(u.users || []); }).catch(function () {});
+      setAnalysisStale(true);
+    }).catch(function (e) {
+      if (e && e.status === 403) toast("无权修改标签规则");
+      else toast((e && e.data && e.data.error) || "保存失败，请检查规则");
+    }).finally(function () { setTagRulesBusy(false); });
+  }
+
+  function doOperatorAsk() {
+    const q = opQuery.trim();
+    if (opBusy || !q) return;
+    setOpBusy(true);
+    apiPost("/api/assistant/chat", { message: q, kind: "operator" }).then(function (d) {
+      setOpReply(d.reply || "");
+    }).catch(function (e) {
+      if (e && e.status === 403) toast("无权使用运营助手");
+      else toast((e && e.data && e.data.error) || "运营助手暂时不可用");
+    }).finally(function () { setOpBusy(false); });
+  }
+
+  function doCopyGenerate() {
+    const prompt = copyPrompt.trim();
+    if (copyBusy || !prompt) return;
+    setCopyBusy(true);
+    apiPost("/api/ai/copy", { prompt }).then(function (d) {
+      setCopyResult(d);
+    }).catch(function (e) {
+      if (e && e.status === 401) toast("请先登录");
+      else toast((e && e.data && e.data.error) || "文案生成失败");
+    }).finally(function () { setCopyBusy(false); });
+  }
+  function doCopyText(content) {
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(content).then(function () { toast("已复制"); }).catch(function () { toast("复制失败"); });
+    } else { toast("当前浏览器不支持复制"); }
+  }
+
   const titles = {
     overview: ["总览", "运营数据一览"],
     orders: ["全部订单", "共 " + orders.length + " 单 · 仅查看"],
     users: ["全部用户", "共 " + users.length + " 人"],
+    tagrules: ["标签规则", "自动标签规则 · 保存后立即重算"],
+    aicopy: ["文案生成", "本地模板 · 未接入大模型"],
     resources: ["资源总览", "共 " + resources.length + " 项"],
     demands: ["需求总览", "共 " + demands.length + " 条"],
     trends: ["趋势统计", "按周期查看订单趋势"],
@@ -309,7 +425,10 @@ export default function AdminDashboard() {
     return (filter === "all" || o.status === filter) && (!q || orderMatch(o));
   });
   const overviewMatches = q ? orders.filter(orderMatch) : orders;
-  const filteredUsers = q ? users.filter(userMatch) : users;
+  const allTags = [...new Set(users.flatMap(function (u) { return u.tags || []; }))].sort(function (a, b) { return a.localeCompare(b, "zh"); });
+  const filteredUsers = users.filter(function (u) {
+    return (!tagFilter || (u.tags || []).indexOf(tagFilter) !== -1) && (!q || userMatch(u));
+  });
   const filteredResources = q ? resources.filter(resourceMatch) : resources;
   const filteredDemands = q ? demands.filter(demandMatch) : demands;
   const trendSeries = seriesData ? seriesData.series : [];
@@ -381,7 +500,7 @@ export default function AdminDashboard() {
   // Badge reflects real write ability, not just the premium group:
   // 订单 exports CSV (writes an audit row) and 需求 approves/rejects
   // (writes audit + notifies), so both are write views too.
-  const canWrite = isPremium || view === "demands" || view === "orders";
+  const canWrite = isPremium || view === "demands" || view === "orders" || view === "tagrules" || view === "aicopy";
   const reportLines = analysis && typeof analysis.report === "string" ? analysis.report.split("\n") : [];
   const reportTitle = reportLines.length ? reportLines[0] : "模拟经营分析报告";
   const reportBody = reportLines.length > 1 ? reportLines.slice(1).join("\n") : "";
@@ -444,7 +563,7 @@ export default function AdminDashboard() {
               onClick={() => setDrawerOpen(!drawerOpen)}>
               <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16" /></svg>
             </button>
-            <h1><span id="pageTitle">{titles[view][0]}</span><span className="sub" id="pageSub">{titles[view][1]}</span></h1>
+            <h1><span id="pageTitle">{titles[view][0]}</span><span className="sub" id="pageSub">{view === "users" ? "共 " + filteredUsers.length + " 人" : titles[view][1]}</span></h1>
             <span className="badge">{canWrite ? "管理操作 · 审计留痕" : "仅查看 · 只读"}</span>
           </div>
 
@@ -525,22 +644,68 @@ export default function AdminDashboard() {
             <div className="search-row">
               <SearchBox id="search-users" label="搜索用户" placeholder="输入ID、姓名、账号、邮箱或城市…"
                 value={query} onChange={setQuery} resultCount={q ? filteredUsers.length : null} />
+              <select className="tag-filter" aria-label="按标签筛选" value={tagFilter} onChange={(e) => setTagFilter(e.target.value)}>
+                <option value="">全部标签</option>
+                {allTags.map((tg) => (<option key={tg} value={tg}>{tg}</option>))}
+              </select>
             </div>
             <div className="tbl-wrap">
               <table>
-                <thead><tr><th scope="col" aria-sort={ariaSort("users", "id")}>ID<SortButton label="ID" sortKey="id" tableId="users" sort={sorts.users} onToggle={toggleSort} /></th><th scope="col" aria-sort={ariaSort("users", "name")}>姓名<SortButton label="姓名" sortKey="name" tableId="users" sort={sorts.users} onToggle={toggleSort} /></th><th scope="col" aria-sort={ariaSort("users", "username")}>账号<SortButton label="账号" sortKey="username" tableId="users" sort={sorts.users} onToggle={toggleSort} /></th><th scope="col">角色</th><th scope="col">城市</th><th scope="col">渠道</th><th scope="col">认证</th></tr></thead>
+                <thead><tr><th scope="col" aria-sort={ariaSort("users", "id")}>ID<SortButton label="ID" sortKey="id" tableId="users" sort={sorts.users} onToggle={toggleSort} /></th><th scope="col" aria-sort={ariaSort("users", "name")}>姓名<SortButton label="姓名" sortKey="name" tableId="users" sort={sorts.users} onToggle={toggleSort} /></th><th scope="col" aria-sort={ariaSort("users", "username")}>账号<SortButton label="账号" sortKey="username" tableId="users" sort={sorts.users} onToggle={toggleSort} /></th><th scope="col">角色</th><th scope="col">城市</th><th scope="col">渠道</th><th scope="col">认证</th><th scope="col">标签</th></tr></thead>
                 <tbody id="usersBody">
                   {users.length
                     ? (filteredUsers.length ? sortedUsers.map((usr) => (
                       <tr key={usr.username}>
                         <td className="id">{usr.id}</td><td>{usr.name || ""}</td><td>{usr.username}</td><td>{usr.role}</td>
                         <td>{usr.city || ""}</td><td>{usr.channel || ""}</td><td>{usr.verified ? "已认证" : "未认证"}</td>
+                        <td>{(usr.tags || []).map((tg) => (<span key={tg} className="pill tag">{tg}</span>))}</td>
                       </tr>
-                    )) : searchEmpty(7))
-                    : <tr><td colSpan="7"><div className="empty">暂无用户</div></td></tr>}
+                    )) : searchEmpty(8))
+                    : <tr><td colSpan="8"><div className="empty">暂无用户</div></td></tr>}
                 </tbody>
               </table>
             </div>
+          </section>
+
+          <section className={"view" + (view === "tagrules" ? " on" : "")} id="view-tagrules">
+            <div className="note">条件可组合，保存后立即重算。金额单位为<b>分</b>（¥10,000 = 1000000分）；未付费用户不会被默认划为潜力会员。浏览分类规则需要真实浏览数据（打开资源详情即记录）。</div>
+            {tagRules === null ? <div className="empty">加载中…</div> : (
+              <>
+                {tagRules.map((r, i) => (
+                  <fieldset className="tag-rule" key={r.id}>
+                    <legend>{r.name || "未命名标签"}</legend>
+                    <label>标签名称 <input type="text" value={r.name} maxLength={20} onChange={(e) => editTagRule(i, "name", e.target.value)} /></label>
+                    <label>规则编号 <input type="text" value={r.id} maxLength={60} onChange={(e) => editTagRule(i, "id", e.target.value)} /></label>
+                    <label><input type="checkbox" checked={r.enabled} onChange={(e) => editTagRule(i, "enabled", e.target.checked)} /> 启用</label>
+                    <label>满足条件 <select value={r.match} onChange={(e) => editTagRule(i, "match", e.target.value)}>
+                      <option value="all">全部满足</option><option value="any">任一满足</option>
+                    </select></label>
+                    {r.conditions.map((c, j) => (
+                      <div className="tag-cond" key={j}>
+                        <select aria-label="条件字段" value={c.field} onChange={(e) => editTagCond(i, j, "field", e.target.value)}>
+                          {TAG_FIELDS.map(([f, label]) => (<option key={f} value={f}>{label}</option>))}
+                        </select>
+                        <select aria-label="比较方式" value={c.op} onChange={(e) => editTagCond(i, j, "op", e.target.value)}>
+                          {TAG_OPS.filter(([op]) => TAG_NUMERIC.indexOf(c.field) !== -1 || op === "eq").map(([op, label]) => (<option key={op} value={op}>{label}</option>))}
+                        </select>
+                        {TAG_NUMERIC.indexOf(c.field) !== -1
+                          ? <input type="number" aria-label="阈值" value={c.value} min={0} onChange={(e) => editTagCond(i, j, "value", e.target.value === "" ? 0 : Number(e.target.value))} />
+                          : <input type="text" aria-label="匹配值" value={c.value} maxLength={40} onChange={(e) => editTagCond(i, j, "value", e.target.value)} />}
+                        <button type="button" className="link-btn" disabled={r.conditions.length <= 1} onClick={() => editTagRule(i, "conditions", r.conditions.filter((_, k) => k !== j))}>删除条件</button>
+                      </div>
+                    ))}
+                    <div>
+                      <button type="button" className="btn-resolve" disabled={r.conditions.length >= 6} onClick={() => editTagRule(i, "conditions", r.conditions.concat([{ field: "spent", op: "gte", value: 0 }]))}>添加条件</button>{" "}
+                      <button type="button" className="btn-reject" onClick={() => setTagRules(tagRules.filter((_, n) => n !== i))}>删除规则</button>
+                    </div>
+                  </fieldset>
+                ))}
+                <div className="chips">
+                  <button type="button" disabled={tagRules.length >= 20} onClick={addTagRule}>添加规则</button>
+                  <button type="button" className="btn-export" disabled={tagRulesBusy} onClick={saveTagRules}>{tagRulesBusy ? "保存中…" : "保存标签规则"}</button>
+                </div>
+              </>
+            )}
           </section>
 
           <section className={"view" + (view === "resources" ? " on" : "")} id="view-resources">
@@ -563,6 +728,32 @@ export default function AdminDashboard() {
                 </tbody>
               </table>
             </div>
+          </section>
+
+          <section className={"view" + (view === "aicopy" ? " on" : "")} id="view-aicopy">
+            <div className="note">本地模板 · 未接入大模型。输入主题生成三渠道文案草稿；缺日期、价格、地点时只留占位符，不编造。请用中文输入主题，模板只识别中文日期/价格/地点。</div>
+            <textarea className="copy-prompt" aria-label="文案主题" placeholder="例如：为《刘三姐》写一段小红书推送，地点：南宁剧场，票价280元"
+              value={copyPrompt} onChange={(e) => setCopyPrompt(e.target.value)} />
+            <div className="chips">
+              <button type="button" className="btn-export" disabled={copyBusy || !copyPrompt.trim()} onClick={doCopyGenerate}>{copyBusy ? "生成中…" : "生成文案"}</button>
+            </div>
+            {copyResult ? (
+              <>
+                <div className="copy-card">
+                  <h3>{copyResult.title}</h3>
+                  <pre>{copyResult.body}</pre>
+                  <button type="button" className="btn-resolve" onClick={() => doCopyText(copyResult.body)}>复制正文</button>
+                </div>
+                {copyResult.channels.map((c) => (
+                  <div className="copy-card" key={c.name}>
+                    <h3>{c.name}</h3>
+                    <pre>{c.content}</pre>
+                    <button type="button" className="btn-resolve" onClick={() => doCopyText(c.content)}>复制{c.name}</button>
+                  </div>
+                ))}
+                <p className="def-note">注意事项：{(copyResult.notes || []).join("；")}</p>
+              </>
+            ) : null}
           </section>
 
           <section className={"view" + (view === "demands" ? " on" : "")} id="view-demands">
@@ -655,7 +846,7 @@ export default function AdminDashboard() {
                   <button type="button" className="link-btn" onClick={() => changeView("trends")}>查看趋势图 →</button>
                 </p>
                 <p className="user-sum">用户总数 {analysis.userSummary.total} · 近30天新增 {analysis.userSummary.newUsers} · 高价值 {analysis.userSummary.highValue} · 潜力会员 {analysis.userSummary.potential} · 沉默用户 {analysis.userSummary.silent}</p>
-                <p className="def-note">高价值：累计消费 ≥ ¥10,000；潜力会员：消费 ¥1,000–10,000 且付费 ≥ 2 笔、最近付费 ≤ 90 天；沉默用户：付费 ≥ 1 笔、最近付费 &gt; 90 天。</p>
+                <p className="def-note">默认规则：高价值：累计消费 ≥ ¥10,000；潜力会员：消费 ¥1,000–10,000 且付费 ≥ 2 笔、最近付费 ≤ 90 天；沉默用户：付费 ≥ 1 笔、最近付费 &gt; 90 天。规则可在「标签规则」页修改。</p>
                 <div className="search-row">
                   <SearchBox id="search-analysis" label="搜索经营数据" placeholder="输入渠道、资源或场馆名…"
                     value={query} onChange={setQuery}
@@ -709,6 +900,17 @@ export default function AdminDashboard() {
                   <ul className="insights">
                     {analysis.insights.map((s, i) => <li key={i}>{s}</li>)}
                   </ul>
+                </div>
+                <div className="sec">
+                  <h2>运营助手</h2>
+                  <p className="def-note">本地规则分析，未接入大模型；按经营分析的真实数据回答，仅管理员可用。</p>
+                  <div className="op-row">
+                    <input type="text" aria-label="运营问题" placeholder="例如：今日销量、场馆表现、生成经营报告…"
+                      value={opQuery} onChange={(e) => setOpQuery(e.target.value)}
+                      onKeyDown={(e) => { if (e.key === "Enter") doOperatorAsk(); }} />
+                    <button type="button" className="btn-export" disabled={opBusy || !opQuery.trim()} onClick={doOperatorAsk}>{opBusy ? "查询中…" : "发送"}</button>
+                  </div>
+                  {opReply ? <div className="report"><pre>{opReply}</pre></div> : null}
                 </div>
                 <div className="sec">
                   <h2>场馆经营</h2>

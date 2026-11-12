@@ -86,3 +86,34 @@ export async function getResource(ctx) {
   }
   return false;
 }
+
+// Real view recording (Wave 3 #11a, port of zhou
+// guiyan-demo/server/index.mjs POST /api/resources/:id/view): the seeded
+// `views` counter was a constant, so no real view was ever recorded.
+// Anonymous views count too (user_id NULL) — viewing needs no login.
+// No cache bust (Q7): the cached list may show a stale `views` for up to
+// the 300 s TTL; GET /api/resources/:id reads live, so it is always right.
+// No abuse limit in this wave (Q8): rate limiting is Wave 5 (#29).
+export async function viewResource(ctx) {
+  const { p, req, send, session, get, run, time } = ctx;
+  const m = p.match(/^\/api\/resources\/(\d+)\/view$/);
+  if (m && req.method === "POST") {
+    const id = Number(m[1]);
+    const r = await get(
+      "SELECT id FROM resources WHERE id=? AND status='published'",
+      id,
+    );
+    assert(r, "资源不存在", 404);
+    await run("UPDATE resources SET views=views+1 WHERE id=?", id);
+    await run(
+      "INSERT INTO events(user_id,type,detail,created_at) VALUES(?,?,?,?)",
+      session?.id || null,
+      "view",
+      String(id),
+      time(),
+    );
+    send({ ok: true });
+    return true;
+  }
+  return false;
+}

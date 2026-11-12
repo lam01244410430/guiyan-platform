@@ -138,7 +138,18 @@ export default function App() {
     setUser(currentUser());
     setChatMsgs([{ me: false, text: t("greeting") }]);
     if (/MicroMessenger/i.test(navigator.userAgent)) document.body.classList.add("is-wechat");
-    loadApiData().catch(function () { /* offline: embedded data stays exactly as-is */ });
+    loadApiData().then(function () {
+      // Wave 3 #11b deep link: the user dashboard's recommendation cards
+      // link here as ?detail=<api resource id>. Open that resource's
+      // detail overlay once the API catalog has merged (APIID2IDX is
+      // only populated after loadApiData); opening via openDetail also
+      // records the view, like any other detail open. A bad/unknown id
+      // is ignored — the homepage just loads normally.
+      try {
+        const id = Number(new URLSearchParams(window.location.search).get("detail") || "");
+        if (Number.isSafeInteger(id) && id >= 1 && APIID2IDX[id] != null) openDetail(APIID2IDX[id]);
+      } catch (e) { /* ignore a malformed deep link */ }
+    }).catch(function () { /* offline: embedded data stays exactly as-is */ });
     const onKey = (e) => {
       if (e.key === "Escape") {
         setDetailIdx(null); setDrawerOpen(false); setMenuOpen(false); setNavOpen(false);
@@ -314,7 +325,17 @@ export default function App() {
     return list;
   }
 
-  function openDetail(i) { setDetailIdx(i); setBkQty(1); setBkDate("2026-12-05"); }
+  // Wave 3 #11a: record one real view per detail open (fire-and-forget:
+  // never blocks the UI, never toasts on failure). API id comes from
+  // APIRES (RES index -> API id); offline/embedded data has no id, so
+  // nothing is recorded then. Anonymous views count too (server-side).
+  function openDetail(i) {
+    setDetailIdx(i); setBkQty(1); setBkDate("2026-12-05");
+    const rid = APIRES[i] && APIRES[i].id;
+    if (rid != null && isApiAvailable()) {
+      apiPost("/api/resources/" + rid + "/view", {}).catch(function () {});
+    }
+  }
   function selectDemand(i) {
     setDemSel(i);
     const d = DEMANDS[i];

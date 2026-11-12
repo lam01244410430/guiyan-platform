@@ -7,6 +7,7 @@
 // Money is integer cents; times are ISO text. All data is fictional.
 
 import { randomBytes, scryptSync } from "node:crypto";
+import { defaultTagRules } from "./lib/profiles.mjs";
 
 export const categories = [
   ["show", "演出剧目"],
@@ -687,6 +688,10 @@ function seed(db, passwords) {
     alertThreshold: 5,
     reviewEnabled: true,
     privacyMode: true,
+    // Wave 3 #9: default auto-tag rules (money in 分). Fresh databases get
+    // them from the seed; existing ones get them from the postgres.mjs
+    // boot backfill — both write the same JSON from lib/profiles.mjs.
+    tagRules: defaultTagRules,
   }))
     db.prepare("INSERT INTO settings VALUES(?,?)").run(k, JSON.stringify(v));
   db.prepare(

@@ -1,5 +1,6 @@
 import { assert } from "../lib/http.mjs";
 import { CACHE_KEYS, CACHE_TTLS } from "../lib/cache.mjs";
+import { buildAnalysis } from "./admin-insights.mjs";
 
 // Canonical Chinese assistant copy — the same wording as the web prototype
 // (web/index.html I18N zh: ansRefund/ansResched/ansHeritage/ansBook/
@@ -26,6 +27,150 @@ export async function answerRules(ctx, q) {
   const { all, yuan, ANSWERS, cache, res } = ctx;
   const s = q.toLowerCase();
   let kind, answer, items;
+  // Wave 3 #8, operator intents — port of zhou assistants.mjs
+  // operatorAnswer(), reading the REAL analysis payload via buildAnalysis()
+  // (same numbers as GET /api/admin/analysis). Checked FIRST: keywords
+  // overlap the public branches (e.g. 热门 matches both hot and 热销TOP5).
+  // Only runs when ctx.operator === true, which only the admin-only
+  // POST /api/assistant/chat {kind:"operator"} path sets — the public GET
+  // can never reach it (Q2).
+  if (ctx.operator) {
+    const a = await buildAnalysis(ctx, "day");
+    if (/报告|总结|日报|周报|运营分析/.test(q))
+      return {
+        kind: "operator",
+        answer: "【本地规则分析，未接入大模型】\n" + a.report,
+      };
+    const parts = [];
+    if (/销量|交易|订单|总额|卖了|客单/.test(q))
+      parts.push(
+        `交易概览：有效交易额${yuan(a.kpis.revenue)}，历史订单${a.kpis.orders}笔，有效付费订单${a.kpis.paidOrders}笔，付费客单价${yuan(a.kpis.paidOrders ? Math.round(a.kpis.revenue / a.kpis.paidOrders) : 0)}。`,
+      );
+    if (/用户|增长|活跃|新用户|会员|分群|沉默/.test(q))
+      parts.push(
+        `用户情况：注册档案${a.userSummary.total}人，近30天新增${a.userSummary.newUsers}人，近30天下单活跃${a.kpis.users}人；高价值${a.userSummary.highValue}人、潜力会员${a.userSummary.potential}人、沉默用户${a.userSummary.silent}人。标签按后台已启用规则计算。`,
+      );
+    if (/场馆|场地|档期|占用|上座/.test(q))
+      parts.push(
+        "场馆表现：\n" +
+          a.venues
+            .map(
+              (v) =>
+                `${v.name}：未来30天档期占用${v.occupancy}%，闲置${v.idleRate}%，租赁交易额${yuan(v.revenue)}，关联售票上座率${v.seatOccupancy === null ? "暂无关联剧目样本" : v.seatOccupancy + "%"}。`,
+            )
+            .join("\n"),
+      );
+    if (/渠道|来源/.test(q)) {
+      const total = a.kpis.revenue;
+      parts.push(
+        "渠道分析：\n" +
+          a.channels
+            .map(
+              (c) =>
+                `${c.name}：${yuan(c.amount)}，占比${total ? ((c.amount / total) * 100).toFixed(1) : 0}%。`,
+            )
+            .join("\n"),
+      );
+    }
+    if (/库存|异常|预警|紧张|超卖/.test(q))
+      parts.push(
+        "预警提醒：\n" +
+          (a.alerts.map((v) => v.title + "；" + v.detail).join("\n") ||
+            "当前没有待处理预警。"),
+      );
+    if (/热销|排行|排名|卖得好/.test(q))
+      parts.push(
+        "热销TOP5：\n" +
+          a.ranking
+            .slice(0, 5)
+            .map(
+              (r, i) =>
+                `${i + 1}. ${r.name}：${r.sales}笔、${r.quantity}份，${yuan(r.revenue)}`,
+            )
+            .join("\n"),
+      );
+    if (/推荐|建议|活动|应该|冷门|定价|营销|复盘/.test(q))
+      parts.push("运营建议：\n" + a.insights.join("\n"));
+    if (!parts.length)
+      parts.push(
+        "可以查询交易、用户增长与分群、场馆、渠道、热销、预警，或输入“生成经营报告”。当前问题未命中支持范围，请补充你想看的维度。",
+      );
+    return {
+      kind: "operator",
+      answer: "【本地规则分析，未接入大模型】\n" + parts.join("\n\n"),
+    };
+  }
+  // Wave 3 #8, logged-in support intents — port of zhou assistants.mjs
+  // supportAnswer(), reading the caller's OWN orders via ctx.orderRows.
+  // Checked BEFORE the generic refund/book branches below. Refund groups
+  // follow Lam's REAL order states (pending/confirmed/paid/completed/
+  // cancelled/refunded); zhou's refund_requested/disputed groups are
+  // dropped — Lam's state machine has no such states.
+  if (ctx.session) {
+    const orders = await ctx.orderRows(ctx.session);
+    if (/退款|退票|退订|退钱|cancel|refund|能退|怎么退|改签/.test(s)) {
+      const groups = [
+        ["pending", "待确认，可直接取消"],
+        ["confirmed", "待支付，可直接取消"],
+        ["paid", "已支付，可申请退款"],
+        ["completed", "已完成，不支持在线退款"],
+        ["cancelled", "已取消"],
+        ["refunded", "已退款"],
+      ];
+      const lines = groups
+        .map(([status, label]) => {
+          const rows = orders.filter((o) => o.status === status);
+          return rows.length
+            ? `${rows.length}笔${label}：${rows
+                .slice(0, 3)
+                .map((o) => o.code)
+                .join("、")}`
+            : null;
+        })
+        .filter(Boolean);
+      return {
+        kind: "myRefund",
+        answer:
+          "【本地规则客服，未接入大模型】\n退订与售后：\n" +
+          (lines.join("\n") || "你当前没有可退款的订单。") +
+          "\n改签需先联系资源方确认档期，再取消重订；不承诺未配置的24小时退票规则。",
+      };
+    }
+    if (/订单|预约|支付|付款/.test(s)) {
+      items = orders.slice(0, 5).map((o) => ({
+        code: o.code,
+        resource_name: o.resource_name,
+        status: o.status,
+        amount: o.amount,
+      }));
+      const list = orders
+        .slice(0, 5)
+        .map(
+          (o) =>
+            `${o.code} · ${o.resource_name} · ${o.status} · ${yuan(o.amount)}`,
+        )
+        .join("\n");
+      return {
+        kind: "myOrders",
+        answer:
+          `【本地规则客服，未接入大模型】\n你的订单：共${orders.length}笔。\n` +
+          list +
+          "\n在“我的订单”查看详情；待确认→后台确认→模拟支付，不扣真实资金。",
+        items,
+      };
+    }
+    if (/会员|文惠|消费卡|储值/.test(s)) {
+      return {
+        kind: "member",
+        answer:
+          "【本地规则客服，未接入大模型】\n会员与权益：演示支持兴趣偏好、收藏和模拟订单。文惠卡、消费卡、储值与真实优惠券尚未接入，不产生扣款或真实权益。",
+      };
+    }
+  } else if (/我的订单|订单/.test(s)) {
+    // Anonymous: never return an empty order list that looks like "no
+    // orders" — ask the user to log in first (kind stays myOrders).
+    return { kind: "myOrders", answer: "请先登录，再查询你的订单。" };
+  }
   if (/退款|退票|refund|hoàn/.test(s)) {
     kind = "refund";
     answer = ANSWERS.refund;
@@ -123,6 +268,27 @@ export async function assistant(ctx) {
       typeof b.language === "string" && LANG_INSTRUCTIONS[b.language]
         ? b.language
         : "zh";
+    // Wave 3 #8: kind=operator is admin-only (anonymous and non-admin ->
+    // 403, like every other admin endpoint) and bypasses the trial
+    // backend entirely: the answer comes from the rule engine over the
+    // real analysis payload. The audit records the action only — never
+    // the message content (same no-logging rule as the chat itself).
+    if (b.kind === "operator") {
+      assert(ctx.session?.role === "admin", "无权访问管理后台", 403);
+      const { kind, answer, items } = await answerRules(
+        { ...ctx, operator: true },
+        q,
+      );
+      await ctx.audit(ctx.session, "AI模拟 operator", "本地规则分析");
+      send({
+        reply: answer,
+        source: "rules",
+        kind,
+        mock: true,
+        ...(items ? { items } : {}),
+      });
+      return true;
+    }
     const forwarded = LANG_INSTRUCTIONS[lang] + "\n" + q;
     // Env is read at request time, not module load, so tests can point a
     // spawned server at a stub and Vercel env changes apply without rebuild.

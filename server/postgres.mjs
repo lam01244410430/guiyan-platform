@@ -10,6 +10,7 @@ import pg from "pg";
 import { schema } from "./schema.mjs";
 import { seedStatements } from "./seed.mjs";
 import { enrichCatalog } from "./catalog-content.mjs";
+import { defaultTagRules } from "./lib/profiles.mjs";
 
 // PostgreSQL aggregates return int8/numeric strings; the demo API uses numbers.
 pg.types.setTypeParser(20, Number);
@@ -94,6 +95,14 @@ export async function openPostgresStore(
           };
         },
       });
+      // Wave 3 #9: backfill the tagRules settings key for databases that
+      // were seeded before it existed (incl. live Neon). Guard-key
+      // INSERT, same idempotent pattern as enrichCatalog above: existing
+      // rules are never overwritten, so an admin's edits survive reboots.
+      await client.query(
+        "INSERT INTO settings(key,value) VALUES('tagRules',$1) ON CONFLICT (key) DO NOTHING",
+        [JSON.stringify(defaultTagRules)],
+      );
       await client.query("COMMIT");
     } catch (error) {
       await client.query("ROLLBACK");

@@ -120,6 +120,23 @@ th .sort-btn:focus-visible{outline:2px solid var(--pine);outline-offset:1px}
 .pill.paid{background:var(--jade-soft);color:var(--jade)}
 .pill.completed{background:var(--pine);color:var(--sidebar-text)}
 .pill.cancelled,.pill.refunded{background:var(--red-soft);color:var(--red-deep)}
+.pill.tag{background:var(--surface2);color:var(--ink2);margin:0 4px 4px 0;display:inline-block}
+/* Wave 3 #9 tag-rule editor: plain fieldset form, same tokens as the rest. */
+.tag-rule{border:1px solid var(--line2);border-radius:var(--radius-md);padding:14px 16px;margin-bottom:14px;background:var(--surface)}
+.tag-rule legend{font-weight:800;padding:0 6px}
+.tag-rule label{display:inline-block;margin:0 10px 8px 0;font-size:13px;color:var(--ink2)}
+.tag-rule input[type="text"],.tag-rule input[type="number"],.tag-rule select{font:inherit;font-size:13.5px;padding:6px 8px;border:1px solid var(--line2);border-radius:9px;background:var(--surface);color:var(--ink);max-width:220px}
+.tag-cond{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:8px}
+.tag-cond .link-btn{padding:0}
+.tag-filter{font:inherit;font-size:13.5px;padding:9px 10px;border:1px solid var(--line2);border-radius:9px;background:var(--surface);color:var(--ink)}
+/* Wave 3 #10 copy template: channel cards reuse .sec/.note; pre-wrap keeps line breaks. */
+.copy-card{border:1px solid var(--line);border-radius:var(--radius-md);background:var(--surface);padding:14px 16px;margin-bottom:14px}
+.copy-card h3{margin:0 0 8px;font-size:14px}
+.copy-card pre{white-space:pre-wrap;font:inherit;font-size:13.5px;color:var(--ink);margin:0 0 10px}
+.copy-prompt{width:100%;font:inherit;font-size:14px;padding:10px 12px;border:1px solid var(--line2);border-radius:9px;background:var(--surface);color:var(--ink);min-height:64px;resize:vertical}
+/* Wave 3 #8 operator card in the analysis view. */
+.op-row{display:flex;gap:8px;margin-bottom:12px}
+.op-row input{flex:1;font:inherit;font-size:14px;padding:10px 12px;border:1px solid var(--line2);border-radius:9px;background:var(--surface);color:var(--ink)}
 .chips{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px}
 .chips button{border:1px solid var(--line2);background:var(--surface);border-radius:9px;padding:6px 14px;font-size:13.5px;font-weight:700;color:var(--ink2)}
 .chips button.on{background:var(--pine);border-color:var(--pine);color:var(--sidebar-text)}

@@ -25,6 +25,11 @@ export default function UserDashboard() {
   const [usrOrders, setUsrOrders] = useState([]);
   const [usrFavs, setUsrFavs] = useState([]);
   const [usrDemands, setUsrDemands] = useState([]);
+  // Wave 3 #11b: own portrait + recommendations (fetched with the rest of
+  // the dashboard data; a failure here must not block the whole page, so
+  // both calls degrade to null instead of rejecting usrLoad).
+  const [usrProfile, setUsrProfile] = useState(null);
+  const [usrRecs, setUsrRecs] = useState([]);
   const toastTimer = useRef(null);
   const ordersHRef = useRef(null);
 
@@ -53,9 +58,15 @@ export default function UserDashboard() {
   const usrLoad = useCallback(() => {
     const u = currentUser();
     if (!getToken() || !u) { setGate(true); return; }
-    Promise.all([usrLoadOrders(), apiGet("/api/favorites"), apiGet("/api/demands")]).then(function (res) {
+    Promise.all([
+      usrLoadOrders(), apiGet("/api/favorites"), apiGet("/api/demands"),
+      apiGet("/api/profile").catch(function () { return null; }),
+      apiGet("/api/recommendations?limit=5").catch(function () { return null; }),
+    ]).then(function (res) {
       setUsrFavs(res[1].favorites || []);
       setUsrDemands((res[2].demands || []).filter(function (d) { return d.user_id === u.id; }));
+      setUsrProfile(res[3] ? res[3].profile || null : null);
+      setUsrRecs(res[4] ? res[4].recommendations || [] : []);
       setGate(false);
     }).catch(function (e) {
       if (e && e.status === 401) { clearToken(); setUser(null); setGate(true); return; }
@@ -131,7 +142,7 @@ export default function UserDashboard() {
     ["lblCity", u.city || "—"],
     ["lblAge", (u.age == null ? "—" : u.age)],
     ["lblChannel", u.channel || "—"],
-    ["lblPref", u.preference || "—"],
+    ["lblPref", catName(u.preference || "—")],
     ["lblVerified", u.verified ? t("verifiedYes") : t("verifiedNo")],
   ] : [];
 
@@ -176,6 +187,63 @@ export default function UserDashboard() {
                 <div className="db-stat"><b id="myStatFavs">{usrFavs.length}</b><span>{t("usrFavs")}</span></div>
                 <div className="db-stat"><b id="myStatDemands">{usrDemands.length}</b><span>{t("usrDemands")}</span></div>
               </div>
+
+              {usrProfile && usrProfile.portrait ? (
+                <section className="db-sec">
+                  <h3>{t("profileTitle")}</h3>
+                  {/* 5 grouped blocks, verbatim 甲方 group titles. TBD
+                      placeholders (暂无 / 暂无数据 / 尚未接入) are shown
+                      literally, never hidden — see profiles.mjs. */}
+                  <h4 className="db-group">{t("profileBasic")}</h4>
+                  <div className="db-profile">
+                    <div className="row"><span className="k">{t("profileAge")}</span><span className="v">{usrProfile.portrait.basic.age == null ? "—" : usrProfile.portrait.basic.age}</span></div>
+                    <div className="row"><span className="k">{t("profileGender")}</span><span className="v">{usrProfile.portrait.basic.gender}</span></div>
+                    <div className="row"><span className="k">{t("profileRegion")}</span><span className="v">{usrProfile.portrait.basic.region}（{t("profileRegionNote")}）</span></div>
+                    <div className="row"><span className="k">{t("profileActiveCity")}</span><span className="v">{usrProfile.portrait.basic.activeCity}</span></div>
+                  </div>
+                  <h4 className="db-group">{t("profileSpending")}</h4>
+                  <div className="db-profile">
+                    <div className="row"><span className="k">{t("profilePricePref")}</span><span className="v">{fmtMoney(usrProfile.portrait.spending.pricePreference)}</span></div>
+                    <div className="row"><span className="k">{t("profilePriceBand")}</span><span className="v">{usrProfile.portrait.spending.priceBand}{usrProfile.portrait.spending.priceDistribution.length ? "（" + usrProfile.portrait.spending.priceDistribution.map(function (d) { return d.name + " ×" + d.count; }).join("、") + "）" : ""}</span></div>
+                    <div className="row"><span className="k">{t("profileFrequency")}</span><span className="v">{fmt(t("profileFrequencyValue"), { paid: usrProfile.portrait.spending.frequency.paidCount, total: usrProfile.portrait.spending.frequency.orderCount })}</span></div>
+                    <div className="row"><span className="k">{t("profileStoredValue")}</span><span className="v">{usrProfile.portrait.spending.storedValue}</span></div>
+                  </div>
+                  <h4 className="db-group">{t("profileShowPref")}</h4>
+                  <div className="db-profile">
+                    <div className="row"><span className="k">{t("profileGenre")}</span><span className="v">{usrProfile.portrait.showPref.genre}</span></div>
+                    <div className="row"><span className="k">{t("profileArtist")}</span><span className="v">{usrProfile.portrait.showPref.artist}</span></div>
+                    <div className="row"><span className="k">{t("profileVenue")}</span><span className="v">{usrProfile.portrait.showPref.venue}</span></div>
+                    <div className="row"><span className="k">{t("profileShowType")}</span><span className="v">{catName(usrProfile.portrait.showPref.showType)}</span></div>
+                  </div>
+                  <h4 className="db-group">{t("profileBehavior")}</h4>
+                  <div className="db-profile">
+                    <div className="row"><span className="k">{t("profileTimeSlot")}</span><span className="v">{usrProfile.portrait.behavior.purchaseWindow}（{t("profileTimeNote")}）</span></div>
+                    <div className="row"><span className="k">{t("profilePayment")}</span><span className="v">{usrProfile.portrait.behavior.payment}</span></div>
+                    <div className="row"><span className="k">{t("profileSharing")}</span><span className="v">{usrProfile.portrait.behavior.sharing}</span></div>
+                    <div className="row"><span className="k">{t("profileRepeat")}</span><span className="v">{usrProfile.portrait.behavior.repeat}</span></div>
+                  </div>
+                  <h4 className="db-group">{t("profileChannel")}</h4>
+                  <div className="db-profile">
+                    <div className="row"><span className="k">{t("profileSource")}</span><span className="v">{usrProfile.portrait.channel.source}</span></div>
+                    <div className="row"><span className="k">{t("profileSuggestion")}</span><span className="v">{usrProfile.suggestion}</span></div>
+                  </div>
+                </section>
+              ) : null}
+
+              {usrRecs.length ? (
+                <section className="db-sec">
+                  <h3>{t("recTitle")}</h3>
+                  <div className="db-list" id="recsList">
+                    {usrRecs.map((r) => (
+                      <div key={r.resourceId} className="order">
+                        <h4><a href={"index.html?detail=" + r.resourceId}>{r.resource ? r.resource.name : ""}</a></h4>
+                        <span className="code">{r.resource ? r.resource.city + " · " + fmtMoney(r.resource.price) + "/" + unitName(r.resource.unit || "") : ""}</span>
+                        <div className="row"><span style={{ fontSize: 12.5, color: "var(--ink2)" }}>{r.reason}</span><span className="code">{fmt(t("recScore"), { n: r.score })}</span></div>
+                      </div>
+                    ))}
+                  </div>
+                </section>
+              ) : null}
 
               <section className="db-sec">
                 <h3 ref={ordersHRef}>{t("usrOrders")}</h3>

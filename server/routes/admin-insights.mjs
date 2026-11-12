@@ -23,6 +23,7 @@
 // - "Today" is the real current date (Beijing), like the original's clock.
 
 import { assert, int, text, bookingType, resourceRow} from "../lib/http.mjs";
+import { profileRows } from "../lib/profiles.mjs";
 import { CACHE_KEYS, CACHE_TTLS } from "../lib/cache.mjs";
 
 const PERIODS = ["day", "week", "month", "quarter"];
@@ -137,22 +138,6 @@ assert(PERIODS.includes(period), "无效统计周期");
 return period;
 }
 
-// Default tag thresholds, copied from review-upgrade.mjs defaultTagRules:
-// 高价值 spent>=1000000 cents; 潜力会员 spent 100000-1000000 + paid>=2 +
-// days<=90; 沉默 paid>=1 + days>90. No tagRules table is needed.
-function tagOf(metrics) {
-if (metrics.spent >= 1000000) return "高价值用户";
-if (
-metrics.spent >= 100000 &&
-metrics.spent < 1000000 &&
-metrics.paid_count >= 2 &&
-metrics.days_since_payment <= 90
-)
-return "潜力会员";
-if (metrics.paid_count >= 1 && metrics.days_since_payment > 90)
-return "沉默用户";
-return null;
-}
 
 export async function adminStatsSeries(ctx) {
 const { req, p, send, session, cache, res} = ctx;
@@ -268,50 +253,23 @@ detail: item.detail,
 return alerts;
 }
 
-export async function adminAnalysis(ctx) {
-const { req, p, send, session, all, cache, res} = ctx;
-if (p!== "/api/admin/analysis" || req.method!== "GET") return false;
-requireAdmin(session);
-const period = requirePeriod(ctx);
-if (cache?.enabled) {
-const hit = await cache.get(CACHE_KEYS.adminAnalysis(period));
-if (hit) {
-res.setHeader("X-Cache", "HIT");
-send(hit);
-return true;
-}
-}
-const { today, orders, resources, users, favorites, threshold} =
+// Wave 3 #9: the analysis computation, exported so the operator branch
+// of the assistant (server/routes/assistant.mjs) can answer from the same
+// numbers without an internal HTTP call or a second implementation.
+// Returns the exact payload adminAnalysis sends; no admin check, no
+// cache, no send here. Operator calls go direct (no cache) — admin-only,
+// low frequency — and the cached wrapper below stays the HTTP path.
+export async function buildAnalysis(ctx, period) {
+const { all } = ctx;
+const { today, orders, resources, threshold} =
 await loadAnalysisData(ctx);
 const paid = orders.filter((o) => PAID_STATUSES.includes(o.status));
 const series = await seriesFor(ctx, period);
 
-// User profiles: same metrics as insights.mjs profileRows(), minus the
-// view history Lam does not record (no view events table feed).
-const profiles = users.map((u) => {
-const own = orders.filter((o) => o.user_id === u.id);
-const ownPaid = own.filter((o) => PAID_STATUSES.includes(o.status));
-const last = ownPaid
-.map((o) => dayOfBeijing(o.created_at))
-.sort()
-.at(-1);
-const days = last
-? Math.max(
-0,
-Math.floor((new Date(today) - new Date(last)) / 86400000),
-)
-: 99999;
-const metrics = {
-...u,
-order_count: own.length,
-paid_count: ownPaid.length,
-spent: sum(ownPaid, "amount"),
-last_order: last,
-days_since_payment: days,
-favorite_count: favorites.filter((f) => f.user_id === u.id).length,
-};
-return {...metrics, tag: tagOf(metrics)};
-});
+// User profiles (tags, portrait, suggestion) come from the shared
+// module, so GET /api/admin/users tags and this userSummary always agree.
+const profiles = await profileRows(ctx);
+
 
 const ranking = resources
 .map((r) => {
@@ -460,9 +418,9 @@ const pending = orders.filter((o) => o.status === "pending").length;
 const abnormal = orders.filter((o) =>
 ["disputed", "refund_requested"].includes(o.status),
 ).length;
-const high = profiles.filter((u) => u.tag === "高价值用户").length;
-const silent = profiles.filter((u) => u.tag === "沉默用户").length;
-const potential = profiles.filter((u) => u.tag === "潜力会员").length;
+const high = profiles.filter((u) => u.tags.includes("高价值用户")).length;
+const silent = profiles.filter((u) => u.tags.includes("沉默用户")).length;
+const potential = profiles.filter((u) => u.tags.includes("潜力会员")).length;
 
 const insights = [
 `热销引进：${ranking[0]?.name || "暂无"}当前交易额领先，建议评估同类剧目联动。`,
@@ -529,6 +487,24 @@ series:
 users: "近30天提交订单的去重用户数",
 },
 };
+return payload;
+}
+
+// HTTP wrapper: admin check + 60 s cache around buildAnalysis().
+export async function adminAnalysis(ctx) {
+const { req, p, send, session, cache, res} = ctx;
+if (p!== "/api/admin/analysis" || req.method!== "GET") return false;
+requireAdmin(session);
+const period = requirePeriod(ctx);
+if (cache?.enabled) {
+const hit = await cache.get(CACHE_KEYS.adminAnalysis(period));
+if (hit) {
+res.setHeader("X-Cache", "HIT");
+send(hit);
+return true;
+}
+}
+const payload = await buildAnalysis(ctx, period);
 if (cache?.enabled) {
 res.setHeader("X-Cache", "MISS");
 await cache.set(CACHE_KEYS.adminAnalysis(period), payload, CACHE_TTLS.adminAnalysis);
