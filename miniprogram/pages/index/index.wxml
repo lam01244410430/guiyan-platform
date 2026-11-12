@@ -1,38 +1,8 @@
 <view class="wrap">
-<view class="topbar">
-  <view>
-    <view class="brand serif">桂演 Guiyan</view>
-    <view class="brand-sub">{{L.brandTag}}</view>
-  </view>
-  <picker mode="selector" range="{{langs}}" value="{{langIdx}}" bindchange="onLangChange">
-    <view class="langpick">{{langName}} <text class="arrow">▾</text></view>
-  </picker>
-</view>
-  <view style="display:flex;justify-content:space-between;align-items:center">
-    <view class="note" style="margin-top:0">{{online ? L.onlineMode : L.offlineMode}}</view>
-    <block wx:if="{{!loggedUser}}">
-      <view class="btn ghost small" bindtap="toggleLoginForm">{{L.loginBtn}}</view>
-    </block>
-    <block wx:else>
-      <view style="display:flex;align-items:center">
-        <view class="note" style="margin-top:0;margin-right:16rpx">{{loggedAsText}}</view>
-        <view class="btn ghost small" bindtap="doLogout">{{L.logoutBtn}}</view>
-      </view>
-    </block>
-  </view>
-  <block wx:if="{{showLogin}}">
-    <view class="card">
-      <view class="sec-title serif" style="font-size:32rpx">{{L.loginTitle}}</view>
-      <input placeholder="{{L.userPh}}" value="{{loginUser}}" bindinput="onLoginUser" style="background:#F7F4EE;border-radius:12rpx;padding:18rpx 22rpx;margin-top:16rpx" />
-      <input placeholder="{{L.passPh}}" value="{{loginPass}}" password bindinput="onLoginPass" style="background:#F7F4EE;border-radius:12rpx;padding:18rpx 22rpx;margin-top:16rpx" />
-      <view class="btn" bindtap="doLogin">{{L.loginBtn}}</view>
-    </view>
-  </block>
+<topbar bind:langchange="onLangChange" />
   <view class="hero">
-    <view class="kicker">{{L.heroKicker}}</view>
     <view class="title serif">{{L.heroSub}}</view>
     <view class="lead">{{L.heroLead}}</view>
-    <view class="stats">{{stats}}</view>
   </view>
   <view class="searchrow">
     <input placeholder="{{L.heroSearchPh}}" bindinput="onKw" confirm-type="search" bindconfirm="goSearch" />
@@ -52,7 +22,7 @@
   <view class="section">
     <view class="sec-title serif">{{L.featured}}</view>
     <block wx:for="{{featured}}" wx:key="idx">
-      <view class="rescard" bindtap="goDetail" data-idx="{{item.idx}}">
+      <view class="rescard featured" bindtap="goDetail" data-idx="{{item.idx}}">
         <view class="name serif">{{item.name}}</view>
         <view class="meta"><text class="tag">{{item.cat}}</text><text class="tag gold">{{item.city}}</text></view>
         <view class="desc">{{item.desc}}</view>

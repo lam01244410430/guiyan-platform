@@ -1,28 +1,20 @@
 <view class="wrap">
-<view class="topbar">
-  <view>
-    <view class="brand serif">桂演 Guiyan</view>
-    <view class="brand-sub">{{L.brandTag}}</view>
-  </view>
-  <picker mode="selector" range="{{langs}}" value="{{langIdx}}" bindchange="onLangChange">
-    <view class="langpick">{{langName}} <text class="arrow">▾</text></view>
-  </picker>
-</view>
+<topbar bind:langchange="onLangChange" />
   <view class="sec-title serif">{{L.demTitle}}</view>
   <view class="sec-sub">{{L.demSub}}</view>
   <view class="note">{{L.demNote}}</view>
-  <view class="btn ghost" bindtap="togglePost">＋ 发布需求</view>
+  <view class="btn ghost" bindtap="togglePost">{{L.postDemand}}</view>
   <block wx:if="{{showPost}}">
     <view class="card">
-      <input placeholder="需求标题" value="{{postTitle}}" bindinput="onPostTitle" style="background:#F7F4EE;border-radius:12rpx;padding:18rpx 22rpx" />
-      <input placeholder="预算（元）" value="{{postBudget}}" bindinput="onPostBudget" type="digit" style="background:#F7F4EE;border-radius:12rpx;padding:18rpx 22rpx;margin-top:16rpx" />
+      <input placeholder="需求标题" value="{{postTitle}}" bindinput="onPostTitle" class="field" />
+      <input placeholder="预算（元）" value="{{postBudget}}" bindinput="onPostBudget" type="digit" class="field" />
       <picker mode="selector" range="{{cats}}" range-key="name" value="{{postCatIdx}}" bindchange="onPostCat">
         <view class="picker">品类：{{cats[postCatIdx].name}} <text class="arrow">▾</text></view>
       </picker>
       <picker mode="selector" range="{{cityNames}}" value="{{postCityIdx}}" bindchange="onPostCity">
         <view class="picker">{{L.cityLabel}}：{{cityNames[postCityIdx]}} <text class="arrow">▾</text></view>
       </picker>
-      <input placeholder="简单描述需求…" value="{{postDesc}}" bindinput="onPostDesc" style="background:#F7F4EE;border-radius:12rpx;padding:18rpx 22rpx;margin-top:16rpx" />
+      <input placeholder="简单描述需求…" value="{{postDesc}}" bindinput="onPostDesc" class="field" />
       <view class="btn" bindtap="submitDemand">{{L.confirmBtn}}</view>
     </view>
   </block>
@@ -30,7 +22,7 @@
     <view class="rescard" bindtap="toggle" data-i="{{item.i}}">
       <view class="name serif">{{item.title}}</view>
       <view class="desc">{{item.desc}}</view>
-      <view class="meta"><text class="tag">{{item.cat}}</text><text class="tag gold">{{item.city}}</text><text class="tag red">{{L.budget}} {{item.budget}}</text></view>
+      <view class="meta"><text class="tag">{{item.cat}}</text><text class="tag gold">{{item.city}}</text><text>{{L.budget}} {{item.budget}}</text></view>
     </view>
     <block wx:if="{{open===item.i}}">
       <view class="card">

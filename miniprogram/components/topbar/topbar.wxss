@@ -1,0 +1,6 @@
+/* Shared top bar (brand tokens, flat, no blue, no gradients). */
+.topbar { display: flex; align-items: center; justify-content: space-between; padding: 10rpx 0 20rpx; }
+.brand { font-size: 44rpx; font-weight: 900; color: #0B3D36; letter-spacing: 4rpx; }
+.brand-sub { font-size: 22rpx; color: #5D5344; margin-top: 4rpx; }
+.langpick { display: flex; align-items: center; border: 2rpx solid #C9A24B; border-radius: 16rpx; padding: 18rpx 22rpx; background: #FFFFFF; color: #0B3D36; font-size: 26rpx; min-height: 88rpx; box-sizing: border-box; }
+.langpick .arrow { color: #C9A24B; margin-left: 8rpx; font-size: 22rpx; }

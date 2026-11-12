@@ -1,13 +1,5 @@
 <view class="wrap">
-<view class="topbar">
-  <view>
-    <view class="brand serif">桂演 Guiyan</view>
-    <view class="brand-sub">{{L.brandTag}}</view>
-  </view>
-  <picker mode="selector" range="{{langs}}" value="{{langIdx}}" bindchange="onLangChange">
-    <view class="langpick">{{langName}} <text class="arrow">▾</text></view>
-  </picker>
-</view>
+<topbar bind:langchange="onLangChange" />
   <view class="sec-title serif">{{L.myTickets}}</view>
   <view class="simnote">{{L.simNote}}</view>
 

@@ -27,7 +27,7 @@ Page({
   applyLang: function () {
     var lang = i18n.getLang();
     var keys = ['brandTag', 'demTitle', 'demSub', 'demNote', 'budget',
-      'matchTitle', 'matchNote', 'matchNone', 'viewsUnit', 'matchCount',
+      'matchTitle', 'matchNote', 'matchNone', 'viewsUnit', 'matchCount', 'postDemand',
       'cityLabel', 'confirmBtn', 'allCities'];
     var L = {};
     keys.forEach(function (k) { L[k] = i18n.t(k, lang); });

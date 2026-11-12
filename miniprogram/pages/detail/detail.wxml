@@ -1,13 +1,5 @@
 <view class="wrap">
-<view class="topbar">
-  <view>
-    <view class="brand serif">桂演 Guiyan</view>
-    <view class="brand-sub">{{L.brandTag}}</view>
-  </view>
-  <picker mode="selector" range="{{langs}}" value="{{langIdx}}" bindchange="onLangChange">
-    <view class="langpick">{{langName}} <text class="arrow">▾</text></view>
-  </picker>
-</view>
+<topbar bind:langchange="onLangChange" />
   <view class="hero">
     <view class="kicker">{{res.cat}} · {{res.city}}</view>
     <view class="title serif">{{res.name}}</view>
@@ -17,7 +9,7 @@
   <view class="card">
     <view class="foot" style="display:flex;justify-content:space-between;align-items:center">
       <view class="price">{{res.price}}<text class="unit">/ {{res.unit}}</text></view>
-      <view class="btn ghost small" bindtap="toggleFav">{{fav ? L.favOn : L.favOff}}</view>
+      <view class="btn ghost small favbtn" bindtap="toggleFav"><image class="fav-ic" src="{{fav ? '/assets/icon-heart-filled.svg' : '/assets/icon-heart.svg'}}" /><text>{{fav ? L.favOn : L.favOff}}</text></view>
     </view>
     <picker mode="date" value="{{date}}" bindchange="onDate">
       <view class="picker">{{L.dateLabel}}：{{date || L.datePh}} <text class="arrow">▾</text></view>

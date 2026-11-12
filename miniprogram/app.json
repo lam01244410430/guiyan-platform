@@ -15,18 +15,46 @@
     "backgroundTextStyle": "dark"
   },
   "tabBar": {
-    "color": "#8A94A6",
+    "color": "#5D5344",
     "selectedColor": "#0B3D36",
     "backgroundColor": "#FFFFFF",
     "borderStyle": "white",
     "list": [
-      { "pagePath": "pages/index/index", "text": "首页", "iconPath": "assets/tab-home.png", "selectedIconPath": "assets/tab-home-active.png" },
-      { "pagePath": "pages/category/category", "text": "目录", "iconPath": "assets/tab-grid.png", "selectedIconPath": "assets/tab-grid-active.png" },
-      { "pagePath": "pages/demands/demands", "text": "需求", "iconPath": "assets/tab-list.png", "selectedIconPath": "assets/tab-list-active.png" },
-      { "pagePath": "pages/assistant/assistant", "text": "助理", "iconPath": "assets/tab-chat.png", "selectedIconPath": "assets/tab-chat-active.png" },
-      { "pagePath": "pages/orders/orders", "text": "我的票券", "iconPath": "assets/tab-ticket.png", "selectedIconPath": "assets/tab-ticket-active.png" }
+      {
+        "pagePath": "pages/index/index",
+        "text": "首页",
+        "iconPath": "assets/tab-home.svg",
+        "selectedIconPath": "assets/tab-home-active.svg"
+      },
+      {
+        "pagePath": "pages/category/category",
+        "text": "目录",
+        "iconPath": "assets/tab-grid.svg",
+        "selectedIconPath": "assets/tab-grid-active.svg"
+      },
+      {
+        "pagePath": "pages/demands/demands",
+        "text": "需求",
+        "iconPath": "assets/tab-list.svg",
+        "selectedIconPath": "assets/tab-list-active.svg"
+      },
+      {
+        "pagePath": "pages/assistant/assistant",
+        "text": "助理",
+        "iconPath": "assets/tab-chat.svg",
+        "selectedIconPath": "assets/tab-chat-active.svg"
+      },
+      {
+        "pagePath": "pages/orders/orders",
+        "text": "我的票券",
+        "iconPath": "assets/tab-ticket.png",
+        "selectedIconPath": "assets/tab-ticket-active.png"
+      }
     ]
   },
   "style": "v2",
+  "usingComponents": {
+    "topbar": "/components/topbar/topbar"
+  },
   "sitemapLocation": "sitemap.json"
 }
