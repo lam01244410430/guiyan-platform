@@ -123,6 +123,7 @@ export default function App() {
   const [bkQty, setBkQty] = useState(1);
   const [bkDate, setBkDate] = useState("2026-12-05");
   const [couponCode, setCouponCode] = useState(""); /* R3-2: coupon code typed in the detail modal (optional, sent with the order) */
+  const [flashLeft, setFlashLeft] = useState(null); /* R3-3: seconds left on the selected tier's live flash sale (null = none), ticked once a second while the detail modal is open */
   const [perfSel, setPerfSel] = useState(null); /* R2-2: selected performance id (null = resource-price flow) */
   const [tierSel, setTierSel] = useState(null); /* R2-2: selected ticket_type id within perfSel */
   const [pickupPoints, setPickupPoints] = useState(null); /* R2-3: pickup points of the selected performance's show (null = not loaded for this performance); empty = the show needs no pickup point */
@@ -319,7 +320,7 @@ export default function App() {
       if (d && d.ok) {
         const code = d.code || ("GY2026" + String(store.seq++).padStart(6, "0"));
         const total = (typeof d.amount === "number") ? d.amount / 100 : r[3] * qty;
-        store.orders.unshift({ code, idx: i, qty, date, total, status: "pending", apiId: d.id, pickup: d.pickup_point || pickup || null, template: d.ticket_template || null, coupon_cents: (typeof d.coupon_cents === "number" ? d.coupon_cents : 0) });
+        store.orders.unshift({ code, idx: i, qty, date, total, status: "pending", apiId: d.id, pickup: d.pickup_point || pickup || null, template: d.ticket_template || null, coupon_cents: (typeof d.coupon_cents === "number" ? d.coupon_cents : 0), flash_cents: (typeof d.flash_cents === "number" ? d.flash_cents : 0) });
         setCouponCode("");
         // R2-5: hold the seats the buyer picked on the pending order.
         // A failed hold leaves the order standing (pending) — the
@@ -541,6 +542,20 @@ export default function App() {
      re-fetch never leaves a stale selection behind. */
   const selPf = avail && avail.performances ? avail.performances.find(function (pf) { return pf.id === perfSel; }) : null;
   const selTier = selPf && selPf.ticket_types ? selPf.ticket_types.find(function (tt) { return tt.id === tierSel; }) : null;
+  /* R3-3: the live flash sale on the selected tier (null = none).
+     The countdown ticks once a second from ends_at while the detail
+     modal is open; it stops (and clears) when the modal closes or
+     the selection changes. */
+  const selFlash = selTier && selTier.flash_sale ? selTier.flash_sale : null;
+  useEffect(() => {
+    if (!selFlash || detailIdx === null) { setFlashLeft(null); return; }
+    function tick() {
+      setFlashLeft(Math.max(0, Math.floor((new Date(selFlash.ends_at).valueOf() - Date.now()) / 1000)));
+    }
+    tick();
+    const timer = setInterval(tick, 1000);
+    return () => clearInterval(timer);
+  }, [selFlash ? selFlash.sale_id : null, selFlash ? selFlash.ends_at : null, detailIdx]);
   /* R2-3: pickup is required for a tier order when the selected
      performance's show has pickup points; the chosen point (or null).
      pickupPoints === null means not loaded yet for this performance. */
@@ -973,7 +988,7 @@ export default function App() {
                                   <button key={tt.id} type="button" className="perf-row" style={{ width: "100%", background: tt.id === tierSel ? "var(--sand)" : "transparent", border: "none", cursor: tt.available > 0 ? "pointer" : "not-allowed", textAlign: "left", opacity: tt.available > 0 ? 1 : 0.55 }}
                                     disabled={tt.available <= 0}
                                     onClick={() => setTierSel(tt.id)}>
-                                    <span>{tt.name}</span><span>{money(tt.price_cents / 100)}</span>
+                                    <span>{tt.name}</span>{tt.flash_sale ? (<span><s>{money(tt.price_cents / 100)}</s> {money(tt.flash_sale.sale_price_cents / 100)}</span>) : (<span>{money(tt.price_cents / 100)}</span>)}
                                     <span className="perf-status">{tt.available > 0 ? fmt(t("tierLeft"), { a: tt.available }) : t("tierSoldOut")}</span>
                                   </button>
                                 ))
@@ -982,6 +997,13 @@ export default function App() {
                                 <p className="perf-empty">{t("tierPick")}</p>
                               )}
                             </div>
+                          )}
+                          {/* R3-3: live flash-sale countdown for the
+                              selected tier (sale price already shown
+                              struck-through above; the server prices
+                              the order — this line is display only). */}
+                          {selTier && selTier.flash_sale && (
+                            <p className="perf-empty">{t("flashSale")} · {fmt(t("flashSaleLeft"), { s: flashLeft == null ? selTier.flash_sale.remaining_seconds : flashLeft })}</p>
                           )}
                           {/* R2-5: clickable seat grid for the selected
                               performance, when it has seats. It replaces
@@ -1040,7 +1062,7 @@ export default function App() {
                 <div className="bookrow">
                   <label>{t("couponCode")}<input type="text" value={couponCode} maxLength={20} placeholder={t("couponCodePh")} onChange={(e) => setCouponCode(e.target.value)} /></label>
                 </div>
-                <div className="totalrow"><span>{t("totalLabel")}</span><b id="bkTotal">{money((selTier ? selTier.price_cents / 100 : cur[3]) * bkQty)}</b></div>
+                <div className="totalrow"><span>{t("totalLabel")}</span><b id="bkTotal">{money((selTier ? (selTier.flash_sale ? selTier.flash_sale.sale_price_cents : selTier.price_cents) / 100 : cur[3]) * bkQty)}</b></div>
                 <div className="acts">
                   <button type="button" className="btn red" id="bkGo" disabled={pickupRequired && !pickupSel} onClick={() => {
                     if (pickupRequired && !pickupSel) { toast(t("pickupPick")); return; }
@@ -1089,6 +1111,7 @@ export default function App() {
                 <h4>{r[0]}</h4>
                 <span className="code">{o.code} · {o.date} · {o.qty} × {unitName(r[4])} · {money(o.total)}</span>
                 {o.coupon_cents ? (<span className="code">{fmt(t("couponSaved"), { a: (o.coupon_cents / 100).toFixed(2) })}</span>) : null}
+                {o.flash_cents ? (<span className="code">{fmt(t("flashSaleSaved"), { a: (o.flash_cents / 100).toFixed(2) })}</span>) : null}
                 {o.pickup ? (<span className="code">{t("pickupTitle")}：{o.pickup.name} · {o.pickup.address}</span>) : null}
                 {o.template ? (<span className="code"><i style={{ display: "inline-block", width: 10, height: 10, background: o.template.color, borderRadius: 2, marginRight: 4, verticalAlign: "-1px" }} />{o.template.name}</span>) : null}
                 <div className="row"><span className={"pill " + o.status}>{t(STATUS[o.status])}</span>{acts}</div>

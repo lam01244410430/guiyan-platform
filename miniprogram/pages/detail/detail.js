@@ -20,7 +20,8 @@ Page({
     order: null, flowSteps: [], perfs: null, perfSel: null, tierSel: null,
     pickupPoints: null, pickupSel: null, // R2-3: pickup points of the selected performance's show (null = not loaded); the chosen point id
     seats: null, seatSel: [], seatZones: [], seatSelectedText: '', // R2-5: seats of the selected performance (null = not loaded); the chosen seat ids + the grouped grid
-    couponCode: '' // R3-2: coupon code typed on this page (optional, sent with the order)
+    couponCode: '', // R3-2: coupon code typed on this page (optional, sent with the order)
+    flashLeft: '' // R3-3: live flash-sale countdown text for the selected tier ('' = no live sale)
   },
   onLoad: function (options) {
     var idx = parseInt(options.idx || '0', 10);
@@ -36,6 +37,16 @@ Page({
   onShow: function () {
     if (this.data.langIdx !== i18n.langIndex()) this.applyLang();
     else this.refreshOrder();
+    // R3-3: restart the flash-sale countdown while this page is shown.
+    this.startFlashTimer();
+  },
+  onHide: function () {
+    // R3-3: the countdown never ticks on a hidden page.
+    this.stopFlashTimer();
+  },
+  onUnload: function () {
+    // R3-3: drop the countdown timer with the page.
+    this.stopFlashTimer();
   },
   onLangChange: function (e) {
     i18n.setLang(i18n.LANGS[e.detail.value].code);
@@ -53,7 +64,8 @@ Page({
       'tierTitle', 'tierEmpty', 'tierSoldOut', 'tierLeft', 'tierPick',
       'pickupTitle', 'pickupEmpty', 'pickupPick',
       'venueTitle', 'seatPick', 'seatSelected',
-      'couponCode', 'couponCodePh', 'couponSaved'];
+      'couponCode', 'couponCodePh', 'couponSaved',
+      'flashSale', 'flashSaleLeft', 'flashSaleSaved'];
     var L = {};
     keys.forEach(function (k) { L[k] = i18n.t(k, lang); });
     var r = api.resourceByIdx(this.data.idx) || data.RES[0];
@@ -112,11 +124,16 @@ Page({
               price: data.money(api.centsToYuan(t.price_cents)),
               priceCents: t.price_cents, quota: t.quota,
               sold: t.sold, available: t.available,
-              sale_until: t.sale_until, leftText: '' };
+              sale_until: t.sale_until, leftText: '',
+              // R3-3: the live flash sale on this tier (null = none)
+              // + its sale price as a display string ('' = no sale).
+              flash_sale: t.flash_sale || null,
+              salePrice: t.flash_sale ? data.money(api.centsToYuan(t.flash_sale.sale_price_cents)) : '' };
           }) };
       }) });
       self.refreshTierText();
       self.refreshTotal();
+      self.refreshFlashCountdown();
     }, function () {});
   },
   // R2-2: per-language tier availability text ("剩余 3 张" / "已售罄"),
@@ -149,12 +166,35 @@ Page({
   },
   unitPriceYuan: function () {
     var tier = this.selectedTier();
-    if (tier) return api.centsToYuan(tier.priceCents);
+    // R3-3: the sale price drives the total while a flash sale is
+    // live on the selected tier (the server prices the order — this
+    // is display only, like the tier price above it).
+    if (tier) return api.centsToYuan(tier.flash_sale ? tier.flash_sale.sale_price_cents : tier.priceCents);
     var r = api.resourceByIdx(this.data.idx) || data.RES[this.data.idx];
     return r.price;
   },
   refreshTotal: function () {
     this.setData({ total: data.money(this.unitPriceYuan() * this.data.qty) });
+  },
+  // R3-3: the live flash-sale countdown for the selected tier —
+  // seconds left from ends_at, re-rendered once a second while this
+  // page is shown. The timer is started on show and cleared on hide
+  // (and on unload), so it never ticks on a hidden page.
+  refreshFlashCountdown: function () {
+    var tier = this.selectedTier();
+    var lang = i18n.getLang();
+    if (!tier || !tier.flash_sale) { this.setData({ flashLeft: '' }); return; }
+    var left = Math.max(0, Math.floor((new Date(tier.flash_sale.ends_at).valueOf() - Date.now()) / 1000));
+    this.setData({ flashLeft: i18n.t('flashSale', lang) + ' · ' + i18n.fmt(i18n.t('flashSaleLeft', lang), { s: left }) });
+  },
+  startFlashTimer: function () {
+    var self = this;
+    this.stopFlashTimer();
+    this._flashTimer = setInterval(function () { self.refreshFlashCountdown(); }, 1000);
+    this.refreshFlashCountdown();
+  },
+  stopFlashTimer: function () {
+    if (this._flashTimer) { clearInterval(this._flashTimer); this._flashTimer = null; }
   },
   // R2-5: seats of the selected performance, grouped by zone for the
   // tap-to-select grid (zones in first-seen order; cells row-major).
@@ -204,6 +244,7 @@ Page({
       this.setData({ perfSel: null, tierSel: null, pickupPoints: null, pickupSel: null, seats: null, seatSel: [] });
       this.refreshSeats();
       this.refreshTotal();
+      this.refreshFlashCountdown();
       return;
     }
     this.setData({ perfSel: id, tierSel: null, pickupSel: null, pickupPoints: null, seats: null, seatSel: [] });
@@ -238,6 +279,7 @@ Page({
     if (Number(e.currentTarget.dataset.avail || 0) <= 0) return;
     this.setData({ tierSel: this.data.tierSel === id ? null : id });
     this.refreshTotal();
+    this.refreshFlashCountdown();
   },
   refreshOrder: function () {
     var lang = i18n.getLang();
@@ -263,6 +305,10 @@ Page({
       // stored cents ('' = no coupon on this order).
       couponSavedText: (order.coupon_cents > 0)
         ? i18n.fmt(i18n.t('couponSaved', lang), { a: (order.coupon_cents / 100).toFixed(2) }) : '',
+      // R3-3: the flash-sale discount line, same pattern ('' = no sale
+      // on this order).
+      flashSavedText: (order.flash_cents > 0)
+        ? i18n.fmt(i18n.t('flashSaleSaved', lang), { a: (order.flash_cents / 100).toFixed(2) }) : '',
       payLabel: i18n.fmt(i18n.t('actPay', lang), { amt: data.money(order.total) })
     } });
   },
@@ -368,6 +414,9 @@ Page({
           coupon_cents: (typeof res.coupon_cents === 'number' ? res.coupon_cents : 0),
           couponSavedText: (typeof res.coupon_cents === 'number' && res.coupon_cents > 0)
             ? i18n.fmt(i18n.t('couponSaved'), { a: (res.coupon_cents / 100).toFixed(2) }) : '',
+          flash_cents: (typeof res.flash_cents === 'number' ? res.flash_cents : 0),
+          flashSavedText: (typeof res.flash_cents === 'number' && res.flash_cents > 0)
+            ? i18n.fmt(i18n.t('flashSaleSaved'), { a: (res.flash_cents / 100).toFixed(2) }) : '',
           pickup: res.pickup_point || pickupSel || null,
           template: res.ticket_template || null,
           createdAt: Date.now() };

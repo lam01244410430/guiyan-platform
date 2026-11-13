@@ -53,7 +53,10 @@
             <view style="font-size:28rpx;font-weight:700;margin-top:16rpx">{{L.tierTitle}}</view>
             <block wx:if="{{item.ticket_types.length}}">
               <view wx:for="{{item.ticket_types}}" wx:for-item="tt" wx:key="id" bindtap="onTierTap" data-id="{{tt.id}}" data-avail="{{tt.available}}" style="display:flex;justify-content:space-between;margin-top:12rpx;font-size:28rpx">
-                <text style="{{tierSel===tt.id?'color:#0d6e5f;font-weight:700':''}}">{{tt.name}}</text><text style="font-weight:700">{{tt.price}}</text><text style="color:#0d6e5f">{{tt.leftText}}</text>
+                <text style="{{tierSel===tt.id?'color:#0d6e5f;font-weight:700':''}}">{{tt.name}}</text>
+                <block wx:if="{{tt.flash_sale}}"><text style="text-decoration:line-through;color:#999">{{tt.price}}</text><text style="font-weight:700;color:#c0392b">{{tt.salePrice}}</text></block>
+                <block wx:else><text style="font-weight:700">{{tt.price}}</text></block>
+                <text style="color:#0d6e5f">{{tt.leftText}}</text>
               </view>
             </block>
             <block wx:else>
@@ -61,6 +64,10 @@
             </block>
             <block wx:if="{{item.ticket_types.length && !tierSel}}">
               <view class="note">{{L.tierPick}}</view>
+            </block>
+            <!-- R3-3: live flash-sale countdown for the selected tier. -->
+            <block wx:if="{{flashLeft}}">
+              <view class="note">{{flashLeft}}</view>
             </block>
             <!-- R2-5: tap-to-select seat grid for the performance, when
                  it has seats. With no seats the grid stays hidden. -->
@@ -102,6 +109,9 @@
       <view class="note">{{order.name}} · {{order.date}} · ×{{order.qty}} · {{order.total}}</view>
       <block wx:if="{{order.couponSavedText}}">
         <view class="note">{{order.couponSavedText}}</view>
+      </block>
+      <block wx:if="{{order.flashSavedText}}">
+        <view class="note">{{order.flashSavedText}}</view>
       </block>
       <block wx:if="{{order.pickup}}">
         <view class="note">{{L.pickupTitle}}：{{order.pickup.name}} · {{order.pickup.address}}</view>

@@ -8,6 +8,51 @@ import {
   validateCoupon,
   releaseCouponRedemption,
 } from "./coupons.mjs";
+import { resolveFlashSale, saleUnitPrice } from "./flash-sales.mjs";
+
+// R3-1 + R3-2 + R3-3 pricing, in one place so the pre-check and the
+// in-transaction re-price agree exactly: the flash sale applies
+// FIRST (sale unit price x qty is the base), then the R3-1 member
+// discount on that base, then the R3-2 coupon on the remainder.
+// `flashSale` is the live sale resolved by the caller (null = no
+// sale — old-flow orders always pass null); `couponCode` is the
+// normalized code or null. Pure reads — safe to call before the
+// order transaction (to surface 400s before any write) and again
+// inside it (authoritative, with fresh quota counts). Returns the
+// full pricing snapshot the order row stores.
+async function computePricing(get, all, userId, shopId, unitPriceCents, qty, flashSale, couponCode) {
+  const unit = flashSale
+    ? saleUnitPrice(flashSale, unitPriceCents)
+    : unitPriceCents;
+  const base = unit * qty;
+  const flashCents = flashSale ? (unitPriceCents - unit) * qty : 0;
+  const { discount_cents: discountCents, tier: appliedTier } =
+    await discountForOrder(get, all, userId, shopId, base);
+  const afterTier = base - discountCents;
+  let coupon = null;
+  let couponCents = 0;
+  if (couponCode) {
+    const checked = await validateCoupon(
+      get,
+      userId,
+      shopId,
+      couponCode,
+      afterTier,
+    );
+    coupon = checked.coupon;
+    couponCents = checked.coupon_cents;
+  }
+  return {
+    base,
+    flash_sale: flashSale,
+    flash_cents: flashCents,
+    discount_cents: discountCents,
+    tier: appliedTier,
+    coupon,
+    coupon_cents: couponCents,
+    final_amount: afterTier - couponCents,
+  };
+}
 
 export async function listOrders(ctx) {
   const { p, req, send, needUser, orderRows } = ctx;
@@ -44,7 +89,6 @@ export async function createOrder(ctx) {
     let perf = null,
       tier = null,
       show = null,
-      amount = r.price * qty,
       d = null;
     if (hasPerf) {
       const perfId = int(b.performance_id, "场次", 1);
@@ -64,7 +108,6 @@ export async function createOrder(ctx) {
         "该票种已过售票截止时间",
         400,
       );
-      amount = tier.price_cents * qty;
       d = String(perf.start_at).slice(0, 10);
     } else {
       d = date(b.booking_date);
@@ -94,41 +137,35 @@ export async function createOrder(ctx) {
     } else {
       assert(!hasPickup, "该订单无需选择取票点", 400);
     }
-    // R3-1: member-tier discount — the base price above is computed
-    // first (tier price x qty, or resource price x qty), then the
-    // member discount of the order's shop applies on top of it:
-    // discount_cents = floor(base x pct / 100), amount = base -
-    // discount. Server-side; the tier + discount are snapshotted on
-    // the order row so a later tier change never rewrites history.
+    // R3-1 + R3-2 + R3-3 pricing (one chain, see computePricing
+    // above): the flash sale applies FIRST — sale unit price x qty is
+    // the base — then the member discount on that base, then the
+    // coupon on the remainder. The coupon code is normalized once
+    // here; the in-transaction re-price below reuses the same
+    // normalized code. A flash sale only ever applies to a
+    // performance order (old-flow orders pass null and pay the
+    // resource price). The amount is always computed server-side
+    // from the tier / resource price; any amount sent by the client
+    // is ignored.
     const orderShopId = r.shop_id ?? MAIN_SHOP_ID;
-    const { discount_cents: discountCents, tier: appliedTier } =
-      await discountForOrder(get, all, u.id, orderShopId, amount);
-    const afterTier = amount - discountCents;
-    // R3-2: coupon on the AFTER-tier remainder — base -> tier
-    // discount -> coupon, all integer cents, server-side. The coupon
-    // is looked up in the order's shop only; a code that exists only
-    // in another shop counts as not found here. Validated here
-    // (before any write) and re-checked inside the transaction below
-    // (quota / per-user counts are live COUNTs).
-    const hasCoupon =
-      typeof b.coupon_code === "string" && b.coupon_code.trim() !== "";
-    let coupon = null;
-    let couponCents = 0;
-    if (hasCoupon) {
-      const code = normalizeCouponCode(b.coupon_code);
-      const checked = await validateCoupon(
-        get,
-        u.id,
-        orderShopId,
-        code,
-        afterTier,
-      );
-      coupon = checked.coupon;
-      couponCents = checked.coupon_cents;
-    }
-    const finalAmount = afterTier - couponCents;
-    // Amount is always computed server-side from the resource price (or
-    // the tier price above); any amount sent by the client is ignored.
+    const couponCode =
+      typeof b.coupon_code === "string" && b.coupon_code.trim() !== ""
+        ? normalizeCouponCode(b.coupon_code)
+        : null;
+    const unitPrice = hasPerf ? tier.price_cents : r.price;
+    const flashSale = hasPerf
+      ? await resolveFlashSale(get, all, perf.id)
+      : null;
+    const pricing = await computePricing(
+      get,
+      all,
+      u.id,
+      orderShopId,
+      unitPrice,
+      qty,
+      flashSale,
+      couponCode,
+    );
     const id = await transaction(async () => {
       if (tier) {
         // Quota check inside the transaction: write requests hold the
@@ -158,29 +195,58 @@ export async function createOrder(ctx) {
         );
         assert(updated.changes > 0, "库存不足", 409);
       }
-      // R3-2: re-check the coupon inside the transaction (quota /
-      // per-user counts are live COUNTs, and a concurrent order could
-      // have taken the last slot after the pre-check above).
-      let txCoupon = coupon;
-      let txCouponCents = couponCents;
-      if (coupon) {
+      // R3-3 + R3-2: re-price inside the transaction — the pricing
+      // from the pre-check may be stale. The flash sale can have
+      // ended or sold out since (a concurrent order took the last
+      // quota slot): if the pre-checked sale is no longer the live
+      // sale for this performance, fall back to the original price
+      // and re-price tier + coupon on the un-flashed base — never
+      // 409. The coupon is then re-checked on the authoritative
+      // remainder (quota / per-user counts are live COUNTs, and a
+      // concurrent order could have taken the last slot after the
+      // pre-check above — validateCoupon throws 400 then, as
+      // before). The in-transaction pricing is authoritative: the
+      // INSERT below uses it, not the pre-check values.
+      let txPricing = pricing;
+      if (pricing.flash_sale) {
+        const live = await resolveFlashSale(get, all, perf.id);
+        if (!live || live.id !== pricing.flash_sale.id)
+          txPricing = await computePricing(
+            get,
+            all,
+            u.id,
+            orderShopId,
+            unitPrice,
+            qty,
+            null,
+            couponCode,
+          );
+      }
+      if (txPricing.coupon) {
         const rechecked = await validateCoupon(
           get,
           u.id,
           orderShopId,
-          coupon.code,
-          afterTier,
+          txPricing.coupon.code,
+          txPricing.base - txPricing.discount_cents,
         );
-        txCoupon = rechecked.coupon;
-        txCouponCents = rechecked.coupon_cents;
+        txPricing = {
+          ...txPricing,
+          coupon: rechecked.coupon,
+          coupon_cents: rechecked.coupon_cents,
+          final_amount:
+            txPricing.base -
+            txPricing.discount_cents -
+            rechecked.coupon_cents,
+        };
       }
       const result = await run(
-        "INSERT INTO orders(code,user_id,resource_id,quantity,amount,booking_date,status,channel,note,performance_id,ticket_type_id,pickup_point_id,discount_cents,tier_id,coupon_id,coupon_cents,created_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+        "INSERT INTO orders(code,user_id,resource_id,quantity,amount,booking_date,status,channel,note,performance_id,ticket_type_id,pickup_point_id,discount_cents,tier_id,coupon_id,coupon_cents,flash_sale_id,flash_cents,created_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
         `GY${Date.now()}${randomBytes(2).toString("hex")}`,
         u.id,
         rid,
         qty,
-        finalAmount,
+        txPricing.final_amount,
         d,
         "pending",
         ["H5", "电脑网页", "微信小程序"].includes(b.channel)
@@ -190,22 +256,24 @@ export async function createOrder(ctx) {
         perf ? perf.id : null,
         tier ? tier.id : null,
         pickupPoint ? pickupPoint.id : null,
-        discountCents,
-        appliedTier ? appliedTier.id : null,
-        txCoupon ? txCoupon.id : null,
-        txCouponCents,
+        txPricing.discount_cents,
+        txPricing.tier ? txPricing.tier.id : null,
+        txPricing.coupon ? txPricing.coupon.id : null,
+        txPricing.coupon_cents,
+        txPricing.flash_sale ? txPricing.flash_sale.id : null,
+        txPricing.flash_cents,
         time(),
       );
       const orderId = Number(result.lastInsertRowid);
       // R3-2: the redemption is recorded in the same transaction as
       // the order — they commit or roll back together.
-      if (txCoupon) {
+      if (txPricing.coupon) {
         await run(
           "INSERT INTO coupon_redemptions(coupon_id,user_id,order_id,amount_cents,created_at) VALUES(?,?,?,?,?)",
-          txCoupon.id,
+          txPricing.coupon.id,
           u.id,
           orderId,
-          txCouponCents,
+          txPricing.coupon_cents,
           time(),
         );
       }
@@ -238,6 +306,8 @@ export async function createOrder(ctx) {
       tier_id: created.tier_id,
       coupon_id: created.coupon_id,
       coupon_cents: created.coupon_cents,
+      flash_sale_id: created.flash_sale_id,
+      flash_cents: created.flash_cents,
       status: created.status,
       pickup_point: extra.pickup_point,
       ticket_template: extra.ticket_template,

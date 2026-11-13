@@ -263,7 +263,9 @@ function mapApiOrder(o) {
     pickup: o.pickup_point || null,
     template: o.ticket_template || null,
     // R3-2: the coupon discount this order got (0 = none).
-    coupon_cents: o.coupon_cents || 0
+    coupon_cents: o.coupon_cents || 0,
+    // R3-3: the flash-sale discount this order got (0 = none).
+    flash_cents: o.flash_cents || 0
   };
 }
 

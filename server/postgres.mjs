@@ -156,6 +156,16 @@ export async function openPostgresStore(
       await client.query(
         "ALTER TABLE orders ADD COLUMN IF NOT EXISTS coupon_cents INTEGER NOT NULL DEFAULT 0",
       );
+      // R3-3 (flash sales, 2026-11-14): the flash sale an order used
+      // (snapshot) and how much it actually took off. The flash_sales
+      // table itself comes from schema.mjs above, so the FK target
+      // exists before these ALTERs run.
+      await client.query(
+        "ALTER TABLE orders ADD COLUMN IF NOT EXISTS flash_sale_id INTEGER REFERENCES flash_sales(id)",
+      );
+      await client.query(
+        "ALTER TABLE orders ADD COLUMN IF NOT EXISTS flash_cents INTEGER NOT NULL DEFAULT 0",
+      );
       if (!(await client.query("SELECT COUNT(*) AS n FROM users")).rows[0].n) {
         // Batch adjacent inserts to keep first-time setup fast over the network.
         const groups = [];
@@ -324,7 +334,8 @@ export async function openPostgresStore(
             // R2-5: seats joins them too (generate needs the ids).
             // R3-1: member_tiers joins them too (tier create needs the id).
             // R3-2: coupons joins them too (coupon create needs the id).
-            /^\s*INSERT\s+INTO\s+(users|resources|orders|demands|comments|messages|events|audit_logs|shops|shows|performances|ticket_types|pickup_points|ticket_templates|venues|seat_templates|seats|member_tiers|coupons)\b/i.test(
+            // R3-3: flash_sales joins them too (sale create needs the id).
+            /^\s*INSERT\s+INTO\s+(users|resources|orders|demands|comments|messages|events|audit_logs|shops|shows|performances|ticket_types|pickup_points|ticket_templates|venues|seat_templates|seats|member_tiers|coupons|flash_sales)\b/i.test(
               sql,
             );
           const result = await execute(

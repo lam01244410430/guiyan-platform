@@ -78,6 +78,7 @@ const VIEWS = [
   { id: "venues", label: "场馆", iconName: "ui:map-pin", group: "main" },
   { id: "tiers", label: "会员等级", iconName: "ui:crown", group: "main" },
   { id: "coupons", label: "优惠券", iconName: "ui:percent", group: "main" },
+  { id: "flashsales", label: "限时抢购", iconName: "ui:percent", group: "main" },
   { id: "shops", label: "店铺", iconName: "ui:store", group: "main" },
   { id: "demands", label: "需求", iconName: "ui:clipboard-list", group: "main" },
   { id: "trends", label: "趋势统计", iconName: "ui:chart-line", group: "premium" },
@@ -174,7 +175,7 @@ export default function AdminDashboard() {
       return out;
     });
   }
-  function changeView(v) { setView(v); setQuery(""); setSorts({}); setTagFilter(""); setResShopFilter(""); setShowStatusFilter(""); setPerfShowId(null); setPerfForm(null); setDrawerOpen(false); setVenueForm(null); setMemberTierForm(null); setTplVenueId(null); setTplForm(null); }
+  function changeView(v) { setView(v); setQuery(""); setSorts({}); setTagFilter(""); setResShopFilter(""); setShowStatusFilter(""); setPerfShowId(null); setPerfForm(null); setDrawerOpen(false); setVenueForm(null); setMemberTierForm(null); setFlashSaleForm(null); setTplVenueId(null); setTplForm(null); }
   // Mobile drawer (≤860px): open state + Esc closes + focus returns to
   // the hamburger. Desktop sidebar is unaffected (drawer CSS only
   // applies at ≤860px).
@@ -299,6 +300,12 @@ export default function AdminDashboard() {
   const [coupons, setCoupons] = useState([]);
   const [couponForm, setCouponForm] = useState(null);
   const [couponBusyId, setCouponBusyId] = useState(null);
+  // R3-3 flash sales: the sale list (already shop-scoped by the
+  // server, each row carries live sold_count + quota_remaining) +
+  // the open create/edit draft + the id of the sale in flight.
+  const [flashSales, setFlashSales] = useState([]);
+  const [flashSaleForm, setFlashSaleForm] = useState(null);
+  const [flashSaleBusyId, setFlashSaleBusyId] = useState(null);
   const [acctBusy, setAcctBusy] = useState(false);
   const [acctOtp, setAcctOtp] = useState("");
   const [acctOtpInput, setAcctOtpInput] = useState("");
@@ -342,7 +349,7 @@ export default function AdminDashboard() {
       apiGet("/api/admin/resources"), apiGet("/api/admin/demands"),
       apiGet("/api/admin/shops"), apiGet("/api/admin/shows"),
       apiGet("/api/venues"), apiGet("/api/admin/member-tiers"),
-      apiGet("/api/admin/coupons"),
+      apiGet("/api/admin/coupons"), apiGet("/api/admin/flash-sales"),
     ]).then(function (res) {
       setStats(res[0]);
       setOrders(res[1].orders || []);
@@ -357,6 +364,7 @@ export default function AdminDashboard() {
       setVenues(res[7].venues || []);
       setMemberTiers(res[8].member_tiers || []);
       setCoupons(res[9].coupons || []);
+      setFlashSales(res[10].flash_sales || []);
       setView("overview");
     }).catch(function (e) {
       if (e && e.status === 401) { clearToken(); location.href = "/admin/index.html"; return; }
@@ -766,6 +774,95 @@ export default function AdminDashboard() {
       else if (e && e.status === 409) toast("该店铺已存在相同券码");
       else toast((e && e.data && e.data.error) || "保存失败，请检查表单");
     }).finally(function () { setCouponBusyId(null); });
+  }
+  // R3-3 flash sales (same disabled-while-processing pattern as the
+  // coupon form). A shop-scoped admin creates/edits only their own
+  // shop's sales (the server returns 403 otherwise); a platform
+  // admin names the shop in the create form. The performance and the
+  // shop are immutable after creation — the edit form hides them.
+  // The datetime-local inputs hold local time; the server stores ISO.
+  // One sale targets one performance; the dropdown is built from the
+  // already-loaded shows (each carries its performances).
+  function loadFlashSales() {
+    apiGet("/api/admin/flash-sales").then(function (d) {
+      setFlashSales(d.flash_sales || []);
+    }).catch(loadFail);
+  }
+  function flashPerfOptions() {
+    const out = [];
+    (shows || []).forEach(function (s) {
+      (s.performances || []).forEach(function (pf) {
+        out.push({ id: pf.id, label: s.title + " · " + String(pf.start_at).slice(0, 16) + " · #" + pf.id + "（" + pf.status + "）" });
+      });
+    });
+    return out;
+  }
+  function flashPerfLabel(perfId) {
+    const found = flashPerfOptions().find(function (o) { return o.id === perfId; });
+    return found ? found.label : "#" + perfId;
+  }
+  function openFlashSaleForm(s) {
+    setFlashSaleForm(s ? {
+      id: s.id, performance_id: String(s.performance_id), name: s.name || "", kind: s.kind,
+      value_cents: s.value_cents == null ? "" : String(s.value_cents),
+      discount_pct: s.discount_pct == null ? "" : String(s.discount_pct),
+      start_at: couponLocal(s.start_at), end_at: couponLocal(s.end_at),
+      quota: s.quota == null ? "" : String(s.quota),
+      status: s.status || "active",
+      shop_id: String(s.shop_id),
+    } : {
+      id: null, performance_id: "", name: "", kind: "pct", value_cents: "", discount_pct: "",
+      start_at: "", end_at: "", quota: "", status: "active",
+      shop_id: isPlatformAdmin ? "1" : (me && me.shop_id ? String(me.shop_id) : "1"),
+    });
+  }
+  function editFlashSaleForm(key, value) {
+    setFlashSaleForm(function (f) { return f ? { ...f, [key]: value } : f; });
+  }
+  function saveFlashSaleForm() {
+    if (!flashSaleForm || flashSaleBusyId !== null) return;
+    if (!flashSaleForm.name.trim()) { toast("请填写抢购名称"); return; }
+    if (flashSaleForm.id === null && !flashSaleForm.performance_id) { toast("请选择场次"); return; }
+    const body = {};
+    if (flashSaleForm.id === null) body.performance_id = Number(flashSaleForm.performance_id);
+    body.name = flashSaleForm.name.trim();
+    body.kind = flashSaleForm.kind;
+    if (flashSaleForm.kind === "fixed") {
+      const v = Number(flashSaleForm.value_cents);
+      if (!Number.isInteger(v) || v < 1) { toast("每张减免须为不小于 1 的整数（分）"); return; }
+      body.value_cents = v;
+    } else {
+      const pc = Number(flashSaleForm.discount_pct);
+      if (!Number.isInteger(pc) || pc < 1 || pc > 100) { toast("折扣须为 1–100 的整数"); return; }
+      body.discount_pct = pc;
+    }
+    if (!flashSaleForm.start_at || !flashSaleForm.end_at) { toast("请填写开始与结束时间"); return; }
+    body.start_at = new Date(flashSaleForm.start_at).toISOString();
+    body.end_at = new Date(flashSaleForm.end_at).toISOString();
+    if (body.start_at >= body.end_at) { toast("开始时间须早于结束时间"); return; }
+    body.quota = flashSaleForm.quota === "" ? null : Number(flashSaleForm.quota);
+    if (body.quota !== null && (!Number.isInteger(body.quota) || body.quota < 1)) { toast("总名额须为空或不小于 1 的整数"); return; }
+    body.status = flashSaleForm.status;
+    if (flashSaleForm.id === null && isPlatformAdmin) body.shop_id = Number(flashSaleForm.shop_id) || 1;
+    setFlashSaleBusyId(flashSaleForm.id === null ? "new" : flashSaleForm.id);
+    const call = flashSaleForm.id === null
+      ? apiPost("/api/admin/flash-sales", body)
+      : apiPatch("/api/admin/flash-sales/" + flashSaleForm.id, body);
+    call.then(function (d) {
+      const saved = d.flash_sale;
+      setFlashSales(function (ss) {
+        return flashSaleForm.id === null ? ss.concat([saved])
+          : ss.map(function (x) { return x.id === saved.id ? saved : x; });
+      });
+      setFlashSaleForm(null);
+      loadAudit();
+      toast("已保存");
+    }).catch(function (e) {
+      if (e && e.status === 403) toast("只能管理本店铺的限时抢购");
+      else if (e && e.status === 404) toast("限时抢购不存在");
+      else if (e && e.status === 409) toast("该场次已有重叠的限时抢购");
+      else toast((e && e.data && e.data.error) || "保存失败，请检查表单");
+    }).finally(function () { setFlashSaleBusyId(null); });
   }
   function loadTemplates(venueId) {
     apiGet("/api/venues/" + venueId + "/seat-templates").then(function (d) {
@@ -2408,6 +2505,77 @@ export default function AdminDashboard() {
                       </tr>
                     ))
                     : <tr><td colSpan="10"><div className="empty">暂无优惠券</div></td></tr>}
+                </tbody>
+              </table>
+            </div>
+          </section>
+
+          <section className={"view" + (view === "flashsales" ? " on" : "")} id="view-flashsales">
+            <div className="search-row">
+              <button type="button" className="btn-export" onClick={() => openFlashSaleForm(null)}>添加限时抢购</button>
+            </div>
+            <div className="note">抢购按店配置，一场抢购只对一个场次；场次订单在抢购进行中时自动按抢购价计价（窗口外按原价，不报错）。叠加顺序：抢购价 → 会员折扣 → 券在折后余款上算。名额耗尽时订单仍按原价走单；订单取消/退款批准后名额自动释放。同一场次同一时间只能有一场启用的抢购。场次与店铺建后不可改。</div>
+            {flashSaleForm ? (
+              <fieldset className="tag-rule">
+                <legend>{flashSaleForm.id === null ? "添加限时抢购" : "编辑限时抢购：" + flashSaleForm.name}</legend>
+                {flashSaleForm.id === null ? (
+                  <label>场次 <select value={flashSaleForm.performance_id} onChange={(e) => editFlashSaleForm("performance_id", e.target.value)}>
+                    <option value="">请选择场次</option>
+                    {flashPerfOptions().map((o) => (<option key={o.id} value={String(o.id)}>{o.label}</option>))}
+                  </select></label>
+                ) : (
+                  <label>场次 <input type="text" value={flashPerfLabel(flashSaleForm.performance_id)} disabled /></label>
+                )}
+                <label>抢购名称 <input type="text" value={flashSaleForm.name} maxLength={100} placeholder="例如：刘三姐限时 8 折" onChange={(e) => editFlashSaleForm("name", e.target.value)} /></label>
+                <label>类型 <select value={flashSaleForm.kind} onChange={(e) => editFlashSaleForm("kind", e.target.value)}>
+                  <option value="fixed">每张减固定金额</option>
+                  <option value="pct">比例折扣</option>
+                </select></label>
+                {flashSaleForm.kind === "fixed" ? (
+                  <label>每张减免（分） <input type="number" min={1} value={flashSaleForm.value_cents} onChange={(e) => editFlashSaleForm("value_cents", e.target.value)} /></label>
+                ) : (
+                  <label>折扣（%） <input type="number" min={1} max={100} value={flashSaleForm.discount_pct} onChange={(e) => editFlashSaleForm("discount_pct", e.target.value)} /></label>
+                )}
+                <label>开始时间 <input type="datetime-local" value={flashSaleForm.start_at} onChange={(e) => editFlashSaleForm("start_at", e.target.value)} /></label>
+                <label>结束时间 <input type="datetime-local" value={flashSaleForm.end_at} onChange={(e) => editFlashSaleForm("end_at", e.target.value)} /></label>
+                <label>总名额（空 = 不限） <input type="number" min={1} value={flashSaleForm.quota} onChange={(e) => editFlashSaleForm("quota", e.target.value)} /></label>
+                <label>状态 <select value={flashSaleForm.status} onChange={(e) => editFlashSaleForm("status", e.target.value)}>
+                  <option value="active">启用</option>
+                  <option value="disabled">停用</option>
+                </select></label>
+                {flashSaleForm.id === null && isPlatformAdmin ? (
+                  <label>店铺 <select value={flashSaleForm.shop_id} onChange={(e) => editFlashSaleForm("shop_id", e.target.value)}>
+                    {shops.map((s) => (<option key={s.id} value={String(s.id)}>{s.name}</option>))}
+                  </select></label>
+                ) : null}
+                <div>
+                  <button type="button" className="btn-export" disabled={flashSaleBusyId !== null} onClick={saveFlashSaleForm}>{flashSaleBusyId !== null ? "保存中…" : "保存"}</button>{" "}
+                  <button type="button" className="btn-resolve" onClick={() => setFlashSaleForm(null)}>取消</button>
+                </div>
+              </fieldset>
+            ) : null}
+            <div className="tbl-wrap">
+              <table>
+                <thead><tr><th scope="col">抢购名称</th><th scope="col">店铺</th><th scope="col">场次</th><th scope="col">类型</th><th scope="col" className="num">减免</th><th scope="col">时间窗口</th><th scope="col" className="num">已售 / 总名额</th><th scope="col">状态</th><th scope="col">操作</th></tr></thead>
+                <tbody id="flashSalesBody">
+                  {flashSales.length
+                    ? flashSales.map((s) => (
+                      <tr key={s.id}>
+                        <td>{s.name}</td><td>{shopName(s.shop_id)}</td>
+                        <td>{flashPerfLabel(s.performance_id)}</td>
+                        <td>{s.kind === "fixed" ? "每张减固定金额" : "比例折扣"}</td>
+                        <td className="num">{s.kind === "fixed" ? s.value_cents + " 分" : s.discount_pct + "%"}</td>
+                        <td>{String(s.start_at).slice(0, 16).replace("T", " ")} ~ {String(s.end_at).slice(0, 16).replace("T", " ")}</td>
+                        <td className="num">{s.sold_count ?? 0} / {s.quota == null ? "不限" : s.quota}</td>
+                        <td>{s.status === "active" ? "启用" : "停用"}</td>
+                        <td>
+                          <span className="row-actions">
+                            <button type="button" className="btn-view" disabled={flashSaleBusyId !== null} onClick={() => openFlashSaleForm(s)}>编辑</button>
+                          </span>
+                        </td>
+                      </tr>
+                    ))
+                    : <tr><td colSpan="9"><div className="empty">暂无限时抢购</div></td></tr>}
                 </tbody>
               </table>
             </div>

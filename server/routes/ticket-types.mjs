@@ -11,6 +11,7 @@
 // any shop. Validate first, write after, never throw after a write in
 // the same request (OTP lesson).
 import { assert, text, int, time } from "../lib/http.mjs";
+import { flashSaleForTicketType } from "./flash-sales.mjs";
 
 function assertAdmin(session) {
   assert(session?.role === "admin", "无权访问管理后台", 403);
@@ -85,6 +86,9 @@ export async function soldForTier(get, tierId) {
 
 // Tiers of one performance with live sold/available counts (the shape
 // GET /api/resources/:id/availability returns inside each performance).
+// R3-3: each tier also carries its performance's live flash sale
+// (null when none is live) so the C-end can show the sale price +
+// countdown without a second fetch.
 export async function ticketTypesForPerformance(all, get, perfId) {
   const rows = await all(
     "SELECT * FROM ticket_types WHERE performance_id=? ORDER BY price_cents ASC, id ASC",
@@ -97,6 +101,7 @@ export async function ticketTypesForPerformance(all, get, perfId) {
       ...tierRow(t),
       sold,
       available: Math.max(0, t.quota - sold),
+      flash_sale: await flashSaleForTicketType(get, all, perfId, t.price_cents),
     });
   }
   return out;
