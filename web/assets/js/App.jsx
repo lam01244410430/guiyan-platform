@@ -122,6 +122,7 @@ export default function App() {
   const [detailIdx, setDetailIdx] = useState(null);
   const [bkQty, setBkQty] = useState(1);
   const [bkDate, setBkDate] = useState("2026-12-05");
+  const [couponCode, setCouponCode] = useState(""); /* R3-2: coupon code typed in the detail modal (optional, sent with the order) */
   const [perfSel, setPerfSel] = useState(null); /* R2-2: selected performance id (null = resource-price flow) */
   const [tierSel, setTierSel] = useState(null); /* R2-2: selected ticket_type id within perfSel */
   const [pickupPoints, setPickupPoints] = useState(null); /* R2-3: pickup points of the selected performance's show (null = not loaded for this performance); empty = the show needs no pickup point */
@@ -298,7 +299,7 @@ export default function App() {
   // pickup (R2-3): the selected pickup point object, or null. Only a
   // tier order carries one; the server requires it when the show has
   // pickup points configured.
-  function bookResource(i, qty, date, tier, pickup, seatIds) {
+  function bookResource(i, qty, date, tier, pickup, seatIds, coupon) {
     const r = RES[i];
     function localBook() {
       const code = "GY2026" + String(store.seq++).padStart(6, "0");
@@ -311,11 +312,15 @@ export default function App() {
     const body = { resourceId: rid, quantity: qty, booking_date: date, channel: "web" };
     if (tier) { body.performance_id = tier.performance_id; body.ticket_type_id = tier.ticket_type_id; }
     if (tier && pickup) body.pickup_point_id = pickup.id;
+    // R3-2: a typed coupon code rides along; the server validates it
+    // (shop, window, min spend, quota, per-user limit) and prices it.
+    if (coupon) body.coupon_code = coupon;
     apiPost("/api/orders", body).then(function (d) {
       if (d && d.ok) {
         const code = d.code || ("GY2026" + String(store.seq++).padStart(6, "0"));
         const total = (typeof d.amount === "number") ? d.amount / 100 : r[3] * qty;
-        store.orders.unshift({ code, idx: i, qty, date, total, status: "pending", apiId: d.id, pickup: d.pickup_point || pickup || null, template: d.ticket_template || null });
+        store.orders.unshift({ code, idx: i, qty, date, total, status: "pending", apiId: d.id, pickup: d.pickup_point || pickup || null, template: d.ticket_template || null, coupon_cents: (typeof d.coupon_cents === "number" ? d.coupon_cents : 0) });
+        setCouponCode("");
         // R2-5: hold the seats the buyer picked on the pending order.
         // A failed hold leaves the order standing (pending) — the
         // server error is shown, and the buyer can retry from the
@@ -329,7 +334,11 @@ export default function App() {
       } else { localBook(); }
     }).catch(function (e) {
       if (e && e.status === 401) { clearToken(); setUser(null); setLoginOpen(true); }
-      localBook();
+      // R3-2: the server refused the coupon (400) — show its message
+      // and do NOT fall back to a full-price local order for a
+      // booking the buyer tried to discount.
+      else if (e && e.status === 400 && coupon) { toast((e && e.data && e.data.error) || t("loadErr")); }
+      else localBook();
     });
   }
 
@@ -1027,11 +1036,15 @@ export default function App() {
                     ) : (<p className="perf-empty">{t("perfEmpty")}</p>)}
                   </div>
                 )}
+                {/* R3-2: optional coupon code, sent with the order. */}
+                <div className="bookrow">
+                  <label>{t("couponCode")}<input type="text" value={couponCode} maxLength={20} placeholder={t("couponCodePh")} onChange={(e) => setCouponCode(e.target.value)} /></label>
+                </div>
                 <div className="totalrow"><span>{t("totalLabel")}</span><b id="bkTotal">{money((selTier ? selTier.price_cents / 100 : cur[3]) * bkQty)}</b></div>
                 <div className="acts">
                   <button type="button" className="btn red" id="bkGo" disabled={pickupRequired && !pickupSel} onClick={() => {
                     if (pickupRequired && !pickupSel) { toast(t("pickupPick")); return; }
-                    bookResource(detailIdx, bkQty, selTier ? selPf.start_at.slice(0, 10) : (bkDate || "2026-12-05"), selTier ? { performance_id: selPf.id, ticket_type_id: selTier.id, price_cents: selTier.price_cents, start_at: selPf.start_at } : null, selTier ? selPickup : null, selTier ? seatSel : []);
+                    bookResource(detailIdx, bkQty, selTier ? selPf.start_at.slice(0, 10) : (bkDate || "2026-12-05"), selTier ? { performance_id: selPf.id, ticket_type_id: selTier.id, price_cents: selTier.price_cents, start_at: selPf.start_at } : null, selTier ? selPickup : null, selTier ? seatSel : [], couponCode.trim() || null);
                   }}>{t("bookNow")}</button>
                   <button type="button" className="btn ghost" id="bkFav" onClick={() => toggleFav(detailIdx)}>{store.favs[detailIdx] ? t("favOn") : t("favOff")}</button>
                 </div>
@@ -1075,6 +1088,7 @@ export default function App() {
               <div key={o.code + oi} className="order">
                 <h4>{r[0]}</h4>
                 <span className="code">{o.code} · {o.date} · {o.qty} × {unitName(r[4])} · {money(o.total)}</span>
+                {o.coupon_cents ? (<span className="code">{fmt(t("couponSaved"), { a: (o.coupon_cents / 100).toFixed(2) })}</span>) : null}
                 {o.pickup ? (<span className="code">{t("pickupTitle")}：{o.pickup.name} · {o.pickup.address}</span>) : null}
                 {o.template ? (<span className="code"><i style={{ display: "inline-block", width: 10, height: 10, background: o.template.color, borderRadius: 2, marginRight: 4, verticalAlign: "-1px" }} />{o.template.name}</span>) : null}
                 <div className="row"><span className={"pill " + o.status}>{t(STATUS[o.status])}</span>{acts}</div>

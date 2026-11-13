@@ -68,7 +68,10 @@ export function loadTabInfo(get, s) {
   return Promise.all([
     get("/api/profile").catch(swallowUnlessAuth),
     get("/api/recommendations?limit=5").catch(swallowUnlessAuth),
-    get("/api/account/tier").catch(() => null),
+    // The tier fetch degrades to null on ANY failure, including a
+    // synchronously throwing getter (a bare .catch only catches a
+    // rejected promise, not a throw) — it must never fail the tab.
+    Promise.resolve().then(() => get("/api/account/tier")).catch(() => null),
   ]).then(function (res) {
     const prof = res[0];
     const recs = res[1];

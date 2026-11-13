@@ -25,6 +25,8 @@
     <view style="display:flex;justify-content:space-between;margin-top:24rpx;font-size:30rpx;font-weight:700">
       <view>{{L.totalLabel}}</view><view class="price">{{total}}</view>
     </view>
+    <!-- R3-2: optional coupon code, sent with the order. -->
+    <input value="{{couponCode}}" maxlength="20" placeholder="{{L.couponCodePh}}" bindinput="onCouponInput" style="margin-top:24rpx;font-size:28rpx;border:2rpx solid #e5ddd0;border-radius:8rpx;padding:16rpx" />
     <view class="btn" bindtap="book">{{L.bookNow}}</view>
     </view>
 
@@ -98,6 +100,9 @@
       <view style="margin-top:14rpx"><text class="pill {{order.status}}">{{order.statusText}}</text></view>
       <view class="note">{{L.flow[0]}} → {{L.flow[1]}} → {{L.flow[2]}} → {{L.flow[3]}}</view>
       <view class="note">{{order.name}} · {{order.date}} · ×{{order.qty}} · {{order.total}}</view>
+      <block wx:if="{{order.couponSavedText}}">
+        <view class="note">{{order.couponSavedText}}</view>
+      </block>
       <block wx:if="{{order.pickup}}">
         <view class="note">{{L.pickupTitle}}：{{order.pickup.name}} · {{order.pickup.address}}</view>
       </block>

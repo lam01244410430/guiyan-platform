@@ -77,6 +77,7 @@ const VIEWS = [
   { id: "shows", label: "演出", iconName: "ui:ticket", group: "main" },
   { id: "venues", label: "场馆", iconName: "ui:map-pin", group: "main" },
   { id: "tiers", label: "会员等级", iconName: "ui:crown", group: "main" },
+  { id: "coupons", label: "优惠券", iconName: "ui:percent", group: "main" },
   { id: "shops", label: "店铺", iconName: "ui:store", group: "main" },
   { id: "demands", label: "需求", iconName: "ui:clipboard-list", group: "main" },
   { id: "trends", label: "趋势统计", iconName: "ui:chart-line", group: "premium" },
@@ -292,6 +293,12 @@ export default function AdminDashboard() {
   const [memberTiers, setMemberTiers] = useState([]);
   const [memberTierForm, setMemberTierForm] = useState(null);
   const [memberTierBusyId, setMemberTierBusyId] = useState(null);
+  // R3-2 coupons: the coupon list (already shop-scoped by the server,
+  // each row carries live redemption_count + total_discount_cents) +
+  // the open create/edit draft + the id of the coupon in flight.
+  const [coupons, setCoupons] = useState([]);
+  const [couponForm, setCouponForm] = useState(null);
+  const [couponBusyId, setCouponBusyId] = useState(null);
   const [acctBusy, setAcctBusy] = useState(false);
   const [acctOtp, setAcctOtp] = useState("");
   const [acctOtpInput, setAcctOtpInput] = useState("");
@@ -335,6 +342,7 @@ export default function AdminDashboard() {
       apiGet("/api/admin/resources"), apiGet("/api/admin/demands"),
       apiGet("/api/admin/shops"), apiGet("/api/admin/shows"),
       apiGet("/api/venues"), apiGet("/api/admin/member-tiers"),
+      apiGet("/api/admin/coupons"),
     ]).then(function (res) {
       setStats(res[0]);
       setOrders(res[1].orders || []);
@@ -348,6 +356,7 @@ export default function AdminDashboard() {
       setShows(res[6].shows || []);
       setVenues(res[7].venues || []);
       setMemberTiers(res[8].member_tiers || []);
+      setCoupons(res[9].coupons || []);
       setView("overview");
     }).catch(function (e) {
       if (e && e.status === 401) { clearToken(); location.href = "/admin/index.html"; return; }
@@ -671,6 +680,92 @@ export default function AdminDashboard() {
       else if (e && e.status === 404) toast("会员等级不存在");
       else toast((e && e.data && e.data.error) || "保存失败，请检查表单");
     }).finally(function () { setTierBusyId(null); });
+  }
+  // R3-2 coupons (same disabled-while-processing pattern as the
+  // member-tier form). A shop-scoped admin creates/edits only their
+  // own shop's coupons (the server returns 403 otherwise); a platform
+  // admin names the shop in the create form. The code and the shop
+  // are immutable after creation — the edit form hides them. The
+  // datetime-local inputs hold local time; the server stores ISO.
+  function loadCoupons() {
+    apiGet("/api/admin/coupons").then(function (d) {
+      setCoupons(d.coupons || []);
+    }).catch(loadFail);
+  }
+  function couponLocal(dt) {
+    if (!dt) return "";
+    const d = new Date(dt);
+    if (isNaN(d.valueOf())) return "";
+    const p = (n) => String(n).padStart(2, "0");
+    return d.getFullYear() + "-" + p(d.getMonth() + 1) + "-" + p(d.getDate()) + "T" + p(d.getHours()) + ":" + p(d.getMinutes());
+  }
+  function openCouponForm(c) {
+    setCouponForm(c ? {
+      id: c.id, code: c.code, kind: c.kind,
+      value_cents: c.value_cents == null ? "" : String(c.value_cents),
+      discount_pct: c.discount_pct == null ? "" : String(c.discount_pct),
+      min_spend_cents: String(c.min_spend_cents || 0),
+      valid_from: couponLocal(c.valid_from), valid_until: couponLocal(c.valid_until),
+      quota: c.quota == null ? "" : String(c.quota),
+      per_user_limit: String(c.per_user_limit || 1), status: c.status || "active",
+      shop_id: String(c.shop_id),
+    } : {
+      id: null, code: "", kind: "fixed", value_cents: "", discount_pct: "",
+      min_spend_cents: "0", valid_from: "", valid_until: "",
+      quota: "", per_user_limit: "1", status: "active",
+      shop_id: isPlatformAdmin ? "1" : (me && me.shop_id ? String(me.shop_id) : "1"),
+    });
+  }
+  function editCouponForm(key, value) {
+    setCouponForm(function (f) { return f ? { ...f, [key]: value } : f; });
+  }
+  function saveCouponForm() {
+    if (!couponForm || couponBusyId !== null) return;
+    if (couponForm.id === null && !/^[A-Za-z0-9]{4,20}$/.test(couponForm.code.trim())) { toast("券码须为 4–20 位字母或数字"); return; }
+    const body = {};
+    if (couponForm.id === null) body.code = couponForm.code.trim().toUpperCase();
+    body.kind = couponForm.kind;
+    if (couponForm.kind === "fixed") {
+      const v = Number(couponForm.value_cents);
+      if (!Number.isInteger(v) || v < 1) { toast("固定金额须为不小于 1 的整数（分）"); return; }
+      body.value_cents = v;
+    } else {
+      const pc = Number(couponForm.discount_pct);
+      if (!Number.isInteger(pc) || pc < 1 || pc > 100) { toast("折扣须为 1–100 的整数"); return; }
+      body.discount_pct = pc;
+    }
+    const minSpend = Number(couponForm.min_spend_cents);
+    if (!Number.isInteger(minSpend) || minSpend < 0) { toast("最低消费须为不小于 0 的整数（分）"); return; }
+    body.min_spend_cents = minSpend;
+    body.valid_from = couponForm.valid_from ? new Date(couponForm.valid_from).toISOString() : null;
+    body.valid_until = couponForm.valid_until ? new Date(couponForm.valid_until).toISOString() : null;
+    if (body.valid_from && body.valid_until && body.valid_from > body.valid_until) { toast("生效时间不能晚于失效时间"); return; }
+    body.quota = couponForm.quota === "" ? null : Number(couponForm.quota);
+    if (body.quota !== null && (!Number.isInteger(body.quota) || body.quota < 1)) { toast("总名额须为空或不小于 1 的整数"); return; }
+    const perUser = Number(couponForm.per_user_limit);
+    if (!Number.isInteger(perUser) || perUser < 1) { toast("每人限用次数须为不小于 1 的整数"); return; }
+    body.per_user_limit = perUser;
+    body.status = couponForm.status;
+    if (couponForm.id === null && isPlatformAdmin) body.shop_id = Number(couponForm.shop_id) || 1;
+    setCouponBusyId(couponForm.id === null ? "new" : couponForm.id);
+    const call = couponForm.id === null
+      ? apiPost("/api/admin/coupons", body)
+      : apiPatch("/api/admin/coupons/" + couponForm.id, body);
+    call.then(function (d) {
+      const saved = d.coupon;
+      setCoupons(function (cs) {
+        return couponForm.id === null ? cs.concat([saved])
+          : cs.map(function (x) { return x.id === saved.id ? saved : x; });
+      });
+      setCouponForm(null);
+      loadAudit();
+      toast("已保存");
+    }).catch(function (e) {
+      if (e && e.status === 403) toast("只能管理本店铺的优惠券");
+      else if (e && e.status === 404) toast("优惠券不存在");
+      else if (e && e.status === 409) toast("该店铺已存在相同券码");
+      else toast((e && e.data && e.data.error) || "保存失败，请检查表单");
+    }).finally(function () { setCouponBusyId(null); });
   }
   function loadTemplates(venueId) {
     apiGet("/api/venues/" + venueId + "/seat-templates").then(function (d) {
@@ -2245,6 +2340,74 @@ export default function AdminDashboard() {
                       </tr>
                     ))
                     : <tr><td colSpan="6"><div className="empty">暂无会员等级</div></td></tr>}
+                </tbody>
+              </table>
+            </div>
+          </section>
+
+          <section className={"view" + (view === "coupons" ? " on" : "")} id="view-coupons">
+            <div className="search-row">
+              <button type="button" className="btn-export" onClick={() => openCouponForm(null)}>添加优惠券</button>
+            </div>
+            <div className="note">券按店配置，顾客下单时输入券码使用。叠加顺序：底价 → 会员折扣 → 券在折后余款上算（固定金额取减额与余款较小者，比例券向下取整）。最低消费按折后余款算。订单取消/退款批准后核销自动释放，名额与每人计数恢复。券码与店铺建后不可改。</div>
+            {couponForm ? (
+              <fieldset className="tag-rule">
+                <legend>{couponForm.id === null ? "添加优惠券" : "编辑优惠券：" + couponForm.code}</legend>
+                {couponForm.id === null ? (
+                  <label>券码 <input type="text" value={couponForm.code} maxLength={20} placeholder="4–20 位字母或数字" onChange={(e) => editCouponForm("code", e.target.value)} /></label>
+                ) : null}
+                <label>类型 <select value={couponForm.kind} onChange={(e) => editCouponForm("kind", e.target.value)}>
+                  <option value="fixed">固定金额</option>
+                  <option value="pct">比例折扣</option>
+                </select></label>
+                {couponForm.kind === "fixed" ? (
+                  <label>减免金额（分） <input type="number" min={1} value={couponForm.value_cents} onChange={(e) => editCouponForm("value_cents", e.target.value)} /></label>
+                ) : (
+                  <label>折扣（%） <input type="number" min={1} max={100} value={couponForm.discount_pct} onChange={(e) => editCouponForm("discount_pct", e.target.value)} /></label>
+                )}
+                <label>最低消费（分） <input type="number" min={0} value={couponForm.min_spend_cents} onChange={(e) => editCouponForm("min_spend_cents", e.target.value)} /></label>
+                <label>生效时间 <input type="datetime-local" value={couponForm.valid_from} onChange={(e) => editCouponForm("valid_from", e.target.value)} /></label>
+                <label>失效时间 <input type="datetime-local" value={couponForm.valid_until} onChange={(e) => editCouponForm("valid_until", e.target.value)} /></label>
+                <label>总名额（空 = 不限） <input type="number" min={1} value={couponForm.quota} onChange={(e) => editCouponForm("quota", e.target.value)} /></label>
+                <label>每人限用次数 <input type="number" min={1} value={couponForm.per_user_limit} onChange={(e) => editCouponForm("per_user_limit", e.target.value)} /></label>
+                <label>状态 <select value={couponForm.status} onChange={(e) => editCouponForm("status", e.target.value)}>
+                  <option value="active">启用</option>
+                  <option value="disabled">停用</option>
+                </select></label>
+                {couponForm.id === null && isPlatformAdmin ? (
+                  <label>店铺 <select value={couponForm.shop_id} onChange={(e) => editCouponForm("shop_id", e.target.value)}>
+                    {shops.map((s) => (<option key={s.id} value={String(s.id)}>{s.name}</option>))}
+                  </select></label>
+                ) : null}
+                <div>
+                  <button type="button" className="btn-export" disabled={couponBusyId !== null} onClick={saveCouponForm}>{couponBusyId !== null ? "保存中…" : "保存"}</button>{" "}
+                  <button type="button" className="btn-resolve" onClick={() => setCouponForm(null)}>取消</button>
+                </div>
+              </fieldset>
+            ) : null}
+            <div className="tbl-wrap">
+              <table>
+                <thead><tr><th scope="col">券码</th><th scope="col">店铺</th><th scope="col">类型</th><th scope="col" className="num">减免</th><th scope="col" className="num">最低消费（分）</th><th scope="col">有效期</th><th scope="col" className="num">已用 / 总名额</th><th scope="col" className="num">每人限次</th><th scope="col">状态</th><th scope="col">操作</th></tr></thead>
+                <tbody id="couponsBody">
+                  {coupons.length
+                    ? coupons.map((c) => (
+                      <tr key={c.id}>
+                        <td>{c.code}</td><td>{shopName(c.shop_id)}</td>
+                        <td>{c.kind === "fixed" ? "固定金额" : "比例折扣"}</td>
+                        <td className="num">{c.kind === "fixed" ? c.value_cents + " 分" : c.discount_pct + "%"}</td>
+                        <td className="num">{c.min_spend_cents}</td>
+                        <td>{(c.valid_from ? String(c.valid_from).slice(0, 10) : "—") + " ~ " + (c.valid_until ? String(c.valid_until).slice(0, 10) : "—")}</td>
+                        <td className="num">{c.redemption_count ?? 0} / {c.quota == null ? "不限" : c.quota}</td>
+                        <td className="num">{c.per_user_limit}</td>
+                        <td>{c.status === "active" ? "启用" : "停用"}</td>
+                        <td>
+                          <span className="row-actions">
+                            <button type="button" className="btn-view" disabled={couponBusyId !== null} onClick={() => openCouponForm(c)}>编辑</button>
+                          </span>
+                        </td>
+                      </tr>
+                    ))
+                    : <tr><td colSpan="10"><div className="empty">暂无优惠券</div></td></tr>}
                 </tbody>
               </table>
             </div>

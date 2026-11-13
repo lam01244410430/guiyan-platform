@@ -19,7 +19,8 @@ Page({
     idx: 0, res: null, date: '', qty: 1, total: '', fav: false,
     order: null, flowSteps: [], perfs: null, perfSel: null, tierSel: null,
     pickupPoints: null, pickupSel: null, // R2-3: pickup points of the selected performance's show (null = not loaded); the chosen point id
-    seats: null, seatSel: [], seatZones: [], seatSelectedText: '' // R2-5: seats of the selected performance (null = not loaded); the chosen seat ids + the grouped grid
+    seats: null, seatSel: [], seatZones: [], seatSelectedText: '', // R2-5: seats of the selected performance (null = not loaded); the chosen seat ids + the grouped grid
+    couponCode: '' // R3-2: coupon code typed on this page (optional, sent with the order)
   },
   onLoad: function (options) {
     var idx = parseInt(options.idx || '0', 10);
@@ -51,7 +52,8 @@ Page({
       'perfTitle', 'perfEmpty', 'perfOnSale',
       'tierTitle', 'tierEmpty', 'tierSoldOut', 'tierLeft', 'tierPick',
       'pickupTitle', 'pickupEmpty', 'pickupPick',
-      'venueTitle', 'seatPick', 'seatSelected'];
+      'venueTitle', 'seatPick', 'seatSelected',
+      'couponCode', 'couponCodePh', 'couponSaved'];
     var L = {};
     keys.forEach(function (k) { L[k] = i18n.t(k, lang); });
     var r = api.resourceByIdx(this.data.idx) || data.RES[0];
@@ -257,6 +259,10 @@ Page({
       step: STATUS_STEP[order.status], name: r ? r.name : '',
       online: !!order.online, apiId: order.apiId != null ? order.apiId : null,
       pickup: order.pickup || null, template: order.template || null,
+      // R3-2: the coupon discount line, computed per language from the
+      // stored cents ('' = no coupon on this order).
+      couponSavedText: (order.coupon_cents > 0)
+        ? i18n.fmt(i18n.t('couponSaved', lang), { a: (order.coupon_cents / 100).toFixed(2) }) : '',
       payLabel: i18n.fmt(i18n.t('actPay', lang), { amt: data.money(order.total) })
     } });
   },
@@ -309,6 +315,9 @@ Page({
       self.setData({ fav: on });
     });
   },
+  onCouponInput: function (e) {
+    this.setData({ couponCode: e.detail.value || '' });
+  },
   book: function () {
     if (!this.data.date) {
       wx.showToast({ title: i18n.t('bookFirst'), icon: 'none' });
@@ -347,15 +356,23 @@ Page({
         body.ticket_type_id = tier.id;
         if (pickupSel) body.pickup_point_id = pickupSel.id;
       }
+      // R3-2: a typed coupon code rides along; the server validates it
+      // (shop, window, min spend, quota, per-user limit) and prices it.
+      var couponCode = (self.data.couponCode || '').trim();
+      if (couponCode) body.coupon_code = couponCode;
       api.post('/api/orders', body, true).then(function (res) {
         var o = { code: res.code, idx: self.data.idx,
           resourceId: api.apiIdForIdx(self.data.idx), apiId: res.id,
           online: true, qty: self.data.qty, date: orderDate,
           total: api.centsToYuan(res.amount), status: res.status || 'pending',
+          coupon_cents: (typeof res.coupon_cents === 'number' ? res.coupon_cents : 0),
+          couponSavedText: (typeof res.coupon_cents === 'number' && res.coupon_cents > 0)
+            ? i18n.fmt(i18n.t('couponSaved'), { a: (res.coupon_cents / 100).toFixed(2) }) : '',
           pickup: res.pickup_point || pickupSel || null,
           template: res.ticket_template || null,
           createdAt: Date.now() };
         store.addOrder(o);
+        self.setData({ couponCode: '' });
         // R2-5: hold the seats the buyer picked on the pending order.
         // A failed hold leaves the order standing (pending) — the
         // server error is shown, never a silent loss.

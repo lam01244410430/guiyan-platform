@@ -261,7 +261,9 @@ function mapApiOrder(o) {
     // R2-3: the pickup point chosen + the shop's default template
     // (nulls for an old-flow order).
     pickup: o.pickup_point || null,
-    template: o.ticket_template || null
+    template: o.ticket_template || null,
+    // R3-2: the coupon discount this order got (0 = none).
+    coupon_cents: o.coupon_cents || 0
   };
 }
 

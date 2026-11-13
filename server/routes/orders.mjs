@@ -3,6 +3,11 @@ import { assert, text, int, date, bookingType } from "../lib/http.mjs";
 import { ORDER_STATUS_ZH } from "../lib/status-labels.mjs";
 import { enrichOrder } from "./pickup.mjs";
 import { discountForOrder, evaluateTier, MAIN_SHOP_ID } from "./member-tiers.mjs";
+import {
+  normalizeCouponCode,
+  validateCoupon,
+  releaseCouponRedemption,
+} from "./coupons.mjs";
 
 export async function listOrders(ctx) {
   const { p, req, send, needUser, orderRows } = ctx;
@@ -98,7 +103,30 @@ export async function createOrder(ctx) {
     const orderShopId = r.shop_id ?? MAIN_SHOP_ID;
     const { discount_cents: discountCents, tier: appliedTier } =
       await discountForOrder(get, all, u.id, orderShopId, amount);
-    const finalAmount = amount - discountCents;
+    const afterTier = amount - discountCents;
+    // R3-2: coupon on the AFTER-tier remainder — base -> tier
+    // discount -> coupon, all integer cents, server-side. The coupon
+    // is looked up in the order's shop only; a code that exists only
+    // in another shop counts as not found here. Validated here
+    // (before any write) and re-checked inside the transaction below
+    // (quota / per-user counts are live COUNTs).
+    const hasCoupon =
+      typeof b.coupon_code === "string" && b.coupon_code.trim() !== "";
+    let coupon = null;
+    let couponCents = 0;
+    if (hasCoupon) {
+      const code = normalizeCouponCode(b.coupon_code);
+      const checked = await validateCoupon(
+        get,
+        u.id,
+        orderShopId,
+        code,
+        afterTier,
+      );
+      coupon = checked.coupon;
+      couponCents = checked.coupon_cents;
+    }
+    const finalAmount = afterTier - couponCents;
     // Amount is always computed server-side from the resource price (or
     // the tier price above); any amount sent by the client is ignored.
     const id = await transaction(async () => {
@@ -130,8 +158,24 @@ export async function createOrder(ctx) {
         );
         assert(updated.changes > 0, "库存不足", 409);
       }
+      // R3-2: re-check the coupon inside the transaction (quota /
+      // per-user counts are live COUNTs, and a concurrent order could
+      // have taken the last slot after the pre-check above).
+      let txCoupon = coupon;
+      let txCouponCents = couponCents;
+      if (coupon) {
+        const rechecked = await validateCoupon(
+          get,
+          u.id,
+          orderShopId,
+          coupon.code,
+          afterTier,
+        );
+        txCoupon = rechecked.coupon;
+        txCouponCents = rechecked.coupon_cents;
+      }
       const result = await run(
-        "INSERT INTO orders(code,user_id,resource_id,quantity,amount,booking_date,status,channel,note,performance_id,ticket_type_id,pickup_point_id,discount_cents,tier_id,created_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+        "INSERT INTO orders(code,user_id,resource_id,quantity,amount,booking_date,status,channel,note,performance_id,ticket_type_id,pickup_point_id,discount_cents,tier_id,coupon_id,coupon_cents,created_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
         `GY${Date.now()}${randomBytes(2).toString("hex")}`,
         u.id,
         rid,
@@ -148,15 +192,30 @@ export async function createOrder(ctx) {
         pickupPoint ? pickupPoint.id : null,
         discountCents,
         appliedTier ? appliedTier.id : null,
+        txCoupon ? txCoupon.id : null,
+        txCouponCents,
         time(),
       );
+      const orderId = Number(result.lastInsertRowid);
+      // R3-2: the redemption is recorded in the same transaction as
+      // the order — they commit or roll back together.
+      if (txCoupon) {
+        await run(
+          "INSERT INTO coupon_redemptions(coupon_id,user_id,order_id,amount_cents,created_at) VALUES(?,?,?,?,?)",
+          txCoupon.id,
+          u.id,
+          orderId,
+          txCouponCents,
+          time(),
+        );
+      }
       await notify(
         u.id,
         "预约提交成功",
         `“${r.name}”${d}的预约已提交，等待确认。`,
       );
       await audit(u, "提交预约", r.name);
-      return Number(result.lastInsertRowid);
+      return orderId;
     });
     // A new order changes cached admin stats/analysis (order + revenue
     // counts) and cached resource data (stock moves). Bust after the
@@ -177,6 +236,8 @@ export async function createOrder(ctx) {
       amount: created.amount,
       discount_cents: created.discount_cents,
       tier_id: created.tier_id,
+      coupon_id: created.coupon_id,
+      coupon_cents: created.coupon_cents,
       status: created.status,
       pickup_point: extra.pickup_point,
       ticket_template: extra.ticket_template,
@@ -283,6 +344,13 @@ export async function transitionOrder(ctx) {
           o.quantity,
           o.resource_id,
         );
+      // R3-2 coupon release (same transaction as the status change):
+      // a cancelled / refunded order gives its redemption back — the
+      // redemption row is deleted, so quota and per-user count are
+      // restored. refund_requested / disputed do NOT release (still
+      // paid-derived); the order row keeps coupon_id / coupon_cents.
+      if (["cancelled", "refunded"].includes(to))
+        await releaseCouponRedemption(run, o.id);
       // R2-5 seat lifecycle (same transaction as the status change):
       // pay sells this order's held seats; cancel / a refund decision
       // releases its held seats back to available. Sold seats of a
