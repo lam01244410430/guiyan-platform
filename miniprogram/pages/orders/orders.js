@@ -4,7 +4,8 @@ var store = require('../../utils/store.js');
 var api = require('../../utils/api.js');
 
 var STATUS_KEY = { pending: 'stPending', confirmed: 'stConfirmed', paid: 'stPaid',
-  completed: 'stCompleted', cancelled: 'stCancelled', refunded: 'stRefunded' };
+  completed: 'stCompleted', cancelled: 'stCancelled', refunded: 'stRefunded',
+  refund_requested: 'stRefundRequested', disputed: 'stDisputed' };
 var ACT_API = { confirm: 'confirm', pay: 'pay', complete: 'complete',
   cancel: 'cancel', refund: 'refund' };
 var ACT_STATUS = { confirm: 'confirmed', pay: 'paid', complete: 'completed',
@@ -30,6 +31,7 @@ Page({
       'favSection', 'ordersSection', 'actConfirm', 'actCancel', 'actPay',
       'actComplete', 'actRefund', 'doneNote', 'statusToast', 'stPending',
       'stConfirmed', 'stPaid', 'stCompleted', 'stCancelled', 'stRefunded',
+      'stRefundRequested', 'stDisputed',
       'simPay', 'ticketTitle', 'modalCancel', 'modalRefund',
       'confirmBtn', 'cancelBtn', 'viewsUnit'];
     var L = {};

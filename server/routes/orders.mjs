@@ -1,5 +1,6 @@
 import { randomBytes } from "node:crypto";
 import { assert, text, int, date, bookingType } from "../lib/http.mjs";
+import { ORDER_STATUS_ZH } from "../lib/status-labels.mjs";
 
 export async function listOrders(ctx) {
   const { p, req, send, needUser, orderRows } = ctx;
@@ -191,7 +192,7 @@ export async function transitionOrder(ctx) {
         await notify(
           o.user_id,
           "订单状态更新",
-          `${o.code} · ${o.resource_name} → ${to}。${action === "pay" ? "这是模拟支付，未扣款。" : ""}`,
+          `${o.code} · ${o.resource_name} → ${ORDER_STATUS_ZH[to]}。${action === "pay" ? "这是模拟支付，未扣款。" : ""}`,
         );
       }
       await audit(u, `订单操作 ${action}`, o.code);

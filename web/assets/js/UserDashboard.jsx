@@ -9,7 +9,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { langState, t, fmt, CATS, catName, unitName } from "./data.js";
 import {
   apiGet, apiPost, apiPatch, currentUser, getToken, setToken, clearToken,
-  restoreUser, fmtMoney, statusKey, downloadText,
+  restoreUser, fmtMoney, statusKey, demandStatusKey, downloadText,
 } from "./apiClient.js";
 import { Header, LoginDialog, RegisterDialog, Toast } from "./chrome.jsx";
 import AiChat from "./AiChat.jsx";
@@ -847,7 +847,7 @@ export default function UserDashboard() {
                         : usrDemands.length ? usrDemands.map((d) => (
                           <tr key={d.id}>
                             <td>{d.title}</td><td>{catName(d.category)}</td>
-                            <td className="num">{fmtMoney(d.budget)}</td><td>{d.city}</td><td>{d.status || ""}</td>
+                            <td className="num">{fmtMoney(d.budget)}</td><td>{d.city}</td><td>{t(demandStatusKey(d.status))}</td>
                           </tr>
                         )) : <tr><td colSpan="5"><div className="db-empty">{t("emptyMyDemands")}</div></td></tr>}
                       </tbody>

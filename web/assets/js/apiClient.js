@@ -98,6 +98,11 @@ export function fmtMoney(cents) { return money((typeof cents === "number" ? cent
 export const STATUS = { pending: "stPending", confirmed: "stConfirmed", paid: "stPaid", completed: "stCompleted", cancelled: "stCancelled", refunded: "stRefunded", refund_requested: "stRefundRequested", disputed: "stDisputed" };
 export function statusKey(status) { return STATUS[status] || "stPending"; }
 
+/* B-038: demand statuses use the admin table's words (待审核/已通过/已拒绝).
+   Unknown statuses fall back to "dmPending" (pending review), never a raw code. */
+export const DEMAND_STATUS = { pending: "dmPending", approved: "dmApproved", rejected: "dmRejected" };
+export function demandStatusKey(status) { return DEMAND_STATUS[status] || "dmPending"; }
+
 /* ---- server data merged into the embedded catalog (unchanged logic) ---- */
 export function apiCatId(name) {
   if (!name) return "show";

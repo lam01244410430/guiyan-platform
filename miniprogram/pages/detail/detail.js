@@ -4,7 +4,8 @@ var store = require('../../utils/store.js');
 var api = require('../../utils/api.js');
 
 var STATUS_KEY = { pending: 'stPending', confirmed: 'stConfirmed', paid: 'stPaid',
-  completed: 'stCompleted', cancelled: 'stCancelled', refunded: 'stRefunded' };
+  completed: 'stCompleted', cancelled: 'stCancelled', refunded: 'stRefunded',
+  refund_requested: 'stRefundRequested', disputed: 'stDisputed' };
 var STATUS_STEP = { pending: 0, confirmed: 1, paid: 2, completed: 3, cancelled: -1, refunded: -1 };
 // Local action -> API endpoint + resulting local status.
 var ACT_API = { confirm: 'confirm', pay: 'pay', complete: 'complete',
@@ -43,7 +44,7 @@ Page({
       'favOn', 'favOff', 'flow', 'viewsMeta', 'priceMeta', 'orderCreated',
       'actConfirm', 'actCancel', 'actPay', 'actComplete', 'actRefund',
       'doneNote', 'statusToast', 'stPending', 'stConfirmed', 'stPaid',
-      'stCompleted', 'stCancelled', 'stRefunded', 'simPay',       'ticketTitle', 'ticketCode', 'datePh', 'modalCancel', 'modalRefund',
+      'stCompleted', 'stCancelled', 'stRefunded', 'stRefundRequested', 'stDisputed', 'simPay',       'ticketTitle', 'ticketCode', 'datePh', 'modalCancel', 'modalRefund',
       'confirmBtn', 'cancelBtn', 'bookFirst', 'viewsUnit', 'myTickets'];
     var L = {};
     keys.forEach(function (k) { L[k] = i18n.t(k, lang); });
