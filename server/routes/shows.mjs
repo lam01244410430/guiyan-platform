@@ -11,6 +11,7 @@
 // any shop. Validate first, write after, never throw after a write in
 // the same request (OTP lesson).
 import { assert, text, int, time, today } from "../lib/http.mjs";
+import { ticketTypesForPerformance } from "./ticket-types.mjs";
 
 const SHOW_STATUSES = ["pending", "approved", "rejected"];
 const PERF_STATUSES = ["scheduled", "on_sale", "cancelled"];
@@ -317,9 +318,11 @@ export async function patchPerformance(ctx) {
 
 // Availability extension (R2-1): the on-sale performances of the
 // resource's APPROVED shows, for the H5/mini-program detail views.
-// Only {id, start_at, status, price_cents} — the shape
+// Only {id, start_at, status, price_cents, ticket_types} — the shape
 // the design fixes; all other availability fields are untouched (see
-// routes/resources.mjs getAvailability).
+// routes/resources.mjs getAvailability). R2-2: each performance gains
+// its ticket_types with live sold/available counts; a performance with
+// no tiers gets ticket_types: [].
 export async function performancesForResource(all, get, resourceId) {
   const rows = await all(
     `SELECT pf.id, pf.show_id, pf.start_at, pf.status, pf.price_cents
@@ -336,6 +339,7 @@ export async function performancesForResource(all, get, resourceId) {
       start_at: r.start_at,
       status: r.status,
       price_cents: r.price_cents,
+      ticket_types: await ticketTypesForPerformance(all, get, r.id),
     });
   }
   return out;

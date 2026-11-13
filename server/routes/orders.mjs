@@ -22,13 +22,57 @@ export async function createOrder(ctx) {
         rid,
       );
     assert(r, "资源不存在或已下架", 404);
-    const qty = int(b.quantity ?? 1, "数量", 1, 100),
-      d = date(b.booking_date);
+    const qty = int(b.quantity ?? 1, "数量", 1, 100);
     assert(!bookingType(r) || qty === 1, "租赁类资源每单数量为1");
-    // Amount is always computed server-side from the resource price;
-    // any amount sent by the client is ignored.
+    // R2-2: a tier order names BOTH the performance and the ticket type
+    // (one without the other -> 400). Validate everything BEFORE any
+    // write (OTP lesson); the amount and the booking date are computed
+    // server-side and any client-sent values are ignored. A tier order
+    // never touches resources.stock — the tier quota governs instead.
+    const hasPerf =
+      b.performance_id !== undefined && b.performance_id !== null;
+    const hasTier =
+      b.ticket_type_id !== undefined && b.ticket_type_id !== null;
+    assert(hasPerf === hasTier, "须同时提供场次与票种", 400);
+    let perf = null,
+      tier = null,
+      show = null,
+      amount = r.price * qty,
+      d = null;
+    if (hasPerf) {
+      const perfId = int(b.performance_id, "场次", 1);
+      const tierId = int(b.ticket_type_id, "票种", 1);
+      perf = await get("SELECT * FROM performances WHERE id=?", perfId);
+      assert(perf, "场次不存在", 400);
+      assert(perf.status === "on_sale", "场次不在售", 400);
+      const showRow = await get("SELECT * FROM shows WHERE id=?", perf.show_id);
+      assert(showRow && showRow.status === "approved", "演出未通过审核", 400);
+      show = showRow;
+      tier = await get("SELECT * FROM ticket_types WHERE id=?", tierId);
+      assert(tier && tier.performance_id === perf.id, "票种不属于该场次", 400);
+      assert(
+        tier.sale_until === null ||
+          tier.sale_until === undefined ||
+          new Date(tier.sale_until).valueOf() >= Date.now(),
+        "该票种已过售票截止时间",
+        400,
+      );
+      amount = tier.price_cents * qty;
+      d = String(perf.start_at).slice(0, 10);
+    } else {
+      d = date(b.booking_date);
+    }
     const id = await transaction(async () => {
-      if (bookingType(r))
+      if (tier) {
+        // Quota check inside the transaction: write requests hold the
+        // global advisory lock, so check-then-insert is race-safe here
+        // with no extra lock (same reasoning as the R2-5 seat hold).
+        const sold = await get(
+          "SELECT COALESCE(SUM(quantity),0) AS n FROM orders WHERE ticket_type_id=? AND status NOT IN ('cancelled','refunded')",
+          tier.id,
+        );
+        assert((sold?.n || 0) + qty <= tier.quota, "该票种已售罄", 409);
+      } else if (bookingType(r))
         assert(
           !(await get(
             "SELECT id FROM orders WHERE resource_id=? AND booking_date=? AND status NOT IN ('cancelled','refunded')",
@@ -48,18 +92,20 @@ export async function createOrder(ctx) {
         assert(updated.changes > 0, "库存不足", 409);
       }
       const result = await run(
-        "INSERT INTO orders(code,user_id,resource_id,quantity,amount,booking_date,status,channel,note,created_at) VALUES(?,?,?,?,?,?,?,?,?,?)",
+        "INSERT INTO orders(code,user_id,resource_id,quantity,amount,booking_date,status,channel,note,performance_id,ticket_type_id,created_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)",
         `GY${Date.now()}${randomBytes(2).toString("hex")}`,
         u.id,
         rid,
         qty,
-        r.price * qty,
+        amount,
         d,
         "pending",
         ["H5", "电脑网页", "微信小程序"].includes(b.channel)
           ? b.channel
           : "H5",
         String(b.note || "").slice(0, 1000),
+        perf ? perf.id : null,
+        tier ? tier.id : null,
         time(),
       );
       await notify(

@@ -251,6 +251,14 @@ export default function AdminDashboard() {
   const [perfShowId, setPerfShowId] = useState(null);
   const [perfForm, setPerfForm] = useState(null);
   const [perfBusyId, setPerfBusyId] = useState(null);
+  // R2-2 ticket types (price tiers): the performance whose tiers are
+  // open (tierPerfId) + tiers loaded on demand per performance
+  // (tiersByPerf) + the open tier create/edit draft (null = closed) +
+  // the id of the tier in flight.
+  const [tierPerfId, setTierPerfId] = useState(null);
+  const [tiersByPerf, setTiersByPerf] = useState({});
+  const [tierForm, setTierForm] = useState(null);
+  const [tierBusyId, setTierBusyId] = useState(null);
   const [acctBusy, setAcctBusy] = useState(false);
   const [acctOtp, setAcctOtp] = useState("");
   const [acctOtpInput, setAcctOtpInput] = useState("");
@@ -750,6 +758,62 @@ export default function AdminDashboard() {
       else toast((e && e.data && e.data.error) || "操作失败，请稍后重试");
     }).finally(function () { setPerfBusyId(null); });
   }
+
+  // R2-2 ticket types (price tiers): create/edit inside the performance
+  // manager. Tiers load on demand per performance (the admin shows list
+  // does not carry them); create/edit only — there is no delete endpoint.
+  // The deadline is optional; clearing it on edit sends null.
+  function loadTiers(pfId) {
+    apiGet("/api/performances/" + pfId + "/ticket-types").then(function (d) {
+      setTiersByPerf(function (m) { return { ...m, [pfId]: d.ticket_types || [] }; });
+    }).catch(loadFail);
+  }
+  function toggleTierManager(pf) {
+    if (tierPerfId === pf.id) { setTierPerfId(null); setTierForm(null); }
+    else { setTierPerfId(pf.id); setTierForm(null); loadTiers(pf.id); }
+  }
+  function openTierForm(pf, tier) {
+    setTierForm(tier ? {
+      perfId: pf.id, id: tier.id, name: tier.name,
+      price: String((tier.price_cents || 0) / 100),
+      quota: String(tier.quota),
+      sale_until: tier.sale_until ? String(tier.sale_until).slice(0, 16) : "",
+    } : { perfId: pf.id, id: null, name: "", price: "", quota: "", sale_until: "" });
+  }
+  function editTierForm(key, value) {
+    setTierForm(function (f) { return f ? { ...f, [key]: value } : f; });
+  }
+  function saveTierForm() {
+    if (!tierForm || tierBusyId !== null) return;
+    if (!tierForm.name.trim()) { toast("请填写票种名称"); return; }
+    const price = Number(tierForm.price);
+    if (!Number.isFinite(price) || price < 0) { toast("请填写有效票价"); return; }
+    const quota = Number(tierForm.quota);
+    if (!Number.isSafeInteger(quota) || quota < 1) { toast("请填写有效票数上限"); return; }
+    const body = { name: tierForm.name.trim(), price_cents: Math.round(price * 100), quota: quota };
+    if (tierForm.sale_until) body.sale_until = tierForm.sale_until;
+    else if (tierForm.id) body.sale_until = null;
+    const pfId = tierForm.perfId, tierId = tierForm.id;
+    setTierBusyId(tierId || "new");
+    const done = function (d) {
+      const saved = d.ticket_type;
+      setTiersByPerf(function (m) {
+        const list = m[pfId] || [];
+        return { ...m, [pfId]: tierId ? list.map(function (x) { return x.id === saved.id ? saved : x; }) : list.concat([saved]) };
+      });
+      setTierForm(null);
+      toast(tierId ? "已保存票种" : "已创建票种");
+    };
+    const fail = function (e) {
+      if (e && e.status === 403) toast("只能管理本店铺的票种");
+      else if (e && e.status === 404) toast("场次或票种不存在");
+      else toast((e && e.data && e.data.error) || "保存失败，请检查表单");
+    };
+    const fin = function () { setTierBusyId(null); };
+    if (tierId) apiPatch("/api/admin/ticket-types/" + tierId, body).then(done).catch(fail).finally(fin);
+    else apiPost("/api/performances/" + pfId + "/ticket-types", body).then(done).catch(fail).finally(fin);
+  }
+
   // R1-2 admin accounts: own profile (name/email) + OTP password
   // change + enable/disable other accounts. The OTP target is always
   // the SAVED email (from the users list), never the unsaved draft —
@@ -1529,9 +1593,46 @@ export default function AdminDashboard() {
                                             {pf.status !== "cancelled" ? (
                                               <button type="button" className="btn-reject" disabled={perfBusyId === pf.id} onClick={() => doPerfStatus(pf, "cancelled")}>{perfBusyId === pf.id ? "处理中…" : "取消"}</button>
                                             ) : null}
+                                            <button type="button" className="btn-view" onClick={() => toggleTierManager(pf)}>{tierPerfId === pf.id ? "收起票种" : "票种"}</button>
                                           </span>
                                         </td>
                                       </tr>
+                                      {tierPerfId === pf.id ? (
+                                        <tr>
+                                          <td colSpan="4">
+                                            {(tiersByPerf[pf.id] || []).length ? (
+                                              <table>
+                                                <thead><tr><th scope="col">票种</th><th scope="col">票价</th><th scope="col">票数上限</th><th scope="col">截止时间</th><th scope="col">操作</th></tr></thead>
+                                                <tbody>
+                                                  {(tiersByPerf[pf.id] || []).map((tt) => (
+                                                    <tr key={tt.id}>
+                                                      <td>{tt.name}</td><td className="num">{fmtMoney(tt.price_cents)}</td>
+                                                      <td className="num">{tt.quota}</td><td>{tt.sale_until || "—"}</td>
+                                                      <td>
+                                                        <span className="row-actions">
+                                                          <button type="button" className="btn-view" disabled={tierBusyId !== null} onClick={() => openTierForm(pf, tt)}>编辑</button>
+                                                        </span>
+                                                      </td>
+                                                    </tr>
+                                                  ))}
+                                                </tbody>
+                                              </table>
+                                            ) : (<div className="empty">暂无票种</div>)}
+                                            {tierForm && tierForm.perfId === pf.id ? (
+                                              <div style={{ marginTop: 12 }}>
+                                                <label>票种名称 <input type="text" value={tierForm.name} maxLength={100} onChange={(e) => editTierForm("name", e.target.value)} /></label>{" "}
+                                                <label>票价（元） <input type="number" min="0" step="1" value={tierForm.price} onChange={(e) => editTierForm("price", e.target.value)} /></label>{" "}
+                                                <label>票数上限 <input type="number" min="1" step="1" value={tierForm.quota} onChange={(e) => editTierForm("quota", e.target.value)} /></label>{" "}
+                                                <label>截止时间 <input type="datetime-local" value={tierForm.sale_until} onChange={(e) => editTierForm("sale_until", e.target.value)} /></label>{" "}
+                                                <button type="button" className="btn-export" disabled={tierBusyId !== null} onClick={saveTierForm}>{tierBusyId !== null ? "保存中…" : (tierForm.id ? "保存票种" : "创建票种")}</button>{" "}
+                                                <button type="button" className="btn-view" onClick={() => setTierForm(null)}>取消</button>
+                                              </div>
+                                            ) : (
+                                              <div style={{ marginTop: 12 }}><button type="button" className="btn-view" onClick={() => openTierForm(pf, null)}>添加票种</button></div>
+                                            )}
+                                          </td>
+                                        </tr>
+                                      ) : null}
                                       </Fragment>
                                     ))}
                                   </tbody>

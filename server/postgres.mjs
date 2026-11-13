@@ -110,6 +110,15 @@ export async function openPostgresStore(
       await client.query(
         "ALTER TABLE shops ADD COLUMN IF NOT EXISTS theme TEXT",
       );
+      // R2-2 (price tiers, 2026-11-13): tier orders link the performance +
+      // ticket type; NULL = the old resource-price flow. Same idempotent
+      // pattern as the columns above.
+      await client.query(
+        "ALTER TABLE orders ADD COLUMN IF NOT EXISTS performance_id INTEGER REFERENCES performances(id)",
+      );
+      await client.query(
+        "ALTER TABLE orders ADD COLUMN IF NOT EXISTS ticket_type_id INTEGER REFERENCES ticket_types(id)",
+      );
       if (!(await client.query("SELECT COUNT(*) AS n FROM users")).rows[0].n) {
         // Batch adjacent inserts to keep first-time setup fast over the network.
         const groups = [];
@@ -191,7 +200,8 @@ export async function openPostgresStore(
           const insert =
             // R2-1: shows + performances join the tables whose INSERTs
             // get `RETURNING id` so run() can report lastInsertRowid.
-            /^\s*INSERT\s+INTO\s+(users|resources|orders|demands|comments|messages|events|audit_logs|shops|shows|performances)\b/i.test(
+            // R2-2: ticket_types joins them (tier create needs the id).
+            /^\s*INSERT\s+INTO\s+(users|resources|orders|demands|comments|messages|events|audit_logs|shops|shows|performances|ticket_types)\b/i.test(
               sql,
             );
           const result = await execute(

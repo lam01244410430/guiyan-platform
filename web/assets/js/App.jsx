@@ -122,6 +122,8 @@ export default function App() {
   const [detailIdx, setDetailIdx] = useState(null);
   const [bkQty, setBkQty] = useState(1);
   const [bkDate, setBkDate] = useState("2026-12-05");
+  const [perfSel, setPerfSel] = useState(null); /* R2-2: selected performance id (null = resource-price flow) */
+  const [tierSel, setTierSel] = useState(null); /* R2-2: selected ticket_type id within perfSel */
   const [avail, setAvail] = useState(null); /* Wave 4 #12: {mode, available, capacity, dates} for the open detail + bkDate, null when unknown/offline */
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [toastMsg, setToastMsg] = useState("");
@@ -285,16 +287,23 @@ export default function App() {
   }
 
   /* ---- booking ---- */
-  function bookResource(i, qty, date) {
+  // tier (R2-2): null for the old resource-price flow, else
+  // {performance_id, ticket_type_id, price_cents, start_at}. The server
+  // prices tier orders and takes booking_date from the performance; the
+  // offline local order mirrors that with the tier price + perf date.
+  function bookResource(i, qty, date, tier) {
     const r = RES[i];
     function localBook() {
       const code = "GY2026" + String(store.seq++).padStart(6, "0");
-      store.orders.unshift({ code, idx: i, qty, date, total: r[3] * qty, status: "pending" });
+      const total = tier ? (tier.price_cents / 100) * qty : r[3] * qty;
+      store.orders.unshift({ code, idx: i, qty, date, total, status: "pending" });
       setDetailIdx(null); rerender(); toast(fmt(t("orderCreated"), { code })); setDrawerOpen(true);
     }
     const rid = APIRES[i] && APIRES[i].id;
     if (!isApiAvailable() || !getToken() || rid == null) { localBook(); return; }
-    apiPost("/api/orders", { resourceId: rid, quantity: qty, booking_date: date, channel: "web" }).then(function (d) {
+    const body = { resourceId: rid, quantity: qty, booking_date: date, channel: "web" };
+    if (tier) { body.performance_id = tier.performance_id; body.ticket_type_id = tier.ticket_type_id; }
+    apiPost("/api/orders", body).then(function (d) {
       if (d && d.ok) {
         const code = d.code || ("GY2026" + String(store.seq++).padStart(6, "0"));
         const total = (typeof d.amount === "number") ? d.amount / 100 : r[3] * qty;
@@ -455,7 +464,7 @@ export default function App() {
   // APIRES (RES index -> API id); offline/embedded data has no id, so
   // nothing is recorded then. Anonymous views count too (server-side).
   function openDetail(i) {
-    setDetailIdx(i); setBkQty(1); setBkDate("2026-12-05");
+    setDetailIdx(i); setBkQty(1); setBkDate("2026-12-05"); setPerfSel(null); setTierSel(null);
     const rid = APIRES[i] && APIRES[i].id;
     if (rid != null && isApiAvailable()) {
       apiPost("/api/resources/" + rid + "/view", {}).catch(function () {});
@@ -501,6 +510,15 @@ export default function App() {
   const metaEntries = detailMeta ? Object.entries(detailMeta).filter(function ([k, v]) {
     return META_LABELS[k] && v !== undefined && v !== null && v !== "" && (!Array.isArray(v) || v.length > 0);
   }) : [];
+  /* R2-2: the selected performance + ticket type for the open detail
+     (null = the old resource-price flow). Derived from avail, so a
+     re-fetch never leaves a stale selection behind. */
+  const selPf = avail && avail.performances ? avail.performances.find(function (pf) { return pf.id === perfSel; }) : null;
+  const selTier = selPf && selPf.ticket_types ? selPf.ticket_types.find(function (tt) { return tt.id === tierSel; }) : null;
+  function pickPerf(pf) {
+    if (pf.id === perfSel) { setPerfSel(null); setTierSel(null); return; }
+    setPerfSel(pf.id); setTierSel(null);
+  }
   const quicks = t("quicks");
 
   return (
@@ -872,24 +890,45 @@ export default function App() {
                 {/* R2-1: on-sale performances of the resource's approved
                     shows (avail.performances, already fetched with the
                     availability above). Only for show resources.
-                    */}
+                    R2-2: pick a performance, then a ticket type — the
+                    total and the order follow the tier price. */}
                 {cur[1] === "show" && avail && (
                   <div className="perf-list">
                     <h4>{t("perfTitle")}</h4>
                     {avail.performances && avail.performances.length ? (
                       avail.performances.map((pf) => (
                         <div key={pf.id}>
-                          <button type="button" className="perf-row" style={{ width: "100%", background: "transparent", border: "none", textAlign: "left" }}>
+                          <button type="button" className="perf-row" style={{ width: "100%", background: pf.id === perfSel ? "var(--sand)" : "transparent", border: "none", cursor: "pointer", textAlign: "left" }}
+                            onClick={() => pickPerf(pf)}>
                             <span>{pf.start_at}</span><span>{money(pf.price_cents / 100)}</span><span className="perf-status">{t("perfOnSale")}</span>
                           </button>
+                          {pf.id === perfSel && (
+                            <div className="tier-list">
+                              {pf.ticket_types && pf.ticket_types.length ? (
+                                pf.ticket_types.map((tt) => (
+                                  <button key={tt.id} type="button" className="perf-row" style={{ width: "100%", background: tt.id === tierSel ? "var(--sand)" : "transparent", border: "none", cursor: tt.available > 0 ? "pointer" : "not-allowed", textAlign: "left", opacity: tt.available > 0 ? 1 : 0.55 }}
+                                    disabled={tt.available <= 0}
+                                    onClick={() => setTierSel(tt.id)}>
+                                    <span>{tt.name}</span><span>{money(tt.price_cents / 100)}</span>
+                                    <span className="perf-status">{tt.available > 0 ? fmt(t("tierLeft"), { a: tt.available }) : t("tierSoldOut")}</span>
+                                  </button>
+                                ))
+                              ) : (<p className="perf-empty">{t("tierEmpty")}</p>)}
+                              {pf.ticket_types && pf.ticket_types.length > 0 && !tierSel && (
+                                <p className="perf-empty">{t("tierPick")}</p>
+                              )}
+                            </div>
+                          )}
                         </div>
                       ))
                     ) : (<p className="perf-empty">{t("perfEmpty")}</p>)}
                   </div>
                 )}
-                <div className="totalrow"><span>{t("totalLabel")}</span><b id="bkTotal">{money(cur[3] * bkQty)}</b></div>
+                <div className="totalrow"><span>{t("totalLabel")}</span><b id="bkTotal">{money((selTier ? selTier.price_cents / 100 : cur[3]) * bkQty)}</b></div>
                 <div className="acts">
-                  <button type="button" className="btn red" id="bkGo" onClick={() => bookResource(detailIdx, bkQty, bkDate || "2026-12-05")}>{t("bookNow")}</button>
+                  <button type="button" className="btn red" id="bkGo" onClick={() => {
+                    bookResource(detailIdx, bkQty, selTier ? selPf.start_at.slice(0, 10) : (bkDate || "2026-12-05"), selTier ? { performance_id: selPf.id, ticket_type_id: selTier.id, price_cents: selTier.price_cents, start_at: selPf.start_at } : null);
+                  }}>{t("bookNow")}</button>
                   <button type="button" className="btn ghost" id="bkFav" onClick={() => toggleFav(detailIdx)}>{store.favs[detailIdx] ? t("favOn") : t("favOff")}</button>
                 </div>
                 {cur[1] === "venue" && APIRES[detailIdx] && APIRES[detailIdx].meta && Number.isSafeInteger(APIRES[detailIdx].meta.seatRows) && Number.isSafeInteger(APIRES[detailIdx].meta.seatCols) && (

@@ -17,7 +17,7 @@ Page({
   data: {
     L: {}, langIdx: 1, langName: 'Tiếng Việt', langs: ['中文', 'Tiếng Việt', 'English'],
     idx: 0, res: null, date: '', qty: 1, total: '', fav: false,
-    order: null, flowSteps: [], perfs: null,
+    order: null, flowSteps: [], perfs: null, perfSel: null, tierSel: null,
   },
   onLoad: function (options) {
     var idx = parseInt(options.idx || '0', 10);
@@ -46,7 +46,8 @@ Page({
       'doneNote', 'statusToast', 'stPending', 'stConfirmed', 'stPaid',
       'stCompleted', 'stCancelled', 'stRefunded', 'stRefundRequested', 'stDisputed', 'simPay',       'ticketTitle', 'ticketCode', 'datePh', 'modalCancel', 'modalRefund',
       'confirmBtn', 'cancelBtn', 'bookFirst', 'viewsUnit', 'myTickets',
-      'perfTitle', 'perfEmpty', 'perfOnSale'];
+      'perfTitle', 'perfEmpty', 'perfOnSale',
+      'tierTitle', 'tierEmpty', 'tierSoldOut', 'tierLeft', 'tierPick'];
     var L = {};
     keys.forEach(function (k) { L[k] = i18n.t(k, lang); });
     var r = api.resourceByIdx(this.data.idx) || data.RES[0];
@@ -60,6 +61,11 @@ Page({
       total: data.money(r.price * this.data.qty),
       fav: store.isFav(this.data.idx),
       flowSteps: L.flow });
+    // R2-2: a language switch re-renders the tier left/sold-out text
+    // (baked per language in refreshTierText), and the total follows
+    // the selected tier price.
+    this.refreshTierText();
+    this.refreshTotal();
     this.refreshOrder();
   },
   // Online: refresh the catalog from the server, then re-render.
@@ -80,6 +86,9 @@ Page({
   // best-effort like the theme fetch on the home page): a failed
   // fetch just leaves the list hidden (offline fallback keeps the
   // local behaviour, no error is ever shown).
+  // R2-2: each performance carries its ticket_types (id, name, price,
+  // quota, sold, available); picking a performance then a tier drives
+  // the total and the order (performance_id + ticket_type_id).
   loadPerformances: function () {
     var self = this;
     var r = api.resourceByIdx(this.data.idx);
@@ -90,9 +99,72 @@ Page({
       var list = (d && d.performances) || [];
       self.setData({ perfs: list.map(function (p) {
         return { id: p.id, show_id: p.show_id, start_at: p.start_at,
-          price: data.money(api.centsToYuan(p.price_cents)) };
+          price: data.money(api.centsToYuan(p.price_cents)),
+          ticket_types: (p.ticket_types || []).map(function (t) {
+            return { id: t.id, name: t.name,
+              price: data.money(api.centsToYuan(t.price_cents)),
+              priceCents: t.price_cents, quota: t.quota,
+              sold: t.sold, available: t.available,
+              sale_until: t.sale_until, leftText: '' };
+          }) };
       }) });
+      self.refreshTierText();
+      self.refreshTotal();
     }, function () {});
+  },
+  // R2-2: per-language tier availability text ("剩余 3 张" / "已售罄"),
+  // recomputed whenever the language or the tier list changes.
+  refreshTierText: function () {
+    var perfs = this.data.perfs;
+    if (!perfs) return;
+    var lang = i18n.getLang();
+    this.setData({ perfs: perfs.map(function (p) {
+      return Object.assign({}, p, { ticket_types: (p.ticket_types || []).map(function (tt) {
+        return Object.assign({}, tt, { leftText: tt.available > 0
+          ? i18n.fmt(i18n.t('tierLeft', lang), { a: tt.available })
+          : i18n.t('tierSoldOut', lang) });
+      }) });
+    }) });
+  },
+  selectedPerf: function () {
+    var perfs = this.data.perfs || [];
+    for (var i = 0; i < perfs.length; i++)
+      if (perfs[i].id === this.data.perfSel) return perfs[i];
+    return null;
+  },
+  selectedTier: function () {
+    var p = this.selectedPerf();
+    if (!p) return null;
+    var tiers = p.ticket_types || [];
+    for (var j = 0; j < tiers.length; j++)
+      if (tiers[j].id === this.data.tierSel) return tiers[j];
+    return null;
+  },
+  unitPriceYuan: function () {
+    var tier = this.selectedTier();
+    if (tier) return api.centsToYuan(tier.priceCents);
+    var r = api.resourceByIdx(this.data.idx) || data.RES[this.data.idx];
+    return r.price;
+  },
+  refreshTotal: function () {
+    this.setData({ total: data.money(this.unitPriceYuan() * this.data.qty) });
+  },
+  onPerfTap: function (e) {
+    var id = e.currentTarget.dataset.id;
+    var self = this;
+    if (this.data.perfSel === id) {
+      this.setData({ perfSel: null, tierSel: null });
+      this.refreshTotal();
+      return;
+    }
+    this.setData({ perfSel: id, tierSel: null });
+    this.refreshTotal();
+  },
+  onTierTap: function (e) {
+    var id = e.currentTarget.dataset.id;
+    if (Number(e.currentTarget.dataset.avail || 0) <= 0) return;
+    this.setData({ tierSel: this.data.tierSel === id ? null : id });
+    this.refreshTotal();
   },
   refreshOrder: function () {
     var lang = i18n.getLang();
@@ -150,13 +222,13 @@ Page({
   qtyMinus: function () {
     if (this.data.qty <= 1) return;
     var q = this.data.qty - 1;
-    var r = api.resourceByIdx(this.data.idx) || data.RES[this.data.idx];
-    this.setData({ qty: q, total: data.money(r.price * q) });
+    this.setData({ qty: q });
+    this.refreshTotal();
   },
   qtyPlus: function () {
     var q = this.data.qty + 1;
-    var r = api.resourceByIdx(this.data.idx) || data.RES[this.data.idx];
-    this.setData({ qty: q, total: data.money(r.price * q) });
+    this.setData({ qty: q });
+    this.refreshTotal();
   },
   toggleFav: function () {
     var self = this;
@@ -171,20 +243,31 @@ Page({
       return;
     }
     var self = this;
-    var r = api.resourceByIdx(this.data.idx) || data.RES[this.data.idx];
+    // R2-2: a selected tier drives the order — the server prices it and
+    // takes the booking date from the performance; the local order
+    // mirrors that with the tier price + performance date.
+    var tier = this.selectedTier();
+    var perf = this.selectedPerf();
+    var orderDate = tier ? perf.start_at.slice(0, 10) : this.data.date;
+    var orderTotal = this.unitPriceYuan() * this.data.qty;
     // Online + logged in + resource exists on the server: book via API.
     // The amount is computed server-side; the client never sends one.
     if (api.isOnline() && api.apiIdForIdx(this.data.idx) != null) {
       if (!api.ensureLogin()) { api.promptLogin(); return; }
-      api.post('/api/orders', {
+      var body = {
         resourceId: api.apiIdForIdx(this.data.idx),
         quantity: this.data.qty,
-        booking_date: this.data.date,
+        booking_date: orderDate,
         channel: '微信小程序'
-      }, true).then(function (res) {
+      };
+      if (tier) {
+        body.performance_id = perf.id;
+        body.ticket_type_id = tier.id;
+      }
+      api.post('/api/orders', body, true).then(function (res) {
         var o = { code: res.code, idx: self.data.idx,
           resourceId: api.apiIdForIdx(self.data.idx), apiId: res.id,
-          online: true, qty: self.data.qty, date: self.data.date,
+          online: true, qty: self.data.qty, date: orderDate,
           total: api.centsToYuan(res.amount), status: res.status || 'pending',
           createdAt: Date.now() };
         store.addOrder(o);
@@ -199,7 +282,7 @@ Page({
     }
     // Resource not on the server: local booking, as in offline mode.
     var o = store.addOrder(store.newOrder(this.data.idx, this.data.qty,
-      this.data.date, r.price * this.data.qty));
+      orderDate, orderTotal));
     wx.showToast({ title: i18n.fmt(i18n.t('orderCreated'), { code: o.code }), icon: 'none', duration: 2500 });
     this.refreshOrder();
   },
