@@ -10,9 +10,9 @@
 #   docker compose -p guiyan-p8-smoke up -d --build
 #   ./scripts/smoke-docker.sh [project]   # default project: guiyan-p8-smoke
 #
-# The script checks the 3 containers are healthy, runs the 32 checks in the
+# The script checks the 3 containers are healthy, runs the 34 checks in the
 # plan Appendix A against the stack, prints PASS/FAIL per check and exits
-# non-zero if any check fails. Check 32 tears the stack down (down -v) and
+# non-zero if any check fails. Check 34 tears the stack down (down -v) and
 # verifies no project containers/volumes remain. All curl calls are direct
 # (no background processes left behind). Target is a disposable stack with a
 # fresh DB — never run it against the live Vercel/Neon deployment.
@@ -250,15 +250,24 @@ N="$(jlen "['shops']")"
 if [ "$CODE" = "200" ] && [ "$N" = "1" ]; then ok "30 GET /api/admin/shops as admin 200, 1 shop"; else bad "30 GET /api/admin/shops as admin (code=$CODE, shops=$N)"; fi
 
 
-# 31. self-disable rejected — 400 (R1-2; the admin cannot disable itself)
-CODE="$(patch /api/admin/users/1/status '{"status":"disabled"}' "$ADMIN_TOKEN")"
-if [ "$CODE" = "400" ]; then ok "31 PATCH /api/admin/users/1/status disabled as admin 400 self-disable"; else bad "31 PATCH /api/admin/users/1/status disabled as admin (code=$CODE, want 400)"; fi
+# 31. shop theme defaults — 200, default primaryColor #0b3d36 (R1-3)
+CODE="$(get /api/shops/1/theme)"
+PC="$(jval "['theme']['primaryColor']")"
+if [ "$CODE" = "200" ] && [ "$PC" = "#0b3d36" ]; then ok "31 GET /api/shops/1/theme 200, default primaryColor #0b3d36"; else bad "31 GET /api/shops/1/theme (code=$CODE, primaryColor=$PC)"; fi
 
-# 32. teardown — down -v, then 0 project containers and 0 project volumes.
+# 32. self-disable rejected — 400 (R1-2; the admin cannot disable itself)
+CODE="$(patch /api/admin/users/1/status '{"status":"disabled"}' "$ADMIN_TOKEN")"
+if [ "$CODE" = "400" ]; then ok "32 PATCH /api/admin/users/1/status disabled as admin 400 self-disable"; else bad "32 PATCH /api/admin/users/1/status disabled as admin (code=$CODE, want 400)"; fi
+
+# 33. unknown shop theme — 404 (R1-3)
+CODE="$(get /api/shops/99999/theme)"
+if [ "$CODE" = "404" ]; then ok "33 GET /api/shops/99999/theme 404"; else bad "33 GET /api/shops/99999/theme (code=$CODE, want 404)"; fi
+
+# 34. teardown — down -v, then 0 project containers and 0 project volumes.
 docker compose -p "$PROJECT" down -v >/dev/null 2>&1
 LEFT_C="$(docker ps --format '{{.Names}}' | grep -c "$PROJECT" || true)"
 LEFT_V="$(docker volume ls --format '{{.Name}}' | grep -c "^${PROJECT}_" || true)"
-if [ "$LEFT_C" = "0" ] && [ "$LEFT_V" = "0" ]; then ok "32 down -v: 0 project containers, 0 project volumes"; else bad "32 down -v (containers left=$LEFT_C, volumes left=$LEFT_V)"; fi
+if [ "$LEFT_C" = "0" ] && [ "$LEFT_V" = "0" ]; then ok "34 down -v: 0 project containers, 0 project volumes"; else bad "34 down -v (containers left=$LEFT_C, volumes left=$LEFT_V)"; fi
 
-echo "== smoke-docker: PASS $PASS / FAIL $FAIL (32 checks) =="
+echo "== smoke-docker: PASS $PASS / FAIL $FAIL (34 checks) =="
 [ "$FAIL" = "0" ]

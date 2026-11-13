@@ -106,8 +106,15 @@ a{color:var(--red)}
 .hero-lead{max-width:620px;color:var(--cream2);font-size:16px;margin:14px 0 0}
 .hero-search{margin:30px 0 0;max-width:680px;display:flex;background:#fffdf8;border-radius:14px;padding:6px;gap:6px;box-shadow:0 24px 50px rgba(0,0,0,.45)}
 .hero-search input{flex:1;border:0;background:transparent;padding:10px 14px;font-size:15px;color:#1c1710;min-width:0;outline:none}
-.hero-search button{background:var(--red);color:#fff;border:0;border-radius:9px;padding:10px 22px;font-weight:700;white-space:nowrap}
+.hero-search button{background:var(--shop-primary,var(--red));color:#fff;border:0;border-radius:9px;padding:10px 22px;font-weight:700;white-space:nowrap}
 .hero-search button:hover{background:var(--red-deep)}
+/* R1-3 shop theme: the storefront banner strip + the flex-column
+   section wrapper (theme order comes from secStyle in App.jsx).
+   --shop-primary is set on .hero / .shop-sections only when a theme
+   is loaded; without it both buttons fall back to brand red. */
+.shop-banner{background:var(--shop-primary,#0b3d36);color:#f7f3ec;text-align:center;padding:10px 20px;font-weight:700;position:relative;z-index:1}
+.shop-sections{display:flex;flex-direction:column}
+.split .btn.red{background:var(--shop-primary,var(--red));border-color:var(--shop-primary,var(--red))}
 .hero-tags{margin-top:14px;display:flex;flex-wrap:wrap;gap:8px}
 .hero-tags button{background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.28);color:#fff;border-radius:99px;padding:5px 13px;font-size:12.5px;font-weight:600}
 .hero-tags button:hover{background:rgba(255,255,255,.22)}

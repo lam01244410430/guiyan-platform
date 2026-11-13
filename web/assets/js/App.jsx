@@ -129,6 +129,7 @@ export default function App() {
   const [demSel, setDemSel] = useState(null); /* selected demand index */
   const [match, setMatch] = useState(null); /* {title, note, list} */
   const [heroQ, setHeroQ] = useState("");
+  const [shopTheme, setShopTheme] = useState(null); /* R1-3: per-shop storefront theme (?shop=, default 1); null = brand defaults */
   const [demTitle, setDemTitle] = useState("");
   const [demCat, setDemCat] = useState("show");
   const [demBudget, setDemBudget] = useState("");
@@ -182,6 +183,22 @@ export default function App() {
       .catch(function () { if (alive) setAvail(null); });
     return function () { alive = false; };
   }, [detailIdx, bkDate]);
+
+  /* R1-3: per-shop storefront theme (?shop=, default 1). Fire-and-
+     forget like the availability fetch: a failed fetch just keeps the
+     brand defaults (offline fallback keeps the local behaviour). */
+  useEffect(() => {
+    let alive = true;
+    let shopId = "1";
+    try {
+      const q = new URLSearchParams(window.location.search).get("shop");
+      if (q) shopId = q;
+    } catch {}
+    apiGet("/api/shops/" + encodeURIComponent(shopId) + "/theme")
+      .then(function (d) { if (alive && d && d.theme) setShopTheme(d.theme); })
+      .catch(function () {});
+    return function () { alive = false; };
+  }, []);
 
   /* ---- API sync (same as loadApiData / refreshOrdersApi / loadFavoritesApi) ---- */
   const loadFavoritesApi = useCallback(() => {
@@ -465,6 +482,14 @@ export default function App() {
   const cities = [];
   RES.forEach(function (r) { if (cities.indexOf(r[2]) < 0) cities.push(r[2]); });
   const maxCat = Math.max(1, ...CATS.map((c) => catCount(c[0])));
+  /* R1-3: section order/visibility from the shop theme. No theme =
+     every section keeps its own style; with a theme, unlisted sections
+     hide and listed ones take their theme order. */
+  function secStyle(name) {
+    if (!shopTheme) return undefined;
+    const i = shopTheme.sections.indexOf(name);
+    return i < 0 ? { display: "none" } : { order: i };
+  }
   const heroStats = [[RES.length, t("sRes")], [catCount("show"), t("sShow")], [catCount("venue"), t("sVenue")], [7, t("sCity")], [CATS.length, t("sCat")], [DEMANDS.length, t("sDem")]];
   const narrow = typeof window !== "undefined" && window.innerWidth < 560;
   const cur = detailIdx != null ? RES[detailIdx] : null;
@@ -490,9 +515,10 @@ export default function App() {
       />
 
       {/* ================= HERO ================= */}
-      <div className="hero" id="top">
+      <div className="hero" id="top" style={{ ...secStyle("hero"), ...(shopTheme ? { "--shop-primary": shopTheme.primaryColor } : {}) }}>
         <img className="hero-img" src={heroImg} alt="广西民族艺术舞台夜景" />
         <div className="hero-shade"></div>
+        {shopTheme && shopTheme.banner ? (<div className="shop-banner">{shopTheme.banner}</div>) : null}
         <div className="wrap hero-in">
           <div className="hero-kicker">{t("heroKicker")}</div>
           <h1>桂<em>演</em></h1>
@@ -517,7 +543,8 @@ export default function App() {
       </div>
 
       {/* ================= CATEGORIES ================= */}
-      <section id="categories" style={{ paddingBottom: 8 }}>
+      <div className="shop-sections" style={shopTheme ? { "--shop-primary": shopTheme.primaryColor } : undefined}>
+      <section id="categories" style={{ paddingBottom: 8, ...secStyle("categories") }}>
         <div className="wrap">
           <div className="sec-head">
             <h2><span>{t("catTitle")}</span><span className="sub">{t("catSub")}</span></h2>
@@ -538,7 +565,7 @@ export default function App() {
       </section>
 
       {/* ================= CATALOG ================= */}
-      <section id="catalog" style={{ paddingTop: 44 }}>
+      <section id="catalog" style={{ paddingTop: 44, ...secStyle("catalog") }}>
         <div className="wrap">
           <div className="sec-head">
             <h2><span>{t("cat2Title")}</span><span className="sub">{t("cat2Sub")}</span></h2>
@@ -620,7 +647,7 @@ export default function App() {
       </section>
 
       {/* ================= SPOTLIGHT ================= */}
-      <section style={{ paddingTop: 10 }}>
+      <section style={{ paddingTop: 10, ...secStyle("spot") }}>
         <div className="wrap">
           <div className="split">
             <div className="im"><img src={spotlightImg} alt="漓江畔露天舞台黄昏" loading="lazy" /></div>
@@ -640,7 +667,7 @@ export default function App() {
       </section>
 
       {/* ================= DEMANDS ================= */}
-      <section id="demands" style={{ paddingTop: 26 }}>
+      <section id="demands" style={{ paddingTop: 26, ...secStyle("demands") }}>
         <div className="wrap">
           <div className="sec-head">
             <h2><span>{t("demTitle")}</span><span className="sub">{t("demSub")}</span></h2>
@@ -680,7 +707,7 @@ export default function App() {
       </section>
 
       {/* ================= AI ================= */}
-      <section id="ai" style={{ paddingTop: 26 }}>
+      <section id="ai" style={{ paddingTop: 26, ...secStyle("ai") }}>
         <div className="wrap">
           <div className="sec-head">
             <h2><span>{t("aiTitle")}</span><span className="sub">{t("aiSub")}</span></h2>
@@ -735,7 +762,7 @@ export default function App() {
       </section>
 
       {/* ================= WECHAT MINI PROGRAM ================= */}
-      <section id="wechat" style={{ paddingTop: 26 }}>
+      <section id="wechat" style={{ paddingTop: 26, ...secStyle("wechat") }}>
         <div className="wrap">
           <div className="wx-mini-card">
             <h2>{t("wxCardTitle")}</h2>
@@ -744,6 +771,7 @@ export default function App() {
           </div>
         </div>
       </section>
+      </div>
 
       <footer>
         <div className="wrap">

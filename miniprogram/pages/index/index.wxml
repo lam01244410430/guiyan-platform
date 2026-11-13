@@ -1,12 +1,13 @@
 <view class="wrap">
 <topbar bind:langchange="onLangChange" />
+  <view class="shop-banner" wx:if="{{shopBanner}}">{{shopBanner}}</view>
   <view class="hero">
     <view class="title serif">{{L.heroSub}}</view>
     <view class="lead">{{L.heroLead}}</view>
   </view>
   <view class="searchrow">
     <input placeholder="{{L.heroSearchPh}}" bindinput="onKw" confirm-type="search" bindconfirm="goSearch" />
-    <view class="go" bindtap="goSearch">{{L.searchBtn}}</view>
+    <view class="go" bindtap="goSearch" style="{{shopPrimary ? 'background:' + shopPrimary + ';' : ''}}">{{L.searchBtn}}</view>
   </view>
 
   <view class="section">

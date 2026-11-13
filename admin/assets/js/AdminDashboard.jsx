@@ -227,6 +227,11 @@ export default function AdminDashboard() {
   const [shopForm, setShopForm] = useState(null);
   const [shopBusyId, setShopBusyId] = useState(null);
   const [resShopFilter, setResShopFilter] = useState("");
+  // R1-3 shop theming: the open theme editor draft (null = closed;
+  // {shopId, shopName, banner, primaryColor, sections[]}) + the shop
+  // id whose theme save is in flight (same pattern as shopBusyId).
+  const [themeForm, setThemeForm] = useState(null);
+  const [themeBusyId, setThemeBusyId] = useState(null);
   // R1-2 admin accounts: own profile form + OTP password change, and
   // the id of the user whose enable/disable is in flight.
   const [acctName, setAcctName] = useState("");
@@ -561,6 +566,57 @@ export default function AdminDashboard() {
       else if (e && e.status === 404) toast("店铺不存在");
       else toast((e && e.data && e.data.error) || "操作失败，请稍后重试");
     }).finally(function () { setShopBusyId(null); });
+  }
+
+  // R1-3 shop theming: config form only (banner, primary color from
+  // the Guiyan allowlist, section checkboxes in canonical order — no
+  // drag-and-drop in this wave). A platform admin themes any shop; a
+  // shop-scoped admin themes only their own shop (the server returns
+  // 403 otherwise). The theme is loaded from the public endpoint so
+  // the form always starts from the stored (merged) values.
+  const THEME_COLORS = ["#0b3d36", "#14564d", "#c8452c", "#c9a24b", "#0d6e5f", "#a83a20", "#b8860b"];
+  const THEME_SECTIONS = [["hero", "首屏"], ["categories", "分类"], ["catalog", "资源列表"], ["spot", "精选"], ["demands", "需求"], ["ai", "智能助手"], ["wechat", "小程序"]];
+  function openThemeForm(s) {
+    if (themeBusyId !== null) return;
+    apiGet("/api/shops/" + s.id + "/theme").then(function (d) {
+      const t = d.theme || {};
+      setThemeForm({
+        shopId: s.id, shopName: s.name,
+        banner: t.banner || "", primaryColor: t.primaryColor || "#0b3d36",
+        sections: Array.isArray(t.sections) && t.sections.length ? t.sections.slice() : THEME_SECTIONS.map(function (x) { return x[0]; }),
+      });
+    }).catch(function () { toast("加载装修失败，请稍后重试"); });
+  }
+  function editThemeForm(key, value) {
+    setThemeForm(function (f) { return f ? { ...f, [key]: value } : f; });
+  }
+  function toggleThemeSection(sec) {
+    setThemeForm(function (f) {
+      if (!f) return f;
+      const has = f.sections.indexOf(sec) >= 0;
+      const next = has ? f.sections.filter(function (x) { return x !== sec; }) : f.sections.concat([sec]);
+      return { ...f, sections: next };
+    });
+  }
+  function saveThemeForm() {
+    if (!themeForm || themeBusyId !== null) return;
+    if (!themeForm.sections.length) { toast("请至少选择一个栏目"); return; }
+    const body = {
+      banner: themeForm.banner,
+      primaryColor: themeForm.primaryColor,
+      // Saved order is the canonical order of the checked set.
+      sections: THEME_SECTIONS.map(function (x) { return x[0]; }).filter(function (x) { return themeForm.sections.indexOf(x) >= 0; }),
+    };
+    setThemeBusyId(themeForm.shopId);
+    apiPatch("/api/admin/shops/" + themeForm.shopId + "/theme", body).then(function () {
+      setThemeForm(null);
+      loadAudit();
+      toast("已保存");
+    }).catch(function (e) {
+      if (e && e.status === 403) toast("只能装修本店铺");
+      else if (e && e.status === 404) toast("店铺不存在");
+      else toast((e && e.data && e.data.error) || "保存失败，请检查表单");
+    }).finally(function () { setThemeBusyId(null); });
   }
 
   // R1-2 admin accounts: own profile (name/email) + OTP password
@@ -1197,6 +1253,26 @@ export default function AdminDashboard() {
                 </div>
               </fieldset>
             ) : null}
+            {themeForm ? (
+              <fieldset className="tag-rule">
+                <legend>店铺装修：{themeForm.shopName}</legend>
+                <label>横幅文字 <input type="text" value={themeForm.banner} maxLength={200} onChange={(e) => editThemeForm("banner", e.target.value)} /></label>
+                <label>主色 <select value={themeForm.primaryColor} onChange={(e) => editThemeForm("primaryColor", e.target.value)}>
+                  {THEME_COLORS.map((c) => (<option key={c} value={c}>{c}</option>))}
+                </select></label>
+                <div>
+                  {THEME_SECTIONS.map(([id, label]) => (
+                    <label key={id} style={{ display: "inline-block", marginRight: 16 }}>
+                      <input type="checkbox" checked={themeForm.sections.indexOf(id) >= 0} onChange={() => toggleThemeSection(id)} /> {label}
+                    </label>
+                  ))}
+                </div>
+                <div>
+                  <button type="button" className="btn-export" disabled={themeBusyId !== null} onClick={saveThemeForm}>{themeBusyId !== null ? "保存中…" : "保存"}</button>{" "}
+                  <button type="button" className="btn-resolve" onClick={() => setThemeForm(null)}>取消</button>
+                </div>
+              </fieldset>
+            ) : null}
             <div className="tbl-wrap">
               <table>
                 <thead><tr><th scope="col" aria-sort={ariaSort("shops", "name")}>名称<SortButton label="名称" sortKey="name" tableId="shops" sort={sorts.shops} onToggle={toggleSort} /></th><th scope="col">上级</th><th scope="col">店主</th><th scope="col" className="num" aria-sort={ariaSort("shops", "resource_count")}>资源数<SortButton label="资源数" sortKey="resource_count" tableId="shops" sort={sorts.shops} onToggle={toggleSort} /></th><th scope="col">状态</th><th scope="col">操作</th></tr></thead>
@@ -1207,12 +1283,17 @@ export default function AdminDashboard() {
                         <td>{s.name}</td><td>{s.parent_id === null ? "—" : shopName(s.parent_id)}</td><td>{s.owner_name || "未指派"}</td>
                         <td className="num">{s.resource_count}</td><td>{s.status === "active" ? "启用" : "停用"}</td>
                         <td>
-                          {isPlatformAdmin ? (
+                          {(isPlatformAdmin || (me && me.shop_id === s.id)) ? (
                             <span className="row-actions">
-                              <button type="button" className="btn-view" disabled={shopBusyId !== null} onClick={() => openShopForm(s)}>编辑</button>
-                              {s.id !== 1 ? (
-                                <button type="button" className="btn-view" disabled={shopBusyId !== null} onClick={() => doToggleShopStatus(s)}>{shopBusyId === s.id ? "处理中…" : (s.status === "active" ? "停用" : "启用")}</button>
+                              {isPlatformAdmin ? (
+                                <>
+                                  <button type="button" className="btn-view" disabled={shopBusyId !== null} onClick={() => openShopForm(s)}>编辑</button>
+                                  {s.id !== 1 ? (
+                                    <button type="button" className="btn-view" disabled={shopBusyId !== null} onClick={() => doToggleShopStatus(s)}>{shopBusyId === s.id ? "处理中…" : (s.status === "active" ? "停用" : "启用")}</button>
+                                  ) : null}
+                                </>
                               ) : null}
+                              <button type="button" className="btn-view" disabled={themeBusyId !== null} onClick={() => openThemeForm(s)}>装修</button>
                             </span>
                           ) : "—"}
                         </td>

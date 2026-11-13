@@ -8,7 +8,7 @@ var api = require('../../utils/api.js');
 Page({
   data: {
     L: {}, langIdx: 0, langName: '中文', langs: ['中文', 'Tiếng Việt', 'English'],
-    kw: '', featured: [], cats: [], heroLead: ''
+    kw: '', featured: [], cats: [], heroLead: '', shopBanner: '', shopPrimary: ''
   },
   onLoad: function () { this.applyLang(); this.loadOnline(); },
   onShow: function () {
@@ -47,11 +47,25 @@ Page({
     this._loadingOnline = true;
     api.checkHealth().then(function (ok) {
       if (!ok) { self._loadingOnline = false; return; }
+      self.loadTheme();
       api.loadResources().then(function () {
         self._loadingOnline = false;
         self.applyLang();
       }, function () { self._loadingOnline = false; });
     }, function () { self._loadingOnline = false; });
+  },
+  // R1-3: shop theme for shop 1 (best-effort): banner + primary color.
+  // A failed fetch just keeps the brand defaults.
+  loadTheme: function () {
+    if (!api.getBase()) return;
+    var self = this;
+    api.request({ path: '/api/shops/1/theme' }).then(function (d) {
+      if (!d || !d.theme) return;
+      self.setData({
+        shopBanner: d.theme.banner || '',
+        shopPrimary: d.theme.primaryColor || ''
+      });
+    }, function () {});
   },
   _topViewed: function (n) {
     return api.getCatalog().map(function (r, i) { return { r: r, i: i }; })

@@ -17,6 +17,8 @@ page { background: #F7F4EE; color: #1E2A26; font-family: "Noto Sans SC", "PingFa
 .hero .title { font-size: 52rpx; font-weight: 900; line-height: 1.35; margin: 12rpx 0 8rpx; }
 .hero .lead { font-size: 27rpx; line-height: 1.7; color: #D8E4DE; }
 .hero .stats { margin-top: 22rpx; padding-top: 18rpx; border-top: 2rpx solid rgba(201,162,75,.45); font-size: 25rpx; color: #E9D9A8; }
+/* R1-3 shop theme: banner strip above the hero (hidden when no banner). */
+.shop-banner { background: #0B3D36; color: #F7F4EE; border-radius: 16rpx; padding: 18rpx 28rpx; font-size: 27rpx; font-weight: 700; text-align: center; margin-top: 16rpx; }
 .searchrow { display: flex; margin-top: 24rpx; }
 .searchrow input { flex: 1; min-height: 88rpx; box-sizing: border-box; background: #FFFFFF; border-radius: 16rpx 0 0 16rpx; padding: 18rpx 28rpx; font-size: 28rpx; }
 .searchrow .go { background: #C8452C; color: #FFFFFF; border-radius: 0 16rpx 16rpx 0; padding: 18rpx 30rpx; font-size: 28rpx; font-weight: 700; min-height: 88rpx; box-sizing: border-box; display: flex; align-items: center; }

@@ -105,6 +105,11 @@ export async function openPostgresStore(
       await client.query(
         "ALTER TABLE users ADD COLUMN IF NOT EXISTS status TEXT DEFAULT 'active'",
       );
+      // R1-3 (shop theming, 2026-11-13): per-shop storefront theme as
+      // JSON text (banner, primaryColor, sections); NULL = default theme.
+      await client.query(
+        "ALTER TABLE shops ADD COLUMN IF NOT EXISTS theme TEXT",
+      );
       if (!(await client.query("SELECT COUNT(*) AS n FROM users")).rows[0].n) {
         // Batch adjacent inserts to keep first-time setup fast over the network.
         const groups = [];

@@ -201,3 +201,151 @@ export async function patchAdminShop(ctx) {
   }
   return false;
 }
+
+// R1-3 shop theming (row 4, 2026-11-13): per-shop storefront theme.
+// Stored as JSON text in shops.theme (NULL = default theme); the
+// public GET merges stored values over the defaults, field by field,
+// so a corrupt stored value never breaks the storefront.
+const THEME_COLORS = [
+  "#0b3d36",
+  "#14564d",
+  "#c8452c",
+  "#c9a24b",
+  "#0d6e5f",
+  "#a83a20",
+  "#b8860b",
+];
+const THEME_SECTIONS = [
+  "hero",
+  "categories",
+  "catalog",
+  "spot",
+  "demands",
+  "ai",
+  "wechat",
+];
+const DEFAULT_THEME = {
+  banner: "",
+  primaryColor: "#0b3d36",
+  sections: [...THEME_SECTIONS],
+};
+
+function parseTheme(raw) {
+  // Field-by-field fallback: a corrupt stored JSON, or a stored value
+  // of the wrong shape, yields the default for that field only.
+  const out = { ...DEFAULT_THEME, sections: [...THEME_SECTIONS] };
+  if (raw === null || raw === undefined || raw === "") return out;
+  let stored;
+  try {
+    stored = JSON.parse(raw);
+  } catch {
+    return out;
+  }
+  if (!stored || typeof stored !== "object" || Array.isArray(stored))
+    return out;
+  if (typeof stored.banner === "string" && stored.banner.length <= 200)
+    out.banner = stored.banner;
+  if (
+    typeof stored.primaryColor === "string" &&
+    THEME_COLORS.includes(stored.primaryColor)
+  )
+    out.primaryColor = stored.primaryColor;
+  if (Array.isArray(stored.sections)) {
+    const clean = stored.sections.filter(
+      (s, i, a) =>
+        typeof s === "string" &&
+        THEME_SECTIONS.includes(s) &&
+        a.indexOf(s) === i,
+    );
+    if (clean.length > 0) out.sections = clean;
+  }
+  return out;
+}
+
+// Validate a theme PATCH body (the body IS the theme object) and merge
+// it over the current theme. Unknown keys, a non-object body, a banner
+// over 200 chars, a color outside the Guiyan allowlist, or sections
+// outside the canonical set / with duplicates are all 400.
+function validateTheme(body, current) {
+  assert(
+    body && typeof body === "object" && !Array.isArray(body),
+    "店铺装修须为对象",
+    400,
+  );
+  const allowed = ["banner", "primaryColor", "sections"];
+  for (const k of Object.keys(body)) {
+    assert(allowed.includes(k), "未知的装修字段：" + k, 400);
+  }
+  const merged = { ...current, sections: [...current.sections] };
+  if (body.banner !== undefined) {
+    assert(typeof body.banner === "string", "横幅须为文字", 400);
+    assert(body.banner.length <= 200, "横幅最多 200 字", 400);
+    merged.banner = body.banner;
+  }
+  if (body.primaryColor !== undefined) {
+    assert(
+      typeof body.primaryColor === "string" &&
+        THEME_COLORS.includes(body.primaryColor),
+      "主色须在桂演配色内",
+      400,
+    );
+    merged.primaryColor = body.primaryColor;
+  }
+  if (body.sections !== undefined) {
+    assert(Array.isArray(body.sections), "栏目须为列表", 400);
+    assert(body.sections.length > 0, "栏目不可为空", 400);
+    for (const s of body.sections) {
+      assert(
+        typeof s === "string" && THEME_SECTIONS.includes(s),
+        "未知的栏目：" + String(s),
+        400,
+      );
+    }
+    assert(
+      new Set(body.sections).size === body.sections.length,
+      "栏目不可重复",
+      400,
+    );
+    merged.sections = [...body.sections];
+  }
+  return merged;
+}
+
+export async function getShopTheme(ctx) {
+  const { req, p, send, get } = ctx;
+  const m = p.match(/^\/api\/shops\/(\d+)\/theme$/);
+  if (!m || req.method !== "GET") return false;
+  const shop = await get("SELECT * FROM shops WHERE id=?", Number(m[1]));
+  assert(shop, "店铺不存在", 404);
+  send({ shop_id: shop.id, theme: parseTheme(shop.theme) });
+  return true;
+}
+
+export async function patchShopTheme(ctx) {
+  const { req, p, b, send, session, get, run, audit } = ctx;
+  const m = p.match(/^\/api\/admin\/shops\/(\d+)\/theme$/);
+  if (!m || req.method !== "PATCH") return false;
+  assertAdmin(session);
+  const id = Number(m[1]);
+  // A shop-scoped admin themes only their own shop; the platform
+  // admin (shop_id NULL) themes any shop.
+  if (
+    session.shop_id !== null &&
+    session.shop_id !== undefined &&
+    session.shop_id !== id
+  )
+    assert(false, "只能装修本店铺", 403);
+  const shop = await get("SELECT * FROM shops WHERE id=?", id);
+  assert(shop, "店铺不存在", 404);
+  // Validate everything BEFORE any write (OTP lesson: a throw after
+  // a write is lost to the rollback).
+  const merged = validateTheme(b, parseTheme(shop.theme));
+  await run(
+    "UPDATE shops SET theme=? WHERE id=?",
+    JSON.stringify(merged),
+    id,
+  );
+  await audit(session, "修改店铺装修", shop.name);
+  send({ ok: true, shop_id: id, theme: merged });
+  return true;
+}
