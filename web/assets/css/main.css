@@ -401,7 +401,7 @@ th .sort-btn:focus-visible{outline:2px solid var(--red);outline-offset:1px}
 .availdates .datechip{border:1px solid var(--line2);background:var(--surface);border-radius:99px;padding:3px 10px;font-size:12px;font-weight:600;color:var(--ink2)}
 .seatmap{margin-top:18px}
 .seatmap h4{font-family:"Noto Serif SC",serif;font-size:16px;font-weight:900;margin:0 0 10px}
-.seatgrid{display:flex;flex-wrap:wrap;gap:3px}
+.seatgrid{display:grid;gap:3px}
 .seatgrid i{width:8px;height:8px;border-radius:50%;background:var(--gold);opacity:.75}
 .seatnote{margin:8px 0 0;font-size:12.5px;color:var(--ink2)}
 

@@ -326,3 +326,30 @@ test("p3bugs B-040: admin badge never says 仅查看 · 只读", async () => {
   );
 });
 
+test("p3bugs B-041: seatgrid is a real grid with dynamic columns", async () => {
+  const css = fs.readFileSync(
+    path.resolve(repoDir, "web", "assets", "css", "main.css"),
+    "utf8",
+  );
+  assert.ok(
+    css.includes(".seatgrid{display:grid;gap:3px}"),
+    ".seatgrid must use display:grid",
+  );
+  assert.ok(
+    !/\.seatgrid\{[^}]*flex-wrap/.test(css),
+    ".seatgrid must not use flex-wrap anymore",
+  );
+  const app = fs.readFileSync(
+    path.resolve(repoDir, "web", "assets", "js", "App.jsx"),
+    "utf8",
+  );
+  assert.ok(
+    app.includes("gridTemplateColumns"),
+    "App.jsx must set gridTemplateColumns for the seat grid",
+  );
+  assert.ok(
+    app.includes("meta.seatCols"),
+    "seat grid columns must come from the venue's real seatCols",
+  );
+});
+

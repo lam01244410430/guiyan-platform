@@ -849,7 +849,7 @@ export default function App() {
                 {cur[1] === "venue" && APIRES[detailIdx] && APIRES[detailIdx].meta && Number.isSafeInteger(APIRES[detailIdx].meta.seatRows) && Number.isSafeInteger(APIRES[detailIdx].meta.seatCols) && (
                   <div className="seatmap">
                     <h4>{t("seatTitle")}</h4>
-                    <div className="seatgrid" aria-hidden="true">
+                    <div className="seatgrid" aria-hidden="true" style={{ gridTemplateColumns: "repeat(" + APIRES[detailIdx].meta.seatCols + ", 8px)" }}>
                       {Array.from({ length: APIRES[detailIdx].meta.seatRows * APIRES[detailIdx].meta.seatCols }).map((_, i) => (<i key={i} />))}
                     </div>
                     <p className="seatnote">{t("seatNote")}</p>
