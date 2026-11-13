@@ -195,6 +195,8 @@ function toLocalResource(apiR, local) {
     apiId: apiR.id != null ? apiR.id : (local ? local.apiId : null),
     stock: apiR.stock, rating: apiR.rating, review_count: apiR.review_count,
     image: apiR.image, capacity: apiR.capacity, status: apiR.status,
+    // R2-4: linked venue ({id, name, address} or null).
+    venue: apiR.venue || null,
     tags: apiR.tags || []
   };
 }

@@ -49,7 +49,8 @@ Page({
       'confirmBtn', 'cancelBtn', 'bookFirst', 'viewsUnit', 'myTickets',
       'perfTitle', 'perfEmpty', 'perfOnSale',
       'tierTitle', 'tierEmpty', 'tierSoldOut', 'tierLeft', 'tierPick',
-      'pickupTitle', 'pickupEmpty', 'pickupPick'];
+      'pickupTitle', 'pickupEmpty', 'pickupPick',
+      'venueTitle'];
     var L = {};
     keys.forEach(function (k) { L[k] = i18n.t(k, lang); });
     var r = api.resourceByIdx(this.data.idx) || data.RES[0];

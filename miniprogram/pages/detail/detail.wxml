@@ -28,6 +28,14 @@
     <view class="btn" bindtap="book">{{L.bookNow}}</view>
     </view>
 
+  <!-- R2-4: linked venue name/address when the resource is staged in one. -->
+  <block wx:if="{{res.venue}}">
+    <view class="card">
+      <view class="sec-title serif" style="font-size:32rpx">{{L.venueTitle}}</view>
+      <view class="note">{{res.venue.name}} · {{res.venue.address}}</view>
+    </view>
+  </block>
+
   <!-- R2-1: on-sale performances of the resource's approved shows.
        R2-2: tap a performance, then a ticket type — the total and the
        order follow the tier price. -->

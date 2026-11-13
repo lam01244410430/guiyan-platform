@@ -303,12 +303,12 @@ test("cross-shop performance edit -> 403; own-shop edit -> 200; cancel works", a
   assert.equal((await patchPerf(adminToken, perfId, { status: "on_sale" })).status, 400);
 });
 
-test("r2-shows i18n: H5 336 keys/language, miniprogram 140, equal sets", async () => {
+test("r2-shows i18n: H5 337 keys/language, miniprogram 141, equal sets", async () => {
   const data = await import(
     path.resolve(repoDir, "web", "assets", "js", "data.js")
   );
   const counts = data.LANGS.map((l) => Object.keys(data.I18N[l]).length);
-  assert.deepEqual(counts, [336, 336, 336]);
+  assert.deepEqual(counts, [337, 337, 337]);
   for (const k of ["perfTitle", "perfEmpty", "perfOnSale"]) {
     for (const l of data.LANGS)
       assert.ok(k in data.I18N[l], `${k} missing in H5 ${l}`);
@@ -328,7 +328,7 @@ test("r2-shows i18n: H5 336 keys/language, miniprogram 140, equal sets", async (
     ].map((m) => m[1]);
   }
   for (const lang of ["zh", "vi", "en"]) {
-    assert.equal(blocks[lang].length, 140, `${lang} key count`);
+    assert.equal(blocks[lang].length, 141, `${lang} key count`);
     for (const k of ["perfTitle", "perfEmpty", "perfOnSale"])
       assert.ok(blocks[lang].includes(k), `${k} missing in mini ${lang}`);
   }

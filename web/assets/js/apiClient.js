@@ -137,7 +137,9 @@ export function mergeResources(data) {
     /* Wave 4 shared (#12 seat-map, #15 meta render): keep the API meta
        (seatRows/seatCols and the per-category detail fields). It was
        dropped here before, so the detail overlay never saw it. */
-    APIRES[idx] = { id: a.id, stock: a.stock, capacity: a.capacity, rating: a.rating, review_count: a.review_count, status: a.status, tags: a.tags || [], meta: a.meta || {} };
+    /* R2-4: keep the linked venue ({id, name, address} or null) so the
+       detail overlay can show the venue name/address. */
+    APIRES[idx] = { id: a.id, stock: a.stock, capacity: a.capacity, rating: a.rating, review_count: a.review_count, status: a.status, tags: a.tags || [], meta: a.meta || {}, venue: a.venue || null };
     if (a.id != null) APIID2IDX[a.id] = idx;
   });
 }

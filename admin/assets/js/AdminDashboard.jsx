@@ -37,6 +37,7 @@ const NAV_ICONS = {
   demands: (<><rect width="8" height="4" x="8" y="2" rx="1" ry="1" /><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2m4 7h4m-4 5h4m-8-5h.01M8 16h.01" /></>),
   shops: (<><path d="M3 9l1.5-5h15L21 9" /><path d="M4 9v11a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1V9" /><path d="M9 21v-6h6v6" /></>),
   shows: (<><path d="M2 9a3 3 0 0 1 0 6v2a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-2a3 3 0 0 1 0-6V7a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2Z" /><path d="M13 5v2" /><path d="M13 17v2" /><path d="M13 11v2" /></>),
+  venues: (<><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z" /><circle cx="12" cy="10" r="3" /></>),
   trends: (<><path d="M3 3v16a2 2 0 0 0 2 2h16" /><path d="m19 9-5 5-4-4-3 3" /></>),
   analysis: (<><path d="M15 12h-5m5-4h-5m9 9V5a2 2 0 0 0-2-2H4" /><path d="M8 21h12a2 2 0 0 0 2-2v-1a1 1 0 0 0-1-1H11a1 1 0 0 0-1 1v1a2 2 0 1 1-4 0V5a2 2 0 1 0-4 0v2a1 1 0 0 0 1 1h3" /></>),
   alerts: (<><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3" /><path d="M12 9v4" /><path d="M12 17h.01" /></>),
@@ -73,6 +74,7 @@ const VIEWS = [
   { id: "aicopy", label: "文案生成", iconName: "ui:pen", group: "main" },
   { id: "resources", label: "资源", iconName: "ui:layers", group: "main" },
   { id: "shows", label: "演出", iconName: "ui:ticket", group: "main" },
+  { id: "venues", label: "场馆", iconName: "ui:map-pin", group: "main" },
   { id: "shops", label: "店铺", iconName: "ui:store", group: "main" },
   { id: "demands", label: "需求", iconName: "ui:clipboard-list", group: "main" },
   { id: "trends", label: "趋势统计", iconName: "ui:chart-line", group: "premium" },
@@ -169,7 +171,7 @@ export default function AdminDashboard() {
       return out;
     });
   }
-  function changeView(v) { setView(v); setQuery(""); setSorts({}); setTagFilter(""); setResShopFilter(""); setShowStatusFilter(""); setPerfShowId(null); setPerfForm(null); setDrawerOpen(false); }
+  function changeView(v) { setView(v); setQuery(""); setSorts({}); setTagFilter(""); setResShopFilter(""); setShowStatusFilter(""); setPerfShowId(null); setPerfForm(null); setDrawerOpen(false); setVenueForm(null); setTplVenueId(null); setTplForm(null); }
   // Mobile drawer (≤860px): open state + Esc closes + focus returns to
   // the hamburger. Desktop sidebar is unaffected (drawer CSS only
   // applies at ≤860px).
@@ -271,6 +273,18 @@ export default function AdminDashboard() {
   const [templates, setTemplates] = useState([]);
   const [templateForm, setTemplateForm] = useState(null);
   const [templateBusyId, setTemplateBusyId] = useState(null);
+  // R2-4 venues + seat templates: the venue list + the open create/
+  // edit draft + the id of the venue in flight; the venue whose seat
+  // templates are open (tplVenueId) + templates loaded on demand per
+  // venue (templatesByVenue) + the open template create/edit draft
+  // (null = closed) + the id of the template in flight.
+  const [venues, setVenues] = useState([]);
+  const [venueForm, setVenueForm] = useState(null);
+  const [venueBusyId, setVenueBusyId] = useState(null);
+  const [tplVenueId, setTplVenueId] = useState(null);
+  const [templatesByVenue, setTemplatesByVenue] = useState({});
+  const [tplForm, setTplForm] = useState(null);
+  const [tplBusyId, setTplBusyId] = useState(null);
   const [acctBusy, setAcctBusy] = useState(false);
   const [acctOtp, setAcctOtp] = useState("");
   const [acctOtpInput, setAcctOtpInput] = useState("");
@@ -313,6 +327,7 @@ export default function AdminDashboard() {
       apiGet("/api/admin/stats"), apiGet("/api/admin/orders"), apiGet("/api/admin/users"),
       apiGet("/api/admin/resources"), apiGet("/api/admin/demands"),
       apiGet("/api/admin/shops"), apiGet("/api/admin/shows"),
+      apiGet("/api/venues"),
     ]).then(function (res) {
       setStats(res[0]);
       setOrders(res[1].orders || []);
@@ -324,6 +339,7 @@ export default function AdminDashboard() {
       setDemands(res[4].demands || []);
       setShops(res[5].shops || []);
       setShows(res[6].shows || []);
+      setVenues(res[7].venues || []);
       setView("overview");
     }).catch(function (e) {
       if (e && e.status === 401) { clearToken(); location.href = "/admin/index.html"; return; }
@@ -461,10 +477,11 @@ export default function AdminDashboard() {
       unit: r.unit || "张", description: r.description || "",
       image: r.image || "", capacity: String(r.capacity || 0),
       stock: String(r.stock || 0), status: r.status || "published",
+      venue_id: r.venue_id == null ? "" : String(r.venue_id),
     } : {
       id: null, name: "", category: "show", city: "", priceYuan: "",
       unit: "张", description: "", image: "", capacity: "0",
-      stock: "100", status: "published",
+      stock: "100", status: "published", venue_id: "",
     });
   }
   function editResForm(key, value) {
@@ -483,6 +500,7 @@ export default function AdminDashboard() {
       city: resForm.city.trim(), price: Math.round(priceYuan * 100),
       unit: resForm.unit.trim(), description: resForm.description.trim(),
       image: resForm.image.trim(), capacity, stock, status: resForm.status,
+      venue_id: resForm.venue_id === "" ? null : Number(resForm.venue_id),
     };
     setResBusyId(resForm.id === null ? "new" : resForm.id);
     const call = resForm.id === null
@@ -535,6 +553,137 @@ export default function AdminDashboard() {
       else if (e && e.status === 404) toast("资源不存在");
       else toast((e && e.data && e.data.error) || "同步失败，请稍后重试");
     }).finally(function () { setResBusyId(null); });
+  }
+
+  // R2-4 venues + seat templates (same disabled-while-processing
+  // pattern as the show form). A shop-scoped admin creates/edits only
+  // their own shop's venues (the server returns 403 otherwise); a
+  // platform admin names the shop in the create form. A venue with no
+  // template shows "未配置座位模板" — its performances cannot generate
+  // seats until a template exists (R2-5). Zones are edited as rows of
+  // name/rows/cols; every zone needs positive row/col counts.
+  function loadVenues() {
+    apiGet("/api/venues").then(function (d) {
+      setVenues(d.venues || []);
+    }).catch(loadFail);
+  }
+  function openVenueForm(v) {
+    setVenueForm(v ? {
+      id: v.id, name: v.name || "", address: v.address || "",
+      capacity: String(v.capacity || 0), floor_plan: v.floor_plan || "",
+      shop_id: String(v.shop_id),
+    } : {
+      id: null, name: "", address: "", capacity: "0", floor_plan: "",
+      shop_id: isPlatformAdmin ? "1" : (me && me.shop_id ? String(me.shop_id) : "1"),
+    });
+  }
+  function editVenueForm(key, value) {
+    setVenueForm(function (f) { return f ? { ...f, [key]: value } : f; });
+  }
+  function saveVenueForm() {
+    if (!venueForm || venueBusyId !== null) return;
+    if (!venueForm.name.trim()) { toast("请填写场馆名称"); return; }
+    const capacity = Number(venueForm.capacity);
+    if (!Number.isInteger(capacity) || capacity < 0) { toast("容量须为不小于 0 的整数"); return; }
+    const body = {
+      name: venueForm.name.trim(), address: venueForm.address.trim(),
+      capacity, floor_plan: venueForm.floor_plan.trim(),
+    };
+    if (venueForm.id === null && isPlatformAdmin) body.shop_id = Number(venueForm.shop_id) || 1;
+    setVenueBusyId(venueForm.id === null ? "new" : venueForm.id);
+    const call = venueForm.id === null
+      ? apiPost("/api/admin/venues", body)
+      : apiPatch("/api/admin/venues/" + venueForm.id, body);
+    call.then(function (d) {
+      const saved = d.venue;
+      setVenues(function (vs) {
+        return venueForm.id === null ? vs.concat([saved])
+          : vs.map(function (x) { return x.id === saved.id ? { ...saved, has_seats: x.has_seats } : x; });
+      });
+      setVenueForm(null);
+      loadAudit();
+      toast("已保存");
+    }).catch(function (e) {
+      if (e && e.status === 403) toast("只能管理本店铺的场馆");
+      else if (e && e.status === 404) toast("场馆不存在");
+      else toast((e && e.data && e.data.error) || "保存失败，请检查表单");
+    }).finally(function () { setVenueBusyId(null); });
+  }
+  function loadTemplates(venueId) {
+    apiGet("/api/venues/" + venueId + "/seat-templates").then(function (d) {
+      setTemplatesByVenue(function (m) { return { ...m, [venueId]: d.seat_templates || [] }; });
+    }).catch(loadFail);
+  }
+  function toggleTplManager(v) {
+    if (tplVenueId === v.id) { setTplVenueId(null); setTplForm(null); }
+    else { setTplVenueId(v.id); setTplForm(null); loadTemplates(v.id); }
+  }
+  function openTplForm(v, tpl) {
+    setTplForm(tpl ? {
+      venueId: v.id, id: tpl.id, name: tpl.name,
+      zones: (tpl.zones || []).map(function (z) {
+        return { name: z.name, rows: String(z.rows), cols: String(z.cols) };
+      }),
+    } : { venueId: v.id, id: null, name: "", zones: [{ name: "A区", rows: "10", cols: "10" }] });
+  }
+  function editTplForm(key, value) {
+    setTplForm(function (f) { return f ? { ...f, [key]: value } : f; });
+  }
+  function editTplZone(i, key, value) {
+    setTplForm(function (f) {
+      if (!f) return f;
+      const zones = f.zones.slice();
+      zones[i] = { ...zones[i], [key]: value };
+      return { ...f, zones: zones };
+    });
+  }
+  function addTplZone() {
+    setTplForm(function (f) {
+      if (!f) return f;
+      return { ...f, zones: f.zones.concat([{ name: "", rows: "", cols: "" }]) };
+    });
+  }
+  function removeTplZone(i) {
+    setTplForm(function (f) {
+      if (!f || f.zones.length <= 1) return f;
+      return { ...f, zones: f.zones.filter(function (_, j) { return j !== i; }) };
+    });
+  }
+  function saveTplForm() {
+    if (!tplForm || tplBusyId !== null) return;
+    if (!tplForm.name.trim()) { toast("请填写座位模板名称"); return; }
+    const zones = [];
+    for (let i = 0; i < tplForm.zones.length; i++) {
+      const z = tplForm.zones[i];
+      const rows = Number(z.rows);
+      const cols = Number(z.cols);
+      if (!z.name.trim() || !Number.isInteger(rows) || rows <= 0 || !Number.isInteger(cols) || cols <= 0) {
+        toast("第 " + (i + 1) + " 分区须填写名称，且行列均为正整数");
+        return;
+      }
+      zones.push({ name: z.name.trim(), rows: rows, cols: cols });
+    }
+    setTplBusyId(tplForm.id === null ? "new" : tplForm.id);
+    const call = tplForm.id === null
+      ? apiPost("/api/venues/" + tplForm.venueId + "/seat-templates", { name: tplForm.name.trim(), zones: zones })
+      : apiPatch("/api/admin/seat-templates/" + tplForm.id, { name: tplForm.name.trim(), zones: zones });
+    call.then(function (d) {
+      const saved = d.seat_template;
+      setTemplatesByVenue(function (m) {
+        const list = m[tplForm.venueId] || [];
+        return { ...m, [tplForm.venueId]: tplForm.id === null ? list.concat([saved]) : list.map(function (x) { return x.id === saved.id ? saved : x; }) };
+      });
+      setVenues(function (vs) {
+        return vs.map(function (x) { return x.id === tplForm.venueId ? { ...x, has_seats: true } : x; });
+      });
+      setTplForm(null);
+      loadAudit();
+      toast("已保存");
+    }).catch(function (e) {
+      if (e && e.status === 403) toast("只能管理本店铺的座位模板");
+      else if (e && e.status === 404) toast("场馆或模板不存在");
+      else toast((e && e.data && e.data.error) || "保存失败，请检查表单");
+    }).finally(function () { setTplBusyId(null); });
   }
 
   // R1-1 shop editor helpers (same disabled-while-processing pattern as
@@ -1114,6 +1263,7 @@ export default function AdminDashboard() {
     aicopy: ["文案生成", "本地模板 · 未接入大模型"],
     resources: ["资源总览", "共 " + resources.length + " 项"],
     shows: ["演出管理", "共 " + shows.length + " 场演出 · 通过审核后可售票"],
+    venues: ["场馆管理", "共 " + venues.length + " 个场馆 · 座位模板决定是否可选座"],
     shops: ["店铺管理", "共 " + shops.length + " 家店铺 · 仅平台管理员可创建/修改"],
     demands: ["需求总览", "共 " + demands.length + " 条"],
     trends: ["趋势统计", "按周期查看订单趋势"],
@@ -1184,6 +1334,11 @@ export default function AdminDashboard() {
   const filteredShows = shows.filter(function (s) {
     return (showStatusFilter === "" || s.status === showStatusFilter) && (!q || showMatch(s));
   });
+  // R2-4: the admin venue list (separate from `filteredVenues`, which
+  // is the analysis view's venue rows).
+  const filteredVenueList = q ? venues.filter(function (v) {
+    return has(v.name) || has(v.address);
+  }) : venues;
   const filteredDemands = q ? demands.filter(demandMatch) : demands;
   const trendSeries = seriesData ? seriesData.series : [];
   const filteredSeries = q ? trendSeries.filter(function (s) { return has(s.label); }) : trendSeries;
@@ -1522,6 +1677,10 @@ export default function AdminDashboard() {
                 <label>库存 <input type="number" min={0} value={resForm.stock} onChange={(e) => editResForm("stock", e.target.value)} /></label>
                 <label>状态 <select value={resForm.status} onChange={(e) => editResForm("status", e.target.value)}>
                   <option value="published">上架</option><option value="draft">下架</option>
+                </select></label>
+                <label>场馆 <select value={resForm.venue_id} onChange={(e) => editResForm("venue_id", e.target.value)}>
+                  <option value="">不关联场馆</option>
+                  {venues.map((v) => (<option key={v.id} value={String(v.id)}>{v.name}（{shopName(v.shop_id)}）</option>))}
                 </select></label>
                 <label>图片路径 <input type="text" value={resForm.image} maxLength={200} placeholder="/images/…" onChange={(e) => editResForm("image", e.target.value)} /></label>
                 <label>介绍 <input type="text" value={resForm.description} maxLength={3000} onChange={(e) => editResForm("description", e.target.value)} /></label>
@@ -1881,6 +2040,104 @@ export default function AdminDashboard() {
               </table>
             </div>
             <p className="def-note">审核结果在操作审计中留痕；仅已通过演出的在售场次对顾客可见。</p>
+          </section>
+
+          <section className={"view" + (view === "venues" ? " on" : "")} id="view-venues">
+            <div className="search-row">
+              <SearchBox id="search-venues" label="搜索场馆" placeholder="输入场馆名称或地址…"
+                value={query} onChange={setQuery} resultCount={q ? filteredVenueList.length : null} />
+              <button type="button" className="btn-export" onClick={() => openVenueForm(null)}>添加场馆</button>
+            </div>
+            <div className="note">场馆须归属本店；资源表单可把资源挂到同店场馆，顾客详情页显示场馆名与地址。未配置座位模板的场馆显示“未配置座位模板”，其场次暂不可选座。</div>
+            {venueForm ? (
+              <fieldset className="tag-rule">
+                <legend>{venueForm.id === null ? "添加场馆" : "编辑场馆：" + venueForm.name}</legend>
+                <label>场馆名称 <input type="text" value={venueForm.name} maxLength={80} onChange={(e) => editVenueForm("name", e.target.value)} /></label>
+                <label>地址 <input type="text" value={venueForm.address} maxLength={200} onChange={(e) => editVenueForm("address", e.target.value)} /></label>
+                <label>容量 <input type="number" min={0} value={venueForm.capacity} onChange={(e) => editVenueForm("capacity", e.target.value)} /></label>
+                <label>场地平面图描述 <input type="text" value={venueForm.floor_plan} maxLength={3000} onChange={(e) => editVenueForm("floor_plan", e.target.value)} /></label>
+                {venueForm.id === null && isPlatformAdmin ? (
+                  <label>店铺 <select value={venueForm.shop_id} onChange={(e) => editVenueForm("shop_id", e.target.value)}>
+                    {shops.map((s) => (<option key={s.id} value={String(s.id)}>{s.name}</option>))}
+                  </select></label>
+                ) : null}
+                <div>
+                  <button type="button" className="btn-export" disabled={venueBusyId !== null} onClick={saveVenueForm}>{venueBusyId !== null ? "保存中…" : "保存"}</button>{" "}
+                  <button type="button" className="btn-resolve" onClick={() => setVenueForm(null)}>取消</button>
+                </div>
+              </fieldset>
+            ) : null}
+            <div className="tbl-wrap">
+              <table>
+                <thead><tr><th scope="col">名称</th><th scope="col">地址</th><th scope="col">店铺</th><th scope="col" className="num">容量</th><th scope="col">座位模板</th><th scope="col">操作</th></tr></thead>
+                <tbody id="venuesBody">
+                  {venues.length
+                    ? (filteredVenueList.length ? filteredVenueList.map((v) => (
+                      <Fragment key={v.id}>
+                        <tr>
+                          <td>{v.name}</td><td>{v.address || "—"}</td><td>{shopName(v.shop_id)}</td>
+                          <td className="num">{v.capacity}</td>
+                          <td>{v.has_seats ? "已配置" : "未配置座位模板"}</td>
+                          <td>
+                            <span className="row-actions">
+                              <button type="button" className="btn-view" disabled={venueBusyId !== null} onClick={() => openVenueForm(v)}>编辑</button>
+                              <button type="button" className="btn-view" onClick={() => toggleTplManager(v)}>{tplVenueId === v.id ? "收起座位模板" : "座位模板"}</button>
+                            </span>
+                          </td>
+                        </tr>
+                        {tplVenueId === v.id ? (
+                          <tr>
+                            <td colSpan="6">
+                              {(templatesByVenue[v.id] || []).length ? (
+                                <table>
+                                  <thead><tr><th scope="col">模板</th><th scope="col">分区</th><th scope="col">操作</th></tr></thead>
+                                  <tbody>
+                                    {(templatesByVenue[v.id] || []).map((tpl) => (
+                                      <tr key={tpl.id}>
+                                        <td>{tpl.name}</td>
+                                        <td>{(tpl.zones || []).map((z) => z.name + " " + z.rows + "×" + z.cols).join("；")}</td>
+                                        <td>
+                                          <span className="row-actions">
+                                            <button type="button" className="btn-view" onClick={() => openTplForm(v, tpl)}>编辑</button>
+                                          </span>
+                                        </td>
+                                      </tr>
+                                    ))}
+                                  </tbody>
+                                </table>
+                              ) : (<p className="perf-empty">未配置座位模板</p>)}
+                              {tplForm && tplForm.venueId === v.id ? (
+                                <fieldset className="tag-rule">
+                                  <legend>{tplForm.id === null ? "添加座位模板" : "编辑座位模板：" + tplForm.name}</legend>
+                                  <label>模板名称 <input type="text" value={tplForm.name} maxLength={80} onChange={(e) => editTplForm("name", e.target.value)} /></label>
+                                  {tplForm.zones.map((z, i) => (
+                                    <div key={i}>
+                                      <label>分区名 <input type="text" value={z.name} maxLength={50} onChange={(e) => editTplZone(i, "name", e.target.value)} /></label>
+                                      <label>行数 <input type="number" min={1} value={z.rows} onChange={(e) => editTplZone(i, "rows", e.target.value)} /></label>
+                                      <label>列数 <input type="number" min={1} value={z.cols} onChange={(e) => editTplZone(i, "cols", e.target.value)} /></label>
+                                      {tplForm.zones.length > 1 ? (
+                                        <button type="button" className="btn-resolve" onClick={() => removeTplZone(i)}>删除分区</button>
+                                      ) : null}
+                                    </div>
+                                  ))}
+                                  <div>
+                                    <button type="button" className="btn-view" onClick={addTplZone}>添加分区</button>{" "}
+                                    <button type="button" className="btn-export" disabled={tplBusyId !== null} onClick={saveTplForm}>{tplBusyId !== null ? "保存中…" : "保存"}</button>{" "}
+                                    <button type="button" className="btn-resolve" onClick={() => setTplForm(null)}>取消</button>
+                                  </div>
+                                </fieldset>
+                              ) : (
+                                <button type="button" className="btn-export" onClick={() => openTplForm(v, null)}>添加座位模板</button>
+                              )}
+                            </td>
+                          </tr>
+                        ) : null}
+                      </Fragment>
+                    )) : searchEmpty(6))
+                    : <tr><td colSpan="6"><div className="empty">暂无场馆</div></td></tr>}
+                </tbody>
+              </table>
+            </div>
           </section>
 
           <section className={"view" + (view === "aicopy" ? " on" : "")} id="view-aicopy">

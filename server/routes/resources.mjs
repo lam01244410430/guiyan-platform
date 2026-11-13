@@ -2,6 +2,29 @@ import { assert, date, resourceRow } from "../lib/http.mjs";
 import { performancesForResource } from "./shows.mjs";
 import { CACHE_KEYS, CACHE_TTLS } from "../lib/cache.mjs";
 
+// R2-4: attach the linked venue ({id, name, address} or null) to
+// resource rows. One query for the whole list, never one per row;
+// the venue object is what the H5/mini-program detail views render
+// (they read the list merge, not a second detail fetch).
+export async function attachVenues(all, rows) {
+  const ids = [
+    ...new Set(rows.map((r) => r.venue_id).filter((v) => v != null)),
+  ];
+  const byId = new Map();
+  if (ids.length) {
+    const found = await all(
+      `SELECT id, name, address FROM venues WHERE id IN (${ids.map(() => "?").join(",")})`,
+      ...ids,
+    );
+    for (const v of found)
+      byId.set(v.id, { id: v.id, name: v.name, address: v.address });
+  }
+  return rows.map((r) => ({
+    ...r,
+    venue: r.venue_id == null ? null : byId.get(r.venue_id) || null,
+  }));
+}
+
 export async function listResources(ctx) {
   const { p, req, url, send, categories, all, resourceSelect, cache, res } = ctx;
   if (p === "/api/resources" && req.method === "GET") {
@@ -53,12 +76,15 @@ export async function listResources(ctx) {
           : sort === "newest"
             ? "r.id DESC"
             : "r.views DESC";
-    const resources = (
-      await all(
-        `${resourceSelect} WHERE ${where.join(" AND ")} ORDER BY ${orderBy}`,
-        ...params,
-      )
-    ).map(resourceRow);
+    const resources = await attachVenues(
+      all,
+      (
+        await all(
+          `${resourceSelect} WHERE ${where.join(" AND ")} ORDER BY ${orderBy}`,
+          ...params,
+        )
+      ).map(resourceRow),
+    );
     if (cacheable && cache?.enabled) {
       res.setHeader("X-Cache", "MISS");
       await cache.set(
@@ -74,7 +100,7 @@ export async function listResources(ctx) {
 }
 
 export async function getResource(ctx) {
-  const { p, req, send, get, resourceSelect } = ctx;
+  const { p, req, send, get, all, resourceSelect } = ctx;
   let m = p.match(/^\/api\/resources\/(\d+)$/);
   if (m && req.method === "GET") {
     const r = await get(
@@ -82,7 +108,9 @@ export async function getResource(ctx) {
       Number(m[1]),
     );
     assert(r, "资源不存在", 404);
-    send({ resource: resourceRow(r) });
+    // R2-4: the detail carries the linked venue when set.
+    const [resource] = await attachVenues(all, [resourceRow(r)]);
+    send({ resource });
     return true;
   }
   return false;

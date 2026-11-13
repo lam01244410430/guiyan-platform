@@ -965,6 +965,12 @@ export default function App() {
                   }}>{t("bookNow")}</button>
                   <button type="button" className="btn ghost" id="bkFav" onClick={() => toggleFav(detailIdx)}>{store.favs[detailIdx] ? t("favOn") : t("favOff")}</button>
                 </div>
+                {APIRES[detailIdx] && APIRES[detailIdx].venue && (
+                  <div className="venuebox">
+                    <h4>{t("venueTitle")}</h4>
+                    <p>{APIRES[detailIdx].venue.name}{APIRES[detailIdx].venue.address ? " · " + APIRES[detailIdx].venue.address : ""}</p>
+                  </div>
+                )}
                 {cur[1] === "venue" && APIRES[detailIdx] && APIRES[detailIdx].meta && Number.isSafeInteger(APIRES[detailIdx].meta.seatRows) && Number.isSafeInteger(APIRES[detailIdx].meta.seatCols) && (
                   <div className="seatmap">
                     <h4>{t("seatTitle")}</h4>

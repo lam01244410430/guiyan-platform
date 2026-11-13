@@ -22,6 +22,7 @@
 // meta, which directly affects availability (#12), recommendations
 // (#11) and statistics — the admin-only gate is the control.
 import { assert, text, int, resourceRow, time } from "../lib/http.mjs";
+import { attachVenues } from "./resources.mjs";
 
 const STATUSES = ["published", "draft"];
 const SYNC_CHANNELS = ["抖音", "小红书", "大麦"];
@@ -116,20 +117,23 @@ export async function listAdminResources(ctx) {
   // the list must reflect the latest status immediately. R1-1: a
   // shop-scoped admin sees only their own shop's rows.
   const scope = scopedShopId(session);
-  const resources = (
-    await (scope === null
-      ? all(`${resourceSelect} ORDER BY r.id DESC`)
-      : all(
-          `${resourceSelect} WHERE r.shop_id=? ORDER BY r.id DESC`,
-          scope,
-        ))
-  ).map(resourceRow);
+  const resources = await attachVenues(
+    all,
+    (
+      await (scope === null
+        ? all(`${resourceSelect} ORDER BY r.id DESC`)
+        : all(
+            `${resourceSelect} WHERE r.shop_id=? ORDER BY r.id DESC`,
+            scope,
+          ))
+    ).map(resourceRow),
+  );
   send({ resources });
   return true;
 }
 
 export async function createAdminResource(ctx) {
-  const { req, p, b, send, session, get, run, audit, cache } = ctx;
+  const { req, p, b, send, session, get, run, audit, cache, all } = ctx;
   if (p !== "/api/admin/resources" || req.method !== "POST") return false;
   assertAdmin(session);
   const f = validateFields(ctx, b, null);
@@ -148,8 +152,18 @@ export async function createAdminResource(ctx) {
   } else {
     shopId = 1;
   }
+  // R2-4: an optional venue link. The venue must exist (400) and
+  // belong to the same shop as the new resource (403). Validated
+  // BEFORE any write (OTP lesson).
+  let venueId = null;
+  if (b.venue_id !== undefined && b.venue_id !== null) {
+    venueId = int(b.venue_id, "场馆", 1);
+    const venue = await get("SELECT * FROM venues WHERE id=?", venueId);
+    assert(venue, "场馆不存在", 400);
+    assert(venue.shop_id === shopId, "场馆不属于该店铺", 403);
+  }
   const result = await run(
-    "INSERT INTO resources(name,category,city,price,unit,description,image,capacity,stock,tags,meta,status,owner_id,shop_id,created_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+    "INSERT INTO resources(name,category,city,price,unit,description,image,capacity,stock,tags,meta,status,owner_id,shop_id,venue_id,created_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
     f.name,
     f.category,
     f.city,
@@ -164,18 +178,20 @@ export async function createAdminResource(ctx) {
     b.status === undefined ? "published" : f.status,
     session.id,
     shopId,
+    venueId,
     time(),
   );
   const id = Number(result.lastInsertRowid);
   await audit(session, "新增资源", f.name);
   await bustResourceCache(ctx);
   const created = await get("SELECT * FROM resources WHERE id=?", id);
-  send({ ok: true, id, resource: resourceRow(created) });
+  const [resource] = await attachVenues(all, [resourceRow(created)]);
+  send({ ok: true, id, resource });
   return true;
 }
 
 export async function editAdminResource(ctx) {
-  const { req, p, b, send, session, get, run, audit, cache } = ctx;
+  const { req, p, b, send, session, get, run, audit, cache, all } = ctx;
   const m = p.match(/^\/api\/admin\/resources\/(\d+)$/);
   if (m && req.method === "PATCH") {
     assertAdmin(session);
@@ -184,6 +200,20 @@ export async function editAdminResource(ctx) {
     assert(r, "资源不存在", 404);
     assertShopAccess(session, r);
     const f = validateFields(ctx, b, r);
+    // R2-4: venue link. null clears it; a venue id must exist (400)
+    // and belong to this resource's shop (403). Validated BEFORE any
+    // write (OTP lesson).
+    let venueId = r.venue_id ?? null;
+    if (b.venue_id !== undefined) {
+      if (b.venue_id === null) {
+        venueId = null;
+      } else {
+        venueId = int(b.venue_id, "场馆", 1);
+        const venue = await get("SELECT * FROM venues WHERE id=?", venueId);
+        assert(venue, "场馆不存在", 400);
+        assert(venue.shop_id === r.shop_id, "场馆不属于该店铺", 403);
+      }
+    }
     const next = {
       name: f.name === undefined ? r.name : f.name,
       category: f.category === undefined ? r.category : f.category,
@@ -200,9 +230,10 @@ export async function editAdminResource(ctx) {
       meta:
         f.meta === undefined ? JSON.parse(r.meta) : f.meta,
       status: f.status === undefined ? r.status : f.status,
+      venue_id: venueId,
     };
     await run(
-      "UPDATE resources SET name=?,category=?,city=?,price=?,unit=?,description=?,image=?,capacity=?,stock=?,tags=?,meta=?,status=? WHERE id=?",
+      "UPDATE resources SET name=?,category=?,city=?,price=?,unit=?,description=?,image=?,capacity=?,stock=?,tags=?,meta=?,status=?,venue_id=? WHERE id=?",
       next.name,
       next.category,
       next.city,
@@ -215,12 +246,14 @@ export async function editAdminResource(ctx) {
       JSON.stringify(next.tags),
       JSON.stringify(next.meta),
       next.status,
+      next.venue_id,
       id,
     );
     await audit(session, "修改资源", next.name);
     await bustResourceCache(ctx);
     const updated = await get("SELECT * FROM resources WHERE id=?", id);
-    send({ ok: true, resource: resourceRow(updated) });
+    const [resource] = await attachVenues(all, [resourceRow(updated)]);
+    send({ ok: true, resource });
     return true;
   }
   return false;
@@ -232,7 +265,7 @@ export async function editAdminResource(ctx) {
 // text is labelled simulated and the response says no external
 // request was sent.
 export async function syncAdminResource(ctx) {
-  const { req, p, send, session, get, run, audit } = ctx;
+  const { req, p, send, session, get, run, audit, all } = ctx;
   const m = p.match(/^\/api\/admin\/resources\/(\d+)\/sync$/);
   if (m && req.method === "POST") {
     assertAdmin(session);
@@ -253,10 +286,11 @@ export async function syncAdminResource(ctx) {
     );
     if (ctx.cache) await ctx.cache.bustResources();
     const updated = await get("SELECT * FROM resources WHERE id=?", id);
+    const [resource] = await attachVenues(all, [resourceRow(updated)]);
     send({
       ok: true,
       message: "剧目已模拟同步至抖音、小红书和大麦，未发送外部请求。",
-      resource: resourceRow(updated),
+      resource,
     });
     return true;
   }

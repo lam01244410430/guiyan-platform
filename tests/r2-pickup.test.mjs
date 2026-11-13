@@ -9,7 +9,7 @@
 // pickup point + the shop's default template; public default template
 // -> 200 (built-in when none set); setting a new default clears the
 // old default; cross-shop template edit -> 403; i18n key counts (H5
-// 336, miniprogram 140, equal sets).
+// 337, miniprogram 141, equal sets).
 import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
@@ -345,7 +345,7 @@ test("setting a new default clears the old default", async () => {
   assert.equal(pub2.data.ticket_template.name, "默认票面");
 });
 
-test("cross-shop template edit -> 403; i18n 336/140", async () => {
+test("cross-shop template edit -> 403; i18n 337/141", async () => {
   // The shop-B admin cannot touch shop 1's template, nor name shop 1
   // on a create; their own shop works.
   const list = await listTemplates(adminToken);
@@ -364,12 +364,12 @@ test("cross-shop template edit -> 403; i18n 336/140", async () => {
   const mine = await listTemplates(shopBToken);
   assert.ok(mine.data.ticket_templates.length >= 1);
   assert.ok(mine.data.ticket_templates.every((t) => t.shop_id === shopBId));
-  // i18n: 3 new pickup keys on both sides (333 -> 336, 137 -> 140).
+  // i18n: 3 new pickup keys + 1 venue key on both sides (333 -> 337, 137 -> 141).
   const data = await import(
     path.resolve(repoDir, "web", "assets", "js", "data.js")
   );
   const counts = data.LANGS.map((l) => Object.keys(data.I18N[l]).length);
-  assert.deepEqual(counts, [336, 336, 336]);
+  assert.deepEqual(counts, [337, 337, 337]);
   for (const k of ["pickupTitle", "pickupEmpty", "pickupPick"]) {
     for (const l of data.LANGS)
       assert.ok(k in data.I18N[l], `${k} missing in H5 ${l}`);
@@ -389,7 +389,7 @@ test("cross-shop template edit -> 403; i18n 336/140", async () => {
     ].map((m) => m[1]);
   }
   for (const lang of ["zh", "vi", "en"]) {
-    assert.equal(blocks[lang].length, 140, `${lang} key count`);
+    assert.equal(blocks[lang].length, 141, `${lang} key count`);
     for (const k of ["pickupTitle", "pickupEmpty", "pickupPick"])
       assert.ok(blocks[lang].includes(k), `${k} missing in mini ${lang}`);
   }

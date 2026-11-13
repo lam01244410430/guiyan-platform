@@ -125,6 +125,13 @@ export async function openPostgresStore(
       await client.query(
         "ALTER TABLE orders ADD COLUMN IF NOT EXISTS pickup_point_id INTEGER REFERENCES pickup_points(id)",
       );
+      // R2-4 (venues, 2026-11-13): the venue a resource is staged in;
+      // NULL = the old flow (no venue link). Same idempotent pattern.
+      // The venues table itself comes from schema.mjs above, so the
+      // FK target exists before this ALTER runs.
+      await client.query(
+        "ALTER TABLE resources ADD COLUMN IF NOT EXISTS venue_id INTEGER REFERENCES venues(id)",
+      );
       if (!(await client.query("SELECT COUNT(*) AS n FROM users")).rows[0].n) {
         // Batch adjacent inserts to keep first-time setup fast over the network.
         const groups = [];
@@ -176,6 +183,63 @@ export async function openPostgresStore(
       await client.query(
         "UPDATE resources SET shop_id=1 WHERE shop_id IS NULL",
       );
+      // R2-4 venue backfill (2026-11-13, Lam option (a): rule as
+      // written, count corrected 3 -> 6). Venue-category resources
+      // whose meta carries seatRows/seatCols and whose venue_id is
+      // still NULL get a venue (name = resource name, capacity =
+      // seatRows x seatCols, address = meta.address); a same-name
+      // venue in the resource's shop is reused, never duplicated.
+      // Runs on every setup; only venue_id NULL rows are touched.
+      // Fresh DB: 2 demo venues (广西文化艺术中心 20x20, 南宁小剧场
+      // 11x20) + 4 catalog venues (10x18) = 6 venues. meta.seatRows /
+      // seatCols stay untouched (fallback for the old display-only
+      // seat map until R2-5).
+      {
+        const venueRows = await client.query(
+          "SELECT id, shop_id, name, meta FROM resources WHERE category='venue' AND venue_id IS NULL",
+        );
+        for (const r of venueRows.rows) {
+          let meta = {};
+          try {
+            meta = JSON.parse(r.meta || "{}") || {};
+          } catch {
+            meta = {};
+          }
+          const seatRows = Number(meta.seatRows);
+          const seatCols = Number(meta.seatCols);
+          if (
+            !Number.isSafeInteger(seatRows) ||
+            seatRows <= 0 ||
+            !Number.isSafeInteger(seatCols) ||
+            seatCols <= 0
+          )
+            continue;
+          const existing = await client.query(
+            "SELECT id FROM venues WHERE shop_id=$1 AND name=$2",
+            [r.shop_id, r.name],
+          );
+          let venueId;
+          if (existing.rows.length) {
+            venueId = existing.rows[0].id;
+          } else {
+            const inserted = await client.query(
+              "INSERT INTO venues(shop_id,name,address,capacity,floor_plan,created_at) VALUES($1,$2,$3,$4,'',$5) RETURNING id",
+              [
+                r.shop_id,
+                r.name,
+                typeof meta.address === "string" ? meta.address : "",
+                seatRows * seatCols,
+                new Date().toISOString(),
+              ],
+            );
+            venueId = inserted.rows[0].id;
+          }
+          await client.query(
+            "UPDATE resources SET venue_id=$1 WHERE id=$2",
+            [venueId, r.id],
+          );
+        }
+      }
       // Wave 3 #9: backfill the tagRules settings key for databases that
       // were seeded before it existed (incl. live Neon). Guard-key
       // INSERT, same idempotent pattern as enrichCatalog above: existing
@@ -208,7 +272,8 @@ export async function openPostgresStore(
             // get `RETURNING id` so run() can report lastInsertRowid.
             // R2-2: ticket_types joins them (tier create needs the id).
             // R2-3: pickup_points + ticket_templates join them too.
-            /^\s*INSERT\s+INTO\s+(users|resources|orders|demands|comments|messages|events|audit_logs|shops|shows|performances|ticket_types|pickup_points|ticket_templates)\b/i.test(
+            // R2-4: venues + seat_templates join them too.
+            /^\s*INSERT\s+INTO\s+(users|resources|orders|demands|comments|messages|events|audit_logs|shops|shows|performances|ticket_types|pickup_points|ticket_templates|venues|seat_templates)\b/i.test(
               sql,
             );
           const result = await execute(
