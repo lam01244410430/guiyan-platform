@@ -64,7 +64,7 @@
 | 灰度发布 | 无（Vercel 一次全量） | 缺口 |
 | 配置中心 | 无独立配置中心；配置在 Vercel 环境变量 + `.env.local`（gitignore） | 缺口 |
 | 水平扩展 / 读写分离 / Redis 集群 | 架构支持方向已写进代码（Redis fail-open、Upstash 待接），但未做集群、未做读写分离、未做微服务拆分 | 方向已有，实现未做 |
-| Docker 打包部署（装备表：区分“会写 demo”和“能交付”的分水岭） | Phase 8（进行中，2026-11-13，Lam duyệt plan）：`Dockerfile` multi-stage（`node:22-alpine`：build React → runtime Node，serve `dist/`，`STATIC_DIR=dist`）+ `docker-compose.yml` 根目录（api + db + redis：`postgres:16-alpine` + `redis:7-alpine`，`REDIS_URL`，cache fail-open）+ smoke script `scripts/smoke-docker.sh`（30 checks）；Python service 只有 contract（`python-ai/CONTRACT.md` + compose profile `ai`，phase 7 才写 code）；生产仍走 Vercel + Neon，不 migration | 进行中（phase 8） |
+| Docker 打包部署（装备表：区分“会写 demo”和“能交付”的分水岭） | Phase 8（已完成，2026-11-13，7 commits `0dad2a1`、`92e3db3`、`9a9b3de`、`5d291e1`、`0ef32d9`、`6c6fc57` + commit này C7）：`Dockerfile` multi-stage（`node:22-alpine`：build React → runtime Node，serve `dist/`，`STATIC_DIR=dist`，image `guiyan-api:phase8` 347MB < 500MB）+ `docker-compose.yml` 根目录（api + db + redis：`postgres:16-alpine` 420MB + `redis:7-alpine` 58.5MB，`REDIS_URL`，cache fail-open，`X-Cache: HIT` + stop-redis 已验证）+ smoke script `scripts/smoke-docker.sh`（30/0）；`npm test` 199 tests（187/0/12）；Python service 只有 contract（`python-ai/CONTRACT.md` + compose profile `ai`，mặc định không chạy — default `up` không tạo container `ai`，`docker compose config` OK；contract 已对试 agent live 2026-11-13：`POST /api/chat` → 200，phase 7 才写 code）；生产仍走 Vercel + Neon，不 migration | 已完成（phase 8） |
 
 一句话：**测试与部署的"目标态"已收进本文档，现状是"有集成测试 + smoke + 手动部署"，其余是缺口。**
 缺口不写成已完成；补齐的顺序由 Lam 定，不在本轮擅自开工。

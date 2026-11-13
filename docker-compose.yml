@@ -43,5 +43,23 @@ services:
       interval: 5s
       timeout: 3s
       retries: 10
+  # Python AI service (phase 7) — contract only in phase 8: there is no
+  # Dockerfile under python-ai/ yet. Profile `ai` is OFF by default, so
+  # compose never builds it. To enable in phase 7:
+  # `docker compose --profile ai up -d` and set
+  # AI_CHAT_URL=http://ai:5000/api/chat in .env. The api does NOT depend on
+  # ai — the Node proxy fails open to the rule engine when ai is absent.
+  ai:
+    profiles: ["ai"]
+    build: ./python-ai
+    environment:
+      DEEPSEEK_API_KEY: ${DEEPSEEK_API_KEY:-}
+    expose:
+      - "5000"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request;urllib.request.urlopen('http://127.0.0.1:5000/health',timeout=3)"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 volumes:
   guiyan-pgdata:
