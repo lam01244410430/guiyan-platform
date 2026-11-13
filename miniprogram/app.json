@@ -24,32 +24,32 @@
       {
         "pagePath": "pages/index/index",
         "text": "首页",
-        "iconPath": "assets/tab-home.svg",
-        "selectedIconPath": "assets/tab-home-active.svg"
+        "iconPath": "assets/tab-home.png",
+        "selectedIconPath": "assets/tab-home-active.png"
       },
       {
         "pagePath": "pages/category/category",
         "text": "目录",
-        "iconPath": "assets/tab-grid.svg",
-        "selectedIconPath": "assets/tab-grid-active.svg"
+        "iconPath": "assets/tab-grid.png",
+        "selectedIconPath": "assets/tab-grid-active.png"
       },
       {
         "pagePath": "pages/demands/demands",
         "text": "需求",
-        "iconPath": "assets/tab-list.svg",
-        "selectedIconPath": "assets/tab-list-active.svg"
+        "iconPath": "assets/tab-list.png",
+        "selectedIconPath": "assets/tab-list-active.png"
       },
       {
         "pagePath": "pages/assistant/assistant",
         "text": "助理",
-        "iconPath": "assets/tab-chat.svg",
-        "selectedIconPath": "assets/tab-chat-active.svg"
+        "iconPath": "assets/tab-chat.png",
+        "selectedIconPath": "assets/tab-chat-active.png"
       },
       {
         "pagePath": "pages/me/me",
         "text": "我",
-        "iconPath": "assets/tab-me.svg",
-        "selectedIconPath": "assets/tab-me-active.svg"
+        "iconPath": "assets/tab-me.png",
+        "selectedIconPath": "assets/tab-me-active.png"
       }
     ]
   },
