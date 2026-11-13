@@ -2,8 +2,13 @@ import { readFile, realpath } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
 
-const webRoot = fileURLToPath(new URL("../web/", import.meta.url));
-const adminRoot = fileURLToPath(new URL("../admin/", import.meta.url));
+const useDist = process.env.STATIC_DIR === "dist";
+const webRoot = fileURLToPath(
+  new URL(useDist ? "../dist/" : "../web/", import.meta.url),
+);
+const adminRoot = fileURLToPath(
+  new URL(useDist ? "../dist/admin/" : "../admin/", import.meta.url),
+);
 const contentTypes = {
   ".html": "text/html; charset=utf-8",
   ".css": "text/css; charset=utf-8",
