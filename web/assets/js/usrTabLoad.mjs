@@ -75,16 +75,21 @@ export function loadTabInfo(get, s) {
     // R3-4: gifted coupons degrade the same way (null = section
     // hidden, the tab still renders).
     Promise.resolve().then(() => get("/api/account/coupon-gifts")).catch(() => null),
+    // R3-6: stored value degrades the same way (null = section
+    // hidden, the tab still renders).
+    Promise.resolve().then(() => get("/api/account/stored-value")).catch(() => null),
   ]).then(function (res) {
     const prof = res[0];
     const recs = res[1];
     const tier = res[2];
     const gifts = res[3];
+    const stored = res[4];
     if (!prof && !recs && !tier) { s.setError("info", true); }
     s.setProfile(prof ? prof.profile || null : null);
     s.setRecs(recs ? recs.recommendations || [] : []);
     if (s.setTier) s.setTier(tier || null);
     if (s.setGifts) s.setGifts(gifts ? gifts.coupon_gifts || [] : null);
+    if (s.setStoredValue) s.setStoredValue(stored || null);
     s.setLoading("info", false);
   }).catch(function (e) {
     s.setLoading("info", false);

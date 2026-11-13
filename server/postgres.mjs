@@ -12,6 +12,7 @@ import { seedStatements } from "./seed.mjs";
 import { enrichCatalog } from "./catalog-content.mjs";
 import { defaultTagRules } from "./lib/profiles.mjs";
 import { DEFAULT_TIERS } from "./routes/member-tiers.mjs";
+import { DEFAULT_PLANS } from "./routes/stored-value.mjs";
 
 // PostgreSQL aggregates return int8/numeric strings; the demo API uses numbers.
 pg.types.setTypeParser(20, Number);
@@ -166,6 +167,14 @@ export async function openPostgresStore(
       await client.query(
         "ALTER TABLE orders ADD COLUMN IF NOT EXISTS flash_cents INTEGER NOT NULL DEFAULT 0",
       );
+      // R3-6 (stored value, 2026-11-14): what one order actually took
+      // from the card (snapshot at pay time). The
+      // stored_value_accounts / stored_value_ledger /
+      // stored_value_plans tables themselves come from schema.mjs
+      // above, so the FK targets exist before this ALTER runs.
+      await client.query(
+        "ALTER TABLE orders ADD COLUMN IF NOT EXISTS stored_value_cents INTEGER NOT NULL DEFAULT 0",
+      );
       if (!(await client.query("SELECT COUNT(*) AS n FROM users")).rows[0].n) {
         // Batch adjacent inserts to keep first-time setup fast over the network.
         const groups = [];
@@ -236,6 +245,29 @@ export async function openPostgresStore(
                 t.min_spend_cents,
                 t.discount_pct,
                 t.benefits,
+                new Date().toISOString(),
+              ],
+            );
+        }
+      }
+      // R3-6 default stored-value plans (2026-11-14): the main shop's
+      // three top-up plans, inserted once when shop 1 has none (guard
+      // pattern, same as the tier backfill above). An admin's later
+      // edits are never overwritten — only an empty plan list is
+      // seeded. The plan rows themselves live in
+      // routes/stored-value.mjs (DEFAULT_PLANS); this block only runs
+      // the seed insert.
+      {
+        const existing = await client.query(
+          "SELECT COUNT(*) AS n FROM stored_value_plans WHERE shop_id=1",
+        );
+        if (Number(existing.rows[0].n) === 0) {
+          for (const t of DEFAULT_PLANS)
+            await client.query(
+              "INSERT INTO stored_value_plans(shop_id,amount_cents,bonus_cents,status,created_at) VALUES(1,$1,$2,'active',$3)",
+              [
+                t.amount_cents,
+                t.bonus_cents,
                 new Date().toISOString(),
               ],
             );
@@ -335,10 +367,13 @@ export async function openPostgresStore(
             // R3-1: member_tiers joins them too (tier create needs the id).
             // R3-2: coupons joins them too (coupon create needs the id).
             // R3-3: flash_sales joins them too (sale create needs the id).
-            // R3-5: sms_tasks joins them too (task create needs the id).
             // R3-4: coupon_rules + coupon_gifts join them too (rule /
             // gift create needs the id).
-            /^\s*INSERT\s+INTO\s+(users|resources|orders|demands|comments|messages|events|audit_logs|shops|shows|performances|ticket_types|pickup_points|ticket_templates|venues|seat_templates|seats|member_tiers|coupons|flash_sales|coupon_rules|coupon_gifts|sms_tasks)\b/i.test(
+            // R3-5: sms_tasks joins them too (task create needs the id).
+            // R3-6: stored_value_accounts + stored_value_ledger +
+            // stored_value_plans join them too (top-up / grant /
+            // plan create needs the id).
+            /^\s*INSERT\s+INTO\s+(users|resources|orders|demands|comments|messages|events|audit_logs|shops|shows|performances|ticket_types|pickup_points|ticket_templates|venues|seat_templates|seats|member_tiers|coupons|flash_sales|coupon_rules|coupon_gifts|sms_tasks|stored_value_accounts|stored_value_ledger|stored_value_plans)\b/i.test(
               sql,
             );
           const result = await execute(

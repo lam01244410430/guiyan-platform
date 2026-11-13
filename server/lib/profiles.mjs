@@ -286,6 +286,16 @@ export async function profileRows(ctx) {
   const byId = new Map(
     resources.map((r) => [r.id, { ...r, meta: parseMeta(r) }]),
   );
+  // R3-6: main-shop (shop 1) stored-value balances, one row per user
+  // who has ever topped up. The literal 1 is the main-shop id (same
+  // value as MAIN_SHOP_ID in routes/member-tiers.mjs; a literal here
+  // avoids a profiles <-> member-tiers circular import).
+  const storedBalances = await all(
+    "SELECT user_id, balance_cents FROM stored_value_accounts WHERE shop_id=1",
+  );
+  const balanceByUser = new Map(
+    storedBalances.map((r) => [r.user_id, r.balance_cents]),
+  );
   return users.map((u) => {
     const own = orders.filter((o) => o.user_id === u.id);
     const paid = own.filter((o) => PAID_STATUSES.includes(o.status));
@@ -301,6 +311,9 @@ export async function profileRows(ctx) {
     }
     const views = events.filter((e) => e.user_id === u.id);
     const spent = sum(paid, "amount");
+    // R3-6: the user's real main-shop 文惠卡 balance (0 when they
+    // have never topped up — no account row yet).
+    const storedBalance = balanceByUser.get(u.id) || 0;
     const metrics = {
       ...u,
       order_count: own.length,
@@ -394,10 +407,11 @@ export async function profileRows(ctx) {
             count,
           })),
           frequency: { paidCount: paid.length, orderCount: own.length },
-          // TBD: Lam has NO stored-value / 文惠卡 system — never invent
-          // a balance. balance stays null, storedValue says so in words.
-          balance: null,
-          storedValue: "尚未接入",
+          // R3-6: the 文惠卡 system exists now — the REAL main-shop
+          // balance in integer cents (0 when never topped up), and
+          // storedValue says the system is connected.
+          balance: storedBalance,
+          storedValue: "已接入",
         },
         showPref: {
           // Only the 22 original seed resources carry meta.genre; the

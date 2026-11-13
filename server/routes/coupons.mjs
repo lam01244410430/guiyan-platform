@@ -131,11 +131,19 @@ async function withStats(get, coupon) {
 
 // The coupon with this normalized code in this shop, or null. A code
 // that exists only in another shop is NOT found here (400 at order
-// time, never a cross-shop discount leak).
+// time, never a cross-shop discount leak). Row 77 (R3-6): a platform
+// coupon (shop_id NULL) applies in EVERY shop — it is the fallback
+// when the order's shop has no coupon of that code; a shop coupon with
+// the same code wins over the platform one.
 export async function findCoupon(get, shopId, code) {
-  return get(
+  const own = await get(
     "SELECT * FROM coupons WHERE shop_id=? AND code=?",
     shopId,
+    code,
+  );
+  if (own) return own;
+  return get(
+    "SELECT * FROM coupons WHERE shop_id IS NULL AND code=?",
     code,
   );
 }
@@ -226,7 +234,10 @@ export async function listAdminCoupons(ctx) {
     shopId === null
       ? await all("SELECT * FROM coupons ORDER BY shop_id ASC, id ASC")
       : await all(
-          "SELECT * FROM coupons WHERE shop_id=? ORDER BY id ASC",
+          // A shop-scoped admin sees their own shop's coupons AND the
+          // platform coupons (shop_id NULL, R3-6 row 77) — those apply
+          // to their shop's orders too.
+          "SELECT * FROM coupons WHERE shop_id=? OR shop_id IS NULL ORDER BY id ASC",
           shopId,
         );
   const coupons = [];
@@ -276,16 +287,25 @@ export async function createCoupon(ctx) {
     if (b.shop_id !== undefined && b.shop_id !== null) {
       const named = int(b.shop_id, "店铺", 1);
       assert(named === scope, "无权管理该店铺的优惠券", 403);
+    } else if (b.shop_id === null) {
+      // A platform coupon (shop_id NULL, R3-6 row 77) is platform-admin
+      // only — a shop-scoped admin naming it is a cross-shop write.
+      assert(false, "无权管理该店铺的优惠券", 403);
     }
     shopId = scope;
   } else {
+    // An explicit shop_id of null means a PLATFORM coupon (R3-6 row
+    // 77, applies in every shop); an omitted shop_id still defaults
+    // to the main shop, as before.
     shopId =
-      b.shop_id === undefined || b.shop_id === null
+      b.shop_id === undefined
         ? MAIN_SHOP_ID
-        : int(b.shop_id, "店铺", 1);
+        : b.shop_id === null
+          ? null
+          : int(b.shop_id, "店铺", 1);
   }
   assertCouponAccess(session, shopId);
-  await getShopOr404(get, shopId);
+  if (shopId !== null) await getShopOr404(get, shopId);
   const code = normalizeCouponCode(b.code);
   const kind = b.kind;
   assert(kind === "fixed" || kind === "pct", "优惠券类型须为 fixed 或 pct", 400);
@@ -322,12 +342,22 @@ export async function createCoupon(ctx) {
   const status = b.status === undefined || b.status === null ? "active" : b.status;
   assert(status === "active" || status === "disabled", "优惠券状态须为 active 或 disabled", 400);
   // Same-shop duplicate code -> 409 (explicit pre-check for a clear
-  // message; UNIQUE(shop_id, code) is the backstop).
-  const dup = await get(
-    "SELECT id FROM coupons WHERE shop_id=? AND code=?",
-    shopId,
-    code,
-  );
+  // message; UNIQUE(shop_id, code) is the backstop). A platform coupon
+  // needs its own pre-check: Postgres UNIQUE treats NULL shop_ids as
+  // distinct from each other, so `shop_id=?` with a NULL parameter
+  // would never match — the pre-check below is the real guard for the
+  // platform scope.
+  const dup =
+    shopId === null
+      ? await get(
+          "SELECT id FROM coupons WHERE shop_id IS NULL AND code=?",
+          code,
+        )
+      : await get(
+          "SELECT id FROM coupons WHERE shop_id=? AND code=?",
+          shopId,
+          code,
+        );
   assert(!dup, "该店铺已存在相同券码", 409);
   const result = await run(
     "INSERT INTO coupons(shop_id,code,kind,value_cents,discount_pct,min_spend_cents,valid_from,valid_until,quota,per_user_limit,status,created_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)",
@@ -346,7 +376,7 @@ export async function createCoupon(ctx) {
   );
   const id = Number(result.lastInsertRowid);
   const created = await get("SELECT * FROM coupons WHERE id=?", id);
-  await audit(session, "新增优惠券", `${created.code}（${shopId}号店）`);
+  await audit(session, "新增优惠券", `${created.code}（${shopId === null ? "平台" : `${shopId}号店`}）`);
   send({ ok: true, id, coupon: await withStats(get, created) });
   return true;
 }
@@ -443,7 +473,7 @@ export async function patchCoupon(ctx) {
     id,
   );
   const fresh = await get("SELECT * FROM coupons WHERE id=?", id);
-  await audit(session, "修改优惠券", `${fresh.code}（${fresh.shop_id}号店）`);
+  await audit(session, "修改优惠券", `${fresh.code}（${fresh.shop_id === null ? "平台" : `${fresh.shop_id}号店`}）`);
   send({ ok: true, coupon: await withStats(get, fresh) });
   return true;
 }

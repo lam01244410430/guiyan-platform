@@ -13,6 +13,10 @@ import {
   markGiftRedeemed,
 } from "./auto-coupons.mjs";
 import { resolveFlashSale, saleUnitPrice } from "./flash-sales.mjs";
+import {
+  applyStoredValueAtPay,
+  refundStoredValue,
+} from "./stored-value.mjs";
 
 // R3-1 + R3-2 + R3-3 pricing, in one place so the pre-check and the
 // in-transaction re-price agree exactly: the flash sale applies
@@ -315,6 +319,7 @@ export async function createOrder(ctx) {
       coupon_cents: created.coupon_cents,
       flash_sale_id: created.flash_sale_id,
       flash_cents: created.flash_cents,
+      stored_value_cents: created.stored_value_cents || 0,
       status: created.status,
       pickup_point: extra.pickup_point,
       ticket_template: extra.ticket_template,
@@ -342,7 +347,7 @@ export async function getOrder(ctx) {
 }
 
 export async function transitionOrder(ctx) {
-  const { p, req, b, send, needUser, get, all, run, transaction, notify, audit, cache } = ctx;
+  const { p, req, b, send, needUser, get, all, run, transaction, notify, audit, cache, time } = ctx;
   const m = p.match(/^\/api\/orders\/(\d+)\/(confirm|pay|complete|cancel|refund|approveRefund|rejectRefund|dispute|rejectDispute|resolve)$/);
   if (m && req.method === "POST") {
     const u = needUser(),
@@ -396,6 +401,11 @@ export async function transitionOrder(ctx) {
     else if (action === "approveRefund") decision = "审核通过，已模拟退款";
     else if (action === "rejectRefund" || action === "rejectDispute")
       decision = text(b.reason || "", "拒绝原因", 500);
+    // R3-6: what the pay / approveRefund did with the card (set inside
+    // the transaction below, read by the notify text and the response
+    // after it). Null = the action involves no stored value.
+    let payStored = null;
+    let refundStored = 0;
     await transaction(async () => {
       // R3-4: the live tier BEFORE the status change (for a pay,
       // spending excludes this order — it is still confirmed).
@@ -421,6 +431,32 @@ export async function transitionOrder(ctx) {
         decision,
         o.id,
       );
+      // R3-6 stored value (same transaction as the status change): at
+      // pay the card covers up to the balance (used = min(balance,
+      // amount); the remainder goes through the simulated payment
+      // path); on refund approval the card's share comes back FIRST.
+      // Cancel / refund_requested / disputed write no ledger rows
+      // (cancel never paid, the other two are not approvals).
+      if (action === "pay")
+        payStored = await applyStoredValueAtPay(
+          get,
+          run,
+          o.user_id,
+          orderShopId,
+          o.id,
+          o.amount,
+          time(),
+        );
+      if (action === "approveRefund")
+        refundStored = await refundStoredValue(
+          get,
+          run,
+          o.user_id,
+          orderShopId,
+          o.id,
+          o.stored_value_cents || 0,
+          time(),
+        );
       if (["cancelled", "refunded"].includes(to) && !bookingType(o))
         await run(
           "UPDATE resources SET stock=stock+? WHERE id=?",
@@ -463,13 +499,13 @@ export async function transitionOrder(ctx) {
         await notify(
           o.user_id,
           "订单售后处理结果",
-          `${o.code} · ${o.resource_name}：${result}。${action === "approveRefund" ? "" : "原因：" + decision + "。"}该处理为模拟，未产生真实扣款/退款。`,
+          `${o.code} · ${o.resource_name}：${result}。${action === "approveRefund" ? (refundStored > 0 ? `其中 ¥${(refundStored / 100).toString()} 已返还文惠卡。` : "") : "原因：" + decision + "。"}该处理为模拟，未产生真实扣款/退款。`,
         );
       } else {
         await notify(
           o.user_id,
           "订单状态更新",
-          `${o.code} · ${o.resource_name} → ${ORDER_STATUS_ZH[to]}。${action === "pay" ? "这是模拟支付，未扣款。" : ""}`,
+          `${o.code} · ${o.resource_name} → ${ORDER_STATUS_ZH[to]}。${action === "pay" ? (payStored && payStored.used > 0 ? `文惠卡已扣 ¥${(payStored.used / 100).toString()}，剩余 ¥${(payStored.remainder / 100).toString()}为模拟支付，未扣款。` : "这是模拟支付，未扣款。") : ""}`,
         );
       }
       await audit(u, `订单操作 ${action}`, o.code);
@@ -510,7 +546,15 @@ export async function transitionOrder(ctx) {
       ok: true,
       status: to,
       ...(action === "pay"
-        ? { simulated: true, note: "模拟支付，未扣款" }
+        ? {
+            simulated: true,
+            note: "模拟支付，未扣款",
+            stored_value_cents: payStored?.used ?? 0,
+            remainder_cents: payStored?.remainder ?? o.amount,
+          }
+        : {}),
+      ...(action === "approveRefund" && refundStored > 0
+        ? { refunded_to_card_cents: refundStored }
         : {}),
     });
     return true;

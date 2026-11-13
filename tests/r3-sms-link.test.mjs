@@ -13,7 +13,7 @@
 // tier = stored tier holders, compared against live DB counts);
 // cross-shop -> 403, anon/non-admin -> 403; PATCH /api/account/social
 // with a bad key -> 400, maoyan handle stored + returned + deletable
-// by empty string; i18n key counts (H5 354, miniprogram 157, equal
+// by empty string; i18n key counts (H5 360, miniprogram 163, equal
 // sets).
 import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
@@ -425,15 +425,16 @@ test("social: bad key -> 400; maoyan handle stored + returned; empty string dele
   assert.equal(cleared.data.social.douyin, "sms_douyin");
 });
 
-test("r3-sms-link i18n: H5 354 keys/language, miniprogram 157, equal sets", async () => {
+test("r3-sms-link i18n: H5 360 keys/language, miniprogram 163, equal sets", async () => {
   // i18n: 1 new socMaoyan key on H5 only (353 -> 354); the
   // miniprogram has no social-links UI at all (all soc* keys are
-  // H5-only), so it stays at 157.
+  // H5-only), so it stays at 157; R3-6 adds 6 stored-value keys on
+  // both sides (354 -> 360, 157 -> 163).
   const data = await import(
     path.resolve(repoDir, "web", "assets", "js", "data.js")
   );
   const counts = data.LANGS.map((l) => Object.keys(data.I18N[l]).length);
-  assert.deepEqual(counts, [354, 354, 354]);
+  assert.deepEqual(counts, [360, 360, 360]);
   for (const l of data.LANGS)
     assert.ok("socMaoyan" in data.I18N[l], `socMaoyan missing in H5 ${l}`);
   const text = fs.readFileSync(
@@ -451,7 +452,7 @@ test("r3-sms-link i18n: H5 354 keys/language, miniprogram 157, equal sets", asyn
     ].map((m) => m[1]);
   }
   for (const lang of ["zh", "vi", "en"]) {
-    assert.equal(blocks[lang].length, 157, `${lang} key count`);
+    assert.equal(blocks[lang].length, 163, `${lang} key count`);
     assert.ok(!blocks[lang].includes("socMaoyan"), `socMaoyan must stay H5-only, found in mini ${lang}`);
   }
   const sets = Object.values(blocks).map((k) => new Set(k));

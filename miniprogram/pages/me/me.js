@@ -23,6 +23,8 @@ Page({
     loggedUser: '', displayName: '', avatarChar: '桂', linkStatus: '',
     wxAvatar: '', wxNick: '', profile: {}, genderText: '', memberTier: null,
     tierLine: '', tierNextLine: '', giftCoupons: null, giftCouponLines: [],
+    storedValue: null, storedValueLine: '', storedValuePlanLines: [],
+    storedValueLedgerLines: [],
     showLink: false, linkUser: '', linkPass: '',
     showEdit: false, editName: '', editCity: '', editAge: '', editGenderIdx: 0,
     genderNames: [], showAbout: false
@@ -53,7 +55,9 @@ Page({
       'wxLoginFailed', 'linkFailed', 'langLabel',
       'memberTierTitle', 'memberTierCurrent', 'memberTierNext',
       'memberTierSpendMore', 'memberTierDiscount',
-      'giftCouponTitle', 'giftCouponEmpty', 'giftCouponUsed'];
+      'giftCouponTitle', 'giftCouponEmpty', 'giftCouponUsed',
+      'storedValueTitle', 'storedValueBalance', 'storedValueTopup',
+      'storedValuePlan', 'storedValueEmpty', 'storedValueUsed'];
     var L = {};
     keys.forEach(function (k) { L[k] = i18n.t(k, lang); });
     wx.setNavigationBarTitle({ title: L.meTitle });
@@ -72,6 +76,8 @@ Page({
     if (!user) {
       this.setData({ loggedUser: '', profile: {}, genderText: '', memberTier: null,
         giftCoupons: null, giftCouponLines: [],
+        storedValue: null, storedValueLine: '', storedValuePlanLines: [],
+        storedValueLedgerLines: [],
         displayName: this.data.wxNick || i18n.t('notLoggedIn', lang),
         avatarChar: (this.data.wxNick || '桂').slice(0, 1),
         linkStatus: i18n.t('unlinkedAccount', lang) });
@@ -117,6 +123,35 @@ Page({
       });
       self.setData({ giftCoupons: gifts, giftCouponLines: lines });
     }).catch(function () { /* keep giftCoupons null */ });
+    // R3-6: own stored value (best-effort — a failed fetch leaves the
+    // section hidden, it never blocks the page). Display strings are
+    // built here: WXML bindings cannot call String.replace.
+    api.get('/api/account/stored-value', {}, true).then(function (d) {
+      if (!d) { self.setData({ storedValue: null, storedValueLine: '', storedValuePlanLines: [], storedValueLedgerLines: [] }); return; }
+      var balance = (d.account ? d.account.balance_cents : 0) / 100;
+      var planLines = (d.plans || []).map(function (pl) {
+        return { id: pl.id, label: i18n.fmt(i18n.t('storedValuePlan', lang), { a: pl.amount_cents / 100, b: pl.bonus_cents / 100 }) };
+      });
+      var ledgerLines = (d.ledger || []).slice(0, 5).map(function (l) {
+        var amt = (l.amount_cents >= 0 ? '+¥' : '−¥') + (Math.abs(l.amount_cents) / 100);
+        return (l.kind_label || l.kind) + ' ' + amt + (l.order_code ? ' · ' + l.order_code : '');
+      });
+      self.setData({ storedValue: d,
+        storedValueLine: i18n.t('storedValueBalance', lang) + ' ¥' + balance,
+        storedValuePlanLines: planLines, storedValueLedgerLines: ledgerLines });
+    }).catch(function () { /* keep storedValue null */ });
+  },
+  // R3-6: top up the 文惠卡 with one of the shop's plans, then reload
+  // the stored-value section. A failure toasts the server's message.
+  topupPlan: function (e) {
+    var self = this;
+    var planId = Number(e.currentTarget.dataset.planid);
+    if (!planId) return;
+    api.post('/api/account/topup', { plan_id: planId }, true).then(function () {
+      self.syncAuth();
+    }).catch(function (err) {
+      wx.showToast({ title: (err && err.message) || '充值失败', icon: 'none', duration: 2500 });
+    });
   },
   // --- layer 1: one-tap WeChat sign-in -------------------------------------
   wechatLogin: function () {

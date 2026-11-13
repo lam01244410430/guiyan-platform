@@ -71,6 +71,10 @@ export default function UserDashboard() {
   const [usrTier, setUsrTier] = useState(null);
   // R3-4: own gifted coupons (same info-tab loader).
   const [usrGifts, setUsrGifts] = useState(null);
+  // R3-6: own stored-value account + plans + ledger (same info-tab
+  // loader); top-up is busy-guarded like the other account writes.
+  const [usrStored, setUsrStored] = useState(null);
+  const [topupBusy, setTopupBusy] = useState(false);
   // Wave 4 #13: per-order refund/dispute reason typed by the user (sent
   // as {reason} with the refund/dispute call) + the order id currently
   // running an action (buttons disabled meanwhile, demands pattern).
@@ -174,6 +178,7 @@ export default function UserDashboard() {
     setRecs: setUsrRecs,
     setTier: setUsrTier,
     setGifts: setUsrGifts,
+    setStoredValue: setUsrStored,
     setMessages: setUsrMessages,
     setUnread: setUsrUnread,
     currentUser: () => currentUser(),
@@ -186,6 +191,27 @@ export default function UserDashboard() {
      valid, and only a 401 closes it again. */
   function loadAllTabsNow() {
     loadAllTabs(apiGet, tabSetters);
+  }
+
+  /* R3-6: top up the 文惠卡 with one of the shop's plans, then reload
+     the info tab (balance + ledger come back with it). */
+  function doTopup(planId) {
+    if (topupBusy) return;
+    setTopupBusy(true);
+    apiPost("/api/account/topup", { plan_id: planId }).then(function () {
+      setTopupBusy(false);
+      loadTabInfo(apiGet, tabSetters);
+    }).catch(function () { setTopupBusy(false); });
+  }
+
+  /* R3-6: download the own stored-value ledger as CSV (BOM, same
+     columns as the server export); a raw fetch is needed because
+     apiFetch parses JSON and would drop the CSV text. */
+  function downloadStoredValueCsv() {
+    fetch("/api/account/stored-value?format=csv", { headers: { Authorization: "Bearer " + getToken() } })
+      .then(function (res) { if (!res.ok) throw new Error("HTTP " + res.status); return res.text(); })
+      .then(function (txt) { downloadText(txt, "guiyan-stored-value.csv"); })
+      .catch(function () {});
   }
 
   /* Avatar: resolve the stored key to a presigned URL for the header chip +
@@ -647,6 +673,22 @@ export default function UserDashboard() {
                       {usrGifts.length ? usrGifts.map((g) => (
                         <div className="row" key={g.id}><span className="k">{g.coupon_code}</span><span className="v">{g.kind === "fixed" ? "−¥" + ((g.value_cents || 0) / 100) : "−" + (g.discount_pct || 0) + "%"}{g.status === "redeemed" ? " · " + t("giftCouponUsed") : ""}</span></div>
                       )) : <div className="row"><span className="v">{t("giftCouponEmpty")}</span></div>}
+                    </div>
+                  </section>
+                ) : null}
+
+                {usrStored ? (
+                  <section className="db-sec">
+                    <h3>{t("storedValueTitle")}</h3>
+                    <div className="db-profile">
+                      <div className="row"><span className="k">{t("storedValueBalance")}</span><span className="v">{fmtMoney(usrStored.account ? usrStored.account.balance_cents : 0)}</span></div>
+                      {(usrStored.plans || []).map((pl) => (
+                        <div className="row" key={pl.id}><span className="k">{fmt(t("storedValuePlan"), { a: pl.amount_cents / 100, b: pl.bonus_cents / 100 })}</span><span className="v"><button type="button" className="btn ghost" disabled={topupBusy} onClick={() => doTopup(pl.id)}>{t("storedValueTopup")}</button></span></div>
+                      ))}
+                      {(usrStored.ledger || []).length ? usrStored.ledger.slice(0, 5).map((l) => (
+                        <div className="row" key={l.id}><span className="k">{l.kind_label}</span><span className="v">{l.amount_cents >= 0 ? "+¥" + (l.amount_cents / 100) : "−¥" + (Math.abs(l.amount_cents) / 100)}{l.order_code ? " · " + l.order_code : ""}</span></div>
+                      )) : <div className="row"><span className="v">{t("storedValueEmpty")}</span></div>}
+                      <div className="row"><span className="k"></span><span className="v"><button type="button" className="btn ghost" onClick={downloadStoredValueCsv}>CSV</button></span></div>
                     </div>
                   </section>
                 ) : null}

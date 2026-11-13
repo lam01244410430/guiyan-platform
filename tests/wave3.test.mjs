@@ -255,9 +255,12 @@ test("wave3 #11b: GET /api/profile needs login and matches the demo's real order
     paidCount: paid.length,
     orderCount: orders.length,
   });
-  // 储值情况 TBD: no stored-value system — never a balance.
-  assert.equal(p.portrait.spending.balance, null);
-  assert.equal(p.portrait.spending.storedValue, "尚未接入");
+  // 储值情况 (R3-6): the 文惠卡 system exists now — the REAL main-shop
+  // balance in integer cents. The demo user never topped up (no test
+  // before this one tops anyone up — top-ups live only in the R3-6
+  // test file, which runs last), so the real balance is 0.
+  assert.equal(p.portrait.spending.balance, 0);
+  assert.equal(p.portrait.spending.storedValue, "已接入");
   // 观演偏好: the only meta.genre value anywhere in the seed is 民族歌舞
   // (22 original resources; the 40 catalog rows carry no genre), so a
   // demo with any genre interaction has exactly that genre.
@@ -421,7 +424,7 @@ test("wave3 #11b: recommendations userId gate (demo 403, admin 200, anon 401)", 
   assert.equal(missing.status, 404);
 });
 
-test("wave3 i18n: 354 keys in zh/vi/en with equal sets (335 - 16 demo/wechat keys + 3 mini-program card keys + 3 demand-status keys + 3 performance keys + 5 tier keys + 3 pickup keys + 1 venue key + 2 seat keys + 5 member-tier keys + 3 coupon keys + 3 flash-sale keys + 3 gift keys + 1 maoyan key)", async () => {
+test("wave3 i18n: 360 keys in zh/vi/en with equal sets (335 - 16 demo/wechat keys + 3 mini-program card keys + 3 demand-status keys + 3 performance keys + 5 tier keys + 3 pickup keys + 1 venue key + 2 seat keys + 5 member-tier keys + 3 coupon keys + 3 flash-sale keys + 3 gift keys + 1 maoyan key + 6 stored-value keys)", async () => {
   const data = await import(
     path.resolve(
       path.dirname(fileURLToPath(import.meta.url)),
@@ -433,11 +436,11 @@ test("wave3 i18n: 354 keys in zh/vi/en with equal sets (335 - 16 demo/wechat key
     )
   );
   const counts = data.LANGS.map((l) => Object.keys(data.I18N[l]).length);
-  assert.deepEqual(counts, [354, 354, 354]);
+  assert.deepEqual(counts, [360, 360, 360]);
   for (const k of ["profileTitle", "profileBasic", "profileSpending", "profileShowPref", "profileBehavior", "profileChannel", "profileAge", "profileGender", "profileRegion", "profileRegionNote", "profileActiveCity", "profilePricePref", "profilePriceBand", "profileFrequency", "profileFrequencyValue", "profileStoredValue", "profileGenre", "profileArtist", "profileVenue", "profileShowType", "profileTimeSlot", "profileTimeNote", "profilePayment", "profileSharing", "profileRepeat", "profileSource", "profileSuggestion", "recTitle", "recScore", "availLeft", "availBooked", "availFree", "availService", "seatTitle", "seatNote", "bookedDates", "metaTitle", "metaDuration", "metaTeam", "metaGenre", "metaExperience", "metaAgency", "metaProcess", "metaAddress", "metaFacilities", "metaModel", "metaDeposit", "metaUsage", "metaScope", "metaTerm", "metaTerritory", "metaRights", "metaCertificate", "metaSpecification", "metaShipping", "metaPlayback", "metaIncludes", "metaPartner", "metaKind", "metaChannels", "metaServiceNote", "lightTitle", "lightNote", "lightRotate", "lightColor", "digiStart", "digiPause", "digiNote", "contractBtn", "contractDownload", "stRefundRequested", "stDisputed", "actDispute", "refundReasonPh", "refundWaiting", "disputeWaiting", "refundReasonLbl", "refundDecisionLbl", "priceMinPh", "priceMaxPh", "ratingAll", "rating4", "rating45", "inboxTitle", "inboxEmpty", "inboxMarkAll", "admResAdd", "admResEdit", "admResPublish", "admResUnpublish", "admResSync", "admResLastSync", "admResSyncResult", "admResName", "admResCategory", "admResCity", "admResPrice", "admResUnit", "admResDesc", "admResImage", "admResStock", "admResCapacity", "admResStatus", "admResSave", "admResCancel", "admResSaved", "tabInfo", "ordSearchPh", "ordColCode", "ordColDate", "ordColQty", "ordColAmount", "ordColActions", "profEditTitle", "avatarTitle", "avatarChange", "avatarHint", "avatarBadType", "avatarTooBig", "lblId", "lblCreated", "genderMale", "genderFemale", "genderNone", "tabPassword", "pwCurrent", "pwNew", "pwConfirm", "pwMismatch", "tabEmail", "emailCurrent", "emailNew", "emailNone", "tabSocial", "socialNote", "socDouyin", "socWechat", "socXiaohongshu", "socMaoyan", "tabPhone", "phoneCurrent", "phoneNew", "phoneNone", "otpSend", "otpCode", "otpCodePh", "otpDemoNote", "loginLocked"]) {
     for (const l of data.LANGS) assert.ok(k in data.I18N[l], `${k} missing in ${l}`);
   }
-  for (const k of ["dmPending", "dmApproved", "dmRejected"]) {
+  for (const k of ["dmPending", "dmApproved", "dmRejected", "storedValueTitle", "storedValueBalance", "storedValueTopup", "storedValuePlan", "storedValueEmpty", "storedValueUsed"]) {
     for (const l of data.LANGS) assert.ok(k in data.I18N[l], `${k} missing in ${l}`);
   }
 });

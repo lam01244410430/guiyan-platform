@@ -40,6 +40,14 @@
       <view class="note" wx:if="{{memberTier}}">{{L.memberTierTitle}}：{{tierLine}}</view>
       <view class="note" wx:if="{{memberTier && memberTier.next_tier}}">{{L.memberTierNext}}：{{tierNextLine}}</view>
       <view class="note" wx:if="{{giftCoupons}}">{{L.giftCouponTitle}}：<block wx:if="{{giftCouponLines.length}}"><block wx:for="{{giftCouponLines}}" wx:key="*this">{{item}}<text wx:if="{{index < giftCouponLines.length - 1}}">；</text></block></block><block wx:else>{{L.giftCouponEmpty}}</block></view>
+      <view class="note" wx:if="{{storedValue}}">{{L.storedValueTitle}}：{{storedValueLine}}</view>
+      <block wx:if="{{storedValuePlanLines.length}}">
+        <block wx:for="{{storedValuePlanLines}}" wx:key="id">
+          <view class="btn ghost" data-planid="{{item.id}}" bindtap="topupPlan">{{L.storedValueTopup}} · {{item.label}}</view>
+        </block>
+      </block>
+      <view class="note" wx:if="{{storedValueLedgerLines.length}}"><block wx:for="{{storedValueLedgerLines}}" wx:key="*this">{{item}}<text wx:if="{{index < storedValueLedgerLines.length - 1}}">；</text></block></view>
+      <view class="note" wx:if="{{storedValue && !storedValueLedgerLines.length}}">{{L.storedValueEmpty}}</view>
       <view class="btn ghost" bindtap="toggleEdit">{{L.editProfileBtn}}</view>
       <block wx:if="{{showEdit}}">
         <input class="field" placeholder="{{L.nameLabel}}" value="{{editName}}" bindinput="onEditName" />

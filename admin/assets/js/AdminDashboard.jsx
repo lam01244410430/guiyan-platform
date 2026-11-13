@@ -45,6 +45,9 @@ const NAV_ICONS = {
   aicopy: (<><path d="M12 20h9" /><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z" /></>),
   account: (<><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2" /><circle cx="12" cy="7" r="4" /></>),
   tiers: (<><path d="M11.562 3.266a.5.5 0 0 1 .876 0L15.39 8.87a1 1 0 0 0 1.516.294L21.183 5.5a.5.5 0 0 1 .798.519l-2.834 10.246a1 1 0 0 1-.956.735H5.81a1 1 0 0 1-.957-.735L2.02 6.02a.5.5 0 0 1 .798-.519l4.276 3.664a1 1 0 0 0 1.516-.294z" /><path d="M5 21h14" /></>),
+  // R3-6 文惠卡: same crown glyph as 会员等级 (member card) — there is
+  // no dedicated wallet glyph in admin/assets/icons/ yet.
+  storedvalue: (<><path d="M11.562 3.266a.5.5 0 0 1 .876 0L15.39 8.87a1 1 0 0 0 1.516.294L21.183 5.5a.5.5 0 0 1 .798.519l-2.834 10.246a1 1 0 0 1-.956.735H5.81a1 1 0 0 1-.957-.735L2.02 6.02a.5.5 0 0 1 .798-.519l4.276 3.664a1 1 0 0 0 1.516-.294z" /><path d="M5 21h14" /></>),
 };
 function NavIcon({ v }) {
   return (
@@ -81,6 +84,7 @@ const VIEWS = [
   { id: "flashsales", label: "限时抢购", iconName: "ui:percent", group: "main" },
   { id: "autorules", label: "自动发券", iconName: "ui:gift", group: "main" },
   { id: "smstasks", label: "短信群发", iconName: "ui:pen", group: "main" },
+  { id: "storedvalue", label: "文惠卡", iconName: "ui:crown", group: "main" },
   { id: "shops", label: "店铺", iconName: "ui:store", group: "main" },
   { id: "demands", label: "需求", iconName: "ui:clipboard-list", group: "main" },
   { id: "trends", label: "趋势统计", iconName: "ui:chart-line", group: "premium" },
@@ -321,6 +325,16 @@ export default function AdminDashboard() {
   const [smsTasks, setSmsTasks] = useState([]);
   const [smsTaskForm, setSmsTaskForm] = useState(null);
   const [smsTaskBusyId, setSmsTaskBusyId] = useState(null);
+  // R3-6 stored value 文惠卡: the plan list (already shop-scoped by
+  // the server) + the open create/edit draft + the id of the plan in
+  // flight + the subsidy-grant form + the per-user account lookup.
+  const [storedValuePlans, setStoredValuePlans] = useState([]);
+  const [storedValuePlanForm, setStoredValuePlanForm] = useState(null);
+  const [storedValuePlanBusyId, setStoredValuePlanBusyId] = useState(null);
+  const [grantForm, setGrantForm] = useState({ user_id: "", amount_cents: "", note: "", shop_id: "1" });
+  const [grantBusy, setGrantBusy] = useState(false);
+  const [lookupUserId, setLookupUserId] = useState("");
+  const [lookupResult, setLookupResult] = useState(null);
   const [acctBusy, setAcctBusy] = useState(false);
   const [acctOtp, setAcctOtp] = useState("");
   const [acctOtpInput, setAcctOtpInput] = useState("");
@@ -366,6 +380,7 @@ export default function AdminDashboard() {
       apiGet("/api/venues"), apiGet("/api/admin/member-tiers"),
       apiGet("/api/admin/coupons"), apiGet("/api/admin/flash-sales"),
       apiGet("/api/admin/coupon-rules"), apiGet("/api/admin/sms-tasks"),
+      apiGet("/api/admin/stored-value-plans"),
     ]).then(function (res) {
       setStats(res[0]);
       setOrders(res[1].orders || []);
@@ -383,6 +398,7 @@ export default function AdminDashboard() {
       setFlashSales(res[10].flash_sales || []);
       setCouponRules(res[11].coupon_rules || []);
       setSmsTasks(res[12].sms_tasks || []);
+      setStoredValuePlans(res[13].stored_value_plans || []);
       setView("overview");
     }).catch(function (e) {
       if (e && e.status === 401) { clearToken(); location.href = "/admin/index.html"; return; }
@@ -706,6 +722,93 @@ export default function AdminDashboard() {
       else if (e && e.status === 404) toast("会员等级不存在");
       else toast((e && e.data && e.data.error) || "保存失败，请检查表单");
     }).finally(function () { setTierBusyId(null); });
+  }
+  // R3-6 stored value 文惠卡 (same disabled-while-processing pattern
+  // as the member-tier form). A shop-scoped admin creates/edits only
+  // their own shop's plans and grants only into their own shop (the
+  // server returns 403 otherwise); a platform admin names the shop in
+  // the create form. The subsidy grant is a bonus credit on the user's
+  // (user, shop) account — there is no second card system. The
+  // per-user lookup reads that shop's account + ledger; the CSV button
+  // downloads the same ledger (BOM, same columns as the server export).
+  function loadStoredValuePlans() {
+    apiGet("/api/admin/stored-value-plans").then(function (d) {
+      setStoredValuePlans(d.stored_value_plans || []);
+    }).catch(loadFail);
+  }
+  function openStoredValuePlanForm(pl) {
+    setStoredValuePlanForm(pl ? {
+      id: pl.id, amount_cents: String(pl.amount_cents || 0),
+      bonus_cents: String(pl.bonus_cents || 0), status: pl.status || "active",
+      shop_id: String(pl.shop_id),
+    } : {
+      id: null, amount_cents: "10000", bonus_cents: "1000", status: "active",
+      shop_id: isPlatformAdmin ? "1" : (me && me.shop_id ? String(me.shop_id) : "1"),
+    });
+  }
+  function editStoredValuePlanForm(key, value) {
+    setStoredValuePlanForm(function (f) { return f ? { ...f, [key]: value } : f; });
+  }
+  function saveStoredValuePlanForm() {
+    if (!storedValuePlanForm || storedValuePlanBusyId !== null) return;
+    const amount = Number(storedValuePlanForm.amount_cents);
+    if (!Number.isInteger(amount) || amount < 1) { toast("充值金额须为不小于 1 的整数（分）"); return; }
+    const bonus = Number(storedValuePlanForm.bonus_cents);
+    if (!Number.isInteger(bonus) || bonus < 0) { toast("赠送金额须为不小于 0 的整数（分）"); return; }
+    const body = {
+      amount_cents: amount, bonus_cents: bonus,
+      status: storedValuePlanForm.status,
+    };
+    if (storedValuePlanForm.id === null && isPlatformAdmin) body.shop_id = Number(storedValuePlanForm.shop_id) || 1;
+    setStoredValuePlanBusyId(storedValuePlanForm.id === null ? "new" : storedValuePlanForm.id);
+    const call = storedValuePlanForm.id === null
+      ? apiPost("/api/admin/stored-value-plans", body)
+      : apiPatch("/api/admin/stored-value-plans/" + storedValuePlanForm.id, body);
+    call.then(function (d) {
+      const saved = d.stored_value_plan;
+      setStoredValuePlans(function (ps) {
+        return storedValuePlanForm.id === null ? ps.concat([saved])
+          : ps.map(function (x) { return x.id === saved.id ? saved : x; });
+      });
+      setStoredValuePlanForm(null);
+      loadAudit();
+      toast("已保存");
+    }).catch(function (e) {
+      if (e && e.status === 403) toast("只能管理本店铺的文惠卡");
+      else if (e && e.status === 404) toast("储值套餐不存在");
+      else toast((e && e.data && e.data.error) || "保存失败，请检查表单");
+    }).finally(function () { setStoredValuePlanBusyId(null); });
+  }
+  function doGrantStoredValue() {
+    if (grantBusy) return;
+    const userId = Number(grantForm.user_id);
+    if (!Number.isInteger(userId) || userId < 1) { toast("请填写用户编号"); return; }
+    const amount = Number(grantForm.amount_cents);
+    if (!Number.isInteger(amount) || amount < 1 || amount > 500000) { toast("补贴金额须为 1–500000 的整数（分，上限 ¥5000）"); return; }
+    const body = { user_id: userId, amount_cents: amount };
+    if (grantForm.note.trim()) body.note = grantForm.note.trim();
+    if (isPlatformAdmin && grantForm.shop_id) body.shop_id = Number(grantForm.shop_id) || 1;
+    setGrantBusy(true);
+    apiPost("/api/admin/stored-value/grant", body).then(function (d) {
+      setGrantForm({ user_id: "", amount_cents: "", note: "", shop_id: "1" });
+      loadAudit();
+      toast("已发放，当前余额 " + fmtMoney(d.account.balance_cents));
+    }).catch(function (e) {
+      if (e && e.status === 403) toast("只能管理本店铺的文惠卡");
+      else if (e && e.status === 404) toast("用户或店铺不存在");
+      else toast((e && e.data && e.data.error) || "发放失败，请检查表单");
+    }).finally(function () { setGrantBusy(false); });
+  }
+  function doLookupStoredValue() {
+    const userId = Number(lookupUserId);
+    if (!Number.isInteger(userId) || userId < 1) { toast("请填写用户编号"); return; }
+    apiGet("/api/admin/stored-value/" + userId).then(function (d) {
+      setLookupResult(d);
+    }).catch(function (e) {
+      if (e && e.status === 404) toast("用户不存在");
+      else if (e && e.status === 403) toast("只能管理本店铺的文惠卡");
+      else toast((e && e.data && e.data.error) || "查询失败");
+    });
   }
   // R3-2 coupons (same disabled-while-processing pattern as the
   // member-tier form). A shop-scoped admin creates/edits only their
@@ -2867,6 +2970,109 @@ export default function AdminDashboard() {
                 </tbody>
               </table>
             </div>
+          </section>
+
+          <section className={"view" + (view === "storedvalue" ? " on" : "")} id="view-storedvalue">
+            <div className="search-row">
+              <button type="button" className="btn-export" onClick={() => openStoredValuePlanForm(null)}>添加储值套餐</button>
+            </div>
+            <div className="note">文惠卡按店配置：顾客选套餐充值（充多少送多少，模拟充值，未产生真实扣款），下单支付时先扣卡内余额、余款走模拟支付，退款批准时先返还卡内已扣的部分。每账户余额上限 ¥5000。平台补贴是发到卡里的赠送余额，不是第二套卡。</div>
+            {storedValuePlanForm ? (
+              <fieldset className="tag-rule">
+                <legend>{storedValuePlanForm.id === null ? "添加储值套餐" : "编辑储值套餐"}</legend>
+                <label>充值金额（分） <input type="number" min={1} value={storedValuePlanForm.amount_cents} onChange={(e) => editStoredValuePlanForm("amount_cents", e.target.value)} /></label>
+                <label>赠送金额（分） <input type="number" min={0} value={storedValuePlanForm.bonus_cents} onChange={(e) => editStoredValuePlanForm("bonus_cents", e.target.value)} /></label>
+                <label>状态 <select value={storedValuePlanForm.status} onChange={(e) => editStoredValuePlanForm("status", e.target.value)}>
+                  <option value="active">启用</option>
+                  <option value="disabled">停用</option>
+                </select></label>
+                {storedValuePlanForm.id === null && isPlatformAdmin ? (
+                  <label>店铺 <select value={storedValuePlanForm.shop_id} onChange={(e) => editStoredValuePlanForm("shop_id", e.target.value)}>
+                    {shops.map((s) => (<option key={s.id} value={String(s.id)}>{s.name}</option>))}
+                  </select></label>
+                ) : null}
+                <div>
+                  <button type="button" className="btn-export" disabled={storedValuePlanBusyId !== null} onClick={saveStoredValuePlanForm}>{storedValuePlanBusyId !== null ? "保存中…" : "保存"}</button>{" "}
+                  <button type="button" className="btn-resolve" onClick={() => setStoredValuePlanForm(null)}>取消</button>
+                </div>
+              </fieldset>
+            ) : null}
+            <div className="tbl-wrap">
+              <table>
+                <thead><tr><th scope="col">套餐</th><th scope="col">店铺</th><th scope="col" className="num">充值金额</th><th scope="col" className="num">赠送金额</th><th scope="col">状态</th><th scope="col">操作</th></tr></thead>
+                <tbody id="storedValuePlansBody">
+                  {storedValuePlans.length
+                    ? storedValuePlans.map((pl) => (
+                      <tr key={pl.id}>
+                        <td>充 ¥{(pl.amount_cents / 100).toString()} 送 ¥{(pl.bonus_cents / 100).toString()}</td><td>{shopName(pl.shop_id)}</td>
+                        <td className="num">{fmtMoney(pl.amount_cents)}</td>
+                        <td className="num">{fmtMoney(pl.bonus_cents)}</td>
+                        <td>{pl.status === "active" ? "启用" : "停用"}</td>
+                        <td>
+                          <span className="row-actions">
+                            <button type="button" className="btn-view" disabled={storedValuePlanBusyId !== null} onClick={() => openStoredValuePlanForm(pl)}>编辑</button>
+                          </span>
+                        </td>
+                      </tr>
+                    ))
+                    : <tr><td colSpan="6"><div className="empty">暂无储值套餐</div></td></tr>}
+                </tbody>
+              </table>
+            </div>
+            <fieldset className="tag-rule">
+              <legend>发放平台补贴</legend>
+              <label>用户编号 <input type="number" min={1} value={grantForm.user_id} onChange={(e) => setGrantForm((f) => ({ ...f, user_id: e.target.value }))} /></label>
+              <label>补贴金额（分） <input type="number" min={1} max={500000} value={grantForm.amount_cents} onChange={(e) => setGrantForm((f) => ({ ...f, amount_cents: e.target.value }))} /></label>
+              <label>备注 <input type="text" value={grantForm.note} maxLength={200} placeholder="平台补贴" onChange={(e) => setGrantForm((f) => ({ ...f, note: e.target.value }))} /></label>
+              {isPlatformAdmin ? (
+                <label>店铺 <select value={grantForm.shop_id} onChange={(e) => setGrantForm((f) => ({ ...f, shop_id: e.target.value }))}>
+                  {shops.map((s) => (<option key={s.id} value={String(s.id)}>{s.name}</option>))}
+                </select></label>
+              ) : null}
+              <div>
+                <button type="button" className="btn-export" disabled={grantBusy} onClick={doGrantStoredValue}>{grantBusy ? "发放中…" : "发放补贴"}</button>
+              </div>
+            </fieldset>
+            <fieldset className="tag-rule">
+              <legend>按用户查储值账户</legend>
+              <label>用户编号 <input type="number" min={1} value={lookupUserId} onChange={(e) => setLookupUserId(e.target.value)} /></label>
+              <div>
+                <button type="button" className="btn-export" onClick={doLookupStoredValue}>查询</button>{" "}
+                {lookupResult && lookupResult.account ? (
+                  <button type="button" className="btn-view" onClick={() => apiDownloadCsv("/api/admin/stored-value/" + lookupResult.user.id + "?format=csv", "guiyan-stored-value.csv")}>导出流水 CSV</button>
+                ) : null}
+              </div>
+              {lookupResult ? (
+                <div className="tbl-wrap">
+                  <table>
+                    <thead><tr><th scope="col">用户</th><th scope="col" className="num">余额</th><th scope="col" className="num">流水条数</th></tr></thead>
+                    <tbody>
+                      <tr>
+                        <td>{lookupResult.user.name}（{lookupResult.user.username}）</td>
+                        <td className="num">{fmtMoney(lookupResult.account ? lookupResult.account.balance_cents : 0)}</td>
+                        <td className="num">{lookupResult.total}</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                  {lookupResult.ledger.length ? (
+                    <table>
+                      <thead><tr><th scope="col">类型</th><th scope="col" className="num">金额</th><th scope="col">订单号</th><th scope="col">备注</th><th scope="col">时间</th></tr></thead>
+                      <tbody>
+                        {lookupResult.ledger.map((l) => (
+                          <tr key={l.id}>
+                            <td>{l.kind_label}</td>
+                            <td className="num">{l.amount_cents >= 0 ? "+" : "−"}{fmtMoney(Math.abs(l.amount_cents))}</td>
+                            <td>{l.order_code || "—"}</td>
+                            <td>{l.note || "—"}</td>
+                            <td>{String(l.created_at).slice(0, 19).replace("T", " ")}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  ) : <div className="empty">暂无储值记录</div>}
+                </div>
+              ) : null}
+            </fieldset>
           </section>
 
           <section className={"view" + (view === "aicopy" ? " on" : "")} id="view-aicopy">

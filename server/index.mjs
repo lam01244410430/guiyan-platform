@@ -57,6 +57,18 @@ import { listAdminCoupons, getAdminCoupon, createCoupon, patchCoupon } from "./r
 import { listAdminFlashSales, getAdminFlashSale, createFlashSale, patchFlashSale } from "./routes/flash-sales.mjs";
 import { listAdminCouponRules, getAdminCouponRule, createCouponRule, patchCouponRule, getAccountCouponGifts } from "./routes/auto-coupons.mjs";
 import { listAdminSmsTasks, getAdminSmsTask, createSmsTask, patchSmsTask } from "./routes/sms-tasks.mjs";
+import { listShopPlans, listAdminPlans, createPlan, patchPlan, topup, getAccountStoredValue, getAdminStoredValue, grantStoredValue } from "./routes/stored-value.mjs";
+
+// A stored-value CSV export (?format=csv on the own-account or the
+// admin endpoint) audits "导出储值流水" — one INSERT — so it needs a
+// write transaction; the plain JSON reads stay read-only.
+function csvExportPath(url) {
+  return (
+    url.searchParams.get("format") === "csv" &&
+    (url.pathname === "/api/account/stored-value" ||
+      /^\/api\/admin\/stored-value\/\d+$/.test(url.pathname))
+  );
+}
 
 // Commit before sending the response, so the next request sees saved changes.
 function createRequestHandler(db, handle) {
@@ -69,12 +81,15 @@ function createRequestHandler(db, handle) {
     };
     try {
       await db.request(() => handle(req, res), {
-        // GET /api/admin/orders.csv writes exactly one audit row
-        // ("导出报表"), so it needs a write transaction like the POSTs.
+        // GET CSV exports write exactly one audit row ("导出报表" /
+        // "导出储值流水"), so they need a write transaction like the
+        // POSTs — otherwise the audit INSERT fails with 25006
+        // (read-only transaction) and the export answers 500.
         write:
           !["GET", "HEAD", "OPTIONS"].includes(req.method) ||
           new URL(req.url, "http://localhost").pathname ===
-            "/api/admin/orders.csv",
+            "/api/admin/orders.csv" ||
+          csvExportPath(new URL(req.url, "http://localhost")),
         success: () => res.statusCode < 400,
       });
       res.end = end;
@@ -276,6 +291,14 @@ export async function createApp({ database }) {
       if (await getAdminSmsTask(ctx)) return;
       if (await createSmsTask(ctx)) return;
       if (await patchSmsTask(ctx)) return;
+      if (await listShopPlans(ctx)) return;
+      if (await listAdminPlans(ctx)) return;
+      if (await createPlan(ctx)) return;
+      if (await patchPlan(ctx)) return;
+      if (await topup(ctx)) return;
+      if (await getAccountStoredValue(ctx)) return;
+      if (await getAdminStoredValue(ctx)) return;
+      if (await grantStoredValue(ctx)) return;
 
       send({ error: "接口不存在" }, 404);
     } catch (e) {

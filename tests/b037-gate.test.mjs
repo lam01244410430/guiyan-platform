@@ -30,6 +30,7 @@ function makeSetters(user) {
     recs: "unset",
     tier: "unset",
     gifts: "unset",
+    stored: "unset",
     messages: "unset",
     unread: "unset",
     authExpired: 0,
@@ -44,6 +45,7 @@ function makeSetters(user) {
     setRecs: (v) => { calls.recs = v; },
     setTier: (v) => { calls.tier = v; },
     setGifts: (v) => { calls.gifts = v; },
+    setStoredValue: (v) => { calls.stored = v; },
     setMessages: (v) => { calls.messages = v; },
     setUnread: (v) => { calls.unread = v; },
     currentUser: () => user || null,
@@ -165,18 +167,20 @@ test("b037 tabs: one rejecting tab never blocks the others (loadAllTabs)", async
     if (p === "/api/recommendations?limit=5") return Promise.resolve({ recommendations: [] });
     if (p === "/api/account/tier") return Promise.resolve({ tier: null, spending_cents: 0, next_tier: null, remaining_cents: 0, discount_pct: 0 });
     if (p === "/api/account/coupon-gifts") return Promise.resolve({ coupon_gifts: [{ id: 9 }] });
+    if (p === "/api/account/stored-value") return Promise.resolve({ account: { balance_cents: 11000 }, plans: [], ledger: [], total: 0 });
     if (p === "/api/messages") return Promise.resolve({ messages: [], unread: 0 });
     throw new Error("unexpected path " + p);
   };
   await loadAllTabs(get, s);
   assert.deepEqual([...seen].sort(), [
-    "/api/account/coupon-gifts", "/api/account/tier", "/api/demands", "/api/favorites", "/api/messages",
+    "/api/account/coupon-gifts", "/api/account/stored-value", "/api/account/tier", "/api/demands", "/api/favorites", "/api/messages",
     "/api/orders", "/api/profile", "/api/recommendations?limit=5",
   ]);
   assert.deepEqual(calls.orders, [{ id: 1 }]);
   assert.deepEqual(calls.favs, [{ id: 2 }]);
   assert.deepEqual(calls.profile, { name: "x" });
   assert.deepEqual(calls.gifts, [{ id: 9 }]);
+  assert.deepEqual(calls.stored.account, { balance_cents: 11000 });
   assert.deepEqual(calls.messages, []);
   assert.deepEqual(calls.error.filter(([k, v]) => v === true), [["demands", true]]);
   assert.equal(calls.authExpired, 0);

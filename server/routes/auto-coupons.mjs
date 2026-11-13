@@ -213,16 +213,21 @@ export async function evaluateAutoCoupons(
     } else {
       continue;
     }
-    // The coupon must exist, belong to this shop and be active —
-    // otherwise skip silently: no gift, no error, the order pays on.
-    // The validity window and quota are NOT checked here; the
-    // redemption-time validateCoupon enforces them when the coupon
-    // is actually used.
+    // The coupon must exist, belong to this shop (or be a platform
+    // coupon, shop_id NULL — R3-6 row 77, applies in every shop) and
+    // be active — otherwise skip silently: no gift, no error, the
+    // order pays on. The validity window and quota are NOT checked
+    // here; the redemption-time validateCoupon enforces them when the
+    // coupon is actually used.
     const coupon = await get(
       "SELECT * FROM coupons WHERE id=?",
       rule.coupon_id,
     );
-    if (!coupon || coupon.shop_id !== shopId || coupon.status !== "active")
+    if (
+      !coupon ||
+      (coupon.shop_id !== null && coupon.shop_id !== shopId) ||
+      coupon.status !== "active"
+    )
       continue;
     const existing = await get(
       "SELECT id FROM coupon_gifts WHERE rule_id=? AND user_id=? AND trigger_ref=?",
@@ -392,7 +397,14 @@ export async function createCouponRule(ctx) {
   );
   const couponId = int(b.coupon_id, "优惠券", 1);
   const coupon = await get("SELECT * FROM coupons WHERE id=?", couponId);
-  assert(coupon && coupon.shop_id === shopId, "优惠券不存在或不属于该店铺", 400);
+  // A rule may gift a same-shop coupon or a platform coupon (shop_id
+  // NULL — R3-6 row 77, applies in every shop); a coupon of another
+  // shop is not giftable here.
+  assert(
+    coupon && (coupon.shop_id === null || coupon.shop_id === shopId),
+    "优惠券不存在或不属于该店铺",
+    400,
+  );
   const conditions = parseConditions(b.conditions, trigger);
   const status =
     b.status === undefined || b.status === null ? "active" : b.status;
