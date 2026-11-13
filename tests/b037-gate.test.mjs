@@ -28,6 +28,8 @@ function makeSetters(user) {
     demands: "unset",
     profile: "unset",
     recs: "unset",
+    tier: "unset",
+    gifts: "unset",
     messages: "unset",
     unread: "unset",
     authExpired: 0,
@@ -40,6 +42,8 @@ function makeSetters(user) {
     setDemands: (v) => { calls.demands = v; },
     setProfile: (v) => { calls.profile = v; },
     setRecs: (v) => { calls.recs = v; },
+    setTier: (v) => { calls.tier = v; },
+    setGifts: (v) => { calls.gifts = v; },
     setMessages: (v) => { calls.messages = v; },
     setUnread: (v) => { calls.unread = v; },
     currentUser: () => user || null,
@@ -160,17 +164,19 @@ test("b037 tabs: one rejecting tab never blocks the others (loadAllTabs)", async
     if (p === "/api/profile") return Promise.resolve({ profile: { name: "x" } });
     if (p === "/api/recommendations?limit=5") return Promise.resolve({ recommendations: [] });
     if (p === "/api/account/tier") return Promise.resolve({ tier: null, spending_cents: 0, next_tier: null, remaining_cents: 0, discount_pct: 0 });
+    if (p === "/api/account/coupon-gifts") return Promise.resolve({ coupon_gifts: [{ id: 9 }] });
     if (p === "/api/messages") return Promise.resolve({ messages: [], unread: 0 });
     throw new Error("unexpected path " + p);
   };
   await loadAllTabs(get, s);
   assert.deepEqual([...seen].sort(), [
-    "/api/account/tier", "/api/demands", "/api/favorites", "/api/messages",
+    "/api/account/coupon-gifts", "/api/account/tier", "/api/demands", "/api/favorites", "/api/messages",
     "/api/orders", "/api/profile", "/api/recommendations?limit=5",
   ]);
   assert.deepEqual(calls.orders, [{ id: 1 }]);
   assert.deepEqual(calls.favs, [{ id: 2 }]);
   assert.deepEqual(calls.profile, { name: "x" });
+  assert.deepEqual(calls.gifts, [{ id: 9 }]);
   assert.deepEqual(calls.messages, []);
   assert.deepEqual(calls.error.filter(([k, v]) => v === true), [["demands", true]]);
   assert.equal(calls.authExpired, 0);

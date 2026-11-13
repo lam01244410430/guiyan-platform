@@ -69,6 +69,8 @@ export default function UserDashboard() {
   const [usrRecs, setUsrRecs] = useState([]);
   // R3-1: own member tier + next-tier progress (same info-tab loader).
   const [usrTier, setUsrTier] = useState(null);
+  // R3-4: own gifted coupons (same info-tab loader).
+  const [usrGifts, setUsrGifts] = useState(null);
   // Wave 4 #13: per-order refund/dispute reason typed by the user (sent
   // as {reason} with the refund/dispute call) + the order id currently
   // running an action (buttons disabled meanwhile, demands pattern).
@@ -171,6 +173,7 @@ export default function UserDashboard() {
     setProfile: setUsrProfile,
     setRecs: setUsrRecs,
     setTier: setUsrTier,
+    setGifts: setUsrGifts,
     setMessages: setUsrMessages,
     setUnread: setUsrUnread,
     currentUser: () => currentUser(),
@@ -633,6 +636,17 @@ export default function UserDashboard() {
                       {usrTier.next_tier ? (
                         <div className="row"><span className="k">{t("memberTierNext")}</span><span className="v">{usrTier.next_tier.name} · {fmt(t("memberTierSpendMore"), { a: usrTier.remaining_cents / 100 })}</span></div>
                       ) : null}
+                    </div>
+                  </section>
+                ) : null}
+
+                {usrGifts ? (
+                  <section className="db-sec">
+                    <h3>{t("giftCouponTitle")}</h3>
+                    <div className="db-profile">
+                      {usrGifts.length ? usrGifts.map((g) => (
+                        <div className="row" key={g.id}><span className="k">{g.coupon_code}</span><span className="v">{g.kind === "fixed" ? "−¥" + ((g.value_cents || 0) / 100) : "−" + (g.discount_pct || 0) + "%"}{g.status === "redeemed" ? " · " + t("giftCouponUsed") : ""}</span></div>
+                      )) : <div className="row"><span className="v">{t("giftCouponEmpty")}</span></div>}
                     </div>
                   </section>
                 ) : null}

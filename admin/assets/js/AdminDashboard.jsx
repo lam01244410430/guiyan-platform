@@ -79,6 +79,7 @@ const VIEWS = [
   { id: "tiers", label: "会员等级", iconName: "ui:crown", group: "main" },
   { id: "coupons", label: "优惠券", iconName: "ui:percent", group: "main" },
   { id: "flashsales", label: "限时抢购", iconName: "ui:percent", group: "main" },
+  { id: "autorules", label: "自动发券", iconName: "ui:gift", group: "main" },
   { id: "shops", label: "店铺", iconName: "ui:store", group: "main" },
   { id: "demands", label: "需求", iconName: "ui:clipboard-list", group: "main" },
   { id: "trends", label: "趋势统计", iconName: "ui:chart-line", group: "premium" },
@@ -175,7 +176,7 @@ export default function AdminDashboard() {
       return out;
     });
   }
-  function changeView(v) { setView(v); setQuery(""); setSorts({}); setTagFilter(""); setResShopFilter(""); setShowStatusFilter(""); setPerfShowId(null); setPerfForm(null); setDrawerOpen(false); setVenueForm(null); setMemberTierForm(null); setFlashSaleForm(null); setTplVenueId(null); setTplForm(null); }
+  function changeView(v) { setView(v); setQuery(""); setSorts({}); setTagFilter(""); setResShopFilter(""); setShowStatusFilter(""); setPerfShowId(null); setPerfForm(null); setDrawerOpen(false); setVenueForm(null); setMemberTierForm(null); setFlashSaleForm(null); setCouponRuleForm(null); setTplVenueId(null); setTplForm(null); }
   // Mobile drawer (≤860px): open state + Esc closes + focus returns to
   // the hamburger. Desktop sidebar is unaffected (drawer CSS only
   // applies at ≤860px).
@@ -306,6 +307,12 @@ export default function AdminDashboard() {
   const [flashSales, setFlashSales] = useState([]);
   const [flashSaleForm, setFlashSaleForm] = useState(null);
   const [flashSaleBusyId, setFlashSaleBusyId] = useState(null);
+  // R3-4 auto coupon rules: the rule list (already shop-scoped by the
+  // server, each row carries live gift_count) + the open create/edit
+  // draft + the id of the rule in flight.
+  const [couponRules, setCouponRules] = useState([]);
+  const [couponRuleForm, setCouponRuleForm] = useState(null);
+  const [couponRuleBusyId, setCouponRuleBusyId] = useState(null);
   const [acctBusy, setAcctBusy] = useState(false);
   const [acctOtp, setAcctOtp] = useState("");
   const [acctOtpInput, setAcctOtpInput] = useState("");
@@ -350,6 +357,7 @@ export default function AdminDashboard() {
       apiGet("/api/admin/shops"), apiGet("/api/admin/shows"),
       apiGet("/api/venues"), apiGet("/api/admin/member-tiers"),
       apiGet("/api/admin/coupons"), apiGet("/api/admin/flash-sales"),
+      apiGet("/api/admin/coupon-rules"),
     ]).then(function (res) {
       setStats(res[0]);
       setOrders(res[1].orders || []);
@@ -365,6 +373,7 @@ export default function AdminDashboard() {
       setMemberTiers(res[8].member_tiers || []);
       setCoupons(res[9].coupons || []);
       setFlashSales(res[10].flash_sales || []);
+      setCouponRules(res[11].coupon_rules || []);
       setView("overview");
     }).catch(function (e) {
       if (e && e.status === 401) { clearToken(); location.href = "/admin/index.html"; return; }
@@ -863,6 +872,72 @@ export default function AdminDashboard() {
       else if (e && e.status === 409) toast("该场次已有重叠的限时抢购");
       else toast((e && e.data && e.data.error) || "保存失败，请检查表单");
     }).finally(function () { setFlashSaleBusyId(null); });
+  }
+  // R3-4 auto coupon rules: a rule fires on a behaviour (first
+  // purchase / tier upgrade) and the coupon lands in the user's
+  // inbox — no background worker, the order-pay transaction evaluates
+  // the rules synchronously. The trigger, coupon and shop are
+  // immutable after creation — the edit form hides them. The
+  // min-spend condition only applies to first_purchase rules.
+  function loadCouponRules() {
+    apiGet("/api/admin/coupon-rules").then(function (d) {
+      setCouponRules(d.coupon_rules || []);
+    }).catch(loadFail);
+  }
+  function couponRuleCouponLabel(couponId) {
+    const c = (coupons || []).find(function (x) { return x.id === couponId; });
+    return c ? c.code : "#" + couponId;
+  }
+  function openCouponRuleForm(r) {
+    setCouponRuleForm(r ? {
+      id: r.id, name: r.name || "", trigger: r.trigger, coupon_id: String(r.coupon_id),
+      min_spend_cents: r.conditions && r.conditions.min_spend_cents != null ? String(r.conditions.min_spend_cents) : "",
+      status: r.status || "active",
+      shop_id: String(r.shop_id),
+    } : {
+      id: null, name: "", trigger: "first_purchase", coupon_id: "",
+      min_spend_cents: "", status: "active",
+      shop_id: isPlatformAdmin ? "1" : (me && me.shop_id ? String(me.shop_id) : "1"),
+    });
+  }
+  function editCouponRuleForm(key, value) {
+    setCouponRuleForm(function (f) { return f ? { ...f, [key]: value } : f; });
+  }
+  function saveCouponRuleForm() {
+    if (!couponRuleForm || couponRuleBusyId !== null) return;
+    if (!couponRuleForm.name.trim()) { toast("请填写规则名称"); return; }
+    if (couponRuleForm.id === null && !couponRuleForm.coupon_id) { toast("请选择优惠券"); return; }
+    const body = {};
+    if (couponRuleForm.id === null) body.coupon_id = Number(couponRuleForm.coupon_id);
+    if (couponRuleForm.id === null) body.trigger = couponRuleForm.trigger;
+    body.name = couponRuleForm.name.trim();
+    if (couponRuleForm.trigger === "first_purchase" && couponRuleForm.min_spend_cents !== "") {
+      const v = Number(couponRuleForm.min_spend_cents);
+      if (!Number.isInteger(v) || v < 0) { toast("最低消费须为不小于 0 的整数（分）"); return; }
+      body.conditions = { min_spend_cents: v };
+    } else {
+      body.conditions = {};
+    }
+    body.status = couponRuleForm.status;
+    if (couponRuleForm.id === null && isPlatformAdmin) body.shop_id = Number(couponRuleForm.shop_id) || 1;
+    setCouponRuleBusyId(couponRuleForm.id === null ? "new" : couponRuleForm.id);
+    const call = couponRuleForm.id === null
+      ? apiPost("/api/admin/coupon-rules", body)
+      : apiPatch("/api/admin/coupon-rules/" + couponRuleForm.id, body);
+    call.then(function (d) {
+      const saved = d.coupon_rule;
+      setCouponRules(function (rs) {
+        return couponRuleForm.id === null ? rs.concat([saved])
+          : rs.map(function (x) { return x.id === saved.id ? saved : x; });
+      });
+      setCouponRuleForm(null);
+      loadAudit();
+      toast("已保存");
+    }).catch(function (e) {
+      if (e && e.status === 403) toast("只能管理本店铺的自动发券规则");
+      else if (e && e.status === 404) toast("自动发券规则不存在");
+      else toast((e && e.data && e.data.error) || "保存失败，请检查表单");
+    }).finally(function () { setCouponRuleBusyId(null); });
   }
   function loadTemplates(venueId) {
     apiGet("/api/venues/" + venueId + "/seat-templates").then(function (d) {
@@ -2576,6 +2651,76 @@ export default function AdminDashboard() {
                       </tr>
                     ))
                     : <tr><td colSpan="9"><div className="empty">暂无限时抢购</div></td></tr>}
+                </tbody>
+              </table>
+            </div>
+          </section>
+
+          <section className={"view" + (view === "autorules" ? " on" : "")} id="view-autorules">
+            <div className="search-row">
+              <button type="button" className="btn-export" onClick={() => openCouponRuleForm(null)}>添加自动发券规则</button>
+            </div>
+            <div className="note">规则按店配置：用户首次购买或会员升级时，系统自动把指定优惠券发到用户站内信（无后台定时任务，订单支付时同步判定）。同一规则同一用户同一触发只赠一次；生日触发本波不支持（无生日数据）。赠券与管理员发的券完全一样，下单时输券码使用，核销时计入券名额与每人限额。触发条件、优惠券与店铺建后不可改。</div>
+            {couponRuleForm ? (
+              <fieldset className="tag-rule">
+                <legend>{couponRuleForm.id === null ? "添加自动发券规则" : "编辑自动发券规则：" + couponRuleForm.name}</legend>
+                {couponRuleForm.id === null ? (
+                  <>
+                    <label>触发条件 <select value={couponRuleForm.trigger} onChange={(e) => editCouponRuleForm("trigger", e.target.value)}>
+                      <option value="first_purchase">首次购买</option>
+                      <option value="tier_upgraded">会员升级</option>
+                    </select></label>
+                    <label>优惠券 <select value={couponRuleForm.coupon_id} onChange={(e) => editCouponRuleForm("coupon_id", e.target.value)}>
+                      <option value="">请选择优惠券</option>
+                      {coupons.map((c) => (<option key={c.id} value={String(c.id)}>{c.code}（{shopName(c.shop_id)}）</option>))}
+                    </select></label>
+                  </>
+                ) : (
+                  <>
+                    <label>触发条件 <input type="text" value={couponRuleForm.trigger === "first_purchase" ? "首次购买" : "会员升级"} disabled /></label>
+                    <label>优惠券 <input type="text" value={couponRuleCouponLabel(Number(couponRuleForm.coupon_id))} disabled /></label>
+                  </>
+                )}
+                <label>规则名称 <input type="text" value={couponRuleForm.name} maxLength={100} placeholder="例如：首单赠券" onChange={(e) => editCouponRuleForm("name", e.target.value)} /></label>
+                {couponRuleForm.trigger === "first_purchase" ? (
+                  <label>最低消费（分，空 = 不限） <input type="number" min={0} value={couponRuleForm.min_spend_cents} onChange={(e) => editCouponRuleForm("min_spend_cents", e.target.value)} /></label>
+                ) : null}
+                <label>状态 <select value={couponRuleForm.status} onChange={(e) => editCouponRuleForm("status", e.target.value)}>
+                  <option value="active">启用</option>
+                  <option value="disabled">停用</option>
+                </select></label>
+                {couponRuleForm.id === null && isPlatformAdmin ? (
+                  <label>店铺 <select value={couponRuleForm.shop_id} onChange={(e) => editCouponRuleForm("shop_id", e.target.value)}>
+                    {shops.map((s) => (<option key={s.id} value={String(s.id)}>{s.name}</option>))}
+                  </select></label>
+                ) : null}
+                <div>
+                  <button type="button" className="btn-export" disabled={couponRuleBusyId !== null} onClick={saveCouponRuleForm}>{couponRuleBusyId !== null ? "保存中…" : "保存"}</button>{" "}
+                  <button type="button" className="btn-resolve" onClick={() => setCouponRuleForm(null)}>取消</button>
+                </div>
+              </fieldset>
+            ) : null}
+            <div className="tbl-wrap">
+              <table>
+                <thead><tr><th scope="col">规则名称</th><th scope="col">店铺</th><th scope="col">触发条件</th><th scope="col">优惠券</th><th scope="col" className="num">最低消费（分）</th><th scope="col" className="num">已赠送</th><th scope="col">状态</th><th scope="col">操作</th></tr></thead>
+                <tbody id="couponRulesBody">
+                  {couponRules.length
+                    ? couponRules.map((r) => (
+                      <tr key={r.id}>
+                        <td>{r.name}</td><td>{shopName(r.shop_id)}</td>
+                        <td>{r.trigger === "first_purchase" ? "首次购买" : "会员升级"}</td>
+                        <td>{r.coupon_code || couponRuleCouponLabel(r.coupon_id)}</td>
+                        <td className="num">{r.conditions && r.conditions.min_spend_cents != null ? r.conditions.min_spend_cents : "不限"}</td>
+                        <td className="num">{r.gift_count ?? 0}</td>
+                        <td>{r.status === "active" ? "启用" : "停用"}</td>
+                        <td>
+                          <span className="row-actions">
+                            <button type="button" className="btn-view" disabled={couponRuleBusyId !== null} onClick={() => openCouponRuleForm(r)}>编辑</button>
+                          </span>
+                        </td>
+                      </tr>
+                    ))
+                    : <tr><td colSpan="8"><div className="empty">暂无自动发券规则</div></td></tr>}
                 </tbody>
               </table>
             </div>

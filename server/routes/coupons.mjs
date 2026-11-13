@@ -196,6 +196,12 @@ export async function validateCoupon(get, userId, shopId, code, remainderCents) 
 // coupon_cents as history.
 export async function releaseCouponRedemption(run, orderId) {
   await run("DELETE FROM coupon_redemptions WHERE order_id=?", orderId);
+  // R3-4: if the released redemption had used a gifted coupon, the
+  // gift goes back to 'gifted' so the user can use it again.
+  await run(
+    "UPDATE coupon_gifts SET status='gifted', redeemed_order_id=NULL WHERE redeemed_order_id=?",
+    orderId,
+  );
 }
 
 async function getShopOr404(get, id) {

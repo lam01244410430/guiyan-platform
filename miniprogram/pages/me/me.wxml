@@ -39,6 +39,7 @@
       <view class="note">{{L.genderLabel}}：{{genderText}}</view>
       <view class="note" wx:if="{{memberTier}}">{{L.memberTierTitle}}：{{tierLine}}</view>
       <view class="note" wx:if="{{memberTier && memberTier.next_tier}}">{{L.memberTierNext}}：{{tierNextLine}}</view>
+      <view class="note" wx:if="{{giftCoupons}}">{{L.giftCouponTitle}}：<block wx:if="{{giftCouponLines.length}}"><block wx:for="{{giftCouponLines}}" wx:key="*this">{{item}}<text wx:if="{{index < giftCouponLines.length - 1}}">；</text></block></block><block wx:else>{{L.giftCouponEmpty}}</block></view>
       <view class="btn ghost" bindtap="toggleEdit">{{L.editProfileBtn}}</view>
       <block wx:if="{{showEdit}}">
         <input class="field" placeholder="{{L.nameLabel}}" value="{{editName}}" bindinput="onEditName" />

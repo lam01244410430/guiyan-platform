@@ -58,11 +58,11 @@ export function loadTabDemands(get, s) {
 }
 
 export function loadTabInfo(get, s) {
-  /* Profile + recommendations + member tier load together for the info
-     tab. Either call failing on its own leaves its section empty, as
-     before (Q3 default); only all three failing shows the tab's light
-     error. A 401 is never swallowed — it reports an expired session
-     like every other tab. */
+  /* Profile + recommendations + member tier + gifted coupons load
+     together for the info tab. Either call failing on its own leaves
+     its section empty, as before (Q3 default); only all three failing
+     shows the tab's light error. A 401 is never swallowed — it reports
+     an expired session like every other tab. */
   s.setLoading("info", true);
   s.setError("info", false);
   return Promise.all([
@@ -72,14 +72,19 @@ export function loadTabInfo(get, s) {
     // synchronously throwing getter (a bare .catch only catches a
     // rejected promise, not a throw) — it must never fail the tab.
     Promise.resolve().then(() => get("/api/account/tier")).catch(() => null),
+    // R3-4: gifted coupons degrade the same way (null = section
+    // hidden, the tab still renders).
+    Promise.resolve().then(() => get("/api/account/coupon-gifts")).catch(() => null),
   ]).then(function (res) {
     const prof = res[0];
     const recs = res[1];
     const tier = res[2];
+    const gifts = res[3];
     if (!prof && !recs && !tier) { s.setError("info", true); }
     s.setProfile(prof ? prof.profile || null : null);
     s.setRecs(recs ? recs.recommendations || [] : []);
     if (s.setTier) s.setTier(tier || null);
+    if (s.setGifts) s.setGifts(gifts ? gifts.coupon_gifts || [] : null);
     s.setLoading("info", false);
   }).catch(function (e) {
     s.setLoading("info", false);

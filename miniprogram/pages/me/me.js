@@ -22,7 +22,7 @@ Page({
     L: {}, langIdx: 0, langName: '中文', langs: ['中文', 'Tiếng Việt', 'English'],
     loggedUser: '', displayName: '', avatarChar: '桂', linkStatus: '',
     wxAvatar: '', wxNick: '', profile: {}, genderText: '', memberTier: null,
-    tierLine: '', tierNextLine: '',
+    tierLine: '', tierNextLine: '', giftCoupons: null, giftCouponLines: [],
     showLink: false, linkUser: '', linkPass: '',
     showEdit: false, editName: '', editCity: '', editAge: '', editGenderIdx: 0,
     genderNames: [], showAbout: false
@@ -52,7 +52,8 @@ Page({
       'genderNone', 'editProfileBtn', 'saveBtn', 'profileSaved',
       'wxLoginFailed', 'linkFailed', 'langLabel',
       'memberTierTitle', 'memberTierCurrent', 'memberTierNext',
-      'memberTierSpendMore', 'memberTierDiscount'];
+      'memberTierSpendMore', 'memberTierDiscount',
+      'giftCouponTitle', 'giftCouponEmpty', 'giftCouponUsed'];
     var L = {};
     keys.forEach(function (k) { L[k] = i18n.t(k, lang); });
     wx.setNavigationBarTitle({ title: L.meTitle });
@@ -70,6 +71,7 @@ Page({
     var lang = i18n.getLang();
     if (!user) {
       this.setData({ loggedUser: '', profile: {}, genderText: '', memberTier: null,
+        giftCoupons: null, giftCouponLines: [],
         displayName: this.data.wxNick || i18n.t('notLoggedIn', lang),
         avatarChar: (this.data.wxNick || '桂').slice(0, 1),
         linkStatus: i18n.t('unlinkedAccount', lang) });
@@ -101,6 +103,20 @@ Page({
       if (d.next_tier) nextLine = d.next_tier.name + ' · ' + i18n.fmt(i18n.t('memberTierSpendMore', lang), { a: d.remaining_cents / 100 });
       self.setData({ memberTier: d, tierLine: tierLine, tierNextLine: nextLine });
     }).catch(function () { /* keep memberTier null */ });
+    // R3-4: own gifted coupons (best-effort — a failed fetch leaves the
+    // section hidden, it never blocks the page). Display strings are
+    // built here: WXML bindings cannot call String.replace.
+    api.get('/api/account/coupon-gifts', {}, true).then(function (d) {
+      if (!d) { self.setData({ giftCoupons: null, giftCouponLines: [] }); return; }
+      var gifts = d.coupon_gifts || [];
+      var lines = gifts.map(function (g) {
+        var line = (g.coupon_code || '') + ' · ' +
+          (g.kind === 'fixed' ? '−¥' + ((g.value_cents || 0) / 100) : '−' + (g.discount_pct || 0) + '%');
+        if (g.status === 'redeemed') line += ' · ' + i18n.t('giftCouponUsed', lang);
+        return line;
+      });
+      self.setData({ giftCoupons: gifts, giftCouponLines: lines });
+    }).catch(function () { /* keep giftCoupons null */ });
   },
   // --- layer 1: one-tap WeChat sign-in -------------------------------------
   wechatLogin: function () {

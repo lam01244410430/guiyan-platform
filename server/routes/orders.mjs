@@ -2,12 +2,16 @@ import { randomBytes } from "node:crypto";
 import { assert, text, int, date, bookingType } from "../lib/http.mjs";
 import { ORDER_STATUS_ZH } from "../lib/status-labels.mjs";
 import { enrichOrder } from "./pickup.mjs";
-import { discountForOrder, evaluateTier, MAIN_SHOP_ID } from "./member-tiers.mjs";
+import { discountForOrder, evaluateTier, resolveTier, MAIN_SHOP_ID } from "./member-tiers.mjs";
 import {
   normalizeCouponCode,
   validateCoupon,
   releaseCouponRedemption,
 } from "./coupons.mjs";
+import {
+  evaluateAutoCoupons,
+  markGiftRedeemed,
+} from "./auto-coupons.mjs";
 import { resolveFlashSale, saleUnitPrice } from "./flash-sales.mjs";
 
 // R3-1 + R3-2 + R3-3 pricing, in one place so the pre-check and the
@@ -276,6 +280,9 @@ export async function createOrder(ctx) {
           txPricing.coupon_cents,
           time(),
         );
+        // R3-4: if this coupon was gifted to the user, the oldest
+        // still-gifted gift of it is now used by this order.
+        await markGiftRedeemed(run, u.id, txPricing.coupon.id, orderId);
       }
       await notify(
         u.id,
@@ -341,7 +348,7 @@ export async function transitionOrder(ctx) {
     const u = needUser(),
       [, id, action] = m,
       o = await get(
-        "SELECT o.*,r.category,r.name resource_name FROM orders o JOIN resources r ON r.id=o.resource_id WHERE o.id=?",
+        "SELECT o.*,r.category,r.shop_id,r.name resource_name FROM orders o JOIN resources r ON r.id=o.resource_id WHERE o.id=?",
         Number(id),
       );
     assert(o, "订单不存在", 404);
@@ -390,6 +397,12 @@ export async function transitionOrder(ctx) {
     else if (action === "rejectRefund" || action === "rejectDispute")
       decision = text(b.reason || "", "拒绝原因", 500);
     await transaction(async () => {
+      // R3-4: the live tier BEFORE the status change (for a pay,
+      // spending excludes this order — it is still confirmed).
+      const orderShopId = o.shop_id ?? MAIN_SHOP_ID;
+      let beforeTier = null;
+      if (["pay", "complete"].includes(action))
+        beforeTier = await resolveTier(get, all, o.user_id, orderShopId);
       await run(
         "UPDATE orders SET status=?,escrow=?,refund_reason=?,refund_decision=? WHERE id=?",
         to,
@@ -467,6 +480,25 @@ export async function transitionOrder(ctx) {
       // commit or roll back together.
       if (["pay", "complete", "approveRefund"].includes(action))
         await evaluateTier(get, all, run, o.user_id);
+      // R3-4: synchronous auto-coupon evaluation (no worker, no
+      // cron — same transaction as the status change). The after-tier
+      // is resolved live now that spending includes this order; for a
+      // complete it equals the before-tier, so no tier gift re-fires
+      // and the (rule, user, trigger) guard is the backstop.
+      if (["pay", "complete"].includes(action)) {
+        const afterTier = await resolveTier(get, all, o.user_id, orderShopId);
+        await evaluateAutoCoupons(
+          { get, all, run, notify },
+          {
+            userId: o.user_id,
+            orderId: o.id,
+            shopId: orderShopId,
+            amountCents: o.amount,
+            beforeTier,
+            afterTier,
+          },
+        );
+      }
     });
     // A status change moves revenue between buckets (paid/completed) and
     // cancel/refund restores stock — same bust as order creation.
