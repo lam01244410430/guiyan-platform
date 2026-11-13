@@ -2,7 +2,11 @@
 // xlsx rows 20, 30. One ticket per paid unit; a ticket is a code the
 // gate scans (`POST /api/verify/:code`). There is NO separate staff
 // role in this system — staff = admin role, so verification is
-// admin-only.
+// admin-only. Paper printing (R4-2, row 29) lives here too:
+// `POST /api/admin/tickets/print` + `GET /api/admin/print-logs` —
+// the endpoint only RECORDS the print event; paper output is the
+// browser's print of the ticket layout (window.print), never a
+// physical printer integration.
 //
 // Fixed rules (see docs/10-she-ji-wen-dang/03-xiang-mu-jie-duan.md
 // §"Lộ trình 82 module — Sóng R4" R4-1):
@@ -146,8 +150,10 @@ export async function issueTicketsForOrder(get, run, order, now) {
 // The ticket ids frozen in the order's pending partial-refund
 // request (R4-4). The pending_refund_tickets column does not exist
 // yet — probe information_schema and treat a missing column as an
-// empty freeze list (see the file header).
-async function pendingRefundTicketIds(get, orderId) {
+// empty freeze list (see the file header). Exported: the R4-2 print
+// endpoint reuses the same freeze check, so a frozen ticket refuses
+// both verify and print.
+export async function pendingRefundTicketIds(get, orderId) {
   const col = await get(
     "SELECT 1 AS x FROM information_schema.columns WHERE table_name='orders' AND column_name='pending_refund_tickets'",
   );
@@ -305,5 +311,143 @@ export async function listAdminTickets(ctx) {
   sql += " ORDER BY t.id DESC LIMIT 200";
   const rows = await all(sql, ...params);
   send({ tickets: rows.map(ticketRow) });
+  return true;
+}
+
+// --- R4-2: paper ticket printing (xlsx row 29) -------------------
+// HONESTY BOUNDARY: this endpoint only RECORDS the print event —
+// one print_logs row per ticket + the ticket's printed_at — and the
+// paper output is the browser's print of the ticket layout
+// (window.print + print CSS, in the admin / H5 UIs). There is NO
+// physical printer integration here: no printer is connected, and
+// nothing in this file claims one is.
+
+function printLogRow(r) {
+  if (!r) return null;
+  return {
+    id: r.id,
+    ticket_id: r.ticket_id,
+    code: r.code ?? null,
+    order_id: r.order_id ?? null,
+    order_code: r.order_code ?? null,
+    printed_by: r.printed_by ?? null,
+    printed_at: r.printed_at,
+    created_at: r.created_at,
+  };
+}
+
+// The shop that owns a ticket (ticket -> order -> resource.shop_id),
+// for the shop-scope check. Platform admin (shop_id NULL) sees all
+// shops; a shop-scoped admin sees only their own shop.
+async function ticketShopId(get, ticketId) {
+  const row = await get(
+    "SELECT r.shop_id AS shop_id FROM tickets t JOIN orders o ON o.id=t.order_id JOIN resources r ON r.id=o.resource_id WHERE t.id=?",
+    ticketId,
+  );
+  return row?.shop_id ?? null;
+}
+
+// POST /api/admin/tickets/print — admin only (same convention as
+// the other admin ticket routes: anonymous -> 403, non-admin ->
+// 403). Body {order_id} or {ticket_ids} (ticket_ids wins when both
+// are given). Only `issued` tickets print: used/void -> 400, and a
+// ticket frozen in a pending partial refund -> 400
+// "票正在退款审核中" (same freeze probe as verify). Re-printing an
+// already-printed issued ticket is allowed — a new print_logs row
+// and printed_at updated (the paper-jam case). Validate first,
+// write after: one transaction updates printed_at and writes one
+// print_logs row per ticket. Response {printed, tickets}.
+export async function printTickets(ctx) {
+  const { p, req, b, send, session, get, all, run } = ctx;
+  if (p !== "/api/admin/tickets/print" || req.method !== "POST") return false;
+  assertAdmin(session);
+  const scope = session.shop_id ?? null;
+  const now = time();
+  let tickets;
+  if (Array.isArray(b?.ticket_ids)) {
+    assert(b.ticket_ids.length > 0, "请提供要打印的票", 400);
+    tickets = [];
+    for (const rawId of b.ticket_ids) {
+      const id = int(Number(rawId), "票", 1);
+      const t = await get("SELECT * FROM tickets WHERE id=?", id);
+      assert(t, "票不存在", 404);
+      tickets.push(t);
+    }
+  } else if (b?.order_id !== undefined && b?.order_id !== null) {
+    const orderId = int(Number(b.order_id), "订单", 1);
+    const order = await get("SELECT * FROM orders WHERE id=?", orderId);
+    assert(order, "订单不存在", 404);
+    tickets = await all(
+      "SELECT * FROM tickets WHERE order_id=? ORDER BY id ASC",
+      orderId,
+    );
+    assert(tickets.length > 0, "该订单暂无可打印的票", 400);
+  } else {
+    assert(false, "请提供 order_id 或 ticket_ids", 400);
+  }
+  // Shop scope, then status / freeze — all validated before any
+  // write, so a refused print leaves no log row behind.
+  for (const t of tickets) {
+    const shopId = await ticketShopId(get, t.id);
+    assert(
+      scope === null || shopId === scope,
+      "只能打印本店铺的票",
+      403,
+    );
+  }
+  for (const t of tickets) {
+    const frozen = await pendingRefundTicketIds(get, t.order_id);
+    if (frozen.includes(t.id)) assert(false, "票正在退款审核中", 400);
+    if (t.status === "void") assert(false, "票已作废", 400);
+    if (t.status === "used") assert(false, "票已核销", 400);
+  }
+  for (const t of tickets) {
+    await run("UPDATE tickets SET printed_at=? WHERE id=?", now, t.id);
+    await run(
+      "INSERT INTO print_logs(ticket_id,printed_by,printed_at,created_at) VALUES(?,?,?,?)",
+      t.id,
+      session.id,
+      now,
+      now,
+    );
+  }
+  const fresh = await all(
+    "SELECT * FROM tickets WHERE id IN (" +
+      tickets.map(() => "?").join(",") +
+      ") ORDER BY id ASC",
+    ...tickets.map((t) => t.id),
+  );
+  send({ printed: fresh.length, tickets: fresh.map(ticketRow) });
+  return true;
+}
+
+// GET /api/admin/print-logs — admin, shop-scoped via ticket ->
+// order -> resource.shop_id. ?ticket_id= & ?order_id=. Newest
+// first, LIMIT 200.
+export async function listPrintLogs(ctx) {
+  const { p, req, send, session, all, url } = ctx;
+  if (p !== "/api/admin/print-logs" || req.method !== "GET") return false;
+  assertAdmin(session);
+  const scope = session.shop_id ?? null;
+  const ticketParam = url.searchParams.get("ticket_id");
+  const orderParam = url.searchParams.get("order_id");
+  let sql =
+    "SELECT pl.*, t.code AS code, t.order_id AS order_id, o.code AS order_code FROM print_logs pl JOIN tickets t ON t.id=pl.ticket_id JOIN orders o ON o.id=t.order_id JOIN resources r ON r.id=o.resource_id WHERE 1=1";
+  const params = [];
+  if (scope !== null) {
+    sql += " AND r.shop_id=?";
+    params.push(scope);
+  }
+  if (ticketParam !== null && ticketParam !== "") {
+    sql += " AND pl.ticket_id=?";
+    params.push(int(Number(ticketParam), "票", 1));
+  }
+  if (orderParam !== null && orderParam !== "") {
+    sql += " AND t.order_id=?";
+    params.push(int(Number(orderParam), "订单", 1));
+  }
+  sql += " ORDER BY pl.id DESC LIMIT 200";
+  const rows = await all(sql, ...params);
+  send({ print_logs: rows.map(printLogRow) });
   return true;
 }

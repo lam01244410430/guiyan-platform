@@ -398,7 +398,9 @@ export async function openPostgresStore(
             // R3-5 lesson: an INSERT whose table is missing here
             // leaves lastInsertRowid empty, and any caller reading
             // the id back then hits 22P02 -> 500).
-            /^\s*INSERT\s+INTO\s+(users|resources|orders|demands|comments|messages|events|audit_logs|shops|shows|performances|ticket_types|pickup_points|ticket_templates|venues|seat_templates|seats|member_tiers|coupons|flash_sales|coupon_rules|coupon_gifts|sms_tasks|stored_value_accounts|stored_value_ledger|stored_value_plans|tickets|verify_logs)\b/i.test(
+            // R4-2: print_logs joins them too (the print insert
+            // needs its id the same way).
+            /^\s*INSERT\s+INTO\s+(users|resources|orders|demands|comments|messages|events|audit_logs|shops|shows|performances|ticket_types|pickup_points|ticket_templates|venues|seat_templates|seats|member_tiers|coupons|flash_sales|coupon_rules|coupon_gifts|sms_tasks|stored_value_accounts|stored_value_ledger|stored_value_plans|tickets|verify_logs|print_logs)\b/i.test(
               sql,
             );
           const result = await execute(

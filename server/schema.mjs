@@ -39,6 +39,8 @@ CREATE TABLE IF NOT EXISTS users(id INTEGER PRIMARY KEY, username TEXT UNIQUE NO
     CREATE TABLE IF NOT EXISTS verify_logs(id INTEGER PRIMARY KEY, ticket_id INTEGER REFERENCES tickets(id), code TEXT NOT NULL, result TEXT NOT NULL, verified_by INTEGER REFERENCES users(id), created_at TEXT NOT NULL);
     CREATE INDEX IF NOT EXISTS idx_tickets_order ON tickets(order_id);
     CREATE INDEX IF NOT EXISTS idx_verify_logs_ticket ON verify_logs(ticket_id);
+    CREATE TABLE IF NOT EXISTS print_logs(id INTEGER PRIMARY KEY, ticket_id INTEGER REFERENCES tickets(id), printed_by INTEGER REFERENCES users(id), printed_at TEXT NOT NULL, created_at TEXT NOT NULL);
+    CREATE INDEX IF NOT EXISTS idx_print_logs_ticket ON print_logs(ticket_id);
     CREATE INDEX IF NOT EXISTS idx_order_resource_date ON orders(resource_id,booking_date,status);
     CREATE INDEX IF NOT EXISTS idx_order_user ON orders(user_id);
     CREATE INDEX IF NOT EXISTS idx_comments_resource ON comments(resource_id,status);

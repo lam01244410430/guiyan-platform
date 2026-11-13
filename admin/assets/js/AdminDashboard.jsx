@@ -349,6 +349,11 @@ export default function AdminDashboard() {
   const [verifyResult, setVerifyResult] = useState(null);
   const [verifyBusy, setVerifyBusy] = useState(false);
   const [verifyHistory, setVerifyHistory] = useState([]);
+  // R4-2 打印纸质票: the order id being printed + the in-flight
+  // flag (same disabled-while-processing pattern as the other
+  // admin writes).
+  const [printOrderId, setPrintOrderId] = useState("");
+  const [printBusy, setPrintBusy] = useState(false);
   const [acctBusy, setAcctBusy] = useState(false);
   const [acctOtp, setAcctOtp] = useState("");
   const [acctOtpInput, setAcctOtpInput] = useState("");
@@ -850,6 +855,38 @@ export default function AdminDashboard() {
       if (e && e.status === 403) { setForbidden(true); return; }
       toast(data.error || "核销失败");
     }).finally(function () { setVerifyBusy(false); });
+  }
+  // R4-2 打印纸质票: POST /api/admin/tickets/print records the
+  // print event (one print_logs row per ticket + printed_at) and
+  // then the browser prints the ticket layout (window.print).
+  // HONESTY BOUNDARY: the endpoint only records the event — the
+  // paper comes from the browser, no physical printer is connected
+  // and none is claimed. Only `issued` tickets print; used/void or
+  // refund-frozen tickets answer 400 and nothing opens.
+  function openTicketPrint(orderId, tickets) {
+    const esc = (s) => String(s == null ? "" : s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+    const w = window.open("", "_blank");
+    if (!w) { toast("浏览器拦截了打印窗口，请允许弹出窗口后重试"); return; }
+    const rows = (tickets || []).map((tk) => "<tr><td>" + esc(tk.code) + "</td><td>" + (tk.status === "used" ? "已核销" : tk.status === "void" ? "已作废" : "已出票") + "</td><td>" + (tk.printed_at ? esc(String(tk.printed_at).slice(0, 19).replace("T", " ")) : "—") + "</td></tr>").join("");
+    w.document.write("<!doctype html><html lang=\"zh\"><head><meta charset=\"utf-8\"><title>桂演纸质票</title><style>body{font-family:\"Noto Sans SC\",sans-serif;color:#1c1710;padding:24px}h1{font-size:20px}table{border-collapse:collapse;width:100%;margin-top:12px}th,td{border:1px solid #999;padding:6px 8px;text-align:left;font-size:14px}@media print{body{padding:0}}</style></head><body><h1>桂演纸质票</h1><p>订单号：" + esc(orderId) + "</p><table><thead><tr><th>票码</th><th>状态</th><th>打印时间</th></tr></thead><tbody>" + rows + "</tbody></table><p style=\"font-size:12px;color:#5d5344\">纸质票由浏览器打印出票；本系统不连接实体打印机。</p></body></html>");
+    w.document.close();
+    w.focus();
+    w.print();
+  }
+  function doPrintOrder(orderId) {
+    if (printBusy) return;
+    const id = String(orderId == null ? printOrderId : orderId).trim();
+    if (!id) { toast("请填写订单号"); return; }
+    setPrintBusy(true);
+    apiPost("/api/admin/tickets/print", { order_id: Number(id) }).then(function (d) {
+      openTicketPrint(id, d.tickets || []);
+      toast("已记录打印，可用浏览器打印票面");
+    }).catch(function (e) {
+      const data = (e && e.data) || {};
+      if (e && e.status === 401) { clearToken(); location.href = "/admin/index.html"; return; }
+      if (e && e.status === 403) { setForbidden(true); return; }
+      toast(data.error || "打印失败");
+    }).finally(function () { setPrintBusy(false); });
   }
   // R3-2 coupons (same disabled-while-processing pattern as the
   // member-tier form). A shop-scoped admin creates/edits only their
@@ -3125,6 +3162,19 @@ export default function AdminDashboard() {
                 <button type="button" className="btn-export" disabled={verifyBusy} onClick={doVerify}>{verifyBusy ? "核销中…" : "核销"}</button>
               </div>
             </fieldset>
+            {/* R4-2 打印纸质票: record the print event for one order's
+                tickets, then open the ticket layout for the browser
+                to print (window.print). The server only records the
+                event — paper output is the browser print, no
+                physical printer is connected. */}
+            <fieldset className="tag-rule">
+              <legend>打印纸质票</legend>
+              <div className="note">只记录打印事件；纸张由浏览器打印票面出票，不接实体打印机。已核销 / 已作废 / 退款审核中的票不能打印；已打印过的票可重打（卡纸重打）。</div>
+              <label>订单号 <input type="text" value={printOrderId} placeholder="例如 123" onChange={(e) => setPrintOrderId(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") doPrintOrder(); }} /></label>
+              <div>
+                <button type="button" className="btn-export" disabled={printBusy} onClick={() => doPrintOrder()}>{printBusy ? "打印中…" : "打印该单"}</button>
+              </div>
+            </fieldset>
             {verifyResult ? (
               <div className="copy-card">
                 <h3>{verifyResult.ok ? "核销成功" : verifyResult.result}</h3>
@@ -3148,7 +3198,7 @@ export default function AdminDashboard() {
             ) : null}
             <div className="tbl-wrap">
               <table>
-                <thead><tr><th scope="col">票码</th><th scope="col">结果</th><th scope="col">资源</th><th scope="col">时间</th></tr></thead>
+                <thead><tr><th scope="col">票码</th><th scope="col">结果</th><th scope="col">资源</th><th scope="col">时间</th><th scope="col">打印</th></tr></thead>
                 <tbody id="verifyLogsBody">
                   {verifyHistory.length
                     ? verifyHistory.map((h, i) => (
@@ -3157,9 +3207,13 @@ export default function AdminDashboard() {
                         <td>{h.ok ? "已核销" : h.result}</td>
                         <td>{h.order ? h.order.resource_name : "—"}</td>
                         <td>{String(h.at).slice(0, 19).replace("T", " ")}</td>
+                        {/* R4-2: print button per order (this session's
+                            verify history only — the fieldset above
+                            prints any order by id). */}
+                        <td>{h.order ? <button type="button" className="mini" disabled={printBusy} onClick={() => doPrintOrder(h.order.id)}>打印</button> : "—"}</td>
                       </tr>
                     ))
-                    : <tr><td colSpan="4"><div className="empty">暂无核销记录</div></td></tr>}
+                    : <tr><td colSpan="5"><div className="empty">暂无核销记录</div></td></tr>}
                 </tbody>
               </table>
             </div>

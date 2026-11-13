@@ -36,6 +36,21 @@ const ACCT_TAB_IDS = ACCT_TABS.map(([id]) => id);
 const ORDER_STATUSES = ["pending", "confirmed", "paid", "completed", "cancelled", "refunded", "refund_requested", "disputed"];
 /* R4-1: ticket status -> i18n key (issued/used/void). */
 const TICKET_STATUS_KEY = { issued: "ticketIssued", used: "ticketUsed", void: "ticketVoid" };
+/* R4-2: print the order's ticket layout with the browser
+   (window.print). The customer print is browser-only — the
+   server-side print log (POST /api/admin/tickets/print) is
+   admin-only, so no print event is recorded here; paper output is
+   the browser print, no physical printer is connected. */
+function openTicketPrintWindow(order, tickets, statusLabel) {
+  const esc = (s) => String(s == null ? "" : s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+  const w = window.open("", "_blank");
+  if (!w) return;
+  const rows = (tickets || []).map((tk) => "<tr><td>" + esc(tk.code) + "</td><td>" + esc(statusLabel(tk.status)) + "</td></tr>").join("");
+  w.document.write("<!doctype html><html lang=\"zh\"><head><meta charset=\"utf-8\"><title>桂演纸质票</title><style>body{font-family:\"Noto Sans SC\",sans-serif;color:#1c1710;padding:24px}h1{font-size:20px}table{border-collapse:collapse;width:100%;margin-top:12px}th,td{border:1px solid #999;padding:6px 8px;text-align:left;font-size:14px}@media print{body{padding:0}}</style></head><body><h1>桂演纸质票</h1><p>订单号：" + esc(order.code || order.id) + (order.resource_name ? " · " + esc(order.resource_name) : "") + "</p><table><thead><tr><th>票码</th><th>状态</th></tr></thead><tbody>" + rows + "</tbody></table><p style=\"font-size:12px;color:#5d5344\">纸质票由浏览器打印出票；本系统不连接实体打印机。</p></body></html>");
+  w.document.close();
+  w.focus();
+  w.print();
+}
 /* R4-1: only these order statuses can hold tickets (issued at pay). */
 const TICKET_ORDER_STATUSES = ["paid", "completed", "disputed", "refund_requested"];
 const ORDER_SORTS = {
@@ -886,7 +901,7 @@ export default function UserDashboard() {
                                 failed or the order holds no tickets. */}
                             {usrTickets[o.id] && usrTickets[o.id].length ? (
                               <tr key={o.id + "-tickets"}>
-                                <td colSpan="7"><span style={{ fontSize: 12.5, color: "var(--ink2)" }}>{t("ticketTitle")}：{usrTickets[o.id].map((tk) => tk.code + "（" + t(TICKET_STATUS_KEY[tk.status] || "ticketIssued") + "）").join("、")}</span></td>
+                                <td colSpan="7"><span style={{ fontSize: 12.5, color: "var(--ink2)" }}>{t("ticketTitle")}：{usrTickets[o.id].map((tk) => tk.code + "（" + t(TICKET_STATUS_KEY[tk.status] || "ticketIssued") + "）").join("、")}</span>{" "}<button type="button" className="mini" onClick={() => openTicketPrintWindow(o, usrTickets[o.id], (st) => t(TICKET_STATUS_KEY[st] || "ticketIssued"))}>{t("printTicket")}</button></td>
                               </tr>
                             ) : null}
                             {/* Wave 4 #13: the reason already sent, while the

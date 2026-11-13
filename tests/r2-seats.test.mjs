@@ -7,8 +7,8 @@
 // select -> held (10-minute hold); 2nd order same seat -> 409; pay ->
 // sold; cancel -> released; expired hold (held_until set directly in
 // the test) can be re-selected; analysis numbers match real orders;
-// no-template venue generate -> 400; i18n key counts (H5 366,
-// miniprogram 168, equal sets).
+// no-template venue generate -> 400; i18n key counts (H5 367,
+// miniprogram 169, equal sets).
 import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
@@ -381,12 +381,12 @@ test("no-template venue generate -> 400; unsold performance seats -> 404", async
   assert.equal((await req(`/api/performances/99999/seats`)).status, 404);
 });
 
-test("r2-seats i18n: H5 366 keys/language, miniprogram 168, equal sets", async () => {
+test("r2-seats i18n: H5 367 keys/language, miniprogram 169, equal sets", async () => {
   const data = await import(
     path.resolve(repoDir, "web", "assets", "js", "data.js")
   );
   const counts = data.LANGS.map((l) => Object.keys(data.I18N[l]).length);
-  assert.deepEqual(counts, [366, 366, 366]);
+  assert.deepEqual(counts, [367, 367, 367]);
   for (const k of ["seatPick", "seatSelected"]) {
     for (const l of data.LANGS)
       assert.ok(k in data.I18N[l], `${k} missing in H5 ${l}`);
@@ -406,7 +406,7 @@ test("r2-seats i18n: H5 366 keys/language, miniprogram 168, equal sets", async (
     ].map((m) => m[1]);
   }
   for (const lang of ["zh", "vi", "en"]) {
-    assert.equal(blocks[lang].length, 168, `${lang} key count`);
+    assert.equal(blocks[lang].length, 169, `${lang} key count`);
     for (const k of ["seatPick", "seatSelected"])
       assert.ok(blocks[lang].includes(k), `${k} missing in mini ${lang}`);
   }

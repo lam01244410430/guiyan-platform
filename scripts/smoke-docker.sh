@@ -314,11 +314,16 @@ if [ "$CODE" = "200" ] && [ "$(jlen "['stored_value_plans']")" = "3" ]; then ok 
 CODE="$(get /api/admin/tickets "$ADMIN_TOKEN")"
 if [ "$CODE" = "200" ]; then ok "46 GET /api/admin/tickets as admin 200"; else bad "46 GET /api/admin/tickets as admin (code=$CODE, want 200)"; fi
 
-# 47. teardown — down -v, then 0 project containers and 0 project volumes.
+# 47. print logs — 200, empty list on a fresh DB (R4-2; no print has
+# happened yet, so the count IS asserted, unlike the ticket list)
+CODE="$(get /api/admin/print-logs "$ADMIN_TOKEN")"
+if [ "$CODE" = "200" ] && [ "$(jlen "['print_logs']")" = "0" ]; then ok "47 GET /api/admin/print-logs as admin 200, empty list"; else bad "47 GET /api/admin/print-logs as admin (code=$CODE, print_logs=$(jlen "['print_logs']"))"; fi
+
+# 48. teardown — down -v, then 0 project containers and 0 project volumes.
 docker compose -p "$PROJECT" down -v >/dev/null 2>&1
 LEFT_C="$(docker ps --format '{{.Names}}' | grep -c "$PROJECT" || true)"
 LEFT_V="$(docker volume ls --format '{{.Name}}' | grep -c "^${PROJECT}_" || true)"
-if [ "$LEFT_C" = "0" ] && [ "$LEFT_V" = "0" ]; then ok "47 down -v: 0 project containers, 0 project volumes"; else bad "47 down -v (containers left=$LEFT_C, volumes left=$LEFT_V)"; fi
+if [ "$LEFT_C" = "0" ] && [ "$LEFT_V" = "0" ]; then ok "48 down -v: 0 project containers, 0 project volumes"; else bad "48 down -v (containers left=$LEFT_C, volumes left=$LEFT_V)"; fi
 
-echo "== smoke-docker: PASS $PASS / FAIL $FAIL (46 checks) =="
+echo "== smoke-docker: PASS $PASS / FAIL $FAIL (47 checks) =="
 [ "$FAIL" = "0" ]

@@ -58,7 +58,7 @@ import { listAdminFlashSales, getAdminFlashSale, createFlashSale, patchFlashSale
 import { listAdminCouponRules, getAdminCouponRule, createCouponRule, patchCouponRule, getAccountCouponGifts } from "./routes/auto-coupons.mjs";
 import { listAdminSmsTasks, getAdminSmsTask, createSmsTask, patchSmsTask } from "./routes/sms-tasks.mjs";
 import { listShopPlans, listAdminPlans, createPlan, patchPlan, topup, getAccountStoredValue, getAdminStoredValue, grantStoredValue } from "./routes/stored-value.mjs";
-import { verifyTicket, listOrderTickets, listAdminTickets } from "./routes/tickets.mjs";
+import { verifyTicket, listOrderTickets, listAdminTickets, printTickets, listPrintLogs } from "./routes/tickets.mjs";
 
 // A stored-value CSV export (?format=csv on the own-account or the
 // admin endpoint) audits "导出储值流水" — one INSERT — so it needs a
@@ -270,6 +270,8 @@ export async function createApp({ database }) {
       if (await verifyTicket(ctx)) return;
       if (await listOrderTickets(ctx)) return;
       if (await listAdminTickets(ctx)) return;
+      if (await printTickets(ctx)) return;
+      if (await listPrintLogs(ctx)) return;
       if (await patchAdminProfile(ctx)) return;
       if (await patchAdminUserStatus(ctx)) return;
       if (await adminChangePassword(ctx)) return;
