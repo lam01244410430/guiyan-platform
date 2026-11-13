@@ -7,8 +7,8 @@
 // resources linked; create venue -> 200; non-admin / cross-shop -> 403;
 // resource links venue_id -> 200 + detail has venue; cross-shop link
 // -> 403; no-template venue -> has_seats false; create seat template ->
-// zones stored; patch template -> 200; i18n key counts (H5 367,
-// miniprogram 176, equal sets).
+// zones stored; patch template -> 200; i18n key counts (H5 372,
+// miniprogram 181, equal sets).
 import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
@@ -300,12 +300,12 @@ test("create seat template -> zones stored; patch template -> 200", async () => 
   })).status, 404);
 });
 
-test("r2-venues i18n: H5 367 keys/language, miniprogram 176, equal sets", async () => {
+test("r2-venues i18n: H5 372 keys/language, miniprogram 181, equal sets", async () => {
   const data = await import(
     path.resolve(repoDir, "web", "assets", "js", "data.js")
   );
   const counts = data.LANGS.map((l) => Object.keys(data.I18N[l]).length);
-  assert.deepEqual(counts, [367, 367, 367]);
+  assert.deepEqual(counts, [372, 372, 372]);
   for (const k of ["venueTitle"]) {
     for (const l of data.LANGS)
       assert.ok(k in data.I18N[l], `${k} missing in H5 ${l}`);
@@ -325,7 +325,7 @@ test("r2-venues i18n: H5 367 keys/language, miniprogram 176, equal sets", async 
     ].map((m) => m[1]);
   }
   for (const lang of ["zh", "vi", "en"]) {
-    assert.equal(blocks[lang].length, 176, `${lang} key count`);
+    assert.equal(blocks[lang].length, 181, `${lang} key count`);
     for (const k of ["venueTitle"])
       assert.ok(blocks[lang].includes(k), `${k} missing in mini ${lang}`);
   }

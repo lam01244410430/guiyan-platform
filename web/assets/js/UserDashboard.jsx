@@ -123,6 +123,10 @@ export default function UserDashboard() {
   // as {reason} with the refund/dispute call) + the order id currently
   // running an action (buttons disabled meanwhile, demands pattern).
   const [refundReasons, setRefundReasons] = useState({});
+  // R4-4: per-order partial-refund quantity picked by the user
+  // (1..remaining, default 1); the same reason box serves the
+  // partial request. Sent as {quantity} with the refund call.
+  const [refundQtys, setRefundQtys] = useState({});
   const [usrActBusyId, setUsrActBusyId] = useState(null);
   const [contractBusyId, setContractBusyId] = useState(null);
   // Wave 4 #14 fix (working-tree defect from #15): openContract() and the
@@ -512,10 +516,10 @@ export default function UserDashboard() {
     });
   }
 
-  function usrOrderAction(act, id, reason) {
+  function usrOrderAction(act, id, reason, extra) {
     if (usrActBusyId !== null) return;
     setUsrActBusyId(id);
-    apiPost("/api/orders/" + encodeURIComponent(id) + "/" + act, reason ? { reason } : {}).then(function () {
+    apiPost("/api/orders/" + encodeURIComponent(id) + "/" + act, { ...(reason ? { reason } : {}), ...(extra || {}) }).then(function () {
       toast(t("statusToast"));
       setUsrActBusyId(null);
       loadTabOrders(apiGet, tabSetters);
@@ -570,11 +574,19 @@ export default function UserDashboard() {
   /* Wave 4 #13 — refund/dispute flow. A paid order offers 申请退款
      (refund, with a reason input — the same reason box serves 申诉) and
      申诉 (dispute). refund_requested/disputed orders show the waiting
-     status; a refunded order shows the admin's decision. */
+     status; a refunded order shows the admin's decision. R4-4: a paid
+     order with >= 2 tickets left also offers a partial refund — a
+     quantity picker (1..remaining) + 申请部分退款; unprinted tickets
+     refund automatically, printed ones wait for admin review (the
+     note under the picker says so). */
   function usrActs(o) {
     if (o.status === "pending") return (<><button type="button" className="mini" data-act="confirm" data-id={o.id} onClick={() => usrOrderAction("confirm", o.id)}>{t("actConfirm")}</button><button type="button" className="mini" data-act="cancel" data-id={o.id} onClick={() => usrOrderAction("cancel", o.id)}>{t("actCancel")}</button></>);
     if (o.status === "confirmed") return (<><button type="button" className="mini red" data-act="pay" data-id={o.id} onClick={() => usrOrderAction("pay", o.id)}>{fmt(t("actPay"), { amt: fmtMoney(o.amount) })}</button><button type="button" className="mini" data-act="cancel" data-id={o.id} onClick={() => usrOrderAction("cancel", o.id)}>{t("actCancel")}</button></>);
-    if (o.status === "paid") return (<><button type="button" className="mini red" data-act="complete" data-id={o.id} onClick={() => usrOrderAction("complete", o.id)}>{t("actComplete")}</button><input type="text" maxLength={500} placeholder={t("refundReasonPh")} aria-label={t("refundReasonPh")} style={{ width: 150 }} value={refundReasons[o.id] || ""} onChange={(e) => setRefundReasons((prev) => ({ ...prev, [o.id]: e.target.value }))} /><button type="button" className="mini" data-act="refund" data-id={o.id} disabled={usrActBusyId === o.id} onClick={() => usrOrderAction("refund", o.id, refundReasons[o.id] || "")}>{t("actRefund")}</button><button type="button" className="mini" data-act="dispute" data-id={o.id} disabled={usrActBusyId === o.id} onClick={() => usrOrderAction("dispute", o.id, refundReasons[o.id] || "")}>{t("actDispute")}</button></>);
+    if (o.status === "paid") {
+      const remaining = o.quantity - (o.refund_quantity || 0);
+      const picked = Math.min(Math.max(refundQtys[o.id] || 1, 1), Math.max(remaining, 1));
+      return (<><button type="button" className="mini red" data-act="complete" data-id={o.id} onClick={() => usrOrderAction("complete", o.id)}>{t("actComplete")}</button><input type="text" maxLength={500} placeholder={t("refundReasonPh")} aria-label={t("refundReasonPh")} style={{ width: 150 }} value={refundReasons[o.id] || ""} onChange={(e) => setRefundReasons((prev) => ({ ...prev, [o.id]: e.target.value }))} /><button type="button" className="mini" data-act="refund" data-id={o.id} disabled={usrActBusyId === o.id} onClick={() => usrOrderAction("refund", o.id, refundReasons[o.id] || "")}>{t("actRefund")}</button><button type="button" className="mini" data-act="dispute" data-id={o.id} disabled={usrActBusyId === o.id} onClick={() => usrOrderAction("dispute", o.id, refundReasons[o.id] || "")}>{t("actDispute")}</button>{remaining >= 2 ? (<><label style={{ fontSize: 12.5, color: "var(--ink2)" }}>{t("partialRefundQty")} <input type="number" min={1} max={remaining} value={picked} aria-label={t("partialRefundQty")} style={{ width: 52 }} onChange={(e) => setRefundQtys((prev) => ({ ...prev, [o.id]: Math.min(Math.max(parseInt(e.target.value, 10) || 1, 1), remaining) }))} /></label><button type="button" className="mini" data-act="partial-refund" data-id={o.id} disabled={usrActBusyId === o.id} onClick={() => usrOrderAction("refund", o.id, refundReasons[o.id] || "", { quantity: picked })}>{t("partialRefundBtn")}</button><span style={{ fontSize: 12.5, color: "var(--ink2)" }}>{t("partialRefundPrintedNote")}</span></>) : null}</>);
+    }
     if (o.status === "completed") return (<span style={{ fontSize: 12.5, color: "var(--ink2)" }}>{t("doneNote")}</span>);
     if (o.status === "refund_requested") return (<span style={{ fontSize: 12.5, color: "var(--ink2)" }}>{t("refundWaiting")}</span>);
     if (o.status === "disputed") return (<span style={{ fontSize: 12.5, color: "var(--ink2)" }}>{t("disputeWaiting")}</span>);
@@ -898,10 +910,22 @@ export default function UserDashboard() {
                             </tr>
                             {/* R4-1: the order's tickets ("我的票") —
                                 codes + status; hidden when the fetch
-                                failed or the order holds no tickets. */}
+                                failed or the order holds no tickets.
+                                R4-4: the 自助取票 note — the code
+                                itself IS the e-ticket (scan it at the
+                                gate); no physical kiosk is connected. */}
                             {usrTickets[o.id] && usrTickets[o.id].length ? (
                               <tr key={o.id + "-tickets"}>
-                                <td colSpan="7"><span style={{ fontSize: 12.5, color: "var(--ink2)" }}>{t("ticketTitle")}：{usrTickets[o.id].map((tk) => tk.code + "（" + t(TICKET_STATUS_KEY[tk.status] || "ticketIssued") + "）").join("、")}</span>{" "}<button type="button" className="mini" onClick={() => openTicketPrintWindow(o, usrTickets[o.id], (st) => t(TICKET_STATUS_KEY[st] || "ticketIssued"))}>{t("printTicket")}</button></td>
+                                <td colSpan="7"><span style={{ fontSize: 12.5, color: "var(--ink2)" }}>{t("ticketTitle")}：{usrTickets[o.id].map((tk) => tk.code + "（" + t(TICKET_STATUS_KEY[tk.status] || "ticketIssued") + "）").join("、")}</span>{" "}<button type="button" className="mini" onClick={() => openTicketPrintWindow(o, usrTickets[o.id], (st) => t(TICKET_STATUS_KEY[st] || "ticketIssued"))}>{t("printTicket")}</button><br /><span style={{ fontSize: 12.5, color: "var(--ink2)" }}>{t("pickupNote")}</span></td>
+                              </tr>
+                            ) : null}
+                            {/* R4-4: what a partial refund already
+                                returned on this order (tickets +
+                                money), shown while the order still
+                                carries refund history. */}
+                            {(o.refund_quantity || 0) > 0 ? (
+                              <tr key={o.id + "-refunded"}>
+                                <td colSpan="7"><span style={{ fontSize: 12.5, color: "var(--ink2)" }}>{fmt(t("partialRefundDone"), { n: o.refund_quantity, a: (o.refunded_cents || 0) / 100 })}</span></td>
                               </tr>
                             ) : null}
                             {/* Wave 4 #13: the reason already sent, while the

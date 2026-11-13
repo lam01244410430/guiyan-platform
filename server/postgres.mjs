@@ -176,6 +176,22 @@ export async function openPostgresStore(
       await client.query(
         "ALTER TABLE orders ADD COLUMN IF NOT EXISTS stored_value_cents INTEGER NOT NULL DEFAULT 0",
       );
+      // R4-4 (partial refund, 2026-11-14): cumulative refunded
+      // tickets / money, plus the ticket ids of the current manual
+      // partial-refund request ([] = none / a full-refund request).
+      // Adding these columns ACTIVATES the R4-1/R4-2/R4-3 freeze
+      // checks (tickets.mjs probes information_schema for
+      // pending_refund_tickets): a ticket in a pending request now
+      // refuses verify/print/batch with 400.
+      await client.query(
+        "ALTER TABLE orders ADD COLUMN IF NOT EXISTS refund_quantity INTEGER NOT NULL DEFAULT 0",
+      );
+      await client.query(
+        "ALTER TABLE orders ADD COLUMN IF NOT EXISTS refunded_cents INTEGER NOT NULL DEFAULT 0",
+      );
+      await client.query(
+        "ALTER TABLE orders ADD COLUMN IF NOT EXISTS pending_refund_tickets TEXT DEFAULT '[]'",
+      );
       if (!(await client.query("SELECT COUNT(*) AS n FROM users")).rows[0].n) {
         // Batch adjacent inserts to keep first-time setup fast over the network.
         const groups = [];

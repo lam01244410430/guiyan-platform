@@ -383,12 +383,107 @@ export async function transitionOrder(ctx) {
       rejectDispute: ["disputed", "paid"],
       resolve: ["disputed", "completed"],
     };
-    const [from, to] = transitions[action];
+    const [from, to0] = transitions[action];
     assert(
       (Array.isArray(from) ? from : [from]).includes(o.status),
       "当前状态不允许该操作",
       400,
     );
+    // R4-4: partial refund (rows 35, 22) — optional {quantity: k}
+    // on the existing refund transition (NO new endpoint, NO new
+    // refund table). Absent quantity -> the old full-refund request.
+    // Present -> k must be an integer with 1 <= k <= remaining
+    // (quantity - refund_quantity); k == remaining is the full path
+    // too. Per-ticket amounts (fixed): perTicket =
+    // floor(amount / quantity); cardPerTicket =
+    // floor(stored_value_cents / quantity); refund for k tickets =
+    // perTicket x k, card share first = cardPerTicket x k (via
+    // refundStoredValue); the flooring remainder cents stay with the
+    // shop. A partial refund does NOT re-price coupon/tier/flash (a
+    // used coupon is not restored). Validate BEFORE any write (OTP
+    // lesson): ticket selection is a read-only pre-check here.
+    // Selection (fixed): unprinted issued tickets first (id ASC),
+    // then printed ones. All k unprinted -> AUTOMATIC (applied in
+    // this request, status stays paid); any printed -> MANUAL (ids
+    // stored in pending_refund_tickets, status refund_requested).
+    let to = to0;
+    let partial = null; // {k, ticketIds, seatIds, auto, refundCents, cardCents}
+    if (action === "refund" && b?.quantity !== undefined && b?.quantity !== null) {
+      const remaining = o.quantity - (o.refund_quantity || 0);
+      const k = int(b.quantity, "退票数量", 1, remaining);
+      if (k < remaining) {
+        const issued = await all(
+          "SELECT * FROM tickets WHERE order_id=? AND status='issued' ORDER BY printed_at ASC NULLS FIRST, id ASC",
+          o.id,
+        );
+        // A used ticket is not refundable, so the issued count can
+        // fall short of k when tickets were already verified.
+        assert(issued.length >= k, "已有票已核销，可退票数不足", 400);
+        const selected = issued.slice(0, k);
+        const perTicket = Math.floor(o.amount / o.quantity);
+        const cardPerTicket = Math.floor(
+          (o.stored_value_cents || 0) / o.quantity,
+        );
+        partial = {
+          k,
+          ticketIds: selected.map((t) => t.id),
+          seatIds: selected
+            .map((t) => t.seat_id)
+            .filter((s) => s !== null && s !== undefined),
+          auto: selected.every((t) => !t.printed_at),
+          refundCents: perTicket * k,
+          cardCents: cardPerTicket * k,
+        };
+        if (partial.auto) to = "paid";
+      }
+    }
+    // R4-4: approveRefund with a pending partial request applies the
+    // PARTIAL refund (void exactly the stored ids, status back to
+    // paid). Any stored ticket no longer issued -> 400 "票状态已变，
+    // 请重新申请" (extreme race only: frozen tickets refuse
+    // verify/print/batch, so this cannot happen in normal flow).
+    // Validate BEFORE any write, like the refund selection above.
+    let pendingPartial = null; // {ids, seatIds, k, refundCents, cardCents}
+    if (action === "approveRefund") {
+      let pendingIds = [];
+      try {
+        pendingIds = JSON.parse(o.pending_refund_tickets || "[]");
+      } catch {
+        pendingIds = [];
+      }
+      if (Array.isArray(pendingIds) && pendingIds.length > 0) {
+        const ids = pendingIds.map(Number);
+        const rows = await all(
+          "SELECT * FROM tickets WHERE id IN (" +
+            ids.map(() => "?").join(",") +
+            ")",
+          ...ids,
+        );
+        assert(
+          rows.length === ids.length &&
+            rows.every(
+              (t) => t.status === "issued" && t.order_id === o.id,
+            ),
+          "票状态已变，请重新申请",
+          400,
+        );
+        const k = ids.length;
+        const perTicket = Math.floor(o.amount / o.quantity);
+        const cardPerTicket = Math.floor(
+          (o.stored_value_cents || 0) / o.quantity,
+        );
+        pendingPartial = {
+          ids,
+          seatIds: rows
+            .map((t) => t.seat_id)
+            .filter((s) => s !== null && s !== undefined),
+          k,
+          refundCents: perTicket * k,
+          cardCents: cardPerTicket * k,
+        };
+        to = "paid";
+      }
+    }
     // Wave 4 #13: refund_decision holds the admin's decision. Approval
     // writes the fixed simulated-refund text; a rejection stores the
     // admin's reason (Q6: missing reason -> 400 via text()). The user's
@@ -399,7 +494,10 @@ export async function transitionOrder(ctx) {
     // a stale one (refund_reason is overwritten with the new reason
     // below, but decision was only overwritten on a decision action).
     if (action === "refund" || action === "dispute") decision = "";
-    else if (action === "approveRefund") decision = "审核通过，已模拟退款";
+    else if (action === "approveRefund")
+      decision = pendingPartial
+        ? "审核通过，已模拟退款（部分退款）"
+        : "审核通过，已模拟退款";
     else if (action === "rejectRefund" || action === "rejectDispute")
       decision = text(b.reason || "", "拒绝原因", 500);
     // R3-6: what the pay / approveRefund did with the card (set inside
@@ -407,6 +505,10 @@ export async function transitionOrder(ctx) {
     // after it). Null = the action involves no stored value.
     let payStored = null;
     let refundStored = 0;
+    // R4-4: the total refunded by THIS request (approveRefund full /
+    // partial, or the automatic partial refund below) — carried in
+    // the response as refund_cents for both cases.
+    let refundCents = 0;
     await transaction(async () => {
       // R3-4: the live tier BEFORE the status change (for a pay,
       // spending excludes this order — it is still confirmed).
@@ -448,24 +550,140 @@ export async function transitionOrder(ctx) {
           o.amount,
           time(),
         );
-      if (action === "approveRefund")
+      // R4-4: approveRefund — partial when a pending request exists
+      // (void exactly the stored ids, release their seats, refund
+      // perTicket x k with the card share first, refund_quantity /
+      // refunded_cents += k / refund, pending cleared, status back to
+      // paid); full otherwise (exact REMAINDER: refund = amount -
+      // refunded_cents, card share = stored_value_cents -
+      // cardPerTicket x refund_quantity — equals the old value when
+      // refund_quantity == 0; void ALL remaining issued tickets,
+      // sold seats stay sold per the R2-5 rule). Partial refunds
+      // restore NO resource stock (only seats are released); the
+      // full path restores stock via the existing branch below.
+      if (action === "approveRefund") {
+        if (pendingPartial) {
+          refundCents = pendingPartial.refundCents;
+          refundStored = await refundStoredValue(
+            get,
+            run,
+            o.user_id,
+            orderShopId,
+            o.id,
+            pendingPartial.cardCents,
+            time(),
+          );
+          await run(
+            "UPDATE tickets SET status='void' WHERE id IN (" +
+              pendingPartial.ids.map(() => "?").join(",") +
+              ")",
+            ...pendingPartial.ids,
+          );
+          if (pendingPartial.seatIds.length)
+            await run(
+              "UPDATE seats SET status='available', order_id=NULL, held_until=NULL WHERE id IN (" +
+                pendingPartial.seatIds.map(() => "?").join(",") +
+                ") AND order_id=? AND status='sold'",
+              ...pendingPartial.seatIds,
+              o.id,
+            );
+          await run(
+            "UPDATE orders SET refund_quantity=refund_quantity+?, refunded_cents=refunded_cents+?, pending_refund_tickets='[]' WHERE id=?",
+            pendingPartial.k,
+            refundCents,
+            o.id,
+          );
+        } else {
+          const cardPerTicket = Math.floor(
+            (o.stored_value_cents || 0) / o.quantity,
+          );
+          const cardRemainder =
+            (o.stored_value_cents || 0) -
+            cardPerTicket * (o.refund_quantity || 0);
+          refundCents = o.amount - (o.refunded_cents || 0);
+          refundStored = await refundStoredValue(
+            get,
+            run,
+            o.user_id,
+            orderShopId,
+            o.id,
+            cardRemainder,
+            time(),
+          );
+          // R4-1: a full refund voids every still-issued ticket of
+          // the order in the same transaction.
+          await run(
+            "UPDATE tickets SET status='void' WHERE order_id=? AND status='issued'",
+            o.id,
+          );
+          // The cumulative counters close out too: after a full
+          // refund refund_quantity == quantity and refunded_cents
+          // == amount (a partial history + the remainder add up to
+          // the whole order — the counters are cumulative by
+          // definition, so they must not stop at the last partial).
+          await run(
+            "UPDATE orders SET refund_quantity=?, refunded_cents=? WHERE id=?",
+            o.quantity,
+            o.amount,
+            o.id,
+          );
+        }
+      }
+      // R4-4: the refund request itself — automatic partial (all k
+      // selected tickets unprinted): apply in this same request
+      // (void the k tickets, release their sold seats, refund the
+      // money with the card share first, refund_quantity /
+      // refunded_cents += k / refund, status stays paid). Manual
+      // partial (any selected ticket printed): only store the
+      // selected ids in pending_refund_tickets — the admin decides
+      // via approveRefund / rejectRefund, and the frozen tickets
+      // refuse verify/print/batch meanwhile. A full request (no
+      // quantity, or k == remaining) stores nothing: pending stays
+      // '[]', which is also how approveRefund recognises it.
+      if (action === "refund" && partial?.auto) {
+        refundCents = partial.refundCents;
         refundStored = await refundStoredValue(
           get,
           run,
           o.user_id,
           orderShopId,
           o.id,
-          o.stored_value_cents || 0,
+          partial.cardCents,
           time(),
         );
-      // R4-1: a full refund voids every still-issued ticket of the
-      // order in the same transaction. The pending_refund_tickets
-      // column does NOT exist yet (R4-4 adds it), so every
-      // approveRefund voids all issued tickets for now; R4-4 refines
-      // this to void only the tickets in the pending partial request.
-      if (action === "approveRefund")
         await run(
-          "UPDATE tickets SET status='void' WHERE order_id=? AND status='issued'",
+          "UPDATE tickets SET status='void' WHERE id IN (" +
+            partial.ticketIds.map(() => "?").join(",") +
+            ")",
+          ...partial.ticketIds,
+        );
+        if (partial.seatIds.length)
+          await run(
+            "UPDATE seats SET status='available', order_id=NULL, held_until=NULL WHERE id IN (" +
+              partial.seatIds.map(() => "?").join(",") +
+              ") AND order_id=? AND status='sold'",
+            ...partial.seatIds,
+            o.id,
+          );
+        await run(
+          "UPDATE orders SET refund_quantity=refund_quantity+?, refunded_cents=refunded_cents+? WHERE id=?",
+          partial.k,
+          refundCents,
+          o.id,
+        );
+      } else if (action === "refund" && partial && !partial.auto) {
+        await run(
+          "UPDATE orders SET pending_refund_tickets=? WHERE id=?",
+          JSON.stringify(partial.ticketIds),
+          o.id,
+        );
+      }
+      // R4-4: rejecting a partial request unfreezes the tickets
+      // (they were never voided) — clear the pending list; status
+      // back to paid via the generic update above.
+      if (action === "rejectRefund")
+        await run(
+          "UPDATE orders SET pending_refund_tickets='[]' WHERE id=?",
           o.id,
         );
       if (["cancelled", "refunded"].includes(to) && !bookingType(o))
@@ -506,7 +724,9 @@ export async function transitionOrder(ctx) {
       if (DECISIONS.includes(action)) {
         const result =
           action === "approveRefund"
-            ? "退款申请已通过，已模拟退款"
+            ? pendingPartial
+              ? `部分退款申请已通过，已模拟退款 ¥${(refundCents / 100).toString()}（${pendingPartial.k} 张票）`
+              : "退款申请已通过，已模拟退款"
             : action === "rejectRefund"
               ? "退款申请未通过"
               : action === "rejectDispute"
@@ -521,10 +741,16 @@ export async function transitionOrder(ctx) {
         await notify(
           o.user_id,
           "订单状态更新",
-          `${o.code} · ${o.resource_name} → ${ORDER_STATUS_ZH[to]}。${action === "pay" ? (payStored && payStored.used > 0 ? `文惠卡已扣 ¥${(payStored.used / 100).toString()}，剩余 ¥${(payStored.remainder / 100).toString()}为模拟支付，未扣款。` : "这是模拟支付，未扣款。") : ""}`,
+          `${o.code} · ${o.resource_name} → ${ORDER_STATUS_ZH[to]}。${action === "pay" ? (payStored && payStored.used > 0 ? `文惠卡已扣 ¥${(payStored.used / 100).toString()}，剩余 ¥${(payStored.remainder / 100).toString()}为模拟支付，未扣款。` : "这是模拟支付，未扣款。") : action === "refund" && partial?.auto ? `已自动退回 ${partial.k} 张票，退款 ¥${(partial.refundCents / 100).toString()}${refundStored > 0 ? `，其中 ¥${(refundStored / 100).toString()} 已返还文惠卡` : ""}。该处理为模拟，未产生真实扣款/退款。` : action === "refund" && partial ? `已提交部分退款申请（${partial.k} 张票），等待管理员审核。` : ""}`,
         );
       }
-      await audit(u, `订单操作 ${action}`, o.code);
+      // R4-4: a partial-refund request (auto or manual) audits as
+      // "申请部分退款"; every other transition keeps the old text.
+      await audit(
+        u,
+        action === "refund" && partial ? "申请部分退款" : `订单操作 ${action}`,
+        o.code,
+      );
       // R3-1: re-evaluate the order owner's stored main-shop tier when
       // spending can change — pay (up), complete (idempotent re-check),
       // approveRefund (down, the only way spending falls). Same
@@ -569,8 +795,27 @@ export async function transitionOrder(ctx) {
             remainder_cents: payStored?.remainder ?? o.amount,
           }
         : {}),
-      ...(action === "approveRefund" && refundStored > 0
-        ? { refunded_to_card_cents: refundStored }
+      // R4-4: approveRefund carries the refunded amounts
+      // (refund_cents + refunded_to_card_cents) for BOTH the partial
+      // and the full case; the automatic partial refund answers with
+      // the same amounts plus the new cumulative counters; a manual
+      // partial request answers with the frozen ticket ids.
+      ...(action === "approveRefund"
+        ? {
+            refund_cents: refundCents,
+            refunded_to_card_cents: refundStored,
+          }
+        : {}),
+      ...(action === "refund" && partial?.auto
+        ? {
+            refund_cents: partial.refundCents,
+            refunded_to_card_cents: refundStored,
+            refund_quantity: (o.refund_quantity || 0) + partial.k,
+            refunded_cents: (o.refunded_cents || 0) + partial.refundCents,
+          }
+        : {}),
+      ...(action === "refund" && partial && !partial.auto
+        ? { pending_refund_tickets: partial.ticketIds }
         : {}),
     });
     return true;

@@ -14,7 +14,7 @@
 // verify_logs grows by exactly the new attempts); >50 codes ->
 // 400; empty array / non-array body -> 400; duplicate codes inside
 // one batch (first used, second already_used); anonymous -> 401;
-// non-admin -> 403; i18n key counts (H5 367, miniprogram 176,
+// non-admin -> 403; i18n key counts (H5 372, miniprogram 181,
 // equal sets).
 // NOT covered: a frozen ticket in a batch -> refund_pending —
 // pending_refund_tickets does not exist until R4-4, so there is
@@ -293,15 +293,16 @@ test("non-admin batch -> 403, no verify_logs rows written", async () => {
   assert.equal(await totalLogCount(), beforeTotal);
 });
 
-test("i18n 367/176: 7 new batch keys mini-only, equal sets", async () => {
+test("i18n 372/181: 7 new batch keys mini-only, equal sets", async () => {
   // R4-3 adds 7 batch/queue/scan keys on the mini-program only
-  // (169 -> 176); H5 stays 367 — the admin batch UI labels are
-  // hardcoded Chinese per the admin rule.
+  // (169 -> 176); H5 stayed 367 then — the admin batch UI labels are
+  // hardcoded Chinese per the admin rule. R4-4 moves both sides to
+  // 372/181 (5 partial-refund/pickup keys).
   const data = await import(
     path.resolve(repoDir, "web", "assets", "js", "data.js")
   );
   const counts = data.LANGS.map((l) => Object.keys(data.I18N[l]).length);
-  assert.deepEqual(counts, [367, 367, 367]);
+  assert.deepEqual(counts, [372, 372, 372]);
   const text = fs.readFileSync(
     path.resolve(repoDir, "miniprogram", "utils", "i18n.js"),
     "utf8",
@@ -317,7 +318,7 @@ test("i18n 367/176: 7 new batch keys mini-only, equal sets", async () => {
     ].map((m) => m[1]);
   }
   for (const lang of ["zh", "vi", "en"]) {
-    assert.equal(blocks[lang].length, 176, `${lang} key count`);
+    assert.equal(blocks[lang].length, 181, `${lang} key count`);
     for (const k of ["verifyBatchTitle", "verifyScan", "verifyBatchPaste", "verifyBatchSync", "verifyQueueTitle", "verifyQueueEmpty", "verifyAdminOnly"])
       assert.ok(blocks[lang].includes(k), `${k} missing in mini ${lang}`);
   }

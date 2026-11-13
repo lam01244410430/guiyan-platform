@@ -9,7 +9,7 @@
 // pickup point + the shop's default template; public default template
 // -> 200 (built-in when none set); setting a new default clears the
 // old default; cross-shop template edit -> 403; i18n key counts (H5
-// 367, miniprogram 176, equal sets).
+// 372, miniprogram 181, equal sets).
 import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
@@ -345,7 +345,7 @@ test("setting a new default clears the old default", async () => {
   assert.equal(pub2.data.ticket_template.name, "默认票面");
 });
 
-test("cross-shop template edit -> 403; i18n 367/176", async () => {
+test("cross-shop template edit -> 403; i18n 372/181", async () => {
   // The shop-B admin cannot touch shop 1's template, nor name shop 1
   // on a create; their own shop works.
   const list = await listTemplates(adminToken);
@@ -364,12 +364,12 @@ test("cross-shop template edit -> 403; i18n 367/176", async () => {
   const mine = await listTemplates(shopBToken);
   assert.ok(mine.data.ticket_templates.length >= 1);
   assert.ok(mine.data.ticket_templates.every((t) => t.shop_id === shopBId));
-  // i18n: 3 new pickup keys + 1 venue key + 2 seat keys on both sides (333 -> 339, 137 -> 143); R3-1 adds 5 member-tier keys (339 -> 344, 143 -> 148); R3-2 adds 3 coupon keys (344 -> 347, 148 -> 151); R3-3 adds 3 flash-sale keys (347 -> 350, 151 -> 154); R3-4 adds 3 gift keys (350 -> 353, 154 -> 157); R3-5 adds 1 socMaoyan key H5-only (353 -> 354); R3-6 adds 6 stored-value keys (354 -> 360, 157 -> 163); R4-1 adds 6 ticket keys H5 (360 -> 366), 5 mini (163 -> 168); R4-2 adds 1 print key (366 -> 367, 168 -> 169); R4-3 adds 7 batch keys mini-only (169 -> 176).
+  // i18n: 3 new pickup keys + 1 venue key + 2 seat keys on both sides (333 -> 339, 137 -> 143); R3-1 adds 5 member-tier keys (339 -> 344, 143 -> 148); R3-2 adds 3 coupon keys (344 -> 347, 148 -> 151); R3-3 adds 3 flash-sale keys (347 -> 350, 151 -> 154); R3-4 adds 3 gift keys (350 -> 353, 154 -> 157); R3-5 adds 1 socMaoyan key H5-only (353 -> 354); R3-6 adds 6 stored-value keys (354 -> 360, 157 -> 163); R4-1 adds 6 ticket keys H5 (360 -> 366), 5 mini (163 -> 168); R4-2 adds 1 print key (366 -> 367, 168 -> 169); R4-3 adds 7 batch keys mini-only (169 -> 176); R4-4 adds 5 partial-refund/pickup keys (367 -> 372, 176 -> 181).
   const data = await import(
     path.resolve(repoDir, "web", "assets", "js", "data.js")
   );
   const counts = data.LANGS.map((l) => Object.keys(data.I18N[l]).length);
-  assert.deepEqual(counts, [367, 367, 367]);
+  assert.deepEqual(counts, [372, 372, 372]);
   for (const k of ["pickupTitle", "pickupEmpty", "pickupPick"]) {
     for (const l of data.LANGS)
       assert.ok(k in data.I18N[l], `${k} missing in H5 ${l}`);
@@ -389,7 +389,7 @@ test("cross-shop template edit -> 403; i18n 367/176", async () => {
     ].map((m) => m[1]);
   }
   for (const lang of ["zh", "vi", "en"]) {
-    assert.equal(blocks[lang].length, 176, `${lang} key count`);
+    assert.equal(blocks[lang].length, 181, `${lang} key count`);
     for (const k of ["pickupTitle", "pickupEmpty", "pickupPick"])
       assert.ok(blocks[lang].includes(k), `${k} missing in mini ${lang}`);
   }

@@ -18,6 +18,10 @@
         </view>
         <block wx:if="{{item.ticketLines.length}}">
           <view class="note">{{L.ticketTitle}}：<block wx:for="{{item.ticketLines}}" wx:key="*this">{{item}}<text wx:if="{{index < item.ticketLines.length - 1}}">；</text></block></view>
+          <view class="note">{{L.pickupNote}}</view>
+        </block>
+        <block wx:if="{{item.refundedText}}">
+          <view class="note">{{item.refundedText}}</view>
         </block>
         <block wx:if="{{item.status==='pending'}}">
           <view class="btn" bindtap="act" data-act="confirm" data-code="{{item.code}}">{{L.actConfirm}}</view>
@@ -34,6 +38,7 @@
           </view>
           <view class="btn" bindtap="act" data-act="complete" data-code="{{item.code}}">{{L.actComplete}}</view>
           <view class="btn ghost" bindtap="act" data-act="refund" data-code="{{item.code}}">{{L.actRefund}}</view>
+          <view class="note">{{L.partialRefundPrintedNote}}</view>
         </block>
         <block wx:if="{{item.status==='completed'}}">
           <view class="note">{{L.doneNote}}</view>

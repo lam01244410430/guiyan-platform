@@ -118,6 +118,22 @@ const ALERT_KINDS = [
   ["data", "数据异常"], ["sentiment", "潜在舆情风险"],
 ];
 
+/* R4-4: a pending partial refund (refund_requested with ticket ids in
+   pending_refund_tickets) shows the frozen ticket count + the refund
+   amounts the approval would pay (perTicket = floor(amount /
+   quantity), card share first = floor(stored_value_cents /
+   quantity) x k). Returns null when nothing is pending. */
+function pendingPartialInfo(o) {
+  let ids = [];
+  try { ids = JSON.parse(o.pending_refund_tickets || "[]"); } catch { ids = []; }
+  if (!Array.isArray(ids) || !ids.length) return null;
+  const k = ids.length;
+  const qty = o.quantity || 1;
+  const perTicket = Math.floor((o.amount || 0) / qty);
+  const cardPerTicket = Math.floor((o.stored_value_cents || 0) / qty);
+  return { k, refundCents: perTicket * k, cardCents: cardPerTicket * k };
+}
+
 /* Wave 4 #13: after-sales actions per order row. refund_requested shows
    同意退款 / 拒绝退款; disputed shows 驳回申诉 / 调解完成并结算. Buttons
    follow the demands-review pattern (reviewBusyId, disabled while
@@ -125,6 +141,7 @@ const ALERT_KINDS = [
    of zhou Transactions.jsx:248-252. */
 function OrderRow({ o, onContract, onReview, reviewBusyId }) {
   const busy = reviewBusyId === o.id;
+  const pending = pendingPartialInfo(o);
   return (
     <>
       <tr>
@@ -146,9 +163,11 @@ function OrderRow({ o, onContract, onReview, reviewBusyId }) {
           ) : ""}
         </td>
       </tr>
-      {o.refund_reason || o.refund_decision ? (
+      {o.refund_reason || o.refund_decision || pending ? (
         <tr>
           <td colSpan="8">
+            {pending ? (<span>部分退款待审：{pending.k} 张票，退款 ¥{(pending.refundCents / 100).toString()}（其中文惠卡先返 ¥{(pending.cardCents / 100).toString()}）</span>) : null}
+            {pending && (o.refund_reason || o.refund_decision) ? "　" : null}
             {o.refund_reason ? (<span>售后原因：{o.refund_reason}</span>) : null}
             {o.refund_reason && o.refund_decision ? "　" : null}
             {o.refund_decision ? (<span>平台处理说明：{o.refund_decision}</span>) : null}

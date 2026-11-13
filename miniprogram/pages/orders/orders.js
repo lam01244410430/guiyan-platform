@@ -34,6 +34,12 @@ Page({
       'stRefundRequested', 'stDisputed',
       'simPay', 'ticketTitle', 'ticketCode', 'ticketEmpty', 'ticketIssued',
       'ticketUsed', 'ticketVoid', 'modalCancel', 'modalRefund',
+      // R4-4: self-service pickup note + partial-refund display
+      // (the quantity picker itself is H5-only this wave — the mini
+      // refund stays full-order via the modal; the picker keys are
+      // carried here for i18n parity with H5).
+      'pickupNote', 'partialRefundQty', 'partialRefundBtn',
+      'partialRefundDone', 'partialRefundPrintedNote',
       'confirmBtn', 'cancelBtn', 'viewsUnit'];
     var L = {};
     keys.forEach(function (k) { L[k] = i18n.t(k, lang); });
@@ -53,6 +59,12 @@ Page({
       // R4-1: ticket codes ("code（status）" lines) — filled by
       // refreshOnline for server orders; [] = no ticket block.
       ticketLines: [],
+      // R4-4: partial-refund history text ('' = none) — the
+      // server order carries refund_quantity / refunded_cents.
+      refundedText: (o.refund_quantity || 0) > 0
+        ? i18n.fmt(i18n.t('partialRefundDone', lang),
+          { n: o.refund_quantity, a: (o.refunded_cents || 0) / 100 })
+        : '',
       payLabel: i18n.fmt(i18n.t('actPay', lang), { amt: data.money(o.total) }) };
   },
   _favView: function (idx, lang) {

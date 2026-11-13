@@ -12,7 +12,7 @@
 // tier create/patch -> 403; a main-shop Silver gets no discount on a
 // shop-B order (tiers are per shop); validation (discount_pct > 100 /
 // negative threshold -> 400; unknown tier PATCH -> 404); anonymous tier
-// read -> 401; i18n key counts (H5 367, miniprogram 176, equal sets).
+// read -> 401; i18n key counts (H5 372, miniprogram 181, equal sets).
 import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
@@ -380,12 +380,12 @@ test("validation: discount_pct > 100 / negative threshold -> 400; unknown tier P
   assert.equal(restored.status, 200, JSON.stringify(restored.data));
 });
 
-test("r3-tiers i18n: H5 367 keys/language, miniprogram 176, equal sets", async () => {
+test("r3-tiers i18n: H5 372 keys/language, miniprogram 181, equal sets", async () => {
   const data = await import(
     path.resolve(repoDir, "web", "assets", "js", "data.js")
   );
   const counts = data.LANGS.map((l) => Object.keys(data.I18N[l]).length);
-  assert.deepEqual(counts, [367, 367, 367]);
+  assert.deepEqual(counts, [372, 372, 372]);
   for (const k of ["memberTierTitle", "memberTierCurrent", "memberTierNext", "memberTierSpendMore", "memberTierDiscount"]) {
     for (const l of data.LANGS)
       assert.ok(k in data.I18N[l], `${k} missing in H5 ${l}`);
@@ -405,7 +405,7 @@ test("r3-tiers i18n: H5 367 keys/language, miniprogram 176, equal sets", async (
     ].map((m) => m[1]);
   }
   for (const lang of ["zh", "vi", "en"]) {
-    assert.equal(blocks[lang].length, 176, `${lang} key count`);
+    assert.equal(blocks[lang].length, 181, `${lang} key count`);
     for (const k of ["memberTierTitle", "memberTierCurrent", "memberTierNext", "memberTierSpendMore", "memberTierDiscount"])
       assert.ok(blocks[lang].includes(k), `${k} missing in mini ${lang}`);
   }

@@ -16,8 +16,8 @@
 // still leaves exactly 1 gift); a gifted coupon is usable on the next
 // order exactly like a normal coupon (same code path, per-user limit
 // counts, second use -> 400) and cancelling the order that used it
-// flips the gift back to 'gifted'; i18n key counts (H5 367,
-// miniprogram 176, equal sets).
+// flips the gift back to 'gifted'; i18n key counts (H5 372,
+// miniprogram 181, equal sets).
 import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
@@ -517,13 +517,13 @@ test("gifted coupon is usable on the next order like a normal coupon; cancelling
   await disableRule(adminToken, ruleId);
 });
 
-test("r3-auto-coupons i18n: H5 367 keys/language, miniprogram 176, equal sets", async () => {
-  // i18n: 3 new gift-coupon keys on both sides (350 -> 353, 154 -> 157); R3-5 adds 1 socMaoyan key H5-only (353 -> 354); R3-6 adds 6 stored-value keys (354 -> 360, 157 -> 163); R4-1 adds 6 ticket keys H5 (360 -> 366), 5 mini (163 -> 168); R4-2 adds 1 print key (366 -> 367, 168 -> 169); R4-3 adds 7 batch keys mini-only (169 -> 176).
+test("r3-auto-coupons i18n: H5 372 keys/language, miniprogram 181, equal sets", async () => {
+  // i18n: 3 new gift-coupon keys on both sides (350 -> 353, 154 -> 157); R3-5 adds 1 socMaoyan key H5-only (353 -> 354); R3-6 adds 6 stored-value keys (354 -> 360, 157 -> 163); R4-1 adds 6 ticket keys H5 (360 -> 366), 5 mini (163 -> 168); R4-2 adds 1 print key (366 -> 367, 168 -> 169); R4-3 adds 7 batch keys mini-only (169 -> 176); R4-4 adds 5 partial-refund/pickup keys (367 -> 372, 176 -> 181).
   const data = await import(
     path.resolve(repoDir, "web", "assets", "js", "data.js")
   );
   const counts = data.LANGS.map((l) => Object.keys(data.I18N[l]).length);
-  assert.deepEqual(counts, [367, 367, 367]);
+  assert.deepEqual(counts, [372, 372, 372]);
   for (const k of ["giftCouponTitle", "giftCouponEmpty", "giftCouponUsed"]) {
     for (const l of data.LANGS)
       assert.ok(k in data.I18N[l], `${k} missing in H5 ${l}`);
@@ -543,7 +543,7 @@ test("r3-auto-coupons i18n: H5 367 keys/language, miniprogram 176, equal sets", 
     ].map((m) => m[1]);
   }
   for (const lang of ["zh", "vi", "en"]) {
-    assert.equal(blocks[lang].length, 176, `${lang} key count`);
+    assert.equal(blocks[lang].length, 181, `${lang} key count`);
     for (const k of ["giftCouponTitle", "giftCouponEmpty", "giftCouponUsed"])
       assert.ok(blocks[lang].includes(k), `${k} missing in mini ${lang}`);
   }

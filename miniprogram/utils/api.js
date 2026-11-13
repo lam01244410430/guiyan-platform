@@ -265,7 +265,11 @@ function mapApiOrder(o) {
     // R3-2: the coupon discount this order got (0 = none).
     coupon_cents: o.coupon_cents || 0,
     // R3-3: the flash-sale discount this order got (0 = none).
-    flash_cents: o.flash_cents || 0
+    flash_cents: o.flash_cents || 0,
+    // R4-4: partial-refund history (0 = none) — the orders page
+    // shows what a partial refund already returned.
+    refund_quantity: o.refund_quantity || 0,
+    refunded_cents: o.refunded_cents || 0
   };
 }
 

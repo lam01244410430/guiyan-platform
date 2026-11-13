@@ -38,11 +38,10 @@
 //   the main transaction, atomic with the status change.
 // - A ticket frozen in a pending partial refund refuses with 400
 //   "票正在退款审核中" + log refund_pending. The
-//   pending_refund_tickets column does NOT exist yet (R4-4 adds it),
-//   so the check probes information_schema first and treats a
-//   missing column as "nothing frozen"; R4-4 activates the check by
-//   adding the column — no code change needed here. Do NOT add the
-//   column in this file (R4-4 owns the orders ALTERs).
+//   pending_refund_tickets column exists since R4-4 (orders ALTERs
+//   in postgres.mjs); the check still probes information_schema
+//   first and treats a missing column as "nothing frozen", so the
+//   code works on a DB created before R4-4 too.
 // - Write requests hold the global advisory lock, so the
 //   check-then-update in verify is race-safe (same reasoning as the
 //   R2-5 seat hold).
@@ -155,8 +154,8 @@ export async function issueTicketsForOrder(get, run, order, now) {
 }
 
 // The ticket ids frozen in the order's pending partial-refund
-// request (R4-4). The pending_refund_tickets column does not exist
-// yet — probe information_schema and treat a missing column as an
+// request (R4-4). The pending_refund_tickets column exists since
+// R4-4 — probe information_schema and treat a missing column as an
 // empty freeze list (see the file header). Exported: the R4-2 print
 // endpoint reuses the same freeze check, so a frozen ticket refuses
 // both verify and print.

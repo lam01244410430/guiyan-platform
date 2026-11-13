@@ -10,9 +10,9 @@
 #   docker compose -p guiyan-p8-smoke up -d --build
 #   ./scripts/smoke-docker.sh [project]   # default project: guiyan-p8-smoke
 #
-# The script checks the 3 containers are healthy, runs the 48 checks in the
+# The script checks the 3 containers are healthy, runs the 49 checks in the
 # plan Appendix A against the stack, prints PASS/FAIL per check and exits
-# non-zero if any check fails. Check 49 tears the stack down (down -v) and
+# non-zero if any check fails. Check 50 tears the stack down (down -v) and
 # verifies no project containers/volumes remain. All curl calls are direct
 # (no background processes left behind). Target is a disposable stack with a
 # fresh DB — never run it against the live Vercel/Neon deployment.
@@ -324,11 +324,16 @@ if [ "$CODE" = "200" ] && [ "$(jlen "['print_logs']")" = "0" ]; then ok "47 GET 
 CODE="$(post /api/verify/batch '{"codes":["GY00000000"]}' "$ADMIN_TOKEN")"
 if [ "$CODE" = "200" ] && has '"result":"not_found"'; then ok "48 POST /api/verify/batch as admin 200, bogus code not_found"; else bad "48 POST /api/verify/batch as admin (code=$CODE, body=$(cat "$TMP/body"))"; fi
 
-# 49. teardown — down -v, then 0 project containers and 0 project volumes.
+# 49. partial refund — route exists: refund on a missing order -> 404,
+# no side effects (R4-4; the order load 404s before any write)
+CODE="$(post /api/orders/999999/refund '{"reason":"smoke"}' "$ADMIN_TOKEN")"
+if [ "$CODE" = "404" ]; then ok "49 POST /api/orders/999999/refund as admin 404, route exists"; else bad "49 POST /api/orders/999999/refund as admin (code=$CODE, body=$(cat "$TMP/body"))"; fi
+
+# 50. teardown — down -v, then 0 project containers and 0 project volumes.
 docker compose -p "$PROJECT" down -v >/dev/null 2>&1
 LEFT_C="$(docker ps --format '{{.Names}}' | grep -c "$PROJECT" || true)"
 LEFT_V="$(docker volume ls --format '{{.Name}}' | grep -c "^${PROJECT}_" || true)"
-if [ "$LEFT_C" = "0" ] && [ "$LEFT_V" = "0" ]; then ok "49 down -v: 0 project containers, 0 project volumes"; else bad "49 down -v (containers left=$LEFT_C, volumes left=$LEFT_V)"; fi
+if [ "$LEFT_C" = "0" ] && [ "$LEFT_V" = "0" ]; then ok "50 down -v: 0 project containers, 0 project volumes"; else bad "50 down -v (containers left=$LEFT_C, volumes left=$LEFT_V)"; fi
 
-echo "== smoke-docker: PASS $PASS / FAIL $FAIL (48 checks) =="
+echo "== smoke-docker: PASS $PASS / FAIL $FAIL (49 checks) =="
 [ "$FAIL" = "0" ]
