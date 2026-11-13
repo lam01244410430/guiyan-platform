@@ -1,0 +1,36 @@
+# Guiyan — full stack (phase 8). Run: cp .env.example .env && docker compose up -d
+# Production stays on Vercel + Neon; this file is for local/docker runs only.
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: guiyan
+      POSTGRES_PASSWORD: guiyan
+      POSTGRES_DB: guiyan
+    volumes:
+      - guiyan-pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U guiyan -d guiyan"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+  api:
+    build: .
+    depends_on:
+      db:
+        condition: service_healthy
+    ports:
+      - "${GUIYAN_PORT:-3001}:3001"
+    env_file:
+      - .env
+    environment:
+      DATABASE_URL: postgres://guiyan:guiyan@db:5432/guiyan
+      STATIC_DIR: dist
+      PORT: "3001"
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://127.0.0.1:3001/api/health"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+volumes:
+  guiyan-pgdata:
