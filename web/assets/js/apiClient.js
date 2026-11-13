@@ -167,5 +167,6 @@ export function mapApiOrder(o) {
   if (idx < 0) return null;
   let st = o.status;
   if (!STATUS[st]) st = "pending";
-  return { code: o.code || ("GY" + o.id), idx, qty: o.quantity || 1, date: String(o.booking_date || "").slice(0, 10), total: (o.amount || 0) / 100, status: st, apiId: o.id };
+  return { code: o.code || ("GY" + o.id), idx, qty: o.quantity || 1, date: String(o.booking_date || "").slice(0, 10), total: (o.amount || 0) / 100, status: st, apiId: o.id,
+    pickup: o.pickup_point || null, template: o.ticket_template || null };
 }

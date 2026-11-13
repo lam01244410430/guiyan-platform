@@ -1,5 +1,6 @@
 import { createStorage } from "../storage.mjs";
 import { time } from "./http.mjs";
+import { enrichOrder } from "../routes/pickup.mjs";
 
 export function createContext(database) {
   const db = database;
@@ -57,11 +58,19 @@ export function createContext(database) {
     FROM resources r`;
 
   async function orderRows(user) {
-    return await all(
+    const rows = await all(
       `SELECT o.*,r.name AS resource_name,r.image,r.category,r.city,r.unit FROM orders o
        JOIN resources r ON r.id=o.resource_id WHERE o.user_id=? ORDER BY o.id DESC`,
       user.id,
     );
+    // R2-3: every order row carries its pickup point + the shop's
+    // default template (nulls for an old-flow order), so the H5
+    // my-tickets drawer and the mini-program order views render them
+    // without a second round trip.
+    const out = [];
+    for (const o of rows)
+      out.push({ ...o, ...(await enrichOrder(get, o)) });
+    return out;
   }
 
   return {

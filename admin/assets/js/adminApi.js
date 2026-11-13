@@ -46,6 +46,7 @@ export function apiFetch(path, opts) {
 export function apiGet(path) { return apiFetch(path, { method: "GET" }); }
 export function apiPost(path, body) { return apiFetch(path, { method: "POST", body }); }
 export function apiPatch(path, body) { return apiFetch(path, { method: "PATCH", body }); }
+export function apiDelete(path) { return apiFetch(path, { method: "DELETE" }); }
 /* CSV download (not apiFetch: CSV is not JSON). Sends the Bearer token,
    keeps the server's UTF-8 BOM intact for Excel, saves as the filename
    the server advertises (guiyan-orders.csv). Errors carry .status like

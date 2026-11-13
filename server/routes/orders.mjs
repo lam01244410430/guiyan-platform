@@ -1,6 +1,7 @@
 import { randomBytes } from "node:crypto";
 import { assert, text, int, date, bookingType } from "../lib/http.mjs";
 import { ORDER_STATUS_ZH } from "../lib/status-labels.mjs";
+import { enrichOrder } from "./pickup.mjs";
 
 export async function listOrders(ctx) {
   const { p, req, send, needUser, orderRows } = ctx;
@@ -13,7 +14,7 @@ export async function listOrders(ctx) {
 }
 
 export async function createOrder(ctx) {
-  const { p, req, b, send, needUser, get, run, transaction, notify, audit, time, cache } = ctx;
+  const { p, req, b, send, needUser, get, all, run, transaction, notify, audit, time, cache } = ctx;
   if (p === "/api/orders" && req.method === "POST") {
     const u = needUser(),
       rid = int(b.resourceId, "资源编号", 1),
@@ -62,6 +63,33 @@ export async function createOrder(ctx) {
     } else {
       d = date(b.booking_date);
     }
+    // R2-3: a tier order names a pickup point when (and only when) the
+    // performance's show has configured one. Required when the show
+    // has >=1 point (missing -> 400) and it must belong to that show
+    // (else 400); a show with no points, or a non-performance
+    // (old-flow) order, passing pickup_point_id -> 400. Validate
+    // everything BEFORE any write (OTP lesson).
+    const hasPickup =
+      b.pickup_point_id !== undefined && b.pickup_point_id !== null;
+    let pickupPoint = null;
+    if (hasPerf) {
+      const points = await all(
+        "SELECT * FROM pickup_points WHERE show_id=? ORDER BY id ASC",
+        show.id,
+      );
+      if (points.length > 0) {
+        assert(hasPickup, "该演出须选择取票点", 400);
+        const pid = int(b.pickup_point_id, "取票点", 1);
+        pickupPoint = points.find((x) => x.id === pid);
+        assert(pickupPoint, "取票点不属于该演出", 400);
+      } else {
+        assert(!hasPickup, "该演出未配置取票点", 400);
+      }
+    } else {
+      assert(!hasPickup, "该订单无需选择取票点", 400);
+    }
+    // Amount is always computed server-side from the resource price (or
+    // the tier price above); any amount sent by the client is ignored.
     const id = await transaction(async () => {
       if (tier) {
         // Quota check inside the transaction: write requests hold the
@@ -92,7 +120,7 @@ export async function createOrder(ctx) {
         assert(updated.changes > 0, "库存不足", 409);
       }
       const result = await run(
-        "INSERT INTO orders(code,user_id,resource_id,quantity,amount,booking_date,status,channel,note,performance_id,ticket_type_id,created_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)",
+        "INSERT INTO orders(code,user_id,resource_id,quantity,amount,booking_date,status,channel,note,performance_id,ticket_type_id,pickup_point_id,created_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)",
         `GY${Date.now()}${randomBytes(2).toString("hex")}`,
         u.id,
         rid,
@@ -106,6 +134,7 @@ export async function createOrder(ctx) {
         String(b.note || "").slice(0, 1000),
         perf ? perf.id : null,
         tier ? tier.id : null,
+        pickupPoint ? pickupPoint.id : null,
         time(),
       );
       await notify(
@@ -125,16 +154,38 @@ export async function createOrder(ctx) {
       await cache.bustResources();
     }
     const created = await get("SELECT * FROM orders WHERE id=?", id);
+    // R2-3: the order response carries the chosen pickup point + the
+    // shop's default template (nulls for an old-flow order).
+    const extra = await enrichOrder(get, created);
     send({
       ok: true,
       id,
       code: created.code,
       amount: created.amount,
       status: created.status,
+      pickup_point: extra.pickup_point,
+      ticket_template: extra.ticket_template,
     });
     return true;
   }
   return false;
+}
+
+// R2-3: one order by id (owner or admin). Same enrichment as the
+// create response: pickup point + the shop's default template.
+export async function getOrder(ctx) {
+  const { p, req, send, needUser, get } = ctx;
+  const m = p.match(/^\/api\/orders\/(\d+)$/);
+  if (!m || req.method !== "GET") return false;
+  const u = needUser();
+  const o = await get("SELECT * FROM orders WHERE id=?", Number(m[1]));
+  assert(o, "订单不存在", 404);
+  assert(o.user_id === u.id || u.role === "admin", "无权查看此订单", 403);
+  const extra = await enrichOrder(get, o);
+  send({
+    order: { ...o, pickup_point: extra.pickup_point, ticket_template: extra.ticket_template },
+  });
+  return true;
 }
 
 export async function transitionOrder(ctx) {

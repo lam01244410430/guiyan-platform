@@ -20,6 +20,8 @@ CREATE TABLE IF NOT EXISTS users(id INTEGER PRIMARY KEY, username TEXT UNIQUE NO
     CREATE TABLE IF NOT EXISTS shows(id INTEGER PRIMARY KEY, shop_id INTEGER REFERENCES shops(id), resource_id INTEGER REFERENCES resources(id), title TEXT NOT NULL, description TEXT DEFAULT '', status TEXT DEFAULT 'pending', created_by INTEGER REFERENCES users(id), created_at TEXT NOT NULL);
     CREATE TABLE IF NOT EXISTS performances(id INTEGER PRIMARY KEY, show_id INTEGER REFERENCES shows(id), start_at TEXT NOT NULL, price_cents INTEGER NOT NULL, status TEXT DEFAULT 'scheduled', created_at TEXT NOT NULL);
     CREATE TABLE IF NOT EXISTS ticket_types(id INTEGER PRIMARY KEY, performance_id INTEGER REFERENCES performances(id), name TEXT NOT NULL, price_cents INTEGER NOT NULL, quota INTEGER NOT NULL, sale_until TEXT, created_at TEXT NOT NULL);
+    CREATE TABLE IF NOT EXISTS pickup_points(id INTEGER PRIMARY KEY, show_id INTEGER REFERENCES shows(id), name TEXT NOT NULL, address TEXT NOT NULL, created_at TEXT NOT NULL);
+    CREATE TABLE IF NOT EXISTS ticket_templates(id INTEGER PRIMARY KEY, shop_id INTEGER REFERENCES shops(id), name TEXT NOT NULL, color TEXT NOT NULL, layout TEXT DEFAULT '{}', is_default INTEGER DEFAULT 0, created_at TEXT NOT NULL);
     CREATE INDEX IF NOT EXISTS idx_order_resource_date ON orders(resource_id,booking_date,status);
     CREATE INDEX IF NOT EXISTS idx_order_user ON orders(user_id);
     CREATE INDEX IF NOT EXISTS idx_comments_resource ON comments(resource_id,status);

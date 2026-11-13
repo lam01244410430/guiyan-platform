@@ -52,6 +52,17 @@
             <block wx:if="{{item.ticket_types.length && !tierSel}}">
               <view class="note">{{L.tierPick}}</view>
             </block>
+            <!-- R2-3: pickup-point picker for the selected performance's
+                 show; required (the order is blocked) once a tier is picked. -->
+            <block wx:if="{{pickupPoints && pickupPoints.length}}">
+              <view style="font-size:28rpx;font-weight:700;margin-top:16rpx">{{L.pickupTitle}}</view>
+              <view wx:for="{{pickupPoints}}" wx:key="id" bindtap="onPickupTap" data-id="{{item.id}}" style="display:flex;justify-content:space-between;margin-top:12rpx;font-size:28rpx">
+                <text style="{{pickupSel===item.id?'color:#0d6e5f;font-weight:700':''}}">{{item.name}}</text><text>{{item.address}}</text>
+              </view>
+              <block wx:if="{{!pickupSel}}">
+                <view class="note">{{L.pickupPick}}</view>
+              </block>
+            </block>
           </block>
         </view>
       </block>
@@ -60,12 +71,19 @@
       </block>
     </view>
   </block>
+
   <block wx:if="{{order}}">
     <view class="card">
       <view class="sec-title serif" style="font-size:32rpx">{{order.code}}</view>
       <view style="margin-top:14rpx"><text class="pill {{order.status}}">{{order.statusText}}</text></view>
       <view class="note">{{L.flow[0]}} → {{L.flow[1]}} → {{L.flow[2]}} → {{L.flow[3]}}</view>
       <view class="note">{{order.name}} · {{order.date}} · ×{{order.qty}} · {{order.total}}</view>
+      <block wx:if="{{order.pickup}}">
+        <view class="note">{{L.pickupTitle}}：{{order.pickup.name}} · {{order.pickup.address}}</view>
+      </block>
+      <block wx:if="{{order.template}}">
+        <view class="note"><text style="display:inline-block;width:20rpx;height:20rpx;background:{{order.template.color}};border-radius:4rpx;margin-right:8rpx"></text>{{order.template.name}}</view>
+      </block>
       <block wx:if="{{order.status==='pending'}}">
         <view class="btn" bindtap="act" data-act="confirm">{{L.actConfirm}}</view>
         <view class="btn ghost" bindtap="act" data-act="cancel">{{L.actCancel}}</view>

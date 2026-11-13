@@ -13,7 +13,7 @@
    every write lands in audit_logs. Premium data loads lazily, only when its view opens. */
 import { Fragment, useEffect, useRef, useState } from "react";
 import {
-  apiGet, apiPost, apiPatch, apiDownloadCsv, downloadText, clearToken, currentUser, getToken, fmtMoney, STATUS,
+  apiGet, apiPost, apiPatch, apiDelete, apiDownloadCsv, downloadText, clearToken, currentUser, getToken, fmtMoney, STATUS,
 } from "./adminApi.js";
 import TrendChart from "./TrendChart.jsx";
 import SearchBox from "./SearchBox.jsx";
@@ -259,6 +259,18 @@ export default function AdminDashboard() {
   const [tiersByPerf, setTiersByPerf] = useState({});
   const [tierForm, setTierForm] = useState(null);
   const [tierBusyId, setTierBusyId] = useState(null);
+  // R2-3 pickup points + ticket templates: the show whose pickup
+  // points are open (pickupShowId) + points loaded on demand per show
+  // (pickupByShow) + the open create draft (null = closed) + the id of
+  // the point in flight; the shop-scoped template list (templates) +
+  // the open template create/edit draft + the id in flight.
+  const [pickupByShow, setPickupByShow] = useState({});
+  const [pickupShowId, setPickupShowId] = useState(null);
+  const [pickupForm, setPickupForm] = useState(null);
+  const [pickupBusyId, setPickupBusyId] = useState(null);
+  const [templates, setTemplates] = useState([]);
+  const [templateForm, setTemplateForm] = useState(null);
+  const [templateBusyId, setTemplateBusyId] = useState(null);
   const [acctBusy, setAcctBusy] = useState(false);
   const [acctOtp, setAcctOtp] = useState("");
   const [acctOtpInput, setAcctOtpInput] = useState("");
@@ -318,6 +330,7 @@ export default function AdminDashboard() {
       if (e && e.status === 403) { setForbidden(true); return; }
       toast("加载失败，请稍后重试");
     });
+    loadTemplates();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -812,6 +825,132 @@ export default function AdminDashboard() {
     const fin = function () { setTierBusyId(null); };
     if (tierId) apiPatch("/api/admin/ticket-types/" + tierId, body).then(done).catch(fail).finally(fin);
     else apiPost("/api/performances/" + pfId + "/ticket-types", body).then(done).catch(fail).finally(fin);
+  }
+
+  // R2-3 pickup points: list + create + delete inside the show
+  // manager. Points load on demand per show; a point an order already
+  // chose cannot be deleted (the server refuses with 400).
+  function loadPickups(showId) {
+    apiGet("/api/shows/" + showId + "/pickup-points").then(function (d) {
+      setPickupByShow(function (m) { return { ...m, [showId]: d.pickup_points || [] }; });
+    }).catch(loadFail);
+  }
+  function togglePickupManager(s) {
+    if (pickupShowId === s.id) { setPickupShowId(null); setPickupForm(null); }
+    else { setPickupShowId(s.id); setPickupForm(null); loadPickups(s.id); }
+  }
+  function openPickupForm(s) {
+    setPickupForm({ showId: s.id, name: "", address: "" });
+  }
+  function editPickupForm(key, value) {
+    setPickupForm(function (f) { return f ? { ...f, [key]: value } : f; });
+  }
+  function savePickupForm() {
+    if (!pickupForm || pickupBusyId !== null) return;
+    if (!pickupForm.name.trim()) { toast("请填写取票点名称"); return; }
+    if (!pickupForm.address.trim()) { toast("请填写取票点地址"); return; }
+    const showId = pickupForm.showId;
+    setPickupBusyId("new");
+    apiPost("/api/shows/" + showId + "/pickup-points", {
+      name: pickupForm.name.trim(), address: pickupForm.address.trim(),
+    }).then(function (d) {
+      const created = d.pickup_point;
+      setPickupByShow(function (m) {
+        return { ...m, [showId]: (m[showId] || []).concat([created]) };
+      });
+      setPickupForm(null);
+      toast("已创建取票点");
+    }).catch(function (e) {
+      if (e && e.status === 403) toast("只能管理本店铺的取票点");
+      else if (e && e.status === 404) toast("演出不存在");
+      else toast((e && e.data && e.data.error) || "保存失败，请检查表单");
+    }).finally(function () { setPickupBusyId(null); });
+  }
+  function deletePickupPoint(pt) {
+    if (pickupBusyId !== null) return;
+    setPickupBusyId(pt.id);
+    apiDelete("/api/admin/pickup-points/" + pt.id).then(function () {
+      setPickupByShow(function (m) {
+        const list = m[pt.show_id] || [];
+        return { ...m, [pt.show_id]: list.filter(function (x) { return x.id !== pt.id; }) };
+      });
+      toast("已删除取票点");
+    }).catch(function (e) {
+      if (e && e.status === 403) toast("只能管理本店铺的取票点");
+      else if (e && e.status === 404) toast("取票点不存在");
+      else toast((e && e.data && e.data.error) || "删除失败，请稍后重试");
+    }).finally(function () { setPickupBusyId(null); });
+  }
+
+  // R2-3 ticket templates: per-shop list + create/edit next to the
+  // shop view. Colours come from the same 7-colour Guiyan allowlist as
+  // shop theming (THEME_COLORS); the layout is JSON text for an object
+  // (empty = {}). Setting a template as default clears the shop's old
+  // default on the server, in the same request.
+  function loadTemplates() {
+    apiGet("/api/admin/ticket-templates").then(function (d) {
+      setTemplates(d.ticket_templates || []);
+    }).catch(loadFail);
+  }
+  function openTemplateForm(t) {
+    setTemplateForm(t ? {
+      id: t.id, shop_id: String(t.shop_id), name: t.name, color: t.color,
+      layout: t.layout && Object.keys(t.layout).length ? JSON.stringify(t.layout) : "",
+      is_default: t.is_default ? 1 : 0,
+    } : {
+      id: null,
+      shop_id: isPlatformAdmin ? "1" : (me && me.shop_id ? String(me.shop_id) : "1"),
+      name: "", color: "#0b3d36", layout: "", is_default: 0,
+    });
+  }
+  function editTemplateForm(key, value) {
+    setTemplateForm(function (f) { return f ? { ...f, [key]: value } : f; });
+  }
+  function saveTemplateForm() {
+    if (!templateForm || templateBusyId !== null) return;
+    if (!templateForm.name.trim()) { toast("请填写模板名称"); return; }
+    if (THEME_COLORS.indexOf(templateForm.color) < 0) { toast("请选择桂演配色"); return; }
+    let layout;
+    if (templateForm.layout.trim()) {
+      try {
+        layout = JSON.parse(templateForm.layout);
+      } catch (e) {
+        toast("票面版式须为 JSON 对象"); return;
+      }
+      if (!layout || typeof layout !== "object" || Array.isArray(layout)) { toast("票面版式须为 JSON 对象"); return; }
+    }
+    const body = {
+      name: templateForm.name.trim(), color: templateForm.color,
+      is_default: templateForm.is_default ? 1 : 0,
+    };
+    if (layout !== undefined) body.layout = layout;
+    if (isPlatformAdmin) body.shop_id = Number(templateForm.shop_id) || 1;
+    const tplId = templateForm.id;
+    setTemplateBusyId(tplId || "new");
+    const done = function (d) {
+      const saved = d.ticket_template;
+      setTemplates(function (ts) {
+        const next = tplId
+          ? ts.map(function (x) { return x.id === saved.id ? saved : x; })
+          : ts.concat([saved]);
+        // The server cleared the shop's old default in the same
+        // request; reflect it locally for the same shop only.
+        if (!saved.is_default) return next;
+        return next.map(function (x) {
+          return x.shop_id === saved.shop_id && x.id !== saved.id ? { ...x, is_default: 0 } : x;
+        });
+      });
+      setTemplateForm(null);
+      toast(tplId ? "已保存模板" : "已创建模板");
+    };
+    const fail = function (e) {
+      if (e && e.status === 403) toast("只能管理本店铺的票面模板");
+      else if (e && e.status === 404) toast("店铺或模板不存在");
+      else toast((e && e.data && e.data.error) || "保存失败，请检查表单");
+    };
+    const fin = function () { setTemplateBusyId(null); };
+    if (tplId) apiPatch("/api/admin/ticket-templates/" + tplId, body).then(done).catch(fail).finally(fin);
+    else apiPost("/api/admin/ticket-templates", body).then(done).catch(fail).finally(fin);
   }
 
   // R1-2 admin accounts: own profile (name/email) + OTP password
@@ -1483,6 +1622,54 @@ export default function AdminDashboard() {
                 </div>
               </fieldset>
             ) : null}
+            {/* R2-3 ticket templates: per-shop list + create/edit next
+                to the shop view. Colours use the same 7-colour Guiyan
+                allowlist as theming; setting a default clears the
+                shop's old default. Tickets render with the shop's
+                default template (built-in when none is set). */}
+            <div className="note" style={{ marginTop: 16 }}>票面模板按店铺管理；设为默认时清除同店旧默认；未设默认时用内置默认票面（深松绿）。</div>
+            {templateForm ? (
+              <fieldset className="tag-rule">
+                <legend>{templateForm.id === null ? "添加票面模板" : "编辑票面模板：" + templateForm.name}</legend>
+                {isPlatformAdmin ? (
+                  <label>店铺 <select value={templateForm.shop_id} onChange={(e) => editTemplateForm("shop_id", e.target.value)}>
+                    {shops.map((s) => (<option key={s.id} value={String(s.id)}>{s.name}</option>))}
+                  </select></label>
+                ) : (
+                  <label>店铺 <input type="text" value={me && me.shop_id ? shopName(me.shop_id) : ""} disabled /></label>
+                )}
+                <label>模板名称 <input type="text" value={templateForm.name} maxLength={100} onChange={(e) => editTemplateForm("name", e.target.value)} /></label>
+                <label>颜色 <select value={templateForm.color} onChange={(e) => editTemplateForm("color", e.target.value)}>
+                  {THEME_COLORS.map((c) => (<option key={c} value={c}>{c}</option>))}
+                </select></label>
+                <label>版式（JSON 对象，可空） <input type="text" value={templateForm.layout} placeholder='{"title":"桂演之夜"}' onChange={(e) => editTemplateForm("layout", e.target.value)} /></label>
+                <label><input type="checkbox" checked={templateForm.is_default === 1} onChange={(e) => editTemplateForm("is_default", e.target.checked ? 1 : 0)} /> 设为默认模板</label>
+                <div>
+                  <button type="button" className="btn-export" disabled={templateBusyId !== null} onClick={saveTemplateForm}>{templateBusyId !== null ? "保存中…" : (templateForm.id ? "保存模板" : "创建模板")}</button>{" "}
+                  <button type="button" className="btn-resolve" onClick={() => setTemplateForm(null)}>取消</button>
+                </div>
+              </fieldset>
+            ) : null}
+            <div className="tbl-wrap">
+              <table>
+                <thead><tr><th scope="col">模板名称</th><th scope="col">店铺</th><th scope="col">颜色</th><th scope="col">默认</th><th scope="col">操作</th></tr></thead>
+                <tbody>
+                  {templates.length ? templates.map((t) => (
+                    <tr key={t.id}>
+                      <td>{t.name}</td><td>{shopName(t.shop_id)}</td>
+                      <td><i style={{ display: "inline-block", width: 12, height: 12, background: t.color, borderRadius: 2, marginRight: 6, verticalAlign: "-1px" }} />{t.color}</td>
+                      <td>{t.is_default ? "默认" : "—"}</td>
+                      <td>
+                        <span className="row-actions">
+                          <button type="button" className="btn-view" disabled={templateBusyId !== null} onClick={() => openTemplateForm(t)}>编辑</button>
+                        </span>
+                      </td>
+                    </tr>
+                  )) : <tr><td colSpan="5"><div className="empty">暂无票面模板</div></td></tr>}
+                </tbody>
+              </table>
+            </div>
+            <div style={{ marginTop: 8 }}><button type="button" className="btn-export" onClick={() => openTemplateForm(null)}>添加票面模板</button></div>
             <div className="tbl-wrap">
               <table>
                 <thead><tr><th scope="col" aria-sort={ariaSort("shops", "name")}>名称<SortButton label="名称" sortKey="name" tableId="shops" sort={sorts.shops} onToggle={toggleSort} /></th><th scope="col">上级</th><th scope="col">店主</th><th scope="col" className="num" aria-sort={ariaSort("shops", "resource_count")}>资源数<SortButton label="资源数" sortKey="resource_count" tableId="shops" sort={sorts.shops} onToggle={toggleSort} /></th><th scope="col">状态</th><th scope="col">操作</th></tr></thead>
@@ -1570,6 +1757,7 @@ export default function AdminDashboard() {
                                 </>
                               ) : null}
                               <button type="button" className="btn-view" onClick={() => togglePerfManager(s)}>{perfShowId === s.id ? "收起场次" : "场次管理"}</button>
+                              <button type="button" className="btn-view" onClick={() => togglePickupManager(s)}>{pickupShowId === s.id ? "收起取票点" : "取票点"}</button>
                             </span>
                           </td>
                         </tr>
@@ -1649,6 +1837,40 @@ export default function AdminDashboard() {
                               ) : (
                                 <div className="note" style={{ marginTop: 12 }}>演出未通过审核，不可创建场次。</div>
                               )}
+                            </td>
+                          </tr>
+                        ) : null}
+                        {pickupShowId === s.id ? (
+                          <tr>
+                            <td colSpan="7">
+                              {(pickupByShow[s.id] || []).length ? (
+                                <table>
+                                  <thead><tr><th scope="col">取票点</th><th scope="col">地址</th><th scope="col">操作</th></tr></thead>
+                                  <tbody>
+                                    {(pickupByShow[s.id] || []).map((pt) => (
+                                      <tr key={pt.id}>
+                                        <td>{pt.name}</td><td>{pt.address}</td>
+                                        <td>
+                                          <span className="row-actions">
+                                            <button type="button" className="btn-reject" disabled={pickupBusyId === pt.id} onClick={() => deletePickupPoint(pt)}>{pickupBusyId === pt.id ? "处理中…" : "删除"}</button>
+                                          </span>
+                                        </td>
+                                      </tr>
+                                    ))}
+                                  </tbody>
+                                </table>
+                              ) : (<div className="empty">暂无取票点</div>)}
+                              {pickupForm && pickupForm.showId === s.id ? (
+                                <div style={{ marginTop: 12 }}>
+                                  <label>取票点名称 <input type="text" value={pickupForm.name} maxLength={100} onChange={(e) => editPickupForm("name", e.target.value)} /></label>{" "}
+                                  <label>地址 <input type="text" value={pickupForm.address} maxLength={500} onChange={(e) => editPickupForm("address", e.target.value)} /></label>{" "}
+                                  <button type="button" className="btn-export" disabled={pickupBusyId !== null} onClick={savePickupForm}>{pickupBusyId !== null ? "保存中…" : "创建取票点"}</button>{" "}
+                                  <button type="button" className="btn-view" onClick={() => setPickupForm(null)}>取消</button>
+                                </div>
+                              ) : (
+                                <div style={{ marginTop: 12 }}><button type="button" className="btn-view" onClick={() => openPickupForm(s)}>添加取票点</button></div>
+                              )}
+                              <div className="note" style={{ marginTop: 8 }}>已有订单使用取票点不可删除；配置取票点后，顾客下单该演出须选择取票点。</div>
                             </td>
                           </tr>
                         ) : null}

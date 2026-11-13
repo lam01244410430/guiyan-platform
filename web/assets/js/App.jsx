@@ -124,6 +124,8 @@ export default function App() {
   const [bkDate, setBkDate] = useState("2026-12-05");
   const [perfSel, setPerfSel] = useState(null); /* R2-2: selected performance id (null = resource-price flow) */
   const [tierSel, setTierSel] = useState(null); /* R2-2: selected ticket_type id within perfSel */
+  const [pickupPoints, setPickupPoints] = useState(null); /* R2-3: pickup points of the selected performance's show (null = not loaded for this performance); empty = the show needs no pickup point */
+  const [pickupSel, setPickupSel] = useState(null); /* R2-3: selected pickup_point id within pickupPoints */
   const [avail, setAvail] = useState(null); /* Wave 4 #12: {mode, available, capacity, dates} for the open detail + bkDate, null when unknown/offline */
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [toastMsg, setToastMsg] = useState("");
@@ -291,23 +293,27 @@ export default function App() {
   // {performance_id, ticket_type_id, price_cents, start_at}. The server
   // prices tier orders and takes booking_date from the performance; the
   // offline local order mirrors that with the tier price + perf date.
-  function bookResource(i, qty, date, tier) {
+  // pickup (R2-3): the selected pickup point object, or null. Only a
+  // tier order carries one; the server requires it when the show has
+  // pickup points configured.
+  function bookResource(i, qty, date, tier, pickup) {
     const r = RES[i];
     function localBook() {
       const code = "GY2026" + String(store.seq++).padStart(6, "0");
       const total = tier ? (tier.price_cents / 100) * qty : r[3] * qty;
-      store.orders.unshift({ code, idx: i, qty, date, total, status: "pending" });
+      store.orders.unshift({ code, idx: i, qty, date, total, status: "pending", pickup: pickup || null, template: null });
       setDetailIdx(null); rerender(); toast(fmt(t("orderCreated"), { code })); setDrawerOpen(true);
     }
     const rid = APIRES[i] && APIRES[i].id;
     if (!isApiAvailable() || !getToken() || rid == null) { localBook(); return; }
     const body = { resourceId: rid, quantity: qty, booking_date: date, channel: "web" };
     if (tier) { body.performance_id = tier.performance_id; body.ticket_type_id = tier.ticket_type_id; }
+    if (tier && pickup) body.pickup_point_id = pickup.id;
     apiPost("/api/orders", body).then(function (d) {
       if (d && d.ok) {
         const code = d.code || ("GY2026" + String(store.seq++).padStart(6, "0"));
         const total = (typeof d.amount === "number") ? d.amount / 100 : r[3] * qty;
-        store.orders.unshift({ code, idx: i, qty, date, total, status: "pending", apiId: d.id });
+        store.orders.unshift({ code, idx: i, qty, date, total, status: "pending", apiId: d.id, pickup: d.pickup_point || pickup || null, template: d.ticket_template || null });
         setDetailIdx(null); rerender(); toast(fmt(t("orderCreated"), { code })); setDrawerOpen(true);
       } else { localBook(); }
     }).catch(function (e) {
@@ -464,7 +470,7 @@ export default function App() {
   // APIRES (RES index -> API id); offline/embedded data has no id, so
   // nothing is recorded then. Anonymous views count too (server-side).
   function openDetail(i) {
-    setDetailIdx(i); setBkQty(1); setBkDate("2026-12-05"); setPerfSel(null); setTierSel(null);
+    setDetailIdx(i); setBkQty(1); setBkDate("2026-12-05"); setPerfSel(null); setTierSel(null); setPickupPoints(null); setPickupSel(null);
     const rid = APIRES[i] && APIRES[i].id;
     if (rid != null && isApiAvailable()) {
       apiPost("/api/resources/" + rid + "/view", {}).catch(function () {});
@@ -515,9 +521,20 @@ export default function App() {
      re-fetch never leaves a stale selection behind. */
   const selPf = avail && avail.performances ? avail.performances.find(function (pf) { return pf.id === perfSel; }) : null;
   const selTier = selPf && selPf.ticket_types ? selPf.ticket_types.find(function (tt) { return tt.id === tierSel; }) : null;
+  /* R2-3: pickup is required for a tier order when the selected
+     performance's show has pickup points; the chosen point (or null).
+     pickupPoints === null means not loaded yet for this performance. */
+  const pickupRequired = !!(selTier && pickupPoints && pickupPoints.length > 0);
+  const selPickup = pickupPoints ? pickupPoints.find(function (pp) { return pp.id === pickupSel; }) || null : null;
+  /* R2-3: pick a performance (tap again to deselect). Selecting loads
+     the show's pickup points (public, best-effort like the tier list);
+     a failed fetch means "no points known" and the server still
+     enforces the requirement at order time. */
   function pickPerf(pf) {
-    if (pf.id === perfSel) { setPerfSel(null); setTierSel(null); return; }
-    setPerfSel(pf.id); setTierSel(null);
+    if (pf.id === perfSel) { setPerfSel(null); setTierSel(null); setPickupPoints(null); setPickupSel(null); return; }
+    setPerfSel(pf.id); setTierSel(null); setPickupSel(null); setPickupPoints(null);
+    if (pf.show_id) apiGet("/api/shows/" + pf.show_id + "/pickup-points").then(function (d) { setPickupPoints(d.pickup_points || []); }).catch(function () { setPickupPoints([]); });
+    else setPickupPoints([]);
   }
   const quicks = t("quicks");
 
@@ -919,6 +936,22 @@ export default function App() {
                               )}
                             </div>
                           )}
+                          {/* R2-3: pickup-point picker for the selected
+                              performance's show. Shown whenever the show
+                              has points; required (the order button is
+                              blocked) once a tier is picked. */}
+                          {pf.id === perfSel && pickupPoints && pickupPoints.length > 0 && (
+                            <div className="pickup-list">
+                              <h4>{t("pickupTitle")}</h4>
+                              {pickupPoints.map((pp) => (
+                                <button key={pp.id} type="button" className="perf-row" style={{ width: "100%", background: pp.id === pickupSel ? "var(--sand)" : "transparent", border: "none", cursor: "pointer", textAlign: "left" }}
+                                  onClick={() => setPickupSel(pp.id)}>
+                                  <span>{pp.name}</span><span>{pp.address}</span>
+                                </button>
+                              ))}
+                              {!pickupSel && (<p className="perf-empty">{t("pickupPick")}</p>)}
+                            </div>
+                          )}
                         </div>
                       ))
                     ) : (<p className="perf-empty">{t("perfEmpty")}</p>)}
@@ -926,8 +959,9 @@ export default function App() {
                 )}
                 <div className="totalrow"><span>{t("totalLabel")}</span><b id="bkTotal">{money((selTier ? selTier.price_cents / 100 : cur[3]) * bkQty)}</b></div>
                 <div className="acts">
-                  <button type="button" className="btn red" id="bkGo" onClick={() => {
-                    bookResource(detailIdx, bkQty, selTier ? selPf.start_at.slice(0, 10) : (bkDate || "2026-12-05"), selTier ? { performance_id: selPf.id, ticket_type_id: selTier.id, price_cents: selTier.price_cents, start_at: selPf.start_at } : null);
+                  <button type="button" className="btn red" id="bkGo" disabled={pickupRequired && !pickupSel} onClick={() => {
+                    if (pickupRequired && !pickupSel) { toast(t("pickupPick")); return; }
+                    bookResource(detailIdx, bkQty, selTier ? selPf.start_at.slice(0, 10) : (bkDate || "2026-12-05"), selTier ? { performance_id: selPf.id, ticket_type_id: selTier.id, price_cents: selTier.price_cents, start_at: selPf.start_at } : null, selTier ? selPickup : null);
                   }}>{t("bookNow")}</button>
                   <button type="button" className="btn ghost" id="bkFav" onClick={() => toggleFav(detailIdx)}>{store.favs[detailIdx] ? t("favOn") : t("favOff")}</button>
                 </div>
@@ -965,6 +999,8 @@ export default function App() {
               <div key={o.code + oi} className="order">
                 <h4>{r[0]}</h4>
                 <span className="code">{o.code} · {o.date} · {o.qty} × {unitName(r[4])} · {money(o.total)}</span>
+                {o.pickup ? (<span className="code">{t("pickupTitle")}：{o.pickup.name} · {o.pickup.address}</span>) : null}
+                {o.template ? (<span className="code"><i style={{ display: "inline-block", width: 10, height: 10, background: o.template.color, borderRadius: 2, marginRight: 4, verticalAlign: "-1px" }} />{o.template.name}</span>) : null}
                 <div className="row"><span className={"pill " + o.status}>{t(STATUS[o.status])}</span>{acts}</div>
               </div>
             );

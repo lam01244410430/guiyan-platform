@@ -255,7 +255,11 @@ function mapApiOrder(o) {
     status: API_STATUS_TO_LOCAL[o.status] || o.status || 'pending',
     name: o.resource_name || '',
     city: idx >= 0 ? catalog[idx].city : '',
-    createdAt: o.created_at ? Date.parse(o.created_at) : 0
+    createdAt: o.created_at ? Date.parse(o.created_at) : 0,
+    // R2-3: the pickup point chosen + the shop's default template
+    // (nulls for an old-flow order).
+    pickup: o.pickup_point || null,
+    template: o.ticket_template || null
   };
 }
 

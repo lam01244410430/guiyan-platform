@@ -18,6 +18,7 @@ Page({
     L: {}, langIdx: 1, langName: 'Tiếng Việt', langs: ['中文', 'Tiếng Việt', 'English'],
     idx: 0, res: null, date: '', qty: 1, total: '', fav: false,
     order: null, flowSteps: [], perfs: null, perfSel: null, tierSel: null,
+    pickupPoints: null, pickupSel: null // R2-3: pickup points of the selected performance's show (null = not loaded); the chosen point id
   },
   onLoad: function (options) {
     var idx = parseInt(options.idx || '0', 10);
@@ -47,7 +48,8 @@ Page({
       'stCompleted', 'stCancelled', 'stRefunded', 'stRefundRequested', 'stDisputed', 'simPay',       'ticketTitle', 'ticketCode', 'datePh', 'modalCancel', 'modalRefund',
       'confirmBtn', 'cancelBtn', 'bookFirst', 'viewsUnit', 'myTickets',
       'perfTitle', 'perfEmpty', 'perfOnSale',
-      'tierTitle', 'tierEmpty', 'tierSoldOut', 'tierLeft', 'tierPick'];
+      'tierTitle', 'tierEmpty', 'tierSoldOut', 'tierLeft', 'tierPick',
+      'pickupTitle', 'pickupEmpty', 'pickupPick'];
     var L = {};
     keys.forEach(function (k) { L[k] = i18n.t(k, lang); });
     var r = api.resourceByIdx(this.data.idx) || data.RES[0];
@@ -153,12 +155,28 @@ Page({
     var id = e.currentTarget.dataset.id;
     var self = this;
     if (this.data.perfSel === id) {
-      this.setData({ perfSel: null, tierSel: null });
+      this.setData({ perfSel: null, tierSel: null, pickupPoints: null, pickupSel: null });
       this.refreshTotal();
       return;
     }
-    this.setData({ perfSel: id, tierSel: null });
+    this.setData({ perfSel: id, tierSel: null, pickupSel: null, pickupPoints: null });
+    // R2-3: selecting a performance loads its show's pickup points
+    // (public, best-effort like the performance list); a failed fetch
+    // leaves the list empty and the server still enforces the
+    // requirement at order time.
+    var perf = this.selectedPerf();
+    if (perf && perf.show_id) {
+      api.get('/api/shows/' + perf.show_id + '/pickup-points', {}, false).then(function (d) {
+        self.setData({ pickupPoints: d.pickup_points || [] });
+      }, function () { self.setData({ pickupPoints: [] }); });
+    } else {
+      this.setData({ pickupPoints: [] });
+    }
     this.refreshTotal();
+  },
+  onPickupTap: function (e) {
+    var id = e.currentTarget.dataset.id;
+    this.setData({ pickupSel: this.data.pickupSel === id ? null : id });
   },
   onTierTap: function (e) {
     var id = e.currentTarget.dataset.id;
@@ -185,6 +203,7 @@ Page({
       statusText: i18n.t(STATUS_KEY[order.status], lang),
       step: STATUS_STEP[order.status], name: r ? r.name : '',
       online: !!order.online, apiId: order.apiId != null ? order.apiId : null,
+      pickup: order.pickup || null, template: order.template || null,
       payLabel: i18n.fmt(i18n.t('actPay', lang), { amt: data.money(order.total) })
     } });
   },
@@ -250,6 +269,16 @@ Page({
     var perf = this.selectedPerf();
     var orderDate = tier ? perf.start_at.slice(0, 10) : this.data.date;
     var orderTotal = this.unitPriceYuan() * this.data.qty;
+    // R2-3: a tier order against a show with pickup points must name
+    // one; the order button is blocked until it is picked.
+    var pickupPoints = this.data.pickupPoints || [];
+    var pickupSel = null;
+    for (var k = 0; k < pickupPoints.length; k++)
+      if (pickupPoints[k].id === this.data.pickupSel) { pickupSel = pickupPoints[k]; break; }
+    if (tier && pickupPoints.length > 0 && !pickupSel) {
+      wx.showToast({ title: i18n.t('pickupPick'), icon: 'none' });
+      return;
+    }
     // Online + logged in + resource exists on the server: book via API.
     // The amount is computed server-side; the client never sends one.
     if (api.isOnline() && api.apiIdForIdx(this.data.idx) != null) {
@@ -263,12 +292,15 @@ Page({
       if (tier) {
         body.performance_id = perf.id;
         body.ticket_type_id = tier.id;
+        if (pickupSel) body.pickup_point_id = pickupSel.id;
       }
       api.post('/api/orders', body, true).then(function (res) {
         var o = { code: res.code, idx: self.data.idx,
           resourceId: api.apiIdForIdx(self.data.idx), apiId: res.id,
           online: true, qty: self.data.qty, date: orderDate,
           total: api.centsToYuan(res.amount), status: res.status || 'pending',
+          pickup: res.pickup_point || pickupSel || null,
+          template: res.ticket_template || null,
           createdAt: Date.now() };
         store.addOrder(o);
         wx.showToast({ title: i18n.fmt(i18n.t('orderCreated'), { code: o.code }), icon: 'none', duration: 2500 });

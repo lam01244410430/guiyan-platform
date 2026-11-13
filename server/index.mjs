@@ -33,7 +33,7 @@ import { listResources, getResource, getAvailability, viewResource } from "./rou
 import { login, logout, register, changePassword } from "./routes/auth.mjs";
 import { wechatMini } from "./routes/oauth.mjs";
 import { patchProfile, uploadAvatar, sendOtp, verifyOtp, patchEmail, patchPhone, patchSocial } from "./routes/account.mjs";
-import { listOrders, createOrder, transitionOrder, getOrderContract } from "./routes/orders.mjs";
+import { listOrders, createOrder, getOrder, transitionOrder, getOrderContract } from "./routes/orders.mjs";
 import { listDemands, createDemand } from "./routes/demands.mjs";
 import { listMessages, markMessageRead, markAllMessagesRead } from "./routes/messages.mjs";
 import { listFavorites, toggleFavorite, deleteFavorite } from "./routes/favorites.mjs";
@@ -48,6 +48,7 @@ import { createAdminResource, editAdminResource, listAdminResources, syncAdminRe
 import { listAdminShops, createAdminShop, patchAdminShop, getShopTheme, patchShopTheme } from "./routes/shops.mjs";
 import { createShow, listShows, getShow, listAdminShows, reviewShow, createPerformance, patchPerformance } from "./routes/shows.mjs";
 import { createTicketType, listTicketTypes, patchTicketType } from "./routes/ticket-types.mjs";
+import { createPickupPoint, listPickupPoints, deletePickupPoint, listTemplates, createTemplate, patchTemplate, getShopTemplate } from "./routes/pickup.mjs";
 import { patchAdminProfile, patchAdminUserStatus, adminChangePassword } from "./routes/admin-account.mjs";
 
 // Commit before sending the response, so the next request sees saved changes.
@@ -177,6 +178,7 @@ export async function createApp({ database }) {
       if (await patchSocial(ctx)) return;
       if (await listOrders(ctx)) return;
       if (await createOrder(ctx)) return;
+      if (await getOrder(ctx)) return;
       if (await transitionOrder(ctx)) return;
       if (await getOrderContract(ctx)) return;
       if (await listMessages(ctx)) return;
@@ -225,6 +227,13 @@ export async function createApp({ database }) {
       if (await createTicketType(ctx)) return;
       if (await listTicketTypes(ctx)) return;
       if (await patchTicketType(ctx)) return;
+      if (await createPickupPoint(ctx)) return;
+      if (await listPickupPoints(ctx)) return;
+      if (await deletePickupPoint(ctx)) return;
+      if (await listTemplates(ctx)) return;
+      if (await createTemplate(ctx)) return;
+      if (await patchTemplate(ctx)) return;
+      if (await getShopTemplate(ctx)) return;
       if (await patchAdminProfile(ctx)) return;
       if (await patchAdminUserStatus(ctx)) return;
       if (await adminChangePassword(ctx)) return;
