@@ -421,7 +421,7 @@ test("wave3 #11b: recommendations userId gate (demo 403, admin 200, anon 401)", 
   assert.equal(missing.status, 404);
 });
 
-test("wave3 i18n: 339 keys in zh/vi/en with equal sets (335 - 16 demo/wechat keys + 3 mini-program card keys + 3 demand-status keys + 3 performance keys + 5 tier keys + 3 pickup keys + 1 venue key + 2 seat keys)", async () => {
+test("wave3 i18n: 344 keys in zh/vi/en with equal sets (335 - 16 demo/wechat keys + 3 mini-program card keys + 3 demand-status keys + 3 performance keys + 5 tier keys + 3 pickup keys + 1 venue key + 2 seat keys + 5 member-tier keys)", async () => {
   const data = await import(
     path.resolve(
       path.dirname(fileURLToPath(import.meta.url)),
@@ -433,7 +433,7 @@ test("wave3 i18n: 339 keys in zh/vi/en with equal sets (335 - 16 demo/wechat key
     )
   );
   const counts = data.LANGS.map((l) => Object.keys(data.I18N[l]).length);
-  assert.deepEqual(counts, [339, 339, 339]);
+  assert.deepEqual(counts, [344, 344, 344]);
   for (const k of ["profileTitle", "profileBasic", "profileSpending", "profileShowPref", "profileBehavior", "profileChannel", "profileAge", "profileGender", "profileRegion", "profileRegionNote", "profileActiveCity", "profilePricePref", "profilePriceBand", "profileFrequency", "profileFrequencyValue", "profileStoredValue", "profileGenre", "profileArtist", "profileVenue", "profileShowType", "profileTimeSlot", "profileTimeNote", "profilePayment", "profileSharing", "profileRepeat", "profileSource", "profileSuggestion", "recTitle", "recScore", "availLeft", "availBooked", "availFree", "availService", "seatTitle", "seatNote", "bookedDates", "metaTitle", "metaDuration", "metaTeam", "metaGenre", "metaExperience", "metaAgency", "metaProcess", "metaAddress", "metaFacilities", "metaModel", "metaDeposit", "metaUsage", "metaScope", "metaTerm", "metaTerritory", "metaRights", "metaCertificate", "metaSpecification", "metaShipping", "metaPlayback", "metaIncludes", "metaPartner", "metaKind", "metaChannels", "metaServiceNote", "lightTitle", "lightNote", "lightRotate", "lightColor", "digiStart", "digiPause", "digiNote", "contractBtn", "contractDownload", "stRefundRequested", "stDisputed", "actDispute", "refundReasonPh", "refundWaiting", "disputeWaiting", "refundReasonLbl", "refundDecisionLbl", "priceMinPh", "priceMaxPh", "ratingAll", "rating4", "rating45", "inboxTitle", "inboxEmpty", "inboxMarkAll", "admResAdd", "admResEdit", "admResPublish", "admResUnpublish", "admResSync", "admResLastSync", "admResSyncResult", "admResName", "admResCategory", "admResCity", "admResPrice", "admResUnit", "admResDesc", "admResImage", "admResStock", "admResCapacity", "admResStatus", "admResSave", "admResCancel", "admResSaved", "tabInfo", "ordSearchPh", "ordColCode", "ordColDate", "ordColQty", "ordColAmount", "ordColActions", "profEditTitle", "avatarTitle", "avatarChange", "avatarHint", "avatarBadType", "avatarTooBig", "lblId", "lblCreated", "genderMale", "genderFemale", "genderNone", "tabPassword", "pwCurrent", "pwNew", "pwConfirm", "pwMismatch", "tabEmail", "emailCurrent", "emailNew", "emailNone", "tabSocial", "socialNote", "socDouyin", "socWechat", "socXiaohongshu", "tabPhone", "phoneCurrent", "phoneNew", "phoneNone", "otpSend", "otpCode", "otpCodePh", "otpDemoNote", "loginLocked"]) {
     for (const l of data.LANGS) assert.ok(k in data.I18N[l], `${k} missing in ${l}`);
   }

@@ -2,6 +2,7 @@ import { randomBytes } from "node:crypto";
 import { assert, text, int, date, bookingType } from "../lib/http.mjs";
 import { ORDER_STATUS_ZH } from "../lib/status-labels.mjs";
 import { enrichOrder } from "./pickup.mjs";
+import { discountForOrder, evaluateTier, MAIN_SHOP_ID } from "./member-tiers.mjs";
 
 export async function listOrders(ctx) {
   const { p, req, send, needUser, orderRows } = ctx;
@@ -88,6 +89,16 @@ export async function createOrder(ctx) {
     } else {
       assert(!hasPickup, "该订单无需选择取票点", 400);
     }
+    // R3-1: member-tier discount — the base price above is computed
+    // first (tier price x qty, or resource price x qty), then the
+    // member discount of the order's shop applies on top of it:
+    // discount_cents = floor(base x pct / 100), amount = base -
+    // discount. Server-side; the tier + discount are snapshotted on
+    // the order row so a later tier change never rewrites history.
+    const orderShopId = r.shop_id ?? MAIN_SHOP_ID;
+    const { discount_cents: discountCents, tier: appliedTier } =
+      await discountForOrder(get, all, u.id, orderShopId, amount);
+    const finalAmount = amount - discountCents;
     // Amount is always computed server-side from the resource price (or
     // the tier price above); any amount sent by the client is ignored.
     const id = await transaction(async () => {
@@ -120,12 +131,12 @@ export async function createOrder(ctx) {
         assert(updated.changes > 0, "库存不足", 409);
       }
       const result = await run(
-        "INSERT INTO orders(code,user_id,resource_id,quantity,amount,booking_date,status,channel,note,performance_id,ticket_type_id,pickup_point_id,created_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)",
+        "INSERT INTO orders(code,user_id,resource_id,quantity,amount,booking_date,status,channel,note,performance_id,ticket_type_id,pickup_point_id,discount_cents,tier_id,created_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
         `GY${Date.now()}${randomBytes(2).toString("hex")}`,
         u.id,
         rid,
         qty,
-        amount,
+        finalAmount,
         d,
         "pending",
         ["H5", "电脑网页", "微信小程序"].includes(b.channel)
@@ -135,6 +146,8 @@ export async function createOrder(ctx) {
         perf ? perf.id : null,
         tier ? tier.id : null,
         pickupPoint ? pickupPoint.id : null,
+        discountCents,
+        appliedTier ? appliedTier.id : null,
         time(),
       );
       await notify(
@@ -162,6 +175,8 @@ export async function createOrder(ctx) {
       id,
       code: created.code,
       amount: created.amount,
+      discount_cents: created.discount_cents,
+      tier_id: created.tier_id,
       status: created.status,
       pickup_point: extra.pickup_point,
       ticket_template: extra.ticket_template,
@@ -189,7 +204,7 @@ export async function getOrder(ctx) {
 }
 
 export async function transitionOrder(ctx) {
-  const { p, req, b, send, needUser, get, run, transaction, notify, audit, cache } = ctx;
+  const { p, req, b, send, needUser, get, all, run, transaction, notify, audit, cache } = ctx;
   const m = p.match(/^\/api\/orders\/(\d+)\/(confirm|pay|complete|cancel|refund|approveRefund|rejectRefund|dispute|rejectDispute|resolve)$/);
   if (m && req.method === "POST") {
     const u = needUser(),
@@ -307,6 +322,13 @@ export async function transitionOrder(ctx) {
         );
       }
       await audit(u, `订单操作 ${action}`, o.code);
+      // R3-1: re-evaluate the order owner's stored main-shop tier when
+      // spending can change — pay (up), complete (idempotent re-check),
+      // approveRefund (down, the only way spending falls). Same
+      // transaction as the status change, so the tier and the status
+      // commit or roll back together.
+      if (["pay", "complete", "approveRefund"].includes(action))
+        await evaluateTier(get, all, run, o.user_id);
     });
     // A status change moves revenue between buckets (paid/completed) and
     // cancel/refund restores stock — same bust as order creation.

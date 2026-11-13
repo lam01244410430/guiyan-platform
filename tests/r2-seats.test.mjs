@@ -7,8 +7,8 @@
 // select -> held (10-minute hold); 2nd order same seat -> 409; pay ->
 // sold; cancel -> released; expired hold (held_until set directly in
 // the test) can be re-selected; analysis numbers match real orders;
-// no-template venue generate -> 400; i18n key counts (H5 339,
-// miniprogram 143, equal sets).
+// no-template venue generate -> 400; i18n key counts (H5 344,
+// miniprogram 148, equal sets).
 import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
@@ -316,9 +316,17 @@ test("analysis numbers match real orders", async () => {
   // 1 performance, 4 seats, 1 sold (order 1 paid) -> 25%.
   assert.equal(mine.performances, 1);
   assert.equal(mine.seatOccupancy, 25);
-  // 1 paid order of ¥280 -> ticket revenue 28000, average 28000.
-  assert.equal(mine.ticketRevenue, 28000);
-  assert.equal(mine.averageRevenue, 28000);
+  // 1 paid order -> ticket revenue is that order's real amount (R3-1:
+  // the demo buyer holds a member tier, so the paid amount is the
+  // discounted ¥23800, not the ¥28000 ticket price — the analysis must
+  // match the real order, whatever it is).
+  const paid = await pool.query(
+    "SELECT amount FROM orders WHERE id=$1",
+    [order1],
+  );
+  const expectedRevenue = paid.rows[0].amount;
+  assert.equal(mine.ticketRevenue, expectedRevenue);
+  assert.equal(mine.averageRevenue, expectedRevenue);
   // Response shape unchanged (recommendations etc.).
   assert.ok(Array.isArray(mine.recommendations));
   assert.ok("occupancy" in mine && "idleRate" in mine);
@@ -373,12 +381,12 @@ test("no-template venue generate -> 400; unsold performance seats -> 404", async
   assert.equal((await req(`/api/performances/99999/seats`)).status, 404);
 });
 
-test("r2-seats i18n: H5 339 keys/language, miniprogram 143, equal sets", async () => {
+test("r2-seats i18n: H5 344 keys/language, miniprogram 148, equal sets", async () => {
   const data = await import(
     path.resolve(repoDir, "web", "assets", "js", "data.js")
   );
   const counts = data.LANGS.map((l) => Object.keys(data.I18N[l]).length);
-  assert.deepEqual(counts, [339, 339, 339]);
+  assert.deepEqual(counts, [344, 344, 344]);
   for (const k of ["seatPick", "seatSelected"]) {
     for (const l of data.LANGS)
       assert.ok(k in data.I18N[l], `${k} missing in H5 ${l}`);
@@ -398,7 +406,7 @@ test("r2-seats i18n: H5 339 keys/language, miniprogram 143, equal sets", async (
     ].map((m) => m[1]);
   }
   for (const lang of ["zh", "vi", "en"]) {
-    assert.equal(blocks[lang].length, 143, `${lang} key count`);
+    assert.equal(blocks[lang].length, 148, `${lang} key count`);
     for (const k of ["seatPick", "seatSelected"])
       assert.ok(blocks[lang].includes(k), `${k} missing in mini ${lang}`);
   }

@@ -44,6 +44,7 @@ const NAV_ICONS = {
   tagrules: (<><path d="M12.586 2.586A2 2 0 0 0 11.172 2H4a2 2 0 0 0-2 2v7.172a2 2 0 0 0 .586 1.414l8.704 8.704a2.426 2.426 0 0 0 3.42 0l6.58-6.58a2.426 2.426 0 0 0 0-3.42z" /><circle cx="7.5" cy="7.5" r=".5" fill="currentColor" /></>),
   aicopy: (<><path d="M12 20h9" /><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z" /></>),
   account: (<><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2" /><circle cx="12" cy="7" r="4" /></>),
+  tiers: (<><path d="M11.562 3.266a.5.5 0 0 1 .876 0L15.39 8.87a1 1 0 0 0 1.516.294L21.183 5.5a.5.5 0 0 1 .798.519l-2.834 10.246a1 1 0 0 1-.956.735H5.81a1 1 0 0 1-.957-.735L2.02 6.02a.5.5 0 0 1 .798-.519l4.276 3.664a1 1 0 0 0 1.516-.294z" /><path d="M5 21h14" /></>),
 };
 function NavIcon({ v }) {
   return (
@@ -75,6 +76,7 @@ const VIEWS = [
   { id: "resources", label: "资源", iconName: "ui:layers", group: "main" },
   { id: "shows", label: "演出", iconName: "ui:ticket", group: "main" },
   { id: "venues", label: "场馆", iconName: "ui:map-pin", group: "main" },
+  { id: "tiers", label: "会员等级", iconName: "ui:crown", group: "main" },
   { id: "shops", label: "店铺", iconName: "ui:store", group: "main" },
   { id: "demands", label: "需求", iconName: "ui:clipboard-list", group: "main" },
   { id: "trends", label: "趋势统计", iconName: "ui:chart-line", group: "premium" },
@@ -171,7 +173,7 @@ export default function AdminDashboard() {
       return out;
     });
   }
-  function changeView(v) { setView(v); setQuery(""); setSorts({}); setTagFilter(""); setResShopFilter(""); setShowStatusFilter(""); setPerfShowId(null); setPerfForm(null); setDrawerOpen(false); setVenueForm(null); setTplVenueId(null); setTplForm(null); }
+  function changeView(v) { setView(v); setQuery(""); setSorts({}); setTagFilter(""); setResShopFilter(""); setShowStatusFilter(""); setPerfShowId(null); setPerfForm(null); setDrawerOpen(false); setVenueForm(null); setMemberTierForm(null); setTplVenueId(null); setTplForm(null); }
   // Mobile drawer (≤860px): open state + Esc closes + focus returns to
   // the hamburger. Desktop sidebar is unaffected (drawer CSS only
   // applies at ≤860px).
@@ -285,6 +287,11 @@ export default function AdminDashboard() {
   const [templatesByVenue, setTemplatesByVenue] = useState({});
   const [tplForm, setTplForm] = useState(null);
   const [tplBusyId, setTplBusyId] = useState(null);
+  // R3-1 member tiers: the tier list (already shop-scoped by the
+  // server) + the open create/edit draft + the id of the tier in flight.
+  const [memberTiers, setMemberTiers] = useState([]);
+  const [memberTierForm, setMemberTierForm] = useState(null);
+  const [memberTierBusyId, setMemberTierBusyId] = useState(null);
   const [acctBusy, setAcctBusy] = useState(false);
   const [acctOtp, setAcctOtp] = useState("");
   const [acctOtpInput, setAcctOtpInput] = useState("");
@@ -327,7 +334,7 @@ export default function AdminDashboard() {
       apiGet("/api/admin/stats"), apiGet("/api/admin/orders"), apiGet("/api/admin/users"),
       apiGet("/api/admin/resources"), apiGet("/api/admin/demands"),
       apiGet("/api/admin/shops"), apiGet("/api/admin/shows"),
-      apiGet("/api/venues"),
+      apiGet("/api/venues"), apiGet("/api/admin/member-tiers"),
     ]).then(function (res) {
       setStats(res[0]);
       setOrders(res[1].orders || []);
@@ -340,6 +347,7 @@ export default function AdminDashboard() {
       setShops(res[5].shops || []);
       setShows(res[6].shows || []);
       setVenues(res[7].venues || []);
+      setMemberTiers(res[8].member_tiers || []);
       setView("overview");
     }).catch(function (e) {
       if (e && e.status === 401) { clearToken(); location.href = "/admin/index.html"; return; }
@@ -608,6 +616,61 @@ export default function AdminDashboard() {
       else if (e && e.status === 404) toast("场馆不存在");
       else toast((e && e.data && e.data.error) || "保存失败，请检查表单");
     }).finally(function () { setVenueBusyId(null); });
+  }
+  // R3-1 member tiers (same disabled-while-processing pattern as the
+  // venue form). A shop-scoped admin creates/edits only their own
+  // shop's tiers (the server returns 403 otherwise); a platform admin
+  // names the shop in the create form. Changing a threshold does not
+  // re-evaluate existing users — the new threshold applies at the next
+  // pay / complete / refund-approval trigger.
+  function loadMemberTiers() {
+    apiGet("/api/admin/member-tiers").then(function (d) {
+      setMemberTiers(d.member_tiers || []);
+    }).catch(loadFail);
+  }
+  function openMemberTierForm(t) {
+    setMemberTierForm(t ? {
+      id: t.id, name: t.name || "", min_spend_cents: String(t.min_spend_cents || 0),
+      discount_pct: String(t.discount_pct || 0), benefits: t.benefits || "",
+      shop_id: String(t.shop_id),
+    } : {
+      id: null, name: "", min_spend_cents: "0", discount_pct: "0", benefits: "",
+      shop_id: isPlatformAdmin ? "1" : (me && me.shop_id ? String(me.shop_id) : "1"),
+    });
+  }
+  function editMemberTierForm(key, value) {
+    setMemberTierForm(function (f) { return f ? { ...f, [key]: value } : f; });
+  }
+  function saveMemberTierForm() {
+    if (!memberTierForm || memberTierBusyId !== null) return;
+    if (!memberTierForm.name.trim()) { toast("请填写等级名称"); return; }
+    const minSpend = Number(memberTierForm.min_spend_cents);
+    if (!Number.isInteger(minSpend) || minSpend < 0) { toast("消费门槛须为不小于 0 的整数（分）"); return; }
+    const discountPct = Number(memberTierForm.discount_pct);
+    if (!Number.isInteger(discountPct) || discountPct < 0 || discountPct > 100) { toast("折扣须为 0–100 的整数"); return; }
+    const body = {
+      name: memberTierForm.name.trim(), min_spend_cents: minSpend,
+      discount_pct: discountPct, benefits: memberTierForm.benefits.trim(),
+    };
+    if (memberTierForm.id === null && isPlatformAdmin) body.shop_id = Number(memberTierForm.shop_id) || 1;
+    setMemberTierBusyId(memberTierForm.id === null ? "new" : memberTierForm.id);
+    const call = memberTierForm.id === null
+      ? apiPost("/api/admin/member-tiers", body)
+      : apiPatch("/api/admin/member-tiers/" + memberTierForm.id, body);
+    call.then(function (d) {
+      const saved = d.member_tier;
+      setMemberTiers(function (ts) {
+        return memberTierForm.id === null ? ts.concat([saved])
+          : ts.map(function (x) { return x.id === saved.id ? saved : x; });
+      });
+      setMemberTierForm(null);
+      loadAudit();
+      toast("已保存");
+    }).catch(function (e) {
+      if (e && e.status === 403) toast("只能管理本店铺的会员等级");
+      else if (e && e.status === 404) toast("会员等级不存在");
+      else toast((e && e.data && e.data.error) || "保存失败，请检查表单");
+    }).finally(function () { setTierBusyId(null); });
   }
   function loadTemplates(venueId) {
     apiGet("/api/venues/" + venueId + "/seat-templates").then(function (d) {
@@ -2135,6 +2198,53 @@ export default function AdminDashboard() {
                       </Fragment>
                     )) : searchEmpty(6))
                     : <tr><td colSpan="6"><div className="empty">暂无场馆</div></td></tr>}
+                </tbody>
+              </table>
+            </div>
+          </section>
+
+          <section className={"view" + (view === "tiers" ? " on" : "")} id="view-tiers">
+            <div className="search-row">
+              <button type="button" className="btn-export" onClick={() => openMemberTierForm(null)}>添加会员等级</button>
+            </div>
+            <div className="note">等级按店配置；顾客按累计消费自动升降级，消费额为已付款订单总额（分）。改门槛不追溯已有用户，下次付款/完成/退款批准时才按新门槛算。下单先按票种价算底价，再按等级折扣减。</div>
+            {memberTierForm ? (
+              <fieldset className="tag-rule">
+                <legend>{memberTierForm.id === null ? "添加会员等级" : "编辑会员等级：" + memberTierForm.name}</legend>
+                <label>等级名称 <input type="text" value={memberTierForm.name} maxLength={100} onChange={(e) => editMemberTierForm("name", e.target.value)} /></label>
+                <label>消费门槛（分） <input type="number" min={0} value={memberTierForm.min_spend_cents} onChange={(e) => editMemberTierForm("min_spend_cents", e.target.value)} /></label>
+                <label>折扣（%） <input type="number" min={0} max={100} value={memberTierForm.discount_pct} onChange={(e) => editMemberTierForm("discount_pct", e.target.value)} /></label>
+                <label>等级权益 <input type="text" value={memberTierForm.benefits} maxLength={500} onChange={(e) => editMemberTierForm("benefits", e.target.value)} /></label>
+                {memberTierForm.id === null && isPlatformAdmin ? (
+                  <label>店铺 <select value={memberTierForm.shop_id} onChange={(e) => editMemberTierForm("shop_id", e.target.value)}>
+                    {shops.map((s) => (<option key={s.id} value={String(s.id)}>{s.name}</option>))}
+                  </select></label>
+                ) : null}
+                <div>
+                  <button type="button" className="btn-export" disabled={memberTierBusyId !== null} onClick={saveMemberTierForm}>{memberTierBusyId !== null ? "保存中…" : "保存"}</button>{" "}
+                  <button type="button" className="btn-resolve" onClick={() => setMemberTierForm(null)}>取消</button>
+                </div>
+              </fieldset>
+            ) : null}
+            <div className="tbl-wrap">
+              <table>
+                <thead><tr><th scope="col">等级</th><th scope="col">店铺</th><th scope="col" className="num">消费门槛（分）</th><th scope="col" className="num">折扣</th><th scope="col">权益</th><th scope="col">操作</th></tr></thead>
+                <tbody id="tiersBody">
+                  {memberTiers.length
+                    ? memberTiers.map((t) => (
+                      <tr key={t.id}>
+                        <td>{t.name}</td><td>{shopName(t.shop_id)}</td>
+                        <td className="num">{t.min_spend_cents}</td>
+                        <td className="num">{t.discount_pct}%</td>
+                        <td>{t.benefits || "—"}</td>
+                        <td>
+                          <span className="row-actions">
+                            <button type="button" className="btn-view" disabled={memberTierBusyId !== null} onClick={() => openMemberTierForm(t)}>编辑</button>
+                          </span>
+                        </td>
+                      </tr>
+                    ))
+                    : <tr><td colSpan="6"><div className="empty">暂无会员等级</div></td></tr>}
                 </tbody>
               </table>
             </div>

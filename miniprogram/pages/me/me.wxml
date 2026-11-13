@@ -37,6 +37,8 @@
       <view class="note">{{L.cityLabel}}：{{profile.city || '-'}}</view>
       <view class="note">{{L.ageLabel}}：{{profile.age || '-'}}</view>
       <view class="note">{{L.genderLabel}}：{{genderText}}</view>
+      <view class="note" wx:if="{{memberTier}}">{{L.memberTierTitle}}：{{tierLine}}</view>
+      <view class="note" wx:if="{{memberTier && memberTier.next_tier}}">{{L.memberTierNext}}：{{tierNextLine}}</view>
       <view class="btn ghost" bindtap="toggleEdit">{{L.editProfileBtn}}</view>
       <block wx:if="{{showEdit}}">
         <input class="field" placeholder="{{L.nameLabel}}" value="{{editName}}" bindinput="onEditName" />

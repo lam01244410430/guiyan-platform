@@ -21,7 +21,8 @@ Page({
   data: {
     L: {}, langIdx: 0, langName: '中文', langs: ['中文', 'Tiếng Việt', 'English'],
     loggedUser: '', displayName: '', avatarChar: '桂', linkStatus: '',
-    wxAvatar: '', wxNick: '', profile: {}, genderText: '',
+    wxAvatar: '', wxNick: '', profile: {}, genderText: '', memberTier: null,
+    tierLine: '', tierNextLine: '',
     showLink: false, linkUser: '', linkPass: '',
     showEdit: false, editName: '', editCity: '', editAge: '', editGenderIdx: 0,
     genderNames: [], showAbout: false
@@ -49,7 +50,9 @@ Page({
       'logoutBtn', 'userPh', 'passPh', 'nameLabel', 'cityLabel',
       'ageLabel', 'genderLabel', 'genderMale', 'genderFemale',
       'genderNone', 'editProfileBtn', 'saveBtn', 'profileSaved',
-      'wxLoginFailed', 'linkFailed', 'langLabel'];
+      'wxLoginFailed', 'linkFailed', 'langLabel',
+      'memberTierTitle', 'memberTierCurrent', 'memberTierNext',
+      'memberTierSpendMore', 'memberTierDiscount'];
     var L = {};
     keys.forEach(function (k) { L[k] = i18n.t(k, lang); });
     wx.setNavigationBarTitle({ title: L.meTitle });
@@ -66,7 +69,7 @@ Page({
     var user = app.globalData.user || api.getStoredUser();
     var lang = i18n.getLang();
     if (!user) {
-      this.setData({ loggedUser: '', profile: {}, genderText: '',
+      this.setData({ loggedUser: '', profile: {}, genderText: '', memberTier: null,
         displayName: this.data.wxNick || i18n.t('notLoggedIn', lang),
         avatarChar: (this.data.wxNick || '桂').slice(0, 1),
         linkStatus: i18n.t('unlinkedAccount', lang) });
@@ -86,6 +89,18 @@ Page({
       editName: user.name || '', editCity: user.city || '',
       editAge: user.age != null ? String(user.age) : '',
       editGenderIdx: gender === '男' ? 1 : gender === '女' ? 2 : 0 });
+    // R3-1: own member tier (best-effort — a failed fetch leaves the
+    // row hidden, it never blocks the page). Display strings are built
+    // here: WXML bindings cannot call String.replace.
+    var self = this;
+    api.get('/api/account/tier', {}, true).then(function (d) {
+      if (!d) { self.setData({ memberTier: null }); return; }
+      var tierLine = (d.tier ? d.tier.name : '-');
+      if (d.discount_pct) tierLine += ' · ' + i18n.fmt(i18n.t('memberTierDiscount', lang), { p: d.discount_pct });
+      var nextLine = '';
+      if (d.next_tier) nextLine = d.next_tier.name + ' · ' + i18n.fmt(i18n.t('memberTierSpendMore', lang), { a: d.remaining_cents / 100 });
+      self.setData({ memberTier: d, tierLine: tierLine, tierNextLine: nextLine });
+    }).catch(function () { /* keep memberTier null */ });
   },
   // --- layer 1: one-tap WeChat sign-in -------------------------------------
   wechatLogin: function () {

@@ -317,7 +317,16 @@ test("illegal order transition is rejected with 400", async () => {
 });
 
 test("client-sent amount is ignored; server computes it", async () => {
-  const token = await login();
+  // R3-1: the demo account holds a member tier by now (its seed
+  // spending upgrades it on the first pay in this file), so its orders
+  // are discounted — order as a fresh user (no tier, no discount) so
+  // the expected amount is exactly price x qty, as before.
+  const reg = await req("/api/auth/register", {
+    method: "POST",
+    body: { username: "amountcheck", password: "Test1234", name: "Amount Check" },
+  });
+  assert.equal(reg.status, 200, JSON.stringify(reg.json));
+  const token = reg.json.token;
   const show = await pickShow(token);
   const created = await req("/api/orders", {
     method: "POST",

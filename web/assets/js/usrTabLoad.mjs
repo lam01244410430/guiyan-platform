@@ -58,21 +58,25 @@ export function loadTabDemands(get, s) {
 }
 
 export function loadTabInfo(get, s) {
-  /* Profile + recommendations load together for the info tab. Either call
-     failing on its own leaves its section empty, as before (Q3 default);
-     only both failing shows the tab's light error. A 401 is never
-     swallowed — it reports an expired session like every other tab. */
+  /* Profile + recommendations + member tier load together for the info
+     tab. Either call failing on its own leaves its section empty, as
+     before (Q3 default); only all three failing shows the tab's light
+     error. A 401 is never swallowed — it reports an expired session
+     like every other tab. */
   s.setLoading("info", true);
   s.setError("info", false);
   return Promise.all([
     get("/api/profile").catch(swallowUnlessAuth),
     get("/api/recommendations?limit=5").catch(swallowUnlessAuth),
+    get("/api/account/tier").catch(() => null),
   ]).then(function (res) {
     const prof = res[0];
     const recs = res[1];
-    if (!prof && !recs) { s.setError("info", true); }
+    const tier = res[2];
+    if (!prof && !recs && !tier) { s.setError("info", true); }
     s.setProfile(prof ? prof.profile || null : null);
     s.setRecs(recs ? recs.recommendations || [] : []);
+    if (s.setTier) s.setTier(tier || null);
     s.setLoading("info", false);
   }).catch(function (e) {
     s.setLoading("info", false);

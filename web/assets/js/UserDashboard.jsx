@@ -67,6 +67,8 @@ export default function UserDashboard() {
   // both calls degrade to null instead of blocking the info tab).
   const [usrProfile, setUsrProfile] = useState(null);
   const [usrRecs, setUsrRecs] = useState([]);
+  // R3-1: own member tier + next-tier progress (same info-tab loader).
+  const [usrTier, setUsrTier] = useState(null);
   // Wave 4 #13: per-order refund/dispute reason typed by the user (sent
   // as {reason} with the refund/dispute call) + the order id currently
   // running an action (buttons disabled meanwhile, demands pattern).
@@ -168,6 +170,7 @@ export default function UserDashboard() {
     setDemands: setUsrDemands,
     setProfile: setUsrProfile,
     setRecs: setUsrRecs,
+    setTier: setUsrTier,
     setMessages: setUsrMessages,
     setUnread: setUsrUnread,
     currentUser: () => currentUser(),
@@ -621,6 +624,18 @@ export default function UserDashboard() {
                 {tabLoading.info ? <div className="db-empty">{t("tabLoading")}</div>
                 : tabErr.info ? (<><div className="db-empty">{t("tabLoadErr")}</div><div style={{ textAlign: "center" }}><button type="button" className="btn ghost" onClick={() => loadTabInfo(apiGet, tabSetters)}>{t("retryBtn")}</button></div></>)
                 : null}
+
+                {usrTier ? (
+                  <section className="db-sec">
+                    <h3>{t("memberTierTitle")}</h3>
+                    <div className="db-profile">
+                      <div className="row"><span className="k">{t("memberTierCurrent")}</span><span className="v">{usrTier.tier ? usrTier.tier.name : "—"}{usrTier.discount_pct ? " · " + fmt(t("memberTierDiscount"), { p: usrTier.discount_pct }) : ""}</span></div>
+                      {usrTier.next_tier ? (
+                        <div className="row"><span className="k">{t("memberTierNext")}</span><span className="v">{usrTier.next_tier.name} · {fmt(t("memberTierSpendMore"), { a: usrTier.remaining_cents / 100 })}</span></div>
+                      ) : null}
+                    </div>
+                  </section>
+                ) : null}
 
                 {usrProfile && usrProfile.portrait ? (
                   <section className="db-sec">

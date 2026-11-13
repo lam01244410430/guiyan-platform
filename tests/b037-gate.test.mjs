@@ -159,12 +159,13 @@ test("b037 tabs: one rejecting tab never blocks the others (loadAllTabs)", async
     if (p === "/api/favorites") return Promise.resolve({ favorites: [{ id: 2 }] });
     if (p === "/api/profile") return Promise.resolve({ profile: { name: "x" } });
     if (p === "/api/recommendations?limit=5") return Promise.resolve({ recommendations: [] });
+    if (p === "/api/account/tier") return Promise.resolve({ tier: null, spending_cents: 0, next_tier: null, remaining_cents: 0, discount_pct: 0 });
     if (p === "/api/messages") return Promise.resolve({ messages: [], unread: 0 });
     throw new Error("unexpected path " + p);
   };
   await loadAllTabs(get, s);
   assert.deepEqual([...seen].sort(), [
-    "/api/demands", "/api/favorites", "/api/messages",
+    "/api/account/tier", "/api/demands", "/api/favorites", "/api/messages",
     "/api/orders", "/api/profile", "/api/recommendations?limit=5",
   ]);
   assert.deepEqual(calls.orders, [{ id: 1 }]);

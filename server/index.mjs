@@ -52,6 +52,7 @@ import { createPickupPoint, listPickupPoints, deletePickupPoint, listTemplates, 
 import { listVenues, getVenue, createVenue, patchVenue, listSeatTemplates, createSeatTemplate, patchSeatTemplate } from "./routes/venues.mjs";
 import { generateSeats, listSeats, selectSeats } from "./routes/seats.mjs";
 import { patchAdminProfile, patchAdminUserStatus, adminChangePassword } from "./routes/admin-account.mjs";
+import { listShopTiers, listAdminTiers, createMemberTier, patchMemberTier, getAccountTier } from "./routes/member-tiers.mjs";
 
 // Commit before sending the response, so the next request sees saved changes.
 function createRequestHandler(db, handle) {
@@ -249,6 +250,11 @@ export async function createApp({ database }) {
       if (await patchAdminProfile(ctx)) return;
       if (await patchAdminUserStatus(ctx)) return;
       if (await adminChangePassword(ctx)) return;
+      if (await listShopTiers(ctx)) return;
+      if (await listAdminTiers(ctx)) return;
+      if (await createMemberTier(ctx)) return;
+      if (await patchMemberTier(ctx)) return;
+      if (await getAccountTier(ctx)) return;
 
       send({ error: "接口不存在" }, 404);
     } catch (e) {

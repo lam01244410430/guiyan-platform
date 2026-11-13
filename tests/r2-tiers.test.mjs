@@ -9,7 +9,7 @@
 // 400; tier order does not change resources.stock; non-tier order
 // unchanged (resource price + stock decrement, restored by cancel);
 // availability returns tiers with correct sold/available; non-admin
-// tier create -> 403; i18n key counts (H5 339, miniprogram 143, equal
+// tier create -> 403; i18n key counts (H5 344, miniprogram 148, equal
 // sets).
 import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
@@ -82,6 +82,7 @@ async function stockOf(resourceId) {
 
 let adminToken;
 let demoToken;
+let freshToken;
 let mainShowResourceId;
 let plainResourceId;
 let showId;
@@ -116,6 +117,16 @@ before(async () => {
   }
   adminToken = await login("admin", "admin123");
   demoToken = await login("demo", "demo123");
+  // R3-1: the demo account holds a member tier by now (its seed
+  // spending upgrades it on the first pay in this run), so its orders
+  // are discounted — the two tests below that assert exact full-price
+  // amounts order as a fresh user (no tier, no discount) instead.
+  const reg = await req("/api/auth/register", {
+    method: "POST",
+    body: { username: "r2tiersfresh", password: "Test1234", name: "R2 Tiers Fresh" },
+  });
+  assert.equal(reg.status, 200, JSON.stringify(reg.data));
+  freshToken = reg.data.token;
   const r = await req("/api/admin/resources", { token: adminToken });
   assert.equal(r.status, 200);
   const mainShow = r.data.resources.find((x) => x.shop_id === 1 && x.category === "show");
@@ -214,7 +225,7 @@ test("early-bird after sale_until -> 400; one of performance/tier alone -> 400",
 test("combo tier total correct (price x qty); booking_date + ids stored server-side", async () => {
   // A client-sent amount / booking_date must be ignored: the server
   // prices 50000 x 2 and dates the order on the performance day.
-  const r = await orderAs(demoToken, {
+  const r = await orderAs(freshToken, {
     resourceId: mainShowResourceId, quantity: 2,
     performance_id: perf1, ticket_type_id: comboId,
     amount: 1, booking_date: "2026-11-11",
@@ -277,7 +288,7 @@ test("tier order does not change resources.stock", async () => {
 
 test("non-tier order unchanged (resource price + stock decrement)", async () => {
   assert.equal(await stockOf(plainResourceId), 50);
-  const r = await orderAs(demoToken, {
+  const r = await orderAs(freshToken, {
     resourceId: plainResourceId, quantity: 2, booking_date: "2026-12-05",
   });
   assert.equal(r.status, 200, JSON.stringify(r.data));
@@ -285,7 +296,7 @@ test("non-tier order unchanged (resource price + stock decrement)", async () => 
   assert.equal(await stockOf(plainResourceId), 48);
   // Cancel restores the stock, so the shared seed is left as found.
   assert.equal((await req(`/api/orders/${r.data.id}/cancel`, {
-    method: "POST", token: demoToken, body: {},
+    method: "POST", token: freshToken, body: {},
   })).status, 200);
   assert.equal(await stockOf(plainResourceId), 50);
 });
@@ -322,7 +333,7 @@ test("availability returns tiers with correct sold/available", async () => {
   assert.ok("mode" in av.data && "available" in av.data && "dates" in av.data);
 });
 
-test("non-admin tier create -> 403; scheduled performance tiers -> 404; i18n 339/143", async () => {
+test("non-admin tier create -> 403; scheduled performance tiers -> 404; i18n 344/148", async () => {
   assert.equal((await createTier(demoToken, perf1, {
     name: "越权票种", price_cents: 100, quota: 1,
   })).status, 403);
@@ -332,12 +343,12 @@ test("non-admin tier create -> 403; scheduled performance tiers -> 404; i18n 339
   // A scheduled performance's tiers are not public yet.
   assert.equal((await listTiers(perf3)).status, 404);
   assert.equal((await listTiers(99999)).status, 404);
-  // i18n: 5 tier keys + 3 pickup keys + 1 venue key + 2 seat keys on both sides (333 -> 339, 137 -> 143).
+  // i18n: 5 tier keys + 3 pickup keys + 1 venue key + 2 seat keys on both sides (333 -> 339, 137 -> 143); R3-1 adds 5 member-tier keys (339 -> 344, 143 -> 148).
   const data = await import(
     path.resolve(repoDir, "web", "assets", "js", "data.js")
   );
   const counts = data.LANGS.map((l) => Object.keys(data.I18N[l]).length);
-  assert.deepEqual(counts, [339, 339, 339]);
+  assert.deepEqual(counts, [344, 344, 344]);
   for (const k of ["tierTitle", "tierEmpty", "tierSoldOut", "tierLeft", "tierPick", "pickupTitle", "pickupEmpty", "pickupPick"]) {
     for (const l of data.LANGS)
       assert.ok(k in data.I18N[l], `${k} missing in H5 ${l}`);
@@ -357,7 +368,7 @@ test("non-admin tier create -> 403; scheduled performance tiers -> 404; i18n 339
     ].map((m) => m[1]);
   }
   for (const lang of ["zh", "vi", "en"]) {
-    assert.equal(blocks[lang].length, 143, `${lang} key count`);
+    assert.equal(blocks[lang].length, 148, `${lang} key count`);
     for (const k of ["tierTitle", "tierEmpty", "tierSoldOut", "tierLeft", "tierPick"])
       assert.ok(blocks[lang].includes(k), `${k} missing in mini ${lang}`);
   }

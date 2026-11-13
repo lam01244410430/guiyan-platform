@@ -11,6 +11,7 @@ import { schema } from "./schema.mjs";
 import { seedStatements } from "./seed.mjs";
 import { enrichCatalog } from "./catalog-content.mjs";
 import { defaultTagRules } from "./lib/profiles.mjs";
+import { DEFAULT_TIERS } from "./routes/member-tiers.mjs";
 
 // PostgreSQL aggregates return int8/numeric strings; the demo API uses numbers.
 pg.types.setTypeParser(20, Number);
@@ -132,6 +133,19 @@ export async function openPostgresStore(
       await client.query(
         "ALTER TABLE resources ADD COLUMN IF NOT EXISTS venue_id INTEGER REFERENCES venues(id)",
       );
+      // R3-1 (member tiers, 2026-11-13): the tier a user holds (main
+      // shop only — see routes/member-tiers.mjs) and the discount a
+      // single order actually got (snapshot of the tier at order time).
+      // Same idempotent pattern as the columns above.
+      await client.query(
+        "ALTER TABLE users ADD COLUMN IF NOT EXISTS tier_id INTEGER REFERENCES member_tiers(id)",
+      );
+      await client.query(
+        "ALTER TABLE orders ADD COLUMN IF NOT EXISTS discount_cents INTEGER NOT NULL DEFAULT 0",
+      );
+      await client.query(
+        "ALTER TABLE orders ADD COLUMN IF NOT EXISTS tier_id INTEGER REFERENCES member_tiers(id)",
+      );
       if (!(await client.query("SELECT COUNT(*) AS n FROM users")).rows[0].n) {
         // Batch adjacent inserts to keep first-time setup fast over the network.
         const groups = [];
@@ -183,6 +197,30 @@ export async function openPostgresStore(
       await client.query(
         "UPDATE resources SET shop_id=1 WHERE shop_id IS NULL",
       );
+      // R3-1 default member tiers (2026-11-13): the main shop's four
+      // tiers, inserted once when shop 1 has none (guard pattern, same
+      // as the main-shop backfill above). An admin's later edits are
+      // never overwritten — only an empty tier list is seeded. The
+      // tier rows themselves live in routes/member-tiers.mjs
+      // (DEFAULT_TIERS); this block only runs the seed insert.
+      {
+        const existing = await client.query(
+          "SELECT COUNT(*) AS n FROM member_tiers WHERE shop_id=1",
+        );
+        if (Number(existing.rows[0].n) === 0) {
+          for (const t of DEFAULT_TIERS)
+            await client.query(
+              "INSERT INTO member_tiers(shop_id,name,min_spend_cents,discount_pct,benefits,created_at) VALUES(1,$1,$2,$3,$4,$5)",
+              [
+                t.name,
+                t.min_spend_cents,
+                t.discount_pct,
+                t.benefits,
+                new Date().toISOString(),
+              ],
+            );
+        }
+      }
       // R2-4 venue backfill (2026-11-13, Lam option (a): rule as
       // written, count corrected 3 -> 6). Venue-category resources
       // whose meta carries seatRows/seatCols and whose venue_id is
@@ -274,7 +312,8 @@ export async function openPostgresStore(
             // R2-3: pickup_points + ticket_templates join them too.
             // R2-4: venues + seat_templates join them too.
             // R2-5: seats joins them too (generate needs the ids).
-            /^\s*INSERT\s+INTO\s+(users|resources|orders|demands|comments|messages|events|audit_logs|shops|shows|performances|ticket_types|pickup_points|ticket_templates|venues|seat_templates|seats)\b/i.test(
+            // R3-1: member_tiers joins them too (tier create needs the id).
+            /^\s*INSERT\s+INTO\s+(users|resources|orders|demands|comments|messages|events|audit_logs|shops|shows|performances|ticket_types|pickup_points|ticket_templates|venues|seat_templates|seats|member_tiers)\b/i.test(
               sql,
             );
           const result = await execute(
