@@ -45,6 +45,7 @@ import { adminStats, adminOrders, adminUsers, adminDemands } from "./routes/admi
 import { adminStatsSeries, adminAnalysis, adminAlerts, adminOrdersCsv, adminReviewDemand, adminAuditLogs } from "./routes/admin-insights.mjs";
 import { adminTagRules } from "./routes/tag-rules.mjs";
 import { createAdminResource, editAdminResource, listAdminResources, syncAdminResource } from "./routes/admin-resources.mjs";
+import { listAdminShops, createAdminShop, patchAdminShop } from "./routes/shops.mjs";
 
 // Commit before sending the response, so the next request sees saved changes.
 function createRequestHandler(db, handle) {
@@ -203,6 +204,9 @@ export async function createApp({ database }) {
       if (await createAdminResource(ctx)) return;
       if (await editAdminResource(ctx)) return;
       if (await syncAdminResource(ctx)) return;
+      if (await listAdminShops(ctx)) return;
+      if (await createAdminShop(ctx)) return;
+      if (await patchAdminShop(ctx)) return;
 
       send({ error: "接口不存在" }, 404);
     } catch (e) {

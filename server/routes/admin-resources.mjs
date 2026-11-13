@@ -30,6 +30,21 @@ function assertAdmin(session) {
   assert(session?.role === "admin", "无权访问管理后台", 403);
 }
 
+// R1-1 shop scoping: platform admin (shop_id NULL) sees all shops; a
+// shop-scoped admin sees/edits only their own shop's resources.
+function scopedShopId(session) {
+  return session.shop_id ?? null;
+}
+
+function assertShopAccess(session, resource) {
+  const scope = scopedShopId(session);
+  assert(
+    scope === null || resource.shop_id === scope,
+    "无权管理该店铺的资源",
+    403,
+  );
+}
+
 function assertMetaObject(value) {
   assert(
     value !== undefined &&
@@ -98,9 +113,16 @@ export async function listAdminResources(ctx) {
   // ALL rows including drafts, newest first (r.id DESC): a resource
   // just set to draft must stay visible here so the admin can
   // re-publish it after a reload. No cache — 62 rows, admin-only, and
-  // the list must reflect the latest status immediately.
+  // the list must reflect the latest status immediately. R1-1: a
+  // shop-scoped admin sees only their own shop's rows.
+  const scope = scopedShopId(session);
   const resources = (
-    await all(`${resourceSelect} ORDER BY r.id DESC`)
+    await (scope === null
+      ? all(`${resourceSelect} ORDER BY r.id DESC`)
+      : all(
+          `${resourceSelect} WHERE r.shop_id=? ORDER BY r.id DESC`,
+          scope,
+        ))
   ).map(resourceRow);
   send({ resources });
   return true;
@@ -111,8 +133,23 @@ export async function createAdminResource(ctx) {
   if (p !== "/api/admin/resources" || req.method !== "POST") return false;
   assertAdmin(session);
   const f = validateFields(ctx, b, null);
+  // R1-1: a shop-scoped admin creates into their own shop; the platform
+  // admin creates into the main shop unless shop_id names another
+  // (existing, active) shop.
+  const scope = scopedShopId(session);
+  let shopId;
+  if (scope !== null) {
+    shopId = scope;
+  } else if (b.shop_id !== undefined && b.shop_id !== null) {
+    shopId = int(b.shop_id, "店铺", 1);
+    const shop = await get("SELECT * FROM shops WHERE id=?", shopId);
+    assert(shop, "店铺不存在", 404);
+    assert(shop.status === "active", "店铺已停用", 400);
+  } else {
+    shopId = 1;
+  }
   const result = await run(
-    "INSERT INTO resources(name,category,city,price,unit,description,image,capacity,stock,tags,meta,status,owner_id,created_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+    "INSERT INTO resources(name,category,city,price,unit,description,image,capacity,stock,tags,meta,status,owner_id,shop_id,created_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
     f.name,
     f.category,
     f.city,
@@ -126,6 +163,7 @@ export async function createAdminResource(ctx) {
     JSON.stringify(b.meta === undefined ? {} : f.meta),
     b.status === undefined ? "published" : f.status,
     session.id,
+    shopId,
     time(),
   );
   const id = Number(result.lastInsertRowid);
@@ -144,6 +182,7 @@ export async function editAdminResource(ctx) {
     const id = Number(m[1]);
     const r = await get("SELECT * FROM resources WHERE id=?", id);
     assert(r, "资源不存在", 404);
+    assertShopAccess(session, r);
     const f = validateFields(ctx, b, r);
     const next = {
       name: f.name === undefined ? r.name : f.name,
@@ -200,6 +239,7 @@ export async function syncAdminResource(ctx) {
     const id = Number(m[1]);
     const r = await get("SELECT * FROM resources WHERE id=?", id);
     assert(r, "资源不存在", 404);
+    assertShopAccess(session, r);
     assert(r.category === "show", "只有剧目可进行渠道发布模拟");
     const meta = JSON.parse(r.meta);
     meta.channels = [...SYNC_CHANNELS];

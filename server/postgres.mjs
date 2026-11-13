@@ -92,6 +92,14 @@ export async function openPostgresStore(
       await client.query(
         "ALTER TABLE users ADD COLUMN IF NOT EXISTS phone TEXT",
       );
+      // R1-1 (multi-shop, 2026-11-13): shop scoping on users + resources.
+      // Same idempotent pattern as the columns above.
+      await client.query(
+        "ALTER TABLE users ADD COLUMN IF NOT EXISTS shop_id INTEGER REFERENCES shops(id)",
+      );
+      await client.query(
+        "ALTER TABLE resources ADD COLUMN IF NOT EXISTS shop_id INTEGER REFERENCES shops(id)",
+      );
       if (!(await client.query("SELECT COUNT(*) AS n FROM users")).rows[0].n) {
         // Batch adjacent inserts to keep first-time setup fast over the network.
         const groups = [];
@@ -121,6 +129,28 @@ export async function openPostgresStore(
           };
         },
       });
+      // R1-1 main-shop backfill. It MUST run after the user seed and
+      // after enrichCatalog above: the shop's owner is the platform
+      // admin (id 1, FK shops.owner_id -> users) and every seeded
+      // resource (demo + catalog) belongs to it. Created once, never
+      // duplicated (WHERE NOT EXISTS guard, same pattern as the
+      // tagRules backfill below); existing users keep shop_id NULL
+      // (= platform level, all shops). Runs on every setup; only rows
+      // still NULL are touched.
+      await client.query(
+        "INSERT INTO shops(id,parent_id,name,owner_id,status,created_at) SELECT 1,NULL,'桂演平台总店',1,'active',$1 WHERE NOT EXISTS (SELECT 1 FROM shops)",
+        [new Date().toISOString()],
+      );
+      // The explicit id=1 above does NOT advance the identity
+      // sequence, so the next auto-generated shop id would collide
+      // with the main shop (23505 on create). Point the sequence past
+      // the highest shop id; idempotent on every setup.
+      await client.query(
+        "SELECT setval(pg_get_serial_sequence('shops','id'), (SELECT MAX(id) FROM shops))",
+      );
+      await client.query(
+        "UPDATE resources SET shop_id=1 WHERE shop_id IS NULL",
+      );
       // Wave 3 #9: backfill the tagRules settings key for databases that
       // were seeded before it existed (incl. live Neon). Guard-key
       // INSERT, same idempotent pattern as enrichCatalog above: existing
@@ -149,7 +179,7 @@ export async function openPostgresStore(
         get: async (...params) => (await execute(sql, params)).rows[0],
         run: async (...params) => {
           const insert =
-            /^\s*INSERT\s+INTO\s+(users|resources|orders|demands|comments|messages|events|audit_logs)\b/i.test(
+            /^\s*INSERT\s+INTO\s+(users|resources|orders|demands|comments|messages|events|audit_logs|shops)\b/i.test(
               sql,
             );
           const result = await execute(

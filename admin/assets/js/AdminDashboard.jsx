@@ -35,6 +35,7 @@ const NAV_ICONS = {
   users: (<><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2M16 3.128a4 4 0 0 1 0 7.744M22 21v-2a4 4 0 0 0-3-3.87" /><circle cx="9" cy="7" r="4" /></>),
   resources: (<><path d="M12.83 2.18a2 2 0 0 0-1.66 0L2.6 6.08a1 1 0 0 0 0 1.83l8.58 3.91a2 2 0 0 0 1.66 0l8.58-3.9a1 1 0 0 0 0-1.83z" /><path d="M2 12a1 1 0 0 0 .58.91l8.6 3.91a2 2 0 0 0 1.65 0l8.58-3.9A1 1 0 0 0 22 12" /><path d="M2 17a1 1 0 0 0 .58.91l8.6 3.91a2 2 0 0 0 1.65 0l8.58-3.9A1 1 0 0 0 22 17" /></>),
   demands: (<><rect width="8" height="4" x="8" y="2" rx="1" ry="1" /><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2m4 7h4m-4 5h4m-8-5h.01M8 16h.01" /></>),
+  shops: (<><path d="M3 9l1.5-5h15L21 9" /><path d="M4 9v11a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1V9" /><path d="M9 21v-6h6v6" /></>),
   trends: (<><path d="M3 3v16a2 2 0 0 0 2 2h16" /><path d="m19 9-5 5-4-4-3 3" /></>),
   analysis: (<><path d="M15 12h-5m5-4h-5m9 9V5a2 2 0 0 0-2-2H4" /><path d="M8 21h12a2 2 0 0 0 2-2v-1a1 1 0 0 0-1-1H11a1 1 0 0 0-1 1v1a2 2 0 1 1-4 0V5a2 2 0 1 0-4 0v2a1 1 0 0 0 1 1h3" /></>),
   alerts: (<><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3" /><path d="M12 9v4" /><path d="M12 17h.01" /></>),
@@ -67,6 +68,7 @@ const VIEWS = [
   { id: "tagrules", label: "标签规则", iconName: "ui:tags", group: "main" },
   { id: "aicopy", label: "文案生成", iconName: "ui:pen", group: "main" },
   { id: "resources", label: "资源", iconName: "ui:layers", group: "main" },
+  { id: "shops", label: "店铺", iconName: "ui:store", group: "main" },
   { id: "demands", label: "需求", iconName: "ui:clipboard-list", group: "main" },
   { id: "trends", label: "趋势统计", iconName: "ui:chart-line", group: "premium" },
   { id: "analysis", label: "经营分析", iconName: "ui:scroll-text", group: "premium" },
@@ -162,7 +164,7 @@ export default function AdminDashboard() {
       return out;
     });
   }
-  function changeView(v) { setView(v); setQuery(""); setSorts({}); setTagFilter(""); setDrawerOpen(false); }
+  function changeView(v) { setView(v); setQuery(""); setSorts({}); setTagFilter(""); setResShopFilter(""); setDrawerOpen(false); }
   // Mobile drawer (≤860px): open state + Esc closes + focus returns to
   // the hamburger. Desktop sidebar is unaffected (drawer CSS only
   // applies at ≤860px).
@@ -213,6 +215,16 @@ export default function AdminDashboard() {
   // processing pattern as reviewBusyId).
   const [resForm, setResForm] = useState(null);
   const [resBusyId, setResBusyId] = useState(null);
+  // R1-1 multi-shop: the shop list + the open create/edit form draft
+  // (null = closed; {id: null} = create, {id} = edit) + the id of the
+  // shop whose row action is in flight (same pattern as resBusyId).
+  // resShopFilter is the resources view's shop filter ("" = all shops;
+  // a shop-scoped admin sees only their own shop from the server and
+  // gets no filter control).
+  const [shops, setShops] = useState([]);
+  const [shopForm, setShopForm] = useState(null);
+  const [shopBusyId, setShopBusyId] = useState(null);
+  const [resShopFilter, setResShopFilter] = useState("");
   const [triggerBusy, setTriggerBusy] = useState("");
   const loadedRef = useRef({ trends: "", analysis: "", alerts: false, tagrules: false });
   // Monotonic request id: guards the lazy period fetches below against
@@ -248,12 +260,14 @@ export default function AdminDashboard() {
     Promise.all([
       apiGet("/api/admin/stats"), apiGet("/api/admin/orders"), apiGet("/api/admin/users"),
       apiGet("/api/admin/resources"), apiGet("/api/admin/demands"),
+      apiGet("/api/admin/shops"),
     ]).then(function (res) {
       setStats(res[0]);
       setOrders(res[1].orders || []);
       setUsers(res[2].users || []);
       setResources(res[3].resources || []);
       setDemands(res[4].demands || []);
+      setShops(res[5].shops || []);
       setView("overview");
     }).catch(function (e) {
       if (e && e.status === 401) { clearToken(); location.href = "/admin/index.html"; return; }
@@ -466,6 +480,74 @@ export default function AdminDashboard() {
     }).finally(function () { setResBusyId(null); });
   }
 
+  // R1-1 shop editor helpers (same disabled-while-processing pattern as
+  // the resource form). Only a platform admin ever sees the create/edit
+  // controls (the server returns 403 otherwise); a shop-scoped admin
+  // sees their own shop read-only.
+  function loadShops() {
+    apiGet("/api/admin/shops").then(function (d) {
+      setShops(d.shops || []);
+    }).catch(loadFail);
+  }
+  function openShopForm(s) {
+    if (s) {
+      setShopForm({ id: s.id, name: s.name, parent_id: s.parent_id, owner_id: s.owner_id === null ? "" : String(s.owner_id), status: s.status });
+    } else {
+      setShopForm({ id: null, name: "", parent_id: "1", owner_id: "", status: "active" });
+    }
+  }
+  function editShopForm(key, value) {
+    setShopForm(function (f) { return f ? { ...f, [key]: value } : f; });
+  }
+  function saveShopForm() {
+    if (!shopForm || shopBusyId !== null) return;
+    if (!shopForm.name.trim()) { toast("请填写店铺名称"); return; }
+    const body = { name: shopForm.name.trim() };
+    if (shopForm.id === null) {
+      body.parent_id = Number(shopForm.parent_id) || 1;
+      if (shopForm.owner_id !== "") body.owner_id = Number(shopForm.owner_id);
+    } else {
+      if (shopForm.owner_id === "") body.owner_id = null;
+      else body.owner_id = Number(shopForm.owner_id);
+      body.status = shopForm.status;
+    }
+    setShopBusyId(shopForm.id === null ? "new" : shopForm.id);
+    const call = shopForm.id === null
+      ? apiPost("/api/admin/shops", body)
+      : apiPatch("/api/admin/shops/" + shopForm.id, body);
+    call.then(function (d) {
+      const saved = d.shop;
+      setShops(function (ss) {
+        return shopForm.id === null ? ss.concat([saved])
+          : ss.map(function (x) { return x.id === saved.id ? saved : x; });
+      });
+      setShopForm(null);
+      // The owner list carries shop_id, so reload users as well.
+      apiGet("/api/admin/users").then(function (u) { setUsers(u.users || []); }).catch(function () {});
+      loadAudit();
+      toast("已保存");
+    }).catch(function (e) {
+      if (e && e.status === 403) toast("只有平台管理员可管理店铺");
+      else if (e && e.status === 404) toast("店铺不存在");
+      else toast((e && e.data && e.data.error) || "保存失败，请检查表单");
+    }).finally(function () { setShopBusyId(null); });
+  }
+  function doToggleShopStatus(s) {
+    if (shopBusyId !== null) return;
+    const next = s.status === "active" ? "disabled" : "active";
+    setShopBusyId(s.id);
+    apiPatch("/api/admin/shops/" + s.id, { status: next }).then(function (d) {
+      const saved = d.shop;
+      setShops(function (ss) { return ss.map(function (x) { return x.id === saved.id ? saved : x; }); });
+      loadAudit();
+      toast(next === "active" ? "已启用" : "已停用");
+    }).catch(function (e) {
+      if (e && e.status === 403) toast("只有平台管理员可管理店铺");
+      else if (e && e.status === 404) toast("店铺不存在");
+      else toast((e && e.data && e.data.error) || "操作失败，请稍后重试");
+    }).finally(function () { setShopBusyId(null); });
+  }
+
   function doTriggerAlert(kind) {
     if (triggerBusy) return;
     setTriggerBusy(kind);
@@ -569,12 +651,17 @@ export default function AdminDashboard() {
     tagrules: ["标签规则", "自动标签规则 · 保存后立即重算"],
     aicopy: ["文案生成", "本地模板 · 未接入大模型"],
     resources: ["资源总览", "共 " + resources.length + " 项"],
+    shops: ["店铺管理", "共 " + shops.length + " 家店铺 · 仅平台管理员可创建/修改"],
     demands: ["需求总览", "共 " + demands.length + " 条"],
     trends: ["趋势统计", "按周期查看订单趋势"],
     analysis: ["经营分析", "模拟经营分析报告"],
     alerts: ["预警中心", "库存与模拟预警 · 操作留痕"],
   };
   const by = (stats && stats.orders_by_status) || {};
+  // R1-1: the signed-in admin's scope (the sessionStorage user carries
+  // shop_id since R1-1; NULL = platform admin, all shops).
+  const me = currentUser();
+  const isPlatformAdmin = !me || me.shop_id === null || me.shop_id === undefined;
   const total = ORDER_STATUS.reduce(function (n, k) { return n + (by[k] || 0); }, 0);
   // Search (redesign 2026-11-11): one query, client-side, substring match
   // (case-insensitive, trimmed; Chinese matches verbatim). No money/price/
@@ -593,6 +680,14 @@ export default function AdminDashboard() {
   function resourceMatch(r) {
     return has(r.name) || categoryMatch(r.category) || has(r.city);
   }
+  function shopMatch(s) {
+    return has(s.name) || has(s.owner_name) || has(String(s.id));
+  }
+  function shopName(id) {
+    if (id === null || id === undefined) return "—";
+    const s = shops.find(function (x) { return x.id === id; });
+    return s ? s.name : "店铺#" + id;
+  }
   function demandMatch(d) {
     return has(d.title) || categoryMatch(d.category) || has(d.city)
       || has(d.user_name) || has(DEMAND_STATUS[d.status]);
@@ -608,7 +703,10 @@ export default function AdminDashboard() {
   const filteredUsers = users.filter(function (u) {
     return (!tagFilter || (u.tags || []).indexOf(tagFilter) !== -1) && (!q || userMatch(u));
   });
-  const filteredResources = q ? resources.filter(resourceMatch) : resources;
+  const filteredResources = resources.filter(function (r) {
+    return (resShopFilter === "" || String(r.shop_id) === resShopFilter) && (!q || resourceMatch(r));
+  });
+  const filteredShops = q ? shops.filter(shopMatch) : shops;
   const filteredDemands = q ? demands.filter(demandMatch) : demands;
   const trendSeries = seriesData ? seriesData.series : [];
   const filteredSeries = q ? trendSeries.filter(function (s) { return has(s.label); }) : trendSeries;
@@ -639,6 +737,7 @@ export default function AdminDashboard() {
     },
     users: { id: (u) => u.id, name: (u) => u.name ?? "", username: (u) => u.username ?? "" },
     resources: { name: (r) => r.name ?? "", price: (r) => r.price, stock: (r) => r.stock },
+    shops: { name: (s) => s.name ?? "", resource_count: (s) => s.resource_count },
     demands: { title: (d) => d.title ?? "", budget: (d) => d.budget },
     trends: { label: (s) => s.label, amount: (s) => s.amount, count: (s) => s.count },
     channels: {
@@ -662,6 +761,7 @@ export default function AdminDashboard() {
   const sortedOrders = sorted("orders", filteredOrders);
   const sortedUsers = sorted("users", filteredUsers);
   const sortedResources = sorted("resources", filteredResources);
+  const sortedShops = sorted("shops", filteredShops);
   const sortedDemands = sorted("demands", filteredDemands);
   const sortedSeries = sorted("trends", filteredSeries);
   const sortedChannels = sorted("channels", filteredChannels);
@@ -841,6 +941,7 @@ export default function AdminDashboard() {
             </div>
           </section>
 
+
           <section className={"view" + (view === "tagrules" ? " on" : "")} id="view-tagrules">
             <div className="note">条件可组合，保存后立即重算。金额单位为<b>分</b>（¥10,000 = 1000000分）；未付费用户不会被默认划为潜力会员。浏览分类规则需要真实浏览数据（打开资源详情即记录）。</div>
             {tagRules === null ? <div className="empty">加载中…</div> : (
@@ -886,6 +987,12 @@ export default function AdminDashboard() {
             <div className="search-row">
               <SearchBox id="search-resources" label="搜索资源" placeholder="输入资源名、分类或城市…"
                 value={query} onChange={setQuery} resultCount={q ? filteredResources.length : null} />
+              {isPlatformAdmin ? (
+                <select className="tag-filter" aria-label="按店铺筛选" value={resShopFilter} onChange={(e) => setResShopFilter(e.target.value)}>
+                  <option value="">全部店铺</option>
+                  {shops.map((s) => (<option key={s.id} value={String(s.id)}>{s.name}</option>))}
+                </select>
+              ) : null}
               <button type="button" className="btn-export" onClick={() => openResForm(null)}>添加资源</button>
             </div>
             <div className="note">管理端写资源会改库存/容量/详情，直接影响档期余量、推荐与统计；操作留痕。价格输入元，保存时换算为分。图片只填静态路径（/images/…），不上传。</div>
@@ -914,13 +1021,13 @@ export default function AdminDashboard() {
             ) : null}
             <div className="tbl-wrap">
               <table>
-                <thead><tr><th scope="col" aria-sort={ariaSort("resources", "name")}>名称<SortButton label="名称" sortKey="name" tableId="resources" sort={sorts.resources} onToggle={toggleSort} /></th><th scope="col">分类</th><th scope="col">城市</th><th scope="col" className="num" aria-sort={ariaSort("resources", "price")}>价格<SortButton label="价格" sortKey="price" tableId="resources" sort={sorts.resources} onToggle={toggleSort} /></th><th scope="col" className="num" aria-sort={ariaSort("resources", "stock")}>库存<SortButton label="库存" sortKey="stock" tableId="resources" sort={sorts.resources} onToggle={toggleSort} /></th><th scope="col">状态</th><th scope="col">操作</th></tr></thead>
+                <thead><tr><th scope="col" aria-sort={ariaSort("resources", "name")}>名称<SortButton label="名称" sortKey="name" tableId="resources" sort={sorts.resources} onToggle={toggleSort} /></th><th scope="col">分类</th><th scope="col">城市</th><th scope="col">店铺</th><th scope="col" className="num" aria-sort={ariaSort("resources", "price")}>价格<SortButton label="价格" sortKey="price" tableId="resources" sort={sorts.resources} onToggle={toggleSort} /></th><th scope="col" className="num" aria-sort={ariaSort("resources", "stock")}>库存<SortButton label="库存" sortKey="stock" tableId="resources" sort={sorts.resources} onToggle={toggleSort} /></th><th scope="col">状态</th><th scope="col">操作</th></tr></thead>
                 <tbody id="resBody">
                   {resources.length
                     ? (filteredResources.length ? sortedResources.map((r) => (
                       <Fragment key={r.id}>
                         <tr>
-                          <td>{r.name}</td><td>{catZh(r.category)}</td><td>{r.city}</td>
+                          <td>{r.name}</td><td>{catZh(r.category)}</td><td>{r.city}</td><td>{shopName(r.shop_id)}</td>
                           <td className="num">{fmtMoney(r.price)}</td><td className="num">{r.stock}</td>
                           <td>{r.status === "published" ? "上架" : "下架"}</td>
                           <td>
@@ -935,7 +1042,7 @@ export default function AdminDashboard() {
                         </tr>
                         {r.meta && (r.meta.lastSync || r.meta.syncResult) ? (
                           <tr>
-                            <td colSpan="7">
+                            <td colSpan="8">
                               {r.meta.lastSync ? (<span>最近模拟同步：{String(r.meta.lastSync).slice(0, 19).replace("T", " ")}</span>) : null}
                               {r.meta.lastSync && r.meta.syncResult ? "　" : null}
                               {r.meta.syncResult ? (<span>渠道同步结果：{r.meta.syncResult}</span>) : null}
@@ -943,8 +1050,72 @@ export default function AdminDashboard() {
                           </tr>
                         ) : null}
                       </Fragment>
-                    )) : searchEmpty(7))
-                    : <tr><td colSpan="7"><div className="empty">暂无资源</div></td></tr>}
+                    )) : searchEmpty(8))
+                    : <tr><td colSpan="8"><div className="empty">暂无资源</div></td></tr>}
+                </tbody>
+              </table>
+            </div>
+          </section>
+
+          <section className={"view" + (view === "shops" ? " on" : "")} id="view-shops">
+            <div className="search-row">
+              <SearchBox id="search-shops" label="搜索店铺" placeholder="输入店铺名或店主…"
+                value={query} onChange={setQuery} resultCount={q ? filteredShops.length : null} />
+              {isPlatformAdmin ? (<button type="button" className="btn-export" onClick={() => openShopForm(null)}>添加店铺</button>) : null}
+            </div>
+            <div className="note">总店“桂演平台总店”不可停用；子店店主须为管理员账号，且一位管理员只属于一家店铺。子店管理员仅可见、可改本店资源。</div>
+            {shopForm ? (
+              <fieldset className="tag-rule">
+                <legend>{shopForm.id === null ? "添加店铺" : "编辑店铺：" + shopForm.name}</legend>
+                <label>店铺名称 <input type="text" value={shopForm.name} maxLength={50} onChange={(e) => editShopForm("name", e.target.value)} /></label>
+                {shopForm.id === null ? (
+                  <label>上级店铺 <select value={shopForm.parent_id} onChange={(e) => editShopForm("parent_id", e.target.value)}>
+                    {shops.map((s) => (<option key={s.id} value={String(s.id)}>{s.name}</option>))}
+                  </select></label>
+                ) : (
+                  <label>上级店铺 <input type="text" value={shopName(shopForm.parent_id)} disabled /></label>
+                )}
+                <label>店主 <select value={shopForm.owner_id} onChange={(e) => editShopForm("owner_id", e.target.value)}>
+                  <option value="">未指派</option>
+                  {users.filter((u) => u.role === "admin").map((u) => (<option key={u.id} value={String(u.id)}>{u.name}（{u.username}）</option>))}
+                </select></label>
+                {shopForm.id !== null ? (
+                  <label>状态 <select value={shopForm.status} onChange={(e) => editShopForm("status", e.target.value)}>
+                    <option value="active">启用</option><option value="disabled">停用</option>
+                  </select></label>
+                ) : null}
+                <div>
+                  <button type="button" className="btn-export" disabled={shopBusyId !== null} onClick={saveShopForm}>{shopBusyId !== null ? "保存中…" : "保存"}</button>{" "}
+                  <button type="button" className="btn-resolve" onClick={() => setShopForm(null)}>取消</button>
+                </div>
+              </fieldset>
+            ) : null}
+            <div className="tbl-wrap">
+              <table>
+                <thead><tr><th scope="col" aria-sort={ariaSort("shops", "name")}>名称<SortButton label="名称" sortKey="name" tableId="shops" sort={sorts.shops} onToggle={toggleSort} /></th><th scope="col">上级</th><th scope="col">店主</th><th scope="col" className="num" aria-sort={ariaSort("shops", "resource_count")}>资源数<SortButton label="资源数" sortKey="resource_count" tableId="shops" sort={sorts.shops} onToggle={toggleSort} /></th><th scope="col">状态</th><th scope="col">操作</th></tr></thead>
+                <tbody id="shopsBody">
+                  {shops.length
+                    ? (filteredShops.length ? sortedShops.map((s) => (
+                      <tr key={s.id}>
+                        <td>{s.name}</td><td>{s.parent_id === null ? "—" : shopName(s.parent_id)}</td><td>{s.owner_name || "未指派"}</td>
+                        <td className="num">{s.resource_count}</td><td>{s.status === "active" ? "启用" : "停用"}</td>
+                        <td>
+                          {isPlatformAdmin ? (
+                            <span className="row-actions">
+                              {isPlatformAdmin ? (
+                                <>
+                                  <button type="button" className="btn-view" disabled={shopBusyId !== null} onClick={() => openShopForm(s)}>编辑</button>
+                                  {s.id !== 1 ? (
+                                    <button type="button" className="btn-view" disabled={shopBusyId !== null} onClick={() => doToggleShopStatus(s)}>{shopBusyId === s.id ? "处理中…" : (s.status === "active" ? "停用" : "启用")}</button>
+                                  ) : null}
+                                </>
+                              ) : null}
+                            </span>
+                          ) : "—"}
+                        </td>
+                      </tr>
+                    )) : searchEmpty(6))
+                    : <tr><td colSpan="6"><div className="empty">暂无店铺</div></td></tr>}
                 </tbody>
               </table>
             </div>

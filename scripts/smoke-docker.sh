@@ -10,9 +10,9 @@
 #   docker compose -p guiyan-p8-smoke up -d --build
 #   ./scripts/smoke-docker.sh [project]   # default project: guiyan-p8-smoke
 #
-# The script checks the 3 containers are healthy, runs the 30 checks in the
+# The script checks the 3 containers are healthy, runs the 31 checks in the
 # plan Appendix A against the stack, prints PASS/FAIL per check and exits
-# non-zero if any check fails. Check 30 tears the stack down (down -v) and
+# non-zero if any check fails. Check 31 tears the stack down (down -v) and
 # verifies no project containers/volumes remain. All curl calls are direct
 # (no background processes left behind). Target is a disposable stack with a
 # fresh DB — never run it against the live Vercel/Neon deployment.
@@ -236,11 +236,19 @@ if [ "$CODE" = "401" ]; then ok "28 POST /api/auth/wechat-mini fake code 401 (du
 CODE="$(get /api/storage/health)"
 if [ "$CODE" = "503" ]; then ok "29 GET /api/storage/health 503 (storage not configured)"; else bad "29 GET /api/storage/health (code=$CODE, want 503)"; fi
 
-# 30. teardown — down -v, then 0 project containers and 0 project volumes.
+# 30. admin shops as admin — 200, exactly 1 shop (the main shop, R1-1)
+CODE="$(get /api/admin/shops "$ADMIN_TOKEN")"
+N="$(jlen "['shops']")"
+if [ "$CODE" = "200" ] && [ "$N" = "1" ]; then ok "30 GET /api/admin/shops as admin 200, 1 shop"; else bad "30 GET /api/admin/shops as admin (code=$CODE, shops=$N)"; fi
+
+
+
+
+# 31. teardown — down -v, then 0 project containers and 0 project volumes.
 docker compose -p "$PROJECT" down -v >/dev/null 2>&1
 LEFT_C="$(docker ps --format '{{.Names}}' | grep -c "$PROJECT" || true)"
 LEFT_V="$(docker volume ls --format '{{.Name}}' | grep -c "^${PROJECT}_" || true)"
-if [ "$LEFT_C" = "0" ] && [ "$LEFT_V" = "0" ]; then ok "30 down -v: 0 project containers, 0 project volumes"; else bad "30 down -v (containers left=$LEFT_C, volumes left=$LEFT_V)"; fi
+if [ "$LEFT_C" = "0" ] && [ "$LEFT_V" = "0" ]; then ok "31 down -v: 0 project containers, 0 project volumes"; else bad "31 down -v (containers left=$LEFT_C, volumes left=$LEFT_V)"; fi
 
-echo "== smoke-docker: PASS $PASS / FAIL $FAIL (30 checks) =="
+echo "== smoke-docker: PASS $PASS / FAIL $FAIL (31 checks) =="
 [ "$FAIL" = "0" ]

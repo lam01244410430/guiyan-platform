@@ -16,6 +16,7 @@ CREATE TABLE IF NOT EXISTS users(id INTEGER PRIMARY KEY, username TEXT UNIQUE NO
     CREATE INDEX IF NOT EXISTS idx_login_attempts_lookup ON login_attempts(ip,username,attempted_at);
     CREATE TABLE IF NOT EXISTS oauth_accounts(id INTEGER PRIMARY KEY, provider TEXT NOT NULL, provider_user_id TEXT NOT NULL, user_id INTEGER REFERENCES users(id), created_at TEXT NOT NULL, UNIQUE(provider, provider_user_id));
     CREATE INDEX IF NOT EXISTS idx_oauth_user ON oauth_accounts(user_id, provider);
+    CREATE TABLE IF NOT EXISTS shops(id INTEGER PRIMARY KEY, parent_id INTEGER REFERENCES shops(id), name TEXT NOT NULL, owner_id INTEGER REFERENCES users(id), status TEXT DEFAULT 'active', created_at TEXT NOT NULL);
     CREATE INDEX IF NOT EXISTS idx_order_resource_date ON orders(resource_id,booking_date,status);
     CREATE INDEX IF NOT EXISTS idx_order_user ON orders(user_id);
     CREATE INDEX IF NOT EXISTS idx_comments_resource ON comments(resource_id,status);
