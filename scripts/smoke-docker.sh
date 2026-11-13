@@ -10,9 +10,9 @@
 #   docker compose -p guiyan-p8-smoke up -d --build
 #   ./scripts/smoke-docker.sh [project]   # default project: guiyan-p8-smoke
 #
-# The script checks the 3 containers are healthy, runs the 31 checks in the
+# The script checks the 3 containers are healthy, runs the 32 checks in the
 # plan Appendix A against the stack, prints PASS/FAIL per check and exits
-# non-zero if any check fails. Check 31 tears the stack down (down -v) and
+# non-zero if any check fails. Check 32 tears the stack down (down -v) and
 # verifies no project containers/volumes remain. All curl calls are direct
 # (no background processes left behind). Target is a disposable stack with a
 # fresh DB — never run it against the live Vercel/Neon deployment.
@@ -57,6 +57,14 @@ post() {
     curl -s --max-time 30 -o "$TMP/body" -w "%{http_code}" -X POST -H "Content-Type: application/json" -H "Authorization: Bearer $3" -d "$2" "$BASE$1"
   else
     curl -s --max-time 30 -o "$TMP/body" -w "%{http_code}" -X POST -H "Content-Type: application/json" -d "$2" "$BASE$1"
+  fi
+}
+# patch PATH JSON [token] — PATCH with a JSON body, prints the HTTP code.
+patch() {
+  if [ -n "${3:-}" ]; then
+    curl -s --max-time 30 -o "$TMP/body" -w "%{http_code}" -X PATCH -H "Content-Type: application/json" -H "Authorization: Bearer $3" -d "$2" "$BASE$1"
+  else
+    curl -s --max-time 30 -o "$TMP/body" -w "%{http_code}" -X PATCH -H "Content-Type: application/json" -d "$2" "$BASE$1"
   fi
 }
 # wait_api — poll /api/health until 200 (max ~60s); used after `restart api`.
@@ -242,13 +250,15 @@ N="$(jlen "['shops']")"
 if [ "$CODE" = "200" ] && [ "$N" = "1" ]; then ok "30 GET /api/admin/shops as admin 200, 1 shop"; else bad "30 GET /api/admin/shops as admin (code=$CODE, shops=$N)"; fi
 
 
+# 31. self-disable rejected — 400 (R1-2; the admin cannot disable itself)
+CODE="$(patch /api/admin/users/1/status '{"status":"disabled"}' "$ADMIN_TOKEN")"
+if [ "$CODE" = "400" ]; then ok "31 PATCH /api/admin/users/1/status disabled as admin 400 self-disable"; else bad "31 PATCH /api/admin/users/1/status disabled as admin (code=$CODE, want 400)"; fi
 
-
-# 31. teardown — down -v, then 0 project containers and 0 project volumes.
+# 32. teardown — down -v, then 0 project containers and 0 project volumes.
 docker compose -p "$PROJECT" down -v >/dev/null 2>&1
 LEFT_C="$(docker ps --format '{{.Names}}' | grep -c "$PROJECT" || true)"
 LEFT_V="$(docker volume ls --format '{{.Name}}' | grep -c "^${PROJECT}_" || true)"
-if [ "$LEFT_C" = "0" ] && [ "$LEFT_V" = "0" ]; then ok "31 down -v: 0 project containers, 0 project volumes"; else bad "31 down -v (containers left=$LEFT_C, volumes left=$LEFT_V)"; fi
+if [ "$LEFT_C" = "0" ] && [ "$LEFT_V" = "0" ]; then ok "32 down -v: 0 project containers, 0 project volumes"; else bad "32 down -v (containers left=$LEFT_C, volumes left=$LEFT_V)"; fi
 
-echo "== smoke-docker: PASS $PASS / FAIL $FAIL (31 checks) =="
+echo "== smoke-docker: PASS $PASS / FAIL $FAIL (32 checks) =="
 [ "$FAIL" = "0" ]

@@ -41,6 +41,7 @@ const NAV_ICONS = {
   alerts: (<><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3" /><path d="M12 9v4" /><path d="M12 17h.01" /></>),
   tagrules: (<><path d="M12.586 2.586A2 2 0 0 0 11.172 2H4a2 2 0 0 0-2 2v7.172a2 2 0 0 0 .586 1.414l8.704 8.704a2.426 2.426 0 0 0 3.42 0l6.58-6.58a2.426 2.426 0 0 0 0-3.42z" /><circle cx="7.5" cy="7.5" r=".5" fill="currentColor" /></>),
   aicopy: (<><path d="M12 20h9" /><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z" /></>),
+  account: (<><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2" /><circle cx="12" cy="7" r="4" /></>),
 };
 function NavIcon({ v }) {
   return (
@@ -65,6 +66,7 @@ const VIEWS = [
   { id: "overview", label: "总览", iconName: "ui:layout-dashboard", group: "main" },
   { id: "orders", label: "订单", iconName: "ui:receipt", group: "main" },
   { id: "users", label: "用户", iconName: "ui:users", group: "main" },
+  { id: "account", label: "账号", iconName: "ui:user", group: "main" },
   { id: "tagrules", label: "标签规则", iconName: "ui:tags", group: "main" },
   { id: "aicopy", label: "文案生成", iconName: "ui:pen", group: "main" },
   { id: "resources", label: "资源", iconName: "ui:layers", group: "main" },
@@ -225,6 +227,16 @@ export default function AdminDashboard() {
   const [shopForm, setShopForm] = useState(null);
   const [shopBusyId, setShopBusyId] = useState(null);
   const [resShopFilter, setResShopFilter] = useState("");
+  // R1-2 admin accounts: own profile form + OTP password change, and
+  // the id of the user whose enable/disable is in flight.
+  const [acctName, setAcctName] = useState("");
+  const [acctEmail, setAcctEmail] = useState("");
+  const [acctBusy, setAcctBusy] = useState(false);
+  const [acctOtp, setAcctOtp] = useState("");
+  const [acctOtpInput, setAcctOtpInput] = useState("");
+  const [acctNewPw, setAcctNewPw] = useState("");
+  const [acctPwBusy, setAcctPwBusy] = useState(false);
+  const [userStatusBusyId, setUserStatusBusyId] = useState(null);
   const [triggerBusy, setTriggerBusy] = useState("");
   const loadedRef = useRef({ trends: "", analysis: "", alerts: false, tagrules: false });
   // Monotonic request id: guards the lazy period fetches below against
@@ -265,6 +277,9 @@ export default function AdminDashboard() {
       setStats(res[0]);
       setOrders(res[1].orders || []);
       setUsers(res[2].users || []);
+      // R1-2: initialise the account form from the signed-in admin's row.
+      const meRow0 = (res[2].users || []).find((x) => x.id === u.id);
+      if (meRow0) { setAcctName(meRow0.name || ""); setAcctEmail(meRow0.email || ""); }
       setResources(res[3].resources || []);
       setDemands(res[4].demands || []);
       setShops(res[5].shops || []);
@@ -548,6 +563,63 @@ export default function AdminDashboard() {
     }).finally(function () { setShopBusyId(null); });
   }
 
+  // R1-2 admin accounts: own profile (name/email) + OTP password
+  // change + enable/disable other accounts. The OTP target is always
+  // the SAVED email (from the users list), never the unsaved draft —
+  // the server consumes the code against the stored email.
+  function saveAcctProfile() {
+    if (acctBusy) return;
+    if (!acctName.trim()) { toast("请填写姓名"); return; }
+    setAcctBusy(true);
+    apiPatch("/api/admin/profile", { name: acctName.trim(), email: acctEmail.trim() }).then(function (d) {
+      setUsers(function (us) { return us.map(function (x) { return x.id === d.user.id ? d.user : x; }); });
+      setWhoName(d.user.name || d.user.username || "管理员");
+      loadAudit();
+      toast("已保存");
+    }).catch(function (e) {
+      toast((e && e.data && e.data.error) || "保存失败，请检查表单");
+    }).finally(function () { setAcctBusy(false); });
+  }
+  function sendAcctOtp() {
+    if (acctBusy) return;
+    const meNow = currentUser();
+    const saved = users.find(function (x) { return meNow && x.id === meNow.id; });
+    const target = (saved && saved.email) || "";
+    if (!target) { toast("请先在上方保存邮箱"); return; }
+    setAcctBusy(true);
+    apiPost("/api/account/send-otp", { channel: "email", target: target }).then(function (d) {
+      setAcctOtp(d.code || "");
+      toast("验证码已生成（模拟，未真实发送）");
+    }).catch(function (e) {
+      toast((e && e.data && e.data.error) || "发送失败，请稍后重试");
+    }).finally(function () { setAcctBusy(false); });
+  }
+  function doAcctChangePassword() {
+    if (acctPwBusy) return;
+    if (!/^\d{6}$/.test(acctOtpInput)) { toast("请输入6位验证码"); return; }
+    if (!acctNewPw.trim()) { toast("请输入新密码"); return; }
+    setAcctPwBusy(true);
+    apiPost("/api/admin/change-password", { newPassword: acctNewPw.trim(), code: acctOtpInput }).then(function () {
+      setAcctOtp(""); setAcctOtpInput(""); setAcctNewPw("");
+      loadAudit();
+      toast("密码已修改");
+    }).catch(function (e) {
+      toast((e && e.data && e.data.error) || "修改失败，请检查验证码");
+    }).finally(function () { setAcctPwBusy(false); });
+  }
+  function doToggleUserStatus(usr) {
+    if (userStatusBusyId !== null) return;
+    const next = usr.status === "disabled" ? "active" : "disabled";
+    setUserStatusBusyId(usr.id);
+    apiPatch("/api/admin/users/" + usr.id + "/status", { status: next }).then(function (d) {
+      setUsers(function (us) { return us.map(function (x) { return x.id === d.user.id ? d.user : x; }); });
+      loadAudit();
+      toast(next === "active" ? "已启用" : "已停用");
+    }).catch(function (e) {
+      toast((e && e.data && e.data.error) || "操作失败，请稍后重试");
+    }).finally(function () { setUserStatusBusyId(null); });
+  }
+
   function doTriggerAlert(kind) {
     if (triggerBusy) return;
     setTriggerBusy(kind);
@@ -662,6 +734,8 @@ export default function AdminDashboard() {
   // shop_id since R1-1; NULL = platform admin, all shops).
   const me = currentUser();
   const isPlatformAdmin = !me || me.shop_id === null || me.shop_id === undefined;
+  // R1-2: the signed-in admin's row (for the account view + self checks).
+  const meRow = me ? users.find((x) => x.id === me.id) : null;
   const total = ORDER_STATUS.reduce(function (n, k) { return n + (by[k] || 0); }, 0);
   // Search (redesign 2026-11-11): one query, client-side, substring match
   // (case-insensitive, trimmed; Chinese matches verbatim). No money/price/
@@ -925,7 +999,7 @@ export default function AdminDashboard() {
             </div>
             <div className="tbl-wrap">
               <table>
-                <thead><tr><th scope="col" aria-sort={ariaSort("users", "id")}>ID<SortButton label="ID" sortKey="id" tableId="users" sort={sorts.users} onToggle={toggleSort} /></th><th scope="col" aria-sort={ariaSort("users", "name")}>姓名<SortButton label="姓名" sortKey="name" tableId="users" sort={sorts.users} onToggle={toggleSort} /></th><th scope="col" aria-sort={ariaSort("users", "username")}>账号<SortButton label="账号" sortKey="username" tableId="users" sort={sorts.users} onToggle={toggleSort} /></th><th scope="col">角色</th><th scope="col">城市</th><th scope="col">渠道</th><th scope="col">认证</th><th scope="col">标签</th></tr></thead>
+                <thead><tr><th scope="col" aria-sort={ariaSort("users", "id")}>ID<SortButton label="ID" sortKey="id" tableId="users" sort={sorts.users} onToggle={toggleSort} /></th><th scope="col" aria-sort={ariaSort("users", "name")}>姓名<SortButton label="姓名" sortKey="name" tableId="users" sort={sorts.users} onToggle={toggleSort} /></th><th scope="col" aria-sort={ariaSort("users", "username")}>账号<SortButton label="账号" sortKey="username" tableId="users" sort={sorts.users} onToggle={toggleSort} /></th><th scope="col">角色</th><th scope="col">城市</th><th scope="col">渠道</th><th scope="col">认证</th><th scope="col">标签</th><th scope="col">状态</th><th scope="col">操作</th></tr></thead>
                 <tbody id="usersBody">
                   {users.length
                     ? (filteredUsers.length ? sortedUsers.map((usr) => (
@@ -933,14 +1007,47 @@ export default function AdminDashboard() {
                         <td className="id">{usr.id}</td><td>{usr.name || ""}</td><td>{usr.username}</td><td>{usr.role}</td>
                         <td>{usr.city || ""}</td><td>{usr.channel || ""}</td><td>{usr.verified ? "已认证" : "未认证"}</td>
                         <td>{(usr.tags || []).map((tg) => (<span key={tg} className="pill tag">{tg}</span>))}</td>
+                        <td>{usr.status === "disabled" ? "停用" : "启用"}</td>
+                        <td>
+                          {isPlatformAdmin && me && usr.id !== me.id ? (
+                            <span className="row-actions">
+                              <button type="button" className="btn-view" disabled={userStatusBusyId !== null} onClick={() => doToggleUserStatus(usr)}>{userStatusBusyId === usr.id ? "处理中…" : (usr.status === "disabled" ? "启用" : "停用")}</button>
+                            </span>
+                          ) : "—"}
+                        </td>
                       </tr>
-                    )) : searchEmpty(8))
-                    : <tr><td colSpan="8"><div className="empty">暂无用户</div></td></tr>}
+                    )) : searchEmpty(10))
+                    : <tr><td colSpan="10"><div className="empty">暂无用户</div></td></tr>}
                 </tbody>
               </table>
             </div>
           </section>
 
+          <section className={"view" + (view === "account" ? " on" : "")} id="view-account">
+            <div className="note">本人资料与改密码。改密码用 OTP 发到当前已保存的邮箱（模拟验证码，未真实发送）；未保存邮箱的账号请先在上方保存邮箱。</div>
+            <fieldset className="tag-rule">
+              <legend>本人资料</legend>
+              <label>账号 <input type="text" value={me ? me.username : ""} disabled /></label>
+              <label>姓名 <input type="text" value={acctName} maxLength={50} onChange={(e) => setAcctName(e.target.value)} /></label>
+              <label>邮箱 <input type="text" value={acctEmail} maxLength={100} onChange={(e) => setAcctEmail(e.target.value)} /></label>
+              <div>
+                <button type="button" className="btn-export" disabled={acctBusy} onClick={saveAcctProfile}>{acctBusy ? "保存中…" : "保存资料"}</button>
+              </div>
+            </fieldset>
+            <fieldset className="tag-rule">
+              <legend>修改密码（OTP 验证）</legend>
+              <label>验证码发到 <input type="text" value={(meRow && meRow.email) || ""} disabled /></label>
+              <div>
+                <button type="button" className="btn-export" disabled={acctBusy || !(meRow && meRow.email)} onClick={sendAcctOtp}>获取验证码</button>
+              </div>
+              {acctOtp ? (<p className="def-note">模拟验证码（未真实发送）：<b>{acctOtp}</b></p>) : null}
+              <label>验证码 <input type="text" value={acctOtpInput} maxLength={6} inputMode="numeric" onChange={(e) => setAcctOtpInput(e.target.value.replace(/\D/g, "").slice(0, 6))} /></label>
+              <label>新密码 <input type="password" value={acctNewPw} maxLength={100} onChange={(e) => setAcctNewPw(e.target.value)} /></label>
+              <div>
+                <button type="button" className="btn-export" disabled={acctPwBusy} onClick={doAcctChangePassword}>{acctPwBusy ? "修改中…" : "修改密码"}</button>
+              </div>
+            </fieldset>
+          </section>
 
           <section className={"view" + (view === "tagrules" ? " on" : "")} id="view-tagrules">
             <div className="note">条件可组合，保存后立即重算。金额单位为<b>分</b>（¥10,000 = 1000000分）；未付费用户不会被默认划为潜力会员。浏览分类规则需要真实浏览数据（打开资源详情即记录）。</div>
@@ -1102,13 +1209,9 @@ export default function AdminDashboard() {
                         <td>
                           {isPlatformAdmin ? (
                             <span className="row-actions">
-                              {isPlatformAdmin ? (
-                                <>
-                                  <button type="button" className="btn-view" disabled={shopBusyId !== null} onClick={() => openShopForm(s)}>编辑</button>
-                                  {s.id !== 1 ? (
-                                    <button type="button" className="btn-view" disabled={shopBusyId !== null} onClick={() => doToggleShopStatus(s)}>{shopBusyId === s.id ? "处理中…" : (s.status === "active" ? "停用" : "启用")}</button>
-                                  ) : null}
-                                </>
+                              <button type="button" className="btn-view" disabled={shopBusyId !== null} onClick={() => openShopForm(s)}>编辑</button>
+                              {s.id !== 1 ? (
+                                <button type="button" className="btn-view" disabled={shopBusyId !== null} onClick={() => doToggleShopStatus(s)}>{shopBusyId === s.id ? "处理中…" : (s.status === "active" ? "停用" : "启用")}</button>
                               ) : null}
                             </span>
                           ) : "—"}

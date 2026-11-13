@@ -12,7 +12,7 @@ import {
 const USERNAME_RE = /^[A-Za-z0-9_]{3,20}$/;
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
-function hashPassword(password, salt = randomBytes(16).toString("hex")) {
+export function hashPassword(password, salt = randomBytes(16).toString("hex")) {
   return `${salt}:${scryptSync(password, salt, 32).toString("hex")}`;
 }
 
@@ -110,6 +110,12 @@ export async function login(ctx) {
         console.error("Login limiter record failed", { code: e.code });
       }
       assert(false, "账号或密码不正确", 401);
+    }
+    // R1-2: a disabled account can never log in. Checked before the
+    // password so a correct password does not revive it, and NOT
+    // counted as a login failure (the account is shut, not attacked).
+    if (u.status === "disabled") {
+      assert(false, "账号已被停用", 401);
     }
     const [salt, expected] = u.password.split(":");
     const actual = scryptSync(text(b.password, "密码", 100), salt, 32);

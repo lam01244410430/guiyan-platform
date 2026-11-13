@@ -269,7 +269,7 @@ export async function verifyOtp(ctx) {
 // throw here happens BEFORE any write and nothing is lost to a
 // rollback. A code that was never verified, already used, or expired
 // cannot be consumed.
-async function consumeVerifiedCode(ctx, userId, channel, target, code) {
+export async function consumeVerifiedCode(ctx, userId, channel, target, code) {
   const { get, run } = ctx;
   assert(
     typeof code === "string" && /^\d{6}$/.test(code),

@@ -46,6 +46,7 @@ import { adminStatsSeries, adminAnalysis, adminAlerts, adminOrdersCsv, adminRevi
 import { adminTagRules } from "./routes/tag-rules.mjs";
 import { createAdminResource, editAdminResource, listAdminResources, syncAdminResource } from "./routes/admin-resources.mjs";
 import { listAdminShops, createAdminShop, patchAdminShop } from "./routes/shops.mjs";
+import { patchAdminProfile, patchAdminUserStatus, adminChangePassword } from "./routes/admin-account.mjs";
 
 // Commit before sending the response, so the next request sees saved changes.
 function createRequestHandler(db, handle) {
@@ -135,7 +136,10 @@ export async function createApp({ database }) {
       const token = req.headers.authorization?.replace(/^Bearer /, "");
       const session = token
         ? await get(
-            "SELECT u.* FROM sessions s JOIN users u ON s.user_id=u.id WHERE token=? AND expires_at>?",
+            // R1-2: a disabled account's sessions stop resolving at
+            // once — the token is dead the moment the account is
+            // disabled, without waiting for its expiry.
+            "SELECT u.* FROM sessions s JOIN users u ON s.user_id=u.id WHERE token=? AND expires_at>? AND (u.status IS NULL OR u.status<>'disabled')",
             token,
             time(),
           )
@@ -207,6 +211,9 @@ export async function createApp({ database }) {
       if (await listAdminShops(ctx)) return;
       if (await createAdminShop(ctx)) return;
       if (await patchAdminShop(ctx)) return;
+      if (await patchAdminProfile(ctx)) return;
+      if (await patchAdminUserStatus(ctx)) return;
+      if (await adminChangePassword(ctx)) return;
 
       send({ error: "接口不存在" }, 404);
     } catch (e) {

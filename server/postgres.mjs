@@ -100,6 +100,11 @@ export async function openPostgresStore(
       await client.query(
         "ALTER TABLE resources ADD COLUMN IF NOT EXISTS shop_id INTEGER REFERENCES shops(id)",
       );
+      // R1-2 (admin accounts, 2026-11-13): account status for
+      // enable/disable. DEFAULT 'active' fills existing rows.
+      await client.query(
+        "ALTER TABLE users ADD COLUMN IF NOT EXISTS status TEXT DEFAULT 'active'",
+      );
       if (!(await client.query("SELECT COUNT(*) AS n FROM users")).rows[0].n) {
         // Batch adjacent inserts to keep first-time setup fast over the network.
         const groups = [];
