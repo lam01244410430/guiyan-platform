@@ -17,6 +17,7 @@ import {
   applyStoredValueAtPay,
   refundStoredValue,
 } from "./stored-value.mjs";
+import { issueTicketsForOrder } from "./tickets.mjs";
 
 // R3-1 + R3-2 + R3-3 pricing, in one place so the pre-check and the
 // in-transaction re-price agree exactly: the flash sale applies
@@ -457,6 +458,16 @@ export async function transitionOrder(ctx) {
           o.stored_value_cents || 0,
           time(),
         );
+      // R4-1: a full refund voids every still-issued ticket of the
+      // order in the same transaction. The pending_refund_tickets
+      // column does NOT exist yet (R4-4 adds it), so every
+      // approveRefund voids all issued tickets for now; R4-4 refines
+      // this to void only the tickets in the pending partial request.
+      if (action === "approveRefund")
+        await run(
+          "UPDATE tickets SET status='void' WHERE order_id=? AND status='issued'",
+          o.id,
+        );
       if (["cancelled", "refunded"].includes(to) && !bookingType(o))
         await run(
           "UPDATE resources SET stock=stock+? WHERE id=?",
@@ -479,6 +490,11 @@ export async function transitionOrder(ctx) {
           "UPDATE seats SET status='sold', held_until=NULL WHERE order_id=? AND status='held'",
           o.id,
         );
+      // R4-1: pay issues one ticket per order.quantity, in the same
+      // transaction, AFTER the stored-value deduction + the seat
+      // sell above — seat tickets link 1:1 to the order's sold
+      // seats (row, col ASC); non-seat orders get seat_id NULL.
+      if (action === "pay") await issueTicketsForOrder(get, run, o, time);
       else if (["cancelled", "refunded"].includes(to))
         await run(
           "UPDATE seats SET status='available', order_id=NULL, held_until=NULL WHERE order_id=? AND status='held'",

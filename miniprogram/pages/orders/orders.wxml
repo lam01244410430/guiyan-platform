@@ -16,6 +16,9 @@
           <view class="price">{{item.total}}</view>
           <view><text class="pill {{item.status}}">{{item.statusText}}</text></view>
         </view>
+        <block wx:if="{{item.ticketLines.length}}">
+          <view class="note">{{L.ticketTitle}}：<block wx:for="{{item.ticketLines}}" wx:key="*this">{{item}}<text wx:if="{{index < item.ticketLines.length - 1}}">；</text></block></view>
+        </block>
         <block wx:if="{{item.status==='pending'}}">
           <view class="btn" bindtap="act" data-act="confirm" data-code="{{item.code}}">{{L.actConfirm}}</view>
           <view class="btn ghost" bindtap="act" data-act="cancel" data-code="{{item.code}}">{{L.actCancel}}</view>

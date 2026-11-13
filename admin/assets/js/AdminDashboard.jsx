@@ -48,6 +48,10 @@ const NAV_ICONS = {
   // R3-6 文惠卡: same crown glyph as 会员等级 (member card) — there is
   // no dedicated wallet glyph in admin/assets/icons/ yet.
   storedvalue: (<><path d="M11.562 3.266a.5.5 0 0 1 .876 0L15.39 8.87a1 1 0 0 0 1.516.294L21.183 5.5a.5.5 0 0 1 .798.519l-2.834 10.246a1 1 0 0 1-.956.735H5.81a1 1 0 0 1-.957-.735L2.02 6.02a.5.5 0 0 1 .798-.519l4.276 3.664a1 1 0 0 0 1.516-.294z" /><path d="M5 21h14" /></>),
+  // R4-1 核销: same ticket glyph as 演出 (no dedicated scan glyph in
+  // admin/assets/icons/ yet). Staff = admin role — there is no
+  // separate staff role in this system.
+  verify: (<><path d="M2 9a3 3 0 0 1 0 6v2a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-2a3 3 0 0 1 0-6V7a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2Z" /><path d="M13 5v2" /><path d="M13 17v2" /><path d="M13 11v2" /></>),
 };
 function NavIcon({ v }) {
   return (
@@ -85,6 +89,7 @@ const VIEWS = [
   { id: "autorules", label: "自动发券", iconName: "ui:gift", group: "main" },
   { id: "smstasks", label: "短信群发", iconName: "ui:pen", group: "main" },
   { id: "storedvalue", label: "文惠卡", iconName: "ui:crown", group: "main" },
+  { id: "verify", label: "核销", iconName: "ui:ticket", group: "main" },
   { id: "shops", label: "店铺", iconName: "ui:store", group: "main" },
   { id: "demands", label: "需求", iconName: "ui:clipboard-list", group: "main" },
   { id: "trends", label: "趋势统计", iconName: "ui:chart-line", group: "premium" },
@@ -335,6 +340,15 @@ export default function AdminDashboard() {
   const [grantBusy, setGrantBusy] = useState(false);
   const [lookupUserId, setLookupUserId] = useState("");
   const [lookupResult, setLookupResult] = useState(null);
+  // R4-1 核销: the code being verified + the last result card +
+  // this session's verify history (the server logs EVERY attempt
+  // in verify_logs, but there is no admin verify-logs list endpoint
+  // this wave, so the recent list below is the session's own
+  // attempts, newest first).
+  const [verifyCode, setVerifyCode] = useState("");
+  const [verifyResult, setVerifyResult] = useState(null);
+  const [verifyBusy, setVerifyBusy] = useState(false);
+  const [verifyHistory, setVerifyHistory] = useState([]);
   const [acctBusy, setAcctBusy] = useState(false);
   const [acctOtp, setAcctOtp] = useState("");
   const [acctOtpInput, setAcctOtpInput] = useState("");
@@ -809,6 +823,33 @@ export default function AdminDashboard() {
       else if (e && e.status === 403) toast("只能管理本店铺的文惠卡");
       else toast((e && e.data && e.data.error) || "查询失败");
     });
+  }
+  // R4-1 核销: POST /api/verify/:code (admin only — staff = admin
+  // role). The server normalizes the code (trim + uppercase) and
+  // logs every attempt in verify_logs; a failed verify still
+  // carries ticket + order info in e.data, so the result card shows
+  // the order at the gate. Verify checks ticket status only — no
+  // date/performance check this wave.
+  function doVerify() {
+    if (verifyBusy) return;
+    const code = verifyCode.trim().toUpperCase();
+    if (!code) { toast("请填写票码"); return; }
+    setVerifyBusy(true);
+    apiPost("/api/verify/" + encodeURIComponent(code), {}).then(function (d) {
+      const entry = { code, ok: true, result: "used", ticket: d.ticket, order: d.order, at: new Date().toISOString() };
+      setVerifyResult(entry);
+      setVerifyHistory(function (h) { return [entry].concat(h).slice(0, 20); });
+      setVerifyCode("");
+      toast("核销成功");
+    }).catch(function (e) {
+      const data = (e && e.data) || {};
+      const entry = { code, ok: false, result: data.error || "核销失败", ticket: data.ticket || null, order: data.order || null, at: new Date().toISOString() };
+      setVerifyResult(entry);
+      setVerifyHistory(function (h) { return [entry].concat(h).slice(0, 20); });
+      if (e && e.status === 401) { clearToken(); location.href = "/admin/index.html"; return; }
+      if (e && e.status === 403) { setForbidden(true); return; }
+      toast(data.error || "核销失败");
+    }).finally(function () { setVerifyBusy(false); });
   }
   // R3-2 coupons (same disabled-while-processing pattern as the
   // member-tier form). A shop-scoped admin creates/edits only their
@@ -3073,6 +3114,55 @@ export default function AdminDashboard() {
                 </div>
               ) : null}
             </fieldset>
+          </section>
+
+          <section className={"view" + (view === "verify" ? " on" : "")} id="view-verify">
+            <div className="note">扫票核销：输入票码（GY + 8 位字母数字，不区分大小写）后核销。核销只查票状态，不校验演出日期。每次核销尝试都会记入核销记录。</div>
+            <fieldset className="tag-rule">
+              <legend>核销一张票</legend>
+              <label>票码 <input type="text" value={verifyCode} maxLength={10} placeholder="例如 GY7K2Q9X4M" onChange={(e) => setVerifyCode(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") doVerify(); }} /></label>
+              <div>
+                <button type="button" className="btn-export" disabled={verifyBusy} onClick={doVerify}>{verifyBusy ? "核销中…" : "核销"}</button>
+              </div>
+            </fieldset>
+            {verifyResult ? (
+              <div className="copy-card">
+                <h3>{verifyResult.ok ? "核销成功" : verifyResult.result}</h3>
+                {verifyResult.ticket ? (
+                  <>
+                    <div className="row"><span>票码</span><span className="code">{verifyResult.ticket.code}</span></div>
+                    <div className="row"><span>状态</span><span>{verifyResult.ticket.status === "used" ? "已核销" : verifyResult.ticket.status === "void" ? "已作废" : "已出票"}</span></div>
+                  </>
+                ) : (
+                  <div className="row"><span>票码</span><span className="code">{verifyResult.code}</span></div>
+                )}
+                {verifyResult.order ? (
+                  <>
+                    <div className="row"><span>资源</span><span>{verifyResult.order.resource_name}</span></div>
+                    <div className="row"><span>预订日期</span><span>{verifyResult.order.booking_date}</span></div>
+                    <div className="row"><span>数量</span><span>{verifyResult.order.quantity} 张</span></div>
+                    <div className="row"><span>订单号</span><span className="code">{verifyResult.order.code}</span></div>
+                  </>
+                ) : null}
+              </div>
+            ) : null}
+            <div className="tbl-wrap">
+              <table>
+                <thead><tr><th scope="col">票码</th><th scope="col">结果</th><th scope="col">资源</th><th scope="col">时间</th></tr></thead>
+                <tbody id="verifyLogsBody">
+                  {verifyHistory.length
+                    ? verifyHistory.map((h, i) => (
+                      <tr key={h.code + "-" + i}>
+                        <td><span className="code">{h.code}</span></td>
+                        <td>{h.ok ? "已核销" : h.result}</td>
+                        <td>{h.order ? h.order.resource_name : "—"}</td>
+                        <td>{String(h.at).slice(0, 19).replace("T", " ")}</td>
+                      </tr>
+                    ))
+                    : <tr><td colSpan="4"><div className="empty">暂无核销记录</div></td></tr>}
+                </tbody>
+              </table>
+            </div>
           </section>
 
           <section className={"view" + (view === "aicopy" ? " on" : "")} id="view-aicopy">

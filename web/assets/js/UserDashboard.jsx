@@ -34,6 +34,10 @@ const ACCT_TABS = [
 const ACCT_TAB_IDS = ACCT_TABS.map(([id]) => id);
 /* Orders table: filter tabs in status order + "all" first. */
 const ORDER_STATUSES = ["pending", "confirmed", "paid", "completed", "cancelled", "refunded", "refund_requested", "disputed"];
+/* R4-1: ticket status -> i18n key (issued/used/void). */
+const TICKET_STATUS_KEY = { issued: "ticketIssued", used: "ticketUsed", void: "ticketVoid" };
+/* R4-1: only these order statuses can hold tickets (issued at pay). */
+const TICKET_ORDER_STATUSES = ["paid", "completed", "disputed", "refund_requested"];
 const ORDER_SORTS = {
   code: (o) => o.code || "",
   amount: (o) => o.amount || 0,
@@ -75,6 +79,31 @@ export default function UserDashboard() {
   // loader); top-up is busy-guarded like the other account writes.
   const [usrStored, setUsrStored] = useState(null);
   const [topupBusy, setTopupBusy] = useState(false);
+  // R4-1: tickets per order ("我的票", order id -> ticket rows).
+  // Fetched after the orders tab loads, only for orders that can
+  // hold tickets; a failed fetch leaves the order without a ticket
+  // block (same degrade-to-hidden pattern as the 文惠卡 block).
+  const [usrTickets, setUsrTickets] = useState({});
+  useEffect(() => {
+    const ids = usrOrders
+      .filter((o) => TICKET_ORDER_STATUSES.includes(o.status))
+      .map((o) => o.id);
+    if (!ids.length) return;
+    let cancelled = false;
+    Promise.all(ids.map((id) =>
+      apiGet("/api/orders/" + encodeURIComponent(id) + "/tickets")
+        .then((d) => [id, d.tickets || []])
+        .catch(() => [id, null]),
+    )).then((pairs) => {
+      if (cancelled) return;
+      setUsrTickets((prev) => {
+        const next = { ...prev };
+        for (const [id, tk] of pairs) if (tk) next[id] = tk;
+        return next;
+      });
+    });
+    return () => { cancelled = true; };
+  }, [usrOrders]);
   // Wave 4 #13: per-order refund/dispute reason typed by the user (sent
   // as {reason} with the refund/dispute call) + the order id currently
   // running an action (buttons disabled meanwhile, demands pattern).
@@ -852,6 +881,14 @@ export default function UserDashboard() {
                               <td><span className={"pill " + o.status}>{t(statusKey(o.status))}</span></td>
                               <td><span className="db-actions">{usrActs(o)}<button type="button" className="mini" disabled={contractBusyId === o.id} onClick={() => openContract(o)}>{t("contractBtn")}</button></span></td>
                             </tr>
+                            {/* R4-1: the order's tickets ("我的票") —
+                                codes + status; hidden when the fetch
+                                failed or the order holds no tickets. */}
+                            {usrTickets[o.id] && usrTickets[o.id].length ? (
+                              <tr key={o.id + "-tickets"}>
+                                <td colSpan="7"><span style={{ fontSize: 12.5, color: "var(--ink2)" }}>{t("ticketTitle")}：{usrTickets[o.id].map((tk) => tk.code + "（" + t(TICKET_STATUS_KEY[tk.status] || "ticketIssued") + "）").join("、")}</span></td>
+                              </tr>
+                            ) : null}
                             {/* Wave 4 #13: the reason already sent, while the
                                 after-sales case is waiting for an admin decision. */}
                             {(o.status === "refund_requested" || o.status === "disputed") && o.refund_reason ? (

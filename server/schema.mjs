@@ -35,6 +35,10 @@ CREATE TABLE IF NOT EXISTS users(id INTEGER PRIMARY KEY, username TEXT UNIQUE NO
     CREATE TABLE IF NOT EXISTS stored_value_accounts(id INTEGER PRIMARY KEY, user_id INTEGER REFERENCES users(id), shop_id INTEGER REFERENCES shops(id), balance_cents INTEGER NOT NULL DEFAULT 0, created_at TEXT NOT NULL, UNIQUE(user_id, shop_id));
     CREATE TABLE IF NOT EXISTS stored_value_ledger(id INTEGER PRIMARY KEY, account_id INTEGER REFERENCES stored_value_accounts(id), kind TEXT NOT NULL, amount_cents INTEGER NOT NULL, order_id INTEGER REFERENCES orders(id), note TEXT DEFAULT '', created_at TEXT NOT NULL);
     CREATE TABLE IF NOT EXISTS stored_value_plans(id INTEGER PRIMARY KEY, shop_id INTEGER REFERENCES shops(id), amount_cents INTEGER NOT NULL, bonus_cents INTEGER NOT NULL DEFAULT 0, status TEXT DEFAULT 'active', created_at TEXT NOT NULL);
+    CREATE TABLE IF NOT EXISTS tickets(id INTEGER PRIMARY KEY, order_id INTEGER REFERENCES orders(id), seat_id INTEGER REFERENCES seats(id), code TEXT UNIQUE NOT NULL, status TEXT DEFAULT 'issued', printed_at TEXT, verified_at TEXT, verified_by INTEGER REFERENCES users(id), created_at TEXT NOT NULL);
+    CREATE TABLE IF NOT EXISTS verify_logs(id INTEGER PRIMARY KEY, ticket_id INTEGER REFERENCES tickets(id), code TEXT NOT NULL, result TEXT NOT NULL, verified_by INTEGER REFERENCES users(id), created_at TEXT NOT NULL);
+    CREATE INDEX IF NOT EXISTS idx_tickets_order ON tickets(order_id);
+    CREATE INDEX IF NOT EXISTS idx_verify_logs_ticket ON verify_logs(ticket_id);
     CREATE INDEX IF NOT EXISTS idx_order_resource_date ON orders(resource_id,booking_date,status);
     CREATE INDEX IF NOT EXISTS idx_order_user ON orders(user_id);
     CREATE INDEX IF NOT EXISTS idx_comments_resource ON comments(resource_id,status);

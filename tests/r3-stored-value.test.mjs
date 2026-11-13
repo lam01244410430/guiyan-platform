@@ -19,7 +19,7 @@
 // shop, shop coupon wins on the same code, duplicate platform code
 // 409, shop-scoped admin cannot create one); subsidy grant (balance +
 // bonus ledger row, cross-shop 403, validation 400/404); plan admin
-// CRUD + cross-shop 403; i18n key counts (H5 360, miniprogram 163,
+// CRUD + cross-shop 403; i18n key counts (H5 366, miniprogram 168,
 // equal sets).
 import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
@@ -498,7 +498,7 @@ test("subsidy grant: balance + bonus ledger row; cross-shop 403; validation 400/
   assert.equal(ownShop.data.account.balance_cents, 100);
 });
 
-test("plan admin CRUD + cross-shop 403; i18n 360/163", async () => {
+test("plan admin CRUD + cross-shop 403; i18n 366/168", async () => {
   const created = await req("/api/admin/stored-value-plans", {
     method: "POST", token: adminToken,
     body: { amount_cents: 30000, bonus_cents: 2000 },
@@ -532,12 +532,12 @@ test("plan admin CRUD + cross-shop 403; i18n 360/163", async () => {
   assert.equal(ownPlan.status, 200, JSON.stringify(ownPlan.data));
   assert.equal(ownPlan.data.stored_value_plan.shop_id, shopBId);
 
-  // i18n: 6 new stored-value keys on both sides (354 -> 360, 157 -> 163).
+  // i18n: 6 new stored-value keys on both sides (354 -> 360, 157 -> 163); R4-1 adds 6 ticket keys H5 (360 -> 366), 5 mini (163 -> 168).
   const data = await import(
     path.resolve(repoDir, "web", "assets", "js", "data.js")
   );
   const counts = data.LANGS.map((l) => Object.keys(data.I18N[l]).length);
-  assert.deepEqual(counts, [360, 360, 360]);
+  assert.deepEqual(counts, [366, 366, 366]);
   for (const l of data.LANGS)
     for (const k of ["storedValueTitle", "storedValueBalance", "storedValueTopup", "storedValuePlan", "storedValueEmpty", "storedValueUsed"])
       assert.ok(k in data.I18N[l], `${k} missing in H5 ${l}`);
@@ -556,7 +556,7 @@ test("plan admin CRUD + cross-shop 403; i18n 360/163", async () => {
     ].map((m) => m[1]);
   }
   for (const lang of ["zh", "vi", "en"]) {
-    assert.equal(blocks[lang].length, 163, `${lang} key count`);
+    assert.equal(blocks[lang].length, 168, `${lang} key count`);
     for (const k of ["storedValueTitle", "storedValueBalance", "storedValueTopup", "storedValuePlan", "storedValueEmpty", "storedValueUsed"])
       assert.ok(blocks[lang].includes(k), `${k} missing in mini ${lang}`);
   }

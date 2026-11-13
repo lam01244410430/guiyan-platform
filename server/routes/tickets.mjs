@@ -1,0 +1,309 @@
+// Ticket issuance + verification (Roadmap 82 Wave R4-1, 2026-11-14) —
+// xlsx rows 20, 30. One ticket per paid unit; a ticket is a code the
+// gate scans (`POST /api/verify/:code`). There is NO separate staff
+// role in this system — staff = admin role, so verification is
+// admin-only.
+//
+// Fixed rules (see docs/10-she-ji-wen-dang/03-xiang-mu-jie-duan.md
+// §"Lộ trình 82 module — Sóng R4" R4-1):
+// - Code: `GY` + 8 chars [A-Z0-9] from crypto.randomBytes; UNIQUE;
+//   a 23505 retries with a fresh code (max 5 attempts, then 500).
+//   The retry uses a SAVEPOINT: a failed INSERT aborts its Postgres
+//   transaction (25P02), so a bare retry in the same transaction
+//   could never succeed.
+// - Issued at pay only (see issueTicketsForOrder, called from the
+//   pay branch of transitionOrder): one ticket per order.quantity;
+//   seat orders link tickets 1:1 to the order's sold seats
+//   (row, col ASC); non-seat orders get seat_id NULL.
+// - Verify checks ticket status ONLY — no date/performance check
+//   this wave (an expired performance's ticket still verifies;
+//   documented, never claimed otherwise).
+// - Every verify attempt writes a verify_logs row (success +
+//   failures, including the 404 case). A 4xx response rolls the
+//   request transaction back, so failure logs go through
+//   ctx.separateRequest (an independent transaction that commits
+//   even when the outer one rolls back — same pattern as the login
+//   limiter in server/lib/rate-limit.mjs); the success log stays in
+//   the main transaction, atomic with the status change.
+// - A ticket frozen in a pending partial refund refuses with 400
+//   "票正在退款审核中" + log refund_pending. The
+//   pending_refund_tickets column does NOT exist yet (R4-4 adds it),
+//   so the check probes information_schema first and treats a
+//   missing column as "nothing frozen"; R4-4 activates the check by
+//   adding the column — no code change needed here. Do NOT add the
+//   column in this file (R4-4 owns the orders ALTERs).
+// - Write requests hold the global advisory lock, so the
+//   check-then-update in verify is race-safe (same reasoning as the
+//   R2-5 seat hold).
+import { randomBytes } from "node:crypto";
+import { assert, int, time } from "../lib/http.mjs";
+
+const CODE_ALPHABET = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
+const MAX_CODE_ATTEMPTS = 5;
+
+// `GY` + 8 chars [A-Z0-9] (e.g. GY7K2Q9X4M), from crypto.randomBytes.
+export function generateTicketCode() {
+  const bytes = randomBytes(8);
+  let code = "GY";
+  for (const b of bytes) code += CODE_ALPHABET[b % CODE_ALPHABET.length];
+  return code;
+}
+
+function assertAdmin(session) {
+  assert(session?.role === "admin", "无权访问管理后台", 403);
+}
+
+function ticketRow(t) {
+  if (!t) return null;
+  return {
+    id: t.id,
+    order_id: t.order_id,
+    seat_id: t.seat_id ?? null,
+    code: t.code,
+    status: t.status,
+    printed_at: t.printed_at ?? null,
+    verified_at: t.verified_at ?? null,
+    verified_by: t.verified_by ?? null,
+    created_at: t.created_at,
+    ...(t.seat_row !== undefined ? { seat_row: t.seat_row ?? null } : {}),
+    ...(t.seat_col !== undefined ? { seat_col: t.seat_col ?? null } : {}),
+    ...(t.order_code !== undefined ? { order_code: t.order_code } : {}),
+    ...(t.resource_name !== undefined
+      ? { resource_name: t.resource_name }
+      : {}),
+  };
+}
+
+function orderInfo(o) {
+  if (!o) return null;
+  return {
+    id: o.id,
+    code: o.code,
+    resource_name: o.resource_name,
+    booking_date: o.booking_date,
+    quantity: o.quantity,
+    status: o.status,
+  };
+}
+
+async function logVerify(run, { ticketId, code, result, verifiedBy, now }) {
+  await run(
+    "INSERT INTO verify_logs(ticket_id,code,result,verified_by,created_at) VALUES(?,?,?,?,?)",
+    ticketId,
+    code,
+    result,
+    verifiedBy,
+    now,
+  );
+}
+
+// Issue one ticket per order.quantity, inside the caller's
+// transaction (pay branch, or the setup backfill in postgres.mjs —
+// both run under the advisory lock, so check-then-insert is safe).
+// Seat orders link tickets 1:1 to the order's sold seats (row, col
+// ASC); a quantity larger than the sold-seat count leaves the extra
+// tickets with seat_id NULL. Returns the issued codes.
+export async function issueTicketsForOrder(get, run, order, now) {
+  const qty = Number(order.quantity) || 0;
+  if (qty <= 0) return [];
+  const seatRow = await get(
+    "SELECT array_agg(id ORDER BY row ASC, col ASC, id ASC) AS ids FROM seats WHERE order_id=? AND status='sold'",
+    order.id,
+  );
+  const seatIds = Array.isArray(seatRow?.ids) ? seatRow.ids : [];
+  const stamp = now();
+  const codes = [];
+  for (let i = 0; i < qty; i++) {
+    const seatId = seatIds[i] ?? null;
+    let issued = false;
+    for (let attempt = 0; attempt < MAX_CODE_ATTEMPTS && !issued; attempt++) {
+      const code = generateTicketCode();
+      await run("SAVEPOINT ticket_issue");
+      try {
+        await run(
+          "INSERT INTO tickets(order_id,seat_id,code,status,created_at) VALUES(?,?,?,'issued',?)",
+          order.id,
+          seatId,
+          code,
+          stamp,
+        );
+        codes.push(code);
+        issued = true;
+      } catch (e) {
+        // A failed statement aborts the transaction — roll back to
+        // the savepoint before retrying with a fresh code.
+        await run("ROLLBACK TO SAVEPOINT ticket_issue");
+        if (e.code !== "23505" || attempt === MAX_CODE_ATTEMPTS - 1)
+          throw e;
+      }
+      await run("RELEASE SAVEPOINT ticket_issue");
+    }
+    if (!issued) assert(false, "生成票码失败，请重试", 500);
+  }
+  return codes;
+}
+
+// The ticket ids frozen in the order's pending partial-refund
+// request (R4-4). The pending_refund_tickets column does not exist
+// yet — probe information_schema and treat a missing column as an
+// empty freeze list (see the file header).
+async function pendingRefundTicketIds(get, orderId) {
+  const col = await get(
+    "SELECT 1 AS x FROM information_schema.columns WHERE table_name='orders' AND column_name='pending_refund_tickets'",
+  );
+  if (!col) return [];
+  const row = await get(
+    "SELECT pending_refund_tickets FROM orders WHERE id=?",
+    orderId,
+  );
+  try {
+    const ids = JSON.parse(row?.pending_refund_tickets || "[]");
+    return Array.isArray(ids) ? ids.map(Number) : [];
+  } catch {
+    return [];
+  }
+}
+
+// POST /api/verify/:code — admin only (staff = admin role; no
+// separate staff role exists). Anonymous -> 401 (needUser), a
+// signed-in non-admin -> 403.
+export async function verifyTicket(ctx) {
+  const { p, req, send, needUser, session, get, run, separateRequest } = ctx;
+  const m = p.match(/^\/api\/verify\/([^/]+)$/);
+  if (!m || req.method !== "POST") return false;
+  const u = needUser();
+  assertAdmin(session);
+  // Ticket codes are GY + [A-Z0-9] only, so the raw path segment is
+  // the code — no percent-decoding (decodeURIComponent would throw
+  // a 500 on a malformed % sequence; an unknown code is a 404).
+  const code = m[1].trim().toUpperCase();
+  assert(code !== "", "票码不能为空", 400);
+  const now = time();
+  const ticket = await get("SELECT * FROM tickets WHERE code=?", code);
+  if (!ticket) {
+    // The 404 response rolls the request transaction back, so the
+    // not_found log goes through an independent transaction.
+    await separateRequest(async () => {
+      await logVerify(run, {
+        ticketId: null,
+        code,
+        result: "not_found",
+        verifiedBy: u.id,
+        now,
+      });
+    });
+    send({ error: "票不存在", code }, 404);
+    return true;
+  }
+  const order = await get(
+    "SELECT o.*, r.name AS resource_name FROM orders o JOIN resources r ON r.id=o.resource_id WHERE o.id=?",
+    ticket.order_id,
+  );
+  const fail = async (result, message, status) => {
+    await separateRequest(async () => {
+      await logVerify(run, {
+        ticketId: ticket.id,
+        code,
+        result,
+        verifiedBy: u.id,
+        now,
+      });
+    });
+    send(
+      { error: message, ticket: ticketRow(ticket), order: orderInfo(order) },
+      status,
+    );
+    return true;
+  };
+  // Frozen in a pending partial refund (R4-4) — checked before the
+  // status, so a frozen ticket never verifies even while issued.
+  const frozen = await pendingRefundTicketIds(get, ticket.order_id);
+  if (frozen.includes(ticket.id))
+    return fail("refund_pending", "票正在退款审核中", 400);
+  if (ticket.status === "void")
+    return fail("void", "票已作废", 400);
+  if (ticket.status === "used")
+    return fail("already_used", "票已核销", 400);
+  // issued -> used, with the log, in the one request transaction.
+  await run(
+    "UPDATE tickets SET status='used', verified_at=?, verified_by=? WHERE id=? AND status='issued'",
+    now,
+    u.id,
+    ticket.id,
+  );
+  await logVerify(run, {
+    ticketId: ticket.id,
+    code,
+    result: "used",
+    verifiedBy: u.id,
+    now,
+  });
+  const fresh = await get("SELECT * FROM tickets WHERE id=?", ticket.id);
+  send({ ok: true, ticket: ticketRow(fresh), order: orderInfo(order) });
+  return true;
+}
+
+// GET /api/orders/:id/tickets — the order owner or an admin. Paid
+// orders carry tickets; an unpaid order answers an empty list (no
+// tickets exist before pay).
+export async function listOrderTickets(ctx) {
+  const { p, req, send, needUser, get, all } = ctx;
+  const m = p.match(/^\/api\/orders\/(\d+)\/tickets$/);
+  if (!m || req.method !== "GET") return false;
+  const u = needUser();
+  const o = await get("SELECT * FROM orders WHERE id=?", Number(m[1]));
+  assert(o, "订单不存在", 404);
+  assert(o.user_id === u.id || u.role === "admin", "无权查看此订单", 403);
+  const rows = await all(
+    "SELECT t.*, s.row AS seat_row, s.col AS seat_col FROM tickets t LEFT JOIN seats s ON s.id=t.seat_id WHERE t.order_id=? ORDER BY t.id ASC",
+    o.id,
+  );
+  send({
+    order_id: o.id,
+    order_code: o.code,
+    tickets: rows.map(ticketRow),
+  });
+  return true;
+}
+
+// GET /api/admin/tickets — admin, shop-scoped via order ->
+// resource.shop_id (platform admin: all shops; shop-scoped admin:
+// own shop only). ?order_id= & ?status= (issued/used/void) &
+// ?code= (normalized like verify). Newest first, LIMIT 200.
+export async function listAdminTickets(ctx) {
+  const { p, req, send, session, get, all, url } = ctx;
+  if (p !== "/api/admin/tickets" || req.method !== "GET") return false;
+  assertAdmin(session);
+  const scope = session.shop_id ?? null;
+  const orderParam = url.searchParams.get("order_id");
+  const statusParam = url.searchParams.get("status");
+  const codeParam = url.searchParams.get("code");
+  let sql =
+    "SELECT t.*, o.code AS order_code, r.name AS resource_name FROM tickets t JOIN orders o ON o.id=t.order_id JOIN resources r ON r.id=o.resource_id WHERE 1=1";
+  const params = [];
+  if (scope !== null) {
+    sql += " AND r.shop_id=?";
+    params.push(scope);
+  }
+  if (orderParam !== null && orderParam !== "") {
+    sql += " AND t.order_id=?";
+    params.push(int(Number(orderParam), "订单", 1));
+  }
+  if (statusParam !== null && statusParam !== "") {
+    assert(
+      ["issued", "used", "void"].includes(statusParam),
+      "票状态须为 issued、used 或 void",
+      400,
+    );
+    sql += " AND t.status=?";
+    params.push(statusParam);
+  }
+  if (codeParam !== null && codeParam !== "") {
+    sql += " AND t.code=?";
+    params.push(codeParam.trim().toUpperCase());
+  }
+  sql += " ORDER BY t.id DESC LIMIT 200";
+  const rows = await all(sql, ...params);
+  send({ tickets: rows.map(ticketRow) });
+  return true;
+}

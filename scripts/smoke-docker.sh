@@ -309,11 +309,16 @@ if [ "$CODE" = "200" ] && [ "$(jlen "['sms_tasks']")" = "0" ]; then ok "43 GET /
 CODE="$(get /api/admin/stored-value-plans "$ADMIN_TOKEN")"
 if [ "$CODE" = "200" ] && [ "$(jlen "['stored_value_plans']")" = "3" ]; then ok "44 GET /api/admin/stored-value-plans as admin 200, 3 default plans"; else bad "44 GET /api/admin/stored-value-plans as admin (code=$CODE, plans=$(jlen "['stored_value_plans']"))"; fi
 
-# 45. teardown — down -v, then 0 project containers and 0 project volumes.
+# 46. admin tickets — 200 as admin (R4-1; count NOT asserted: backfilled
+# tickets make the count seed-dependent)
+CODE="$(get /api/admin/tickets "$ADMIN_TOKEN")"
+if [ "$CODE" = "200" ]; then ok "46 GET /api/admin/tickets as admin 200"; else bad "46 GET /api/admin/tickets as admin (code=$CODE, want 200)"; fi
+
+# 47. teardown — down -v, then 0 project containers and 0 project volumes.
 docker compose -p "$PROJECT" down -v >/dev/null 2>&1
 LEFT_C="$(docker ps --format '{{.Names}}' | grep -c "$PROJECT" || true)"
 LEFT_V="$(docker volume ls --format '{{.Name}}' | grep -c "^${PROJECT}_" || true)"
-if [ "$LEFT_C" = "0" ] && [ "$LEFT_V" = "0" ]; then ok "45 down -v: 0 project containers, 0 project volumes"; else bad "45 down -v (containers left=$LEFT_C, volumes left=$LEFT_V)"; fi
+if [ "$LEFT_C" = "0" ] && [ "$LEFT_V" = "0" ]; then ok "47 down -v: 0 project containers, 0 project volumes"; else bad "47 down -v (containers left=$LEFT_C, volumes left=$LEFT_V)"; fi
 
-echo "== smoke-docker: PASS $PASS / FAIL $FAIL (45 checks) =="
+echo "== smoke-docker: PASS $PASS / FAIL $FAIL (46 checks) =="
 [ "$FAIL" = "0" ]

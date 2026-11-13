@@ -32,7 +32,8 @@ Page({
       'actComplete', 'actRefund', 'doneNote', 'statusToast', 'stPending',
       'stConfirmed', 'stPaid', 'stCompleted', 'stCancelled', 'stRefunded',
       'stRefundRequested', 'stDisputed',
-      'simPay', 'ticketTitle', 'modalCancel', 'modalRefund',
+      'simPay', 'ticketTitle', 'ticketCode', 'ticketEmpty', 'ticketIssued',
+      'ticketUsed', 'ticketVoid', 'modalCancel', 'modalRefund',
       'confirmBtn', 'cancelBtn', 'viewsUnit'];
     var L = {};
     keys.forEach(function (k) { L[k] = i18n.t(k, lang); });
@@ -49,6 +50,9 @@ Page({
       name: o.name || (r ? r.name : ''),
       city: o.city || (r ? data.cityName(r.city, lang) : ''),
       online: !!o.online, apiId: o.apiId != null ? o.apiId : null,
+      // R4-1: ticket codes ("code（status）" lines) — filled by
+      // refreshOnline for server orders; [] = no ticket block.
+      ticketLines: [],
       payLabel: i18n.fmt(i18n.t('actPay', lang), { amt: data.money(o.total) }) };
   },
   _favView: function (idx, lang) {
@@ -91,7 +95,38 @@ Page({
             if (byCode[v.code] !== undefined) view[byCode[v.code]] = v;
             else extra.push(v);
           });
-          self.setData({ orders: extra.concat(view) });
+          var merged = extra.concat(view);
+          self.setData({ orders: merged });
+          // R4-1: ticket codes per order (paid / completed /
+          // disputed / refund_requested only — tickets exist from
+          // pay on). A failed fetch leaves the order without a
+          // ticket block; silent fallback, as before.
+          var ticketJobs = merged.filter(function (o) {
+            return o.apiId != null &&
+              ['paid', 'completed', 'disputed', 'refund_requested'].indexOf(o.status) >= 0;
+          }).map(function (o) {
+            return api.get('/api/orders/' + o.apiId + '/tickets', {}, true).then(function (d) {
+              var lines = (d.tickets || []).map(function (tk) {
+                var st = tk.status === 'used' ? i18n.t('ticketUsed', lang)
+                  : tk.status === 'void' ? i18n.t('ticketVoid', lang)
+                  : i18n.t('ticketIssued', lang);
+                return tk.code + '（' + st + '）';
+              });
+              return { code: o.code, lines: lines };
+            }).catch(function () { return null; });
+          });
+          return Promise.all(ticketJobs).then(function (results) {
+            var byCode2 = {};
+            self.data.orders.forEach(function (o, i) { byCode2[o.code] = i; });
+            var next = self.data.orders.slice();
+            var changed = false;
+            results.forEach(function (r) {
+              if (!r || byCode2[r.code] === undefined) return;
+              next[byCode2[r.code]] = Object.assign({}, next[byCode2[r.code]], { ticketLines: r.lines });
+              changed = true;
+            });
+            if (changed) self.setData({ orders: next });
+          });
         }).catch(function () {}));
         jobs.push(api.get('/api/favorites', {}, true).then(function (res) {
           var idxs = api.favIdxsFromApi(res.favorites || []);

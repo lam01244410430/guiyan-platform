@@ -13,6 +13,7 @@ import { enrichCatalog } from "./catalog-content.mjs";
 import { defaultTagRules } from "./lib/profiles.mjs";
 import { DEFAULT_TIERS } from "./routes/member-tiers.mjs";
 import { DEFAULT_PLANS } from "./routes/stored-value.mjs";
+import { issueTicketsForOrder } from "./routes/tickets.mjs";
 
 // PostgreSQL aggregates return int8/numeric strings; the demo API uses numbers.
 pg.types.setTypeParser(20, Number);
@@ -330,6 +331,26 @@ export async function openPostgresStore(
           );
         }
       }
+      // R4-1 ticket backfill (2026-11-14): paid / completed /
+      // disputed / refund_requested orders with zero tickets get
+      // `quantity` tickets (seat_id NULL — seeded orders are
+      // old-flow, with no sold seats); cancelled / refunded orders
+      // get none. Guard: only orders with no tickets at all are
+      // touched, so a re-run never duplicates. Runs on every setup;
+      // only ticket-less orders are touched.
+      {
+        const rows = await client.query(
+          "SELECT id, quantity FROM orders WHERE status IN ('paid','completed','disputed','refund_requested') AND NOT EXISTS (SELECT 1 FROM tickets WHERE tickets.order_id=orders.id) ORDER BY id ASC",
+        );
+        const qget = async (sql, ...params) =>
+          (await client.query(postgresSql(sql), params)).rows[0];
+        const qrun = async (sql, ...params) =>
+          client.query(postgresSql(sql), params);
+        for (const ord of rows.rows)
+          await issueTicketsForOrder(qget, qrun, ord, () =>
+            new Date().toISOString(),
+          );
+      }
       // Wave 3 #9: backfill the tagRules settings key for databases that
       // were seeded before it existed (incl. live Neon). Guard-key
       // INSERT, same idempotent pattern as enrichCatalog above: existing
@@ -373,7 +394,11 @@ export async function openPostgresStore(
             // R3-6: stored_value_accounts + stored_value_ledger +
             // stored_value_plans join them too (top-up / grant /
             // plan create needs the id).
-            /^\s*INSERT\s+INTO\s+(users|resources|orders|demands|comments|messages|events|audit_logs|shops|shows|performances|ticket_types|pickup_points|ticket_templates|venues|seat_templates|seats|member_tiers|coupons|flash_sales|coupon_rules|coupon_gifts|sms_tasks|stored_value_accounts|stored_value_ledger|stored_value_plans)\b/i.test(
+            // R4-1: tickets + verify_logs join them too (the
+            // R3-5 lesson: an INSERT whose table is missing here
+            // leaves lastInsertRowid empty, and any caller reading
+            // the id back then hits 22P02 -> 500).
+            /^\s*INSERT\s+INTO\s+(users|resources|orders|demands|comments|messages|events|audit_logs|shops|shows|performances|ticket_types|pickup_points|ticket_templates|venues|seat_templates|seats|member_tiers|coupons|flash_sales|coupon_rules|coupon_gifts|sms_tasks|stored_value_accounts|stored_value_ledger|stored_value_plans|tickets|verify_logs)\b/i.test(
               sql,
             );
           const result = await execute(
