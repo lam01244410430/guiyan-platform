@@ -374,3 +374,18 @@ test("p3bugs B-030: admin page subtitle uses filtered counts", async () => {
   );
 });
 
+test("p3bugs P3-1: deposit label says 元, never 分", async () => {
+  const data = await import(
+    path.resolve(repoDir, "web", "assets", "js", "data.js")
+  );
+  const text = fs.readFileSync(
+    path.resolve(repoDir, "web", "assets", "js", "data.js"),
+    "utf8",
+  );
+  assert.ok(text.includes('metaDeposit:"押金（元，模拟）"'));
+  assert.ok(!text.includes("押金（分"));
+  assert.equal(data.I18N.zh.metaDeposit, "押金（元，模拟）");
+  assert.equal(data.I18N.vi.metaDeposit, "Tiền đặt cọc (¥, mô phỏng)");
+  assert.equal(data.I18N.en.metaDeposit, "Deposit (¥, simulated)");
+});
+
