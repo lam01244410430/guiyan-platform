@@ -1,5 +1,6 @@
 import { assert } from "../lib/http.mjs";
 import { CACHE_KEYS, CACHE_TTLS } from "../lib/cache.mjs";
+import { ORDER_STATUS_ZH } from "../lib/status-labels.mjs";
 import { buildAnalysis } from "./admin-insights.mjs";
 
 // Canonical Chinese assistant copy — the same wording as the web prototype
@@ -102,11 +103,9 @@ export async function answerRules(ctx, q) {
   }
   // Wave 3 #8, logged-in support intents — port of zhou assistants.mjs
   // supportAnswer(), reading the caller's OWN orders via ctx.orderRows.
-  // Checked BEFORE the generic refund/book branches below. The groups
-  // below still list only the six pre-#13 states: Wave 4 #13 added
-  // refund_requested/disputed as real order states, but they have no
-  // group here yet, so an order in either state is invisible to this
-  // answer (P3-2: grouping them is a separate, deferred fix).
+  // Checked BEFORE the generic refund/book branches below. P3-2 grouped
+  // refund_requested/disputed here (Wave 4 #13 states), so an order in
+  // either state is visible to this answer.
   if (ctx.session) {
     const orders = await ctx.orderRows(ctx.session);
     if (/退款|退票|退订|退钱|cancel|refund|能退|怎么退|改签/.test(s)) {
@@ -117,6 +116,8 @@ export async function answerRules(ctx, q) {
         ["completed", "已完成，不支持在线退款"],
         ["cancelled", "已取消"],
         ["refunded", "已退款"],
+        ["refund_requested", "已申请退款，等待管理员处理"],
+        ["disputed", "申诉处理中，等待管理员处理"],
       ];
       const lines = groups
         .map(([status, label]) => {
@@ -148,7 +149,7 @@ export async function answerRules(ctx, q) {
         .slice(0, 5)
         .map(
           (o) =>
-            `${o.code} · ${o.resource_name} · ${o.status} · ${yuan(o.amount)}`,
+            `${o.code} · ${o.resource_name} · ${ORDER_STATUS_ZH[o.status] || o.status} · ${yuan(o.amount)}`,
         )
         .join("\n");
       return {

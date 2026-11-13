@@ -389,3 +389,64 @@ test("p3bugs P3-1: deposit label says 元, never 分", async () => {
   assert.equal(data.I18N.en.metaDeposit, "Deposit (¥, simulated)");
 });
 
+// --- P3-2: assistant groups the two new states ---------------------------
+
+test("p3bugs P3-2: myRefund groups refund_requested orders", async () => {
+  const { token } = await registerFresh();
+  const s = await pickShow(1);
+  const order = await paidOrder(token, s.id, 1, "2026-12-28");
+  const refund = await req(`/api/orders/${order.id}/refund`, {
+    method: "POST",
+    token,
+    body: { reason: "临时有事" },
+  });
+  assert.equal(refund.status, 200, JSON.stringify(refund.json));
+  assert.equal(refund.json.status, "refund_requested");
+  const r = await req("/api/assistant?q=" + encodeURIComponent("怎么退款"), {
+    token,
+  });
+  assert.equal(r.status, 200, JSON.stringify(r.json));
+  assert.equal(r.json.kind, "myRefund");
+  assert.ok(r.json.answer.includes("已申请退款"), r.json.answer);
+  assert.ok(r.json.answer.includes(order.code), r.json.answer);
+  assert.ok(!r.json.answer.includes("refund_requested"), r.json.answer);
+});
+
+test("p3bugs P3-2: myRefund groups disputed orders", async () => {
+  const { token } = await registerFresh();
+  const s = await pickShow(1);
+  const order = await paidOrder(token, s.id, 1, "2026-12-29");
+  const dispute = await req(`/api/orders/${order.id}/dispute`, {
+    method: "POST",
+    token,
+    body: { reason: "与商家有争议" },
+  });
+  assert.equal(dispute.status, 200, JSON.stringify(dispute.json));
+  assert.equal(dispute.json.status, "disputed");
+  const r = await req("/api/assistant?q=" + encodeURIComponent("怎么退款"), {
+    token,
+  });
+  assert.equal(r.status, 200, JSON.stringify(r.json));
+  assert.equal(r.json.kind, "myRefund");
+  assert.ok(r.json.answer.includes("申诉处理中"), r.json.answer);
+  assert.ok(r.json.answer.includes(order.code), r.json.answer);
+  assert.ok(!r.json.answer.includes("disputed"), r.json.answer);
+});
+
+test("p3bugs P3-2: myOrders answers use Chinese labels, no raw codes", async () => {
+  const { token } = await registerFresh();
+  const s = await pickShow(1);
+  const order = await paidOrder(token, s.id, 1, "2026-12-30");
+  const r = await req("/api/assistant?q=" + encodeURIComponent("我的订单"), {
+    token,
+  });
+  assert.equal(r.status, 200, JSON.stringify(r.json));
+  assert.equal(r.json.kind, "myOrders");
+  assert.ok(r.json.answer.includes(order.code), r.json.answer);
+  for (const code of RAW_ORDER_CODES) {
+    assert.ok(
+      !r.json.answer.includes(code),
+      `myOrders answer must not contain raw code ${code}: ${r.json.answer}`,
+    );
+  }
+});
