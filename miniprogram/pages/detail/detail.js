@@ -18,7 +18,8 @@ Page({
     L: {}, langIdx: 1, langName: 'Tiếng Việt', langs: ['中文', 'Tiếng Việt', 'English'],
     idx: 0, res: null, date: '', qty: 1, total: '', fav: false,
     order: null, flowSteps: [], perfs: null, perfSel: null, tierSel: null,
-    pickupPoints: null, pickupSel: null // R2-3: pickup points of the selected performance's show (null = not loaded); the chosen point id
+    pickupPoints: null, pickupSel: null, // R2-3: pickup points of the selected performance's show (null = not loaded); the chosen point id
+    seats: null, seatSel: [], seatZones: [], seatSelectedText: '' // R2-5: seats of the selected performance (null = not loaded); the chosen seat ids + the grouped grid
   },
   onLoad: function (options) {
     var idx = parseInt(options.idx || '0', 10);
@@ -50,7 +51,7 @@ Page({
       'perfTitle', 'perfEmpty', 'perfOnSale',
       'tierTitle', 'tierEmpty', 'tierSoldOut', 'tierLeft', 'tierPick',
       'pickupTitle', 'pickupEmpty', 'pickupPick',
-      'venueTitle'];
+      'venueTitle', 'seatPick', 'seatSelected'];
     var L = {};
     keys.forEach(function (k) { L[k] = i18n.t(k, lang); });
     var r = api.resourceByIdx(this.data.idx) || data.RES[0];
@@ -68,6 +69,7 @@ Page({
     // (baked per language in refreshTierText), and the total follows
     // the selected tier price.
     this.refreshTierText();
+    this.refreshSeats();
     this.refreshTotal();
     this.refreshOrder();
   },
@@ -152,19 +154,65 @@ Page({
   refreshTotal: function () {
     this.setData({ total: data.money(this.unitPriceYuan() * this.data.qty) });
   },
+  // R2-5: seats of the selected performance, grouped by zone for the
+  // tap-to-select grid (zones in first-seen order; cells row-major).
+  // The selected-count text is baked per language, like the tier text.
+  refreshSeats: function () {
+    var seats = this.data.seats || [];
+    var sel = this.data.seatSel || [];
+    var lang = i18n.getLang();
+    var order = [];
+    var byZone = {};
+    seats.forEach(function (s) {
+      var z = s.zone || '';
+      if (!byZone[z]) { byZone[z] = { name: z, cells: {} }; order.push(byZone[z]); }
+      byZone[z].cells[s.row + ':' + s.col] = s;
+    });
+    var zones = order.map(function (z) {
+      var rows = 0;
+      var cols = 0;
+      Object.keys(z.cells).forEach(function (k) {
+        rows = Math.max(rows, z.cells[k].row);
+        cols = Math.max(cols, z.cells[k].col);
+      });
+      var cells = [];
+      for (var r = 1; r <= rows; r++)
+        for (var c = 1; c <= cols; c++) {
+          var s = z.cells[r + ':' + c];
+          if (s) cells.push({ id: s.id, label: r + '-' + c, status: s.status, sel: sel.indexOf(s.id) >= 0 });
+        }
+      return { name: z.name, cols: cols, cells: cells };
+    });
+    this.setData({ seatZones: zones,
+      seatSelectedText: sel.length ? i18n.fmt(i18n.t('seatSelected', lang), { n: sel.length }) : '' });
+  },
+  onSeatTap: function (e) {
+    if (e.currentTarget.dataset.status !== 'available') return;
+    var id = e.currentTarget.dataset.id;
+    var sel = this.data.seatSel.slice();
+    var i = sel.indexOf(id);
+    if (i >= 0) sel.splice(i, 1); else sel.push(id);
+    this.setData({ seatSel: sel });
+    this.refreshSeats();
+  },
   onPerfTap: function (e) {
     var id = e.currentTarget.dataset.id;
     var self = this;
     if (this.data.perfSel === id) {
-      this.setData({ perfSel: null, tierSel: null, pickupPoints: null, pickupSel: null });
+      this.setData({ perfSel: null, tierSel: null, pickupPoints: null, pickupSel: null, seats: null, seatSel: [] });
+      this.refreshSeats();
       this.refreshTotal();
       return;
     }
-    this.setData({ perfSel: id, tierSel: null, pickupSel: null, pickupPoints: null });
+    this.setData({ perfSel: id, tierSel: null, pickupSel: null, pickupPoints: null, seats: null, seatSel: [] });
+    this.refreshSeats();
     // R2-3: selecting a performance loads its show's pickup points
     // (public, best-effort like the performance list); a failed fetch
     // leaves the list empty and the server still enforces the
     // requirement at order time.
+    // R2-5: selecting also loads the performance's seats (public,
+    // best-effort); a failed fetch leaves the grid hidden and the
+    // order still books without seats.
     var perf = this.selectedPerf();
     if (perf && perf.show_id) {
       api.get('/api/shows/' + perf.show_id + '/pickup-points', {}, false).then(function (d) {
@@ -173,6 +221,10 @@ Page({
     } else {
       this.setData({ pickupPoints: [] });
     }
+    api.get('/api/performances/' + id + '/seats', {}, false).then(function (d) {
+      self.setData({ seats: d.seats || [] });
+      self.refreshSeats();
+    }, function () { self.setData({ seats: [] }); self.refreshSeats(); });
     this.refreshTotal();
   },
   onPickupTap: function (e) {
@@ -304,6 +356,14 @@ Page({
           template: res.ticket_template || null,
           createdAt: Date.now() };
         store.addOrder(o);
+        // R2-5: hold the seats the buyer picked on the pending order.
+        // A failed hold leaves the order standing (pending) — the
+        // server error is shown, never a silent loss.
+        if (tier && self.data.seatSel.length > 0) {
+          api.post('/api/orders/' + res.id + '/seats', { seat_ids: self.data.seatSel }, true).then(function () {}, function (err) {
+            wx.showToast({ title: (err && err.message) || '选座失败', icon: 'none', duration: 2500 });
+          });
+        }
         wx.showToast({ title: i18n.fmt(i18n.t('orderCreated'), { code: o.code }), icon: 'none', duration: 2500 });
         self.refreshOrder();
       }).catch(function (err) {

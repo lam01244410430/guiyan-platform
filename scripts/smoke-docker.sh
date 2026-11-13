@@ -10,9 +10,9 @@
 #   docker compose -p guiyan-p8-smoke up -d --build
 #   ./scripts/smoke-docker.sh [project]   # default project: guiyan-p8-smoke
 #
-# The script checks the 3 containers are healthy, runs the 38 checks in the
+# The script checks the 3 containers are healthy, runs the 39 checks in the
 # plan Appendix A against the stack, prints PASS/FAIL per check and exits
-# non-zero if any check fails. Check 38 tears the stack down (down -v) and
+# non-zero if any check fails. Check 39 tears the stack down (down -v) and
 # verifies no project containers/volumes remain. All curl calls are direct
 # (no background processes left behind). Target is a disposable stack with a
 # fresh DB — never run it against the live Vercel/Neon deployment.
@@ -281,11 +281,15 @@ if [ "$CODE" = "200" ] && [ "$TPL" = "默认票面" ] && [ "$COL" = "#0b3d36" ];
 CODE="$(get /api/venues)"
 if [ "$CODE" = "200" ] && [ "$(jlen "['venues']")" = "6" ]; then ok "37 GET /api/venues 200, 6 venues"; else bad "37 GET /api/venues (code=$CODE, venues=$(jlen "['venues']"))"; fi
 
-# 38. teardown — down -v, then 0 project containers and 0 project volumes.
+# 38. seats of an unknown performance — 404 (R2-5)
+CODE="$(get /api/performances/99999/seats)"
+if [ "$CODE" = "404" ]; then ok "38 GET /api/performances/99999/seats 404"; else bad "38 GET /api/performances/99999/seats (code=$CODE, want 404)"; fi
+
+# 39. teardown — down -v, then 0 project containers and 0 project volumes.
 docker compose -p "$PROJECT" down -v >/dev/null 2>&1
 LEFT_C="$(docker ps --format '{{.Names}}' | grep -c "$PROJECT" || true)"
 LEFT_V="$(docker volume ls --format '{{.Name}}' | grep -c "^${PROJECT}_" || true)"
-if [ "$LEFT_C" = "0" ] && [ "$LEFT_V" = "0" ]; then ok "38 down -v: 0 project containers, 0 project volumes"; else bad "38 down -v (containers left=$LEFT_C, volumes left=$LEFT_V)"; fi
+if [ "$LEFT_C" = "0" ] && [ "$LEFT_V" = "0" ]; then ok "39 down -v: 0 project containers, 0 project volumes"; else bad "39 down -v (containers left=$LEFT_C, volumes left=$LEFT_V)"; fi
 
-echo "== smoke-docker: PASS $PASS / FAIL $FAIL (38 checks) =="
+echo "== smoke-docker: PASS $PASS / FAIL $FAIL (39 checks) =="
 [ "$FAIL" = "0" ]

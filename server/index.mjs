@@ -50,6 +50,7 @@ import { createShow, listShows, getShow, listAdminShows, reviewShow, createPerfo
 import { createTicketType, listTicketTypes, patchTicketType } from "./routes/ticket-types.mjs";
 import { createPickupPoint, listPickupPoints, deletePickupPoint, listTemplates, createTemplate, patchTemplate, getShopTemplate } from "./routes/pickup.mjs";
 import { listVenues, getVenue, createVenue, patchVenue, listSeatTemplates, createSeatTemplate, patchSeatTemplate } from "./routes/venues.mjs";
+import { generateSeats, listSeats, selectSeats } from "./routes/seats.mjs";
 import { patchAdminProfile, patchAdminUserStatus, adminChangePassword } from "./routes/admin-account.mjs";
 
 // Commit before sending the response, so the next request sees saved changes.
@@ -242,6 +243,9 @@ export async function createApp({ database }) {
       if (await listSeatTemplates(ctx)) return;
       if (await createSeatTemplate(ctx)) return;
       if (await patchSeatTemplate(ctx)) return;
+      if (await generateSeats(ctx)) return;
+      if (await listSeats(ctx)) return;
+      if (await selectSeats(ctx)) return;
       if (await patchAdminProfile(ctx)) return;
       if (await patchAdminUserStatus(ctx)) return;
       if (await adminChangePassword(ctx)) return;

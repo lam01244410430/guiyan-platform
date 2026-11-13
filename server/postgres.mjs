@@ -273,7 +273,8 @@ export async function openPostgresStore(
             // R2-2: ticket_types joins them (tier create needs the id).
             // R2-3: pickup_points + ticket_templates join them too.
             // R2-4: venues + seat_templates join them too.
-            /^\s*INSERT\s+INTO\s+(users|resources|orders|demands|comments|messages|events|audit_logs|shops|shows|performances|ticket_types|pickup_points|ticket_templates|venues|seat_templates)\b/i.test(
+            // R2-5: seats joins them too (generate needs the ids).
+            /^\s*INSERT\s+INTO\s+(users|resources|orders|demands|comments|messages|events|audit_logs|shops|shows|performances|ticket_types|pickup_points|ticket_templates|venues|seat_templates|seats)\b/i.test(
               sql,
             );
           const result = await execute(

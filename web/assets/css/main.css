@@ -417,6 +417,15 @@ th .sort-btn:focus-visible{outline:2px solid var(--red);outline-offset:1px}
 .seatgrid{display:grid;gap:3px}
 .seatgrid i{width:8px;height:8px;border-radius:50%;background:var(--gold);opacity:.75}
 .seatnote{margin:8px 0 0;font-size:12.5px;color:var(--ink2)}
+/* R2-5: clickable seat picker for a performance with seats. */
+.seatpick{margin-top:12px}
+.seatpick h5{font-size:13.5px;font-weight:800;margin:0 0 4px}
+.seatzone{margin-top:8px;font-size:12.5px;font-weight:700;color:var(--ink2)}
+.seatgrid-pick{display:grid;gap:4px;margin-top:4px}
+.seatgrid-pick button{width:26px;height:26px;border-radius:4px;border:1px solid var(--line2);background:var(--surface);cursor:pointer;font-size:10px;padding:0;color:var(--ink)}
+.seatgrid-pick button.sel{background:var(--gold);color:#fff;border-color:var(--gold)}
+.seatgrid-pick button.sold{background:var(--ink2);color:#fff;opacity:.55}
+.seatgrid-pick button:disabled{cursor:not-allowed;opacity:.45}
 /* R2-4: linked venue name/address on the resource detail. */
 .venuebox{margin-top:18px}
 .venuebox h4{font-family:"Noto Serif SC",serif;font-size:16px;font-weight:900;margin:0 0 6px}

@@ -11,9 +11,10 @@
 // object and the text report both say so.
 // - Sources with no feed (票房 / 核销 / 文惠卡 / 消费卡) are labelled
 // 未接入 in `sources`; no number is invented for them.
-// - Venue seatOccupancy / performances are null / 0 with the label
-// "暂无关联售票样本" when no show links to the venue (Lam's show meta
-// has no venueId), exactly as the original did with no sample.
+// - Venue seatOccupancy / performances come from the venues table
+// (R2-4/R2-5: shows link via resources.venue_id, seats via the seats
+// table); they are null / 0 with the label "暂无关联售票样本" when
+// a venue has no linked performances or no seats.
 // - No marketing ROI is computed (no ad-spend data); no 淡旺季 claim is
 // made from a few months of sample (the insight says so in words).
 // - Inventory: bookingType resources (venue / equipment, see
@@ -173,6 +174,13 @@ const users = await all(
 "SELECT * FROM users WHERE role<>'admin' ORDER BY id",
 );
 const favorites = await all("SELECT user_id,resource_id FROM favorites");
+// R2-4/R2-5: the venues table + the show/performance/seat rows the
+// venue analysis reads (shows -> resources.venue_id links a show to
+// its venue; seats carry the sold counts).
+const venueRows = await all("SELECT * FROM venues ORDER BY id ASC");
+const shows = await all("SELECT * FROM shows");
+const performances = await all("SELECT * FROM performances");
+const seats = await all("SELECT * FROM seats");
 const thresholdRow = await get(
 "SELECT value FROM settings WHERE key='alertThreshold'",
 );
@@ -182,7 +190,7 @@ threshold = JSON.parse(thresholdRow?.value?? "5");
 } catch {
 threshold = 5;
 }
-return { today, orders, resources, users, favorites, threshold};
+return { today, orders, resources, users, favorites, threshold, venueRows, shows, performances, seats };
 }
 
 function computeAlerts({ today, orders, resources, threshold}, events) {
@@ -261,8 +269,9 @@ return alerts;
 // low frequency — and the cached wrapper below stays the HTTP path.
 export async function buildAnalysis(ctx, period) {
 const { all } = ctx;
-const { today, orders, resources, threshold} =
+const { today, orders, resources, threshold, venueRows, shows, performances, seats } =
 await loadAnalysisData(ctx);
+const resourcesById = new Map(resources.map((r) => [r.id, r]));
 const paid = orders.filter((o) => PAID_STATUSES.includes(o.status));
 const series = await seriesFor(ctx, period);
 
@@ -286,50 +295,46 @@ const cold = ranking
 .filter((r) => r.status === "published" && r.sales === 0)
 .slice(0, 5);
 
-const venues = resources
-.filter((r) => r.category === "venue")
-.map((r) => {
+const venues = venueRows.map((v) => {
+// R2-4/R2-5: venues are real rows now (venues table); a show links
+// to a venue through its resource (shows -> resources.venue_id), and
+// a venue resource's own rental bookings still drive occupancy.
+// The venue's own resources: the backfilled venue-category rows that
+// link here (usually one — the venue's own listing).
+const ownResources = resources.filter((r) => r.venue_id === v.id);
+const ownIds = new Set(ownResources.map((r) => r.id));
 const booked = orders.filter(
 (o) =>
-o.resource_id === r.id &&
+ownIds.has(o.resource_id) &&
 !["cancelled", "refunded"].includes(o.status) &&
 o.booking_date >= today &&
 o.booking_date <= shiftDay(today, 29),
 );
 const bookedDays = new Set(booked.map((o) => o.booking_date)).size;
 const occupancy = Math.round((bookedDays / 30) * 1000) / 10;
-// Lam's show meta has no venueId, so no show links to a venue:
-// performances / seatOccupancy stay empty, as the original did
-// with no sample.
-const linked = resources.filter(
-(s) => s.category === "show" && Number(s.meta.venueId) === r.id,
+// Linked shows: shows whose resource links this venue.
+const linkedShows = shows.filter((s) => {
+const r = resourcesById.get(s.resource_id);
+return r && r.venue_id === v.id;
+});
+const linkedShowIds = new Set(linkedShows.map((s) => s.id));
+const linkedResourceIds = new Set(linkedShows.map((s) => s.resource_id));
+// Performances are real rows now (not show-date combos with orders).
+const linkedPerfs = performances.filter((pf) =>
+linkedShowIds.has(pf.show_id),
 );
-const linkedIds = new Set(linked.map((s) => s.id));
+const perfIds = new Set(linkedPerfs.map((pf) => pf.id));
 const showOrders = orders.filter(
 (o) =>
-linkedIds.has(o.resource_id) &&
+linkedResourceIds.has(o.resource_id) &&
 !["cancelled", "refunded"].includes(o.status),
 );
-const performances = [
-...new Set(
-showOrders.map((o) => `${o.resource_id}:${o.booking_date}`),
-),
-];
-const seats = performances.reduce(
-(n, k) =>
-n +
-Number(
-linked.find((s) => s.id === Number(k.split(":")[0]))
-?.capacity || 0,
-),
-0,
-);
-const sold = sum(
-showOrders.filter((o) => PAID_STATUSES.includes(o.status)),
-"quantity",
-);
+// Seats: rows of the linked performances; sold = status 'sold'
+// (held seats do not count — only paid orders sell seats).
+const venueSeats = seats.filter((s) => perfIds.has(s.performance_id));
+const soldSeats = venueSeats.filter((s) => s.status === "sold").length;
 const revenue = sum(
-paid.filter((o) => o.resource_id === r.id),
+paid.filter((o) => ownIds.has(o.resource_id)),
 "amount",
 );
 const ticketRevenue = sum(
@@ -342,7 +347,12 @@ const k = new Date(o.booking_date + "T00:00:00Z").getUTCDay();
 weekday.set(k, (weekday.get(k) || 0) + 1);
 }
 const genre = ["歌舞", "音乐", "话剧", "民歌", "舞蹈"];
-const content = r.description + r.tags.join("") + JSON.stringify(r.meta);
+const content =
+v.name +
+ownResources
+.map((r) => r.description + r.tags.join("") + JSON.stringify(r.meta))
+.join("");
+const venueCity = ownResources[0]?.city || "";
 const recommendations = resources
 .filter((s) => s.category === "show" && s.status === "published")
 .map((s) => {
@@ -354,10 +364,10 @@ content.includes(t) &&
 return {
 id: s.id,
 name: s.name,
-score: tags.length * 10 + (s.city === r.city? 3: 0),
+score: tags.length * 10 + (s.city === venueCity ? 3 : 0),
 reason: tags.length
 ? "适配" + tags.join("、") + "演出"
-: s.city === r.city
+: s.city === venueCity
 ? "同城剧目，需核实舞台条件"
 : "需核实设备与舞台条件",
 };
@@ -365,17 +375,19 @@ reason: tags.length
 .sort((a, b) => b.score - a.score || a.id - b.id)
 .slice(0, 3);
 return {
-id: r.id,
-name: r.name,
+id: v.id,
+name: v.name,
 bookedDays,
 occupancy,
 idleRate: Math.round((100 - occupancy) * 10) / 10,
 revenue,
-performances: performances.length,
-seatOccupancy: seats? Math.round((sold / seats) * 1000) / 10: null,
+performances: linkedPerfs.length,
+seatOccupancy: venueSeats.length
+? Math.round((soldSeats / venueSeats.length) * 1000) / 10
+: null,
 ticketRevenue,
-averageRevenue: performances.length
-? Math.round(ticketRevenue / performances.length)
+averageRevenue: linkedPerfs.length
+? Math.round(ticketRevenue / linkedPerfs.length)
 : null,
 peak: weekday.size
 ? "周" +

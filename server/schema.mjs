@@ -24,6 +24,7 @@ CREATE TABLE IF NOT EXISTS users(id INTEGER PRIMARY KEY, username TEXT UNIQUE NO
     CREATE TABLE IF NOT EXISTS ticket_templates(id INTEGER PRIMARY KEY, shop_id INTEGER REFERENCES shops(id), name TEXT NOT NULL, color TEXT NOT NULL, layout TEXT DEFAULT '{}', is_default INTEGER DEFAULT 0, created_at TEXT NOT NULL);
     CREATE TABLE IF NOT EXISTS venues(id INTEGER PRIMARY KEY, shop_id INTEGER REFERENCES shops(id), name TEXT NOT NULL, address TEXT DEFAULT '', capacity INTEGER DEFAULT 0, floor_plan TEXT DEFAULT '', created_at TEXT NOT NULL);
     CREATE TABLE IF NOT EXISTS seat_templates(id INTEGER PRIMARY KEY, venue_id INTEGER REFERENCES venues(id), name TEXT NOT NULL, zones TEXT NOT NULL DEFAULT '[]', created_at TEXT NOT NULL);
+    CREATE TABLE IF NOT EXISTS seats(id INTEGER PRIMARY KEY, performance_id INTEGER REFERENCES performances(id), row INTEGER NOT NULL, col INTEGER NOT NULL, zone TEXT DEFAULT '', status TEXT DEFAULT 'available', order_id INTEGER REFERENCES orders(id), held_until TEXT, created_at TEXT NOT NULL, UNIQUE(performance_id, row, col));
     CREATE INDEX IF NOT EXISTS idx_order_resource_date ON orders(resource_id,booking_date,status);
     CREATE INDEX IF NOT EXISTS idx_order_user ON orders(user_id);
     CREATE INDEX IF NOT EXISTS idx_comments_resource ON comments(resource_id,status);

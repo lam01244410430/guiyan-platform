@@ -268,6 +268,20 @@ export async function transitionOrder(ctx) {
           o.quantity,
           o.resource_id,
         );
+      // R2-5 seat lifecycle (same transaction as the status change):
+      // pay sells this order's held seats; cancel / a refund decision
+      // releases its held seats back to available. Sold seats of a
+      // refunded order stay sold (the design releases held seats only).
+      if (to === "paid")
+        await run(
+          "UPDATE seats SET status='sold', held_until=NULL WHERE order_id=? AND status='held'",
+          o.id,
+        );
+      else if (["cancelled", "refunded"].includes(to))
+        await run(
+          "UPDATE seats SET status='available', order_id=NULL, held_until=NULL WHERE order_id=? AND status='held'",
+          o.id,
+        );
       // Wave 4 #13 (Q9): an admin decision notifies the order owner with
       // its own title (order code + result + reason); the money stays
       // simulated. Other transitions keep the old title.

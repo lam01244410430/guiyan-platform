@@ -126,6 +126,8 @@ export default function App() {
   const [tierSel, setTierSel] = useState(null); /* R2-2: selected ticket_type id within perfSel */
   const [pickupPoints, setPickupPoints] = useState(null); /* R2-3: pickup points of the selected performance's show (null = not loaded for this performance); empty = the show needs no pickup point */
   const [pickupSel, setPickupSel] = useState(null); /* R2-3: selected pickup_point id within pickupPoints */
+  const [seats, setSeats] = useState(null); /* R2-5: seats of the selected performance (null = not loaded); empty = no seats generated */
+  const [seatSel, setSeatSel] = useState([]); /* R2-5: selected seat ids within seats */
   const [avail, setAvail] = useState(null); /* Wave 4 #12: {mode, available, capacity, dates} for the open detail + bkDate, null when unknown/offline */
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [toastMsg, setToastMsg] = useState("");
@@ -296,7 +298,7 @@ export default function App() {
   // pickup (R2-3): the selected pickup point object, or null. Only a
   // tier order carries one; the server requires it when the show has
   // pickup points configured.
-  function bookResource(i, qty, date, tier, pickup) {
+  function bookResource(i, qty, date, tier, pickup, seatIds) {
     const r = RES[i];
     function localBook() {
       const code = "GY2026" + String(store.seq++).padStart(6, "0");
@@ -314,6 +316,15 @@ export default function App() {
         const code = d.code || ("GY2026" + String(store.seq++).padStart(6, "0"));
         const total = (typeof d.amount === "number") ? d.amount / 100 : r[3] * qty;
         store.orders.unshift({ code, idx: i, qty, date, total, status: "pending", apiId: d.id, pickup: d.pickup_point || pickup || null, template: d.ticket_template || null });
+        // R2-5: hold the seats the buyer picked on the pending order.
+        // A failed hold leaves the order standing (pending) — the
+        // server error is shown, and the buyer can retry from the
+        // order (the hold is a separate step, never a silent loss).
+        if (seatIds && seatIds.length > 0) {
+          apiPost("/api/orders/" + d.id + "/seats", { seat_ids: seatIds }).catch(function (e) {
+            toast((e && e.data && e.data.error) || "选座失败，请稍后重试");
+          });
+        }
         setDetailIdx(null); rerender(); toast(fmt(t("orderCreated"), { code })); setDrawerOpen(true);
       } else { localBook(); }
     }).catch(function (e) {
@@ -470,7 +481,7 @@ export default function App() {
   // APIRES (RES index -> API id); offline/embedded data has no id, so
   // nothing is recorded then. Anonymous views count too (server-side).
   function openDetail(i) {
-    setDetailIdx(i); setBkQty(1); setBkDate("2026-12-05"); setPerfSel(null); setTierSel(null); setPickupPoints(null); setPickupSel(null);
+    setDetailIdx(i); setBkQty(1); setBkDate("2026-12-05"); setPerfSel(null); setTierSel(null); setPickupPoints(null); setPickupSel(null); setSeats(null); setSeatSel([]);
     const rid = APIRES[i] && APIRES[i].id;
     if (rid != null && isApiAvailable()) {
       apiPost("/api/resources/" + rid + "/view", {}).catch(function () {});
@@ -529,13 +540,40 @@ export default function App() {
   /* R2-3: pick a performance (tap again to deselect). Selecting loads
      the show's pickup points (public, best-effort like the tier list);
      a failed fetch means "no points known" and the server still
-     enforces the requirement at order time. */
+     enforces the requirement at order time.
+     R2-5: selecting also loads the performance's seats (public,
+     best-effort); a failed fetch means "no seats known" and the old
+     display-only seat map stays the fallback. */
   function pickPerf(pf) {
-    if (pf.id === perfSel) { setPerfSel(null); setTierSel(null); setPickupPoints(null); setPickupSel(null); return; }
-    setPerfSel(pf.id); setTierSel(null); setPickupSel(null); setPickupPoints(null);
+    if (pf.id === perfSel) { setPerfSel(null); setTierSel(null); setPickupPoints(null); setPickupSel(null); setSeats(null); setSeatSel([]); return; }
+    setPerfSel(pf.id); setTierSel(null); setPickupSel(null); setPickupPoints(null); setSeats(null); setSeatSel([]);
     if (pf.show_id) apiGet("/api/shows/" + pf.show_id + "/pickup-points").then(function (d) { setPickupPoints(d.pickup_points || []); }).catch(function () { setPickupPoints([]); });
     else setPickupPoints([]);
+    apiGet("/api/performances/" + pf.id + "/seats").then(function (d) { setSeats(d.seats || []); }).catch(function () { setSeats([]); });
   }
+  /* R2-5: toggle one seat (available seats only; held/sold seats are
+     disabled in the grid). */
+  function toggleSeat(seat) {
+    if (!seat || seat.status !== "available") return;
+    setSeatSel(function (sel) {
+      return sel.indexOf(seat.id) >= 0 ? sel.filter(function (id) { return id !== seat.id; }) : sel.concat([seat.id]);
+    });
+  }
+  /* R2-5: seats grouped by zone for the picker (zones in first-seen
+     order; each zone renders its rows x cols grid). */
+  const seatZones = (function () {
+    if (!seats || !seats.length) return [];
+    const order = [];
+    const byZone = {};
+    seats.forEach(function (s) {
+      const z = s.zone || "";
+      if (!byZone[z]) { byZone[z] = { name: z, rows: 0, cols: 0, cells: {} }; order.push(byZone[z]); }
+      byZone[z].rows = Math.max(byZone[z].rows, s.row);
+      byZone[z].cols = Math.max(byZone[z].cols, s.col);
+      byZone[z].cells[s.row + ":" + s.col] = s;
+    });
+    return order;
+  })();
   const quicks = t("quicks");
 
   return (
@@ -936,6 +974,38 @@ export default function App() {
                               )}
                             </div>
                           )}
+                          {/* R2-5: clickable seat grid for the selected
+                              performance, when it has seats. It replaces
+                              the B-041 display-only grid for this
+                              performance; with no seats the old display
+                              grid below stays the fallback. */}
+                          {pf.id === perfSel && seatZones.length > 0 && (
+                            <div className="seatpick">
+                              <h5>{t("seatPick")}</h5>
+                              {seatZones.map((z) => (
+                                <div key={z.name || "default"}>
+                                  {z.name ? (<div className="seatzone">{z.name}</div>) : null}
+                                  <div className="seatgrid-pick" style={{ gridTemplateColumns: "repeat(" + z.cols + ", 26px)" }}>
+                                    {Array.from({ length: z.rows * z.cols }).map((_, i) => {
+                                      const r = Math.floor(i / z.cols) + 1;
+                                      const c = (i % z.cols) + 1;
+                                      const s = z.cells[r + ":" + c];
+                                      if (!s) return (<i key={i} />);
+                                      const sel = seatSel.indexOf(s.id) >= 0;
+                                      return (
+                                        <button key={s.id} type="button" className={s.status === "sold" ? "sold" : (sel ? "sel" : "")}
+                                          disabled={s.status !== "available"} onClick={() => toggleSeat(s)}
+                                          aria-label={z.name + " " + r + "排" + c + "座" + (s.status === "available" ? "" : "（" + s.status + "）")}>
+                                          {r + "-" + c}
+                                        </button>
+                                      );
+                                    })}
+                                  </div>
+                                </div>
+                              ))}
+                              {seatSel.length > 0 && (<p className="perf-empty">{fmt(t("seatSelected"), { n: seatSel.length })}</p>)}
+                            </div>
+                          )}
                           {/* R2-3: pickup-point picker for the selected
                               performance's show. Shown whenever the show
                               has points; required (the order button is
@@ -961,7 +1031,7 @@ export default function App() {
                 <div className="acts">
                   <button type="button" className="btn red" id="bkGo" disabled={pickupRequired && !pickupSel} onClick={() => {
                     if (pickupRequired && !pickupSel) { toast(t("pickupPick")); return; }
-                    bookResource(detailIdx, bkQty, selTier ? selPf.start_at.slice(0, 10) : (bkDate || "2026-12-05"), selTier ? { performance_id: selPf.id, ticket_type_id: selTier.id, price_cents: selTier.price_cents, start_at: selPf.start_at } : null, selTier ? selPickup : null);
+                    bookResource(detailIdx, bkQty, selTier ? selPf.start_at.slice(0, 10) : (bkDate || "2026-12-05"), selTier ? { performance_id: selPf.id, ticket_type_id: selTier.id, price_cents: selTier.price_cents, start_at: selPf.start_at } : null, selTier ? selPickup : null, selTier ? seatSel : []);
                   }}>{t("bookNow")}</button>
                   <button type="button" className="btn ghost" id="bkFav" onClick={() => toggleFav(detailIdx)}>{store.favs[detailIdx] ? t("favOn") : t("favOff")}</button>
                 </div>
