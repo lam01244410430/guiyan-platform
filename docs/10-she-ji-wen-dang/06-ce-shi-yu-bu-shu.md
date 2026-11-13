@@ -64,7 +64,7 @@
 | 灰度发布 | 无（Vercel 一次全量） | 缺口 |
 | 配置中心 | 无独立配置中心；配置在 Vercel 环境变量 + `.env.local`（gitignore） | 缺口 |
 | 水平扩展 / 读写分离 / Redis 集群 | 架构支持方向已写进代码（Redis fail-open、Upstash 待接），但未做集群、未做读写分离、未做微服务拆分 | 方向已有，实现未做 |
-| Docker 打包部署（装备表：区分“会写 demo”和“能交付”的分水岭） | 仅开发数据库有 compose（`server/docker-compose.yml`，postgres:16）；后端 Node、前端 React、Redis、Python 服务均无镜像；生产走 Vercel + Neon | 缺口（Lam 2026-11-11 17:18：全部服务都要 Docker 打包；已列入路线图第 7 阶段——Python 服务打包 ngay từ đầu——và第 8 阶段——全系统打包；Vercel live 保持不变直至另行决定） |
+| Docker 打包部署（装备表：区分“会写 demo”和“能交付”的分水岭） | Phase 8（进行中，2026-11-13，Lam duyệt plan）：`Dockerfile` multi-stage（`node:22-alpine`：build React → runtime Node，serve `dist/`，`STATIC_DIR=dist`）+ `docker-compose.yml` 根目录（api + db + redis：`postgres:16-alpine` + `redis:7-alpine`，`REDIS_URL`，cache fail-open）+ smoke script `scripts/smoke-docker.sh`（30 checks）；Python service 只有 contract（`python-ai/CONTRACT.md` + compose profile `ai`，phase 7 才写 code）；生产仍走 Vercel + Neon，不 migration | 进行中（phase 8） |
 
 一句话：**测试与部署的"目标态"已收进本文档，现状是"有集成测试 + smoke + 手动部署"，其余是缺口。**
 缺口不写成已完成；补齐的顺序由 Lam 定，不在本轮擅自开工。
