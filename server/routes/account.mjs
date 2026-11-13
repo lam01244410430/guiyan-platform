@@ -368,9 +368,12 @@ export async function patchPhone(ctx) {
 
 // Account tabs step 5: social links (Q2 default — douyin / wechat /
 // xiaohongshu only; Weibo has no presence in the repo and is not added).
+// R3-5 adds maoyan (猫眼）: a profile handle only — storing + labeling
+// a handle the user types, display-only ("仅展示，不验证归属"), NOT a
+// real OAuth verification flow and NOT a new channel integration.
 // Stored as one JSON column; text only, display only — no OAuth, no
 // ownership verification (see the "仅展示，不验证归属" note in the UI).
-const SOCIAL_KEYS = ["douyin", "wechat", "xiaohongshu"];
+const SOCIAL_KEYS = ["douyin", "wechat", "xiaohongshu", "maoyan"];
 
 export async function patchSocial(ctx) {
   const { p, req, b, send, needUser, get, run, audit } = ctx;

@@ -124,7 +124,7 @@ export default function UserDashboard() {
   const [phoneOtpBusy, setPhoneOtpBusy] = useState(false);
   // Account tabs step 5: social-links form state. The server stores the
   // links as one JSON string (user.social_links); parse defensively.
-  const [socialForm, setSocialForm] = useState({ douyin: "", wechat: "", xiaohongshu: "" });
+  const [socialForm, setSocialForm] = useState({ douyin: "", wechat: "", xiaohongshu: "", maoyan: "" });
   const [socialMsg, setSocialMsg] = useState("");
   function parseSocial(u) {
     try {
@@ -222,7 +222,7 @@ export default function UserDashboard() {
   useEffect(() => {
     if (!user) return;
     const soc = parseSocial(user);
-    setSocialForm({ douyin: soc.douyin || "", wechat: soc.wechat || "", xiaohongshu: soc.xiaohongshu || "" });
+    setSocialForm({ douyin: soc.douyin || "", wechat: soc.wechat || "", xiaohongshu: soc.xiaohongshu || "", maoyan: soc.maoyan || "" });
     setProfForm({
       name: user.name || "",
       city: user.city || "",
@@ -755,9 +755,10 @@ export default function UserDashboard() {
                     <div className="row"><span className="k">{t("socDouyin")}</span><span className="v"><input type="text" maxLength={100} value={socialForm.douyin} placeholder={t("socDouyin")} onChange={(e) => setSocialForm((f) => ({ ...f, douyin: e.target.value }))} /></span></div>
                     <div className="row"><span className="k">{t("socWechat")}</span><span className="v"><input type="text" maxLength={100} value={socialForm.wechat} placeholder={t("socWechat")} onChange={(e) => setSocialForm((f) => ({ ...f, wechat: e.target.value }))} /></span></div>
                     <div className="row"><span className="k">{t("socXiaohongshu")}</span><span className="v"><input type="text" maxLength={100} value={socialForm.xiaohongshu} placeholder={t("socXiaohongshu")} onChange={(e) => setSocialForm((f) => ({ ...f, xiaohongshu: e.target.value }))} /></span></div>
+                    <div className="row"><span className="k">{t("socMaoyan")}</span><span className="v"><input type="text" maxLength={100} value={socialForm.maoyan} placeholder={t("socMaoyan")} onChange={(e) => setSocialForm((f) => ({ ...f, maoyan: e.target.value }))} /></span></div>
                     <div className="row"><span className="k"></span><span className="v"><button type="button" className="btn red" onClick={doSaveSocial}>{t("admResSave")}</button>{socialMsg ? <span style={{ color: "var(--red)", marginLeft: 12 }}>{socialMsg}</span> : null}</span></div>
                     {Object.entries(parseSocial(user)).map(function ([key, val]) {
-                      const label = key === "douyin" ? t("socDouyin") : key === "wechat" ? t("socWechat") : t("socXiaohongshu");
+                      const label = key === "douyin" ? t("socDouyin") : key === "wechat" ? t("socWechat") : key === "xiaohongshu" ? t("socXiaohongshu") : t("socMaoyan");
                       const isUrl = typeof val === "string" && val.startsWith("https://");
                       return (
                         <div className="row" key={key}><span className="k">{label}</span><span className="v">{isUrl ? <a href={val} target="_blank" rel="noreferrer">{val}</a> : val}</span></div>

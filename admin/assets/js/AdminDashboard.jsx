@@ -80,6 +80,7 @@ const VIEWS = [
   { id: "coupons", label: "优惠券", iconName: "ui:percent", group: "main" },
   { id: "flashsales", label: "限时抢购", iconName: "ui:percent", group: "main" },
   { id: "autorules", label: "自动发券", iconName: "ui:gift", group: "main" },
+  { id: "smstasks", label: "短信群发", iconName: "ui:pen", group: "main" },
   { id: "shops", label: "店铺", iconName: "ui:store", group: "main" },
   { id: "demands", label: "需求", iconName: "ui:clipboard-list", group: "main" },
   { id: "trends", label: "趋势统计", iconName: "ui:chart-line", group: "premium" },
@@ -313,6 +314,13 @@ export default function AdminDashboard() {
   const [couponRules, setCouponRules] = useState([]);
   const [couponRuleForm, setCouponRuleForm] = useState(null);
   const [couponRuleBusyId, setCouponRuleBusyId] = useState(null);
+  // R3-5 SMS tasks: the task list (already shop-scoped by the server,
+  // each row carries its stored audience_count) + the open create/edit
+  // draft + the id of the task in flight. No provider is registered
+  // this wave — a task only ever reaches "未发送 — 等待服务商".
+  const [smsTasks, setSmsTasks] = useState([]);
+  const [smsTaskForm, setSmsTaskForm] = useState(null);
+  const [smsTaskBusyId, setSmsTaskBusyId] = useState(null);
   const [acctBusy, setAcctBusy] = useState(false);
   const [acctOtp, setAcctOtp] = useState("");
   const [acctOtpInput, setAcctOtpInput] = useState("");
@@ -357,7 +365,7 @@ export default function AdminDashboard() {
       apiGet("/api/admin/shops"), apiGet("/api/admin/shows"),
       apiGet("/api/venues"), apiGet("/api/admin/member-tiers"),
       apiGet("/api/admin/coupons"), apiGet("/api/admin/flash-sales"),
-      apiGet("/api/admin/coupon-rules"),
+      apiGet("/api/admin/coupon-rules"), apiGet("/api/admin/sms-tasks"),
     ]).then(function (res) {
       setStats(res[0]);
       setOrders(res[1].orders || []);
@@ -374,6 +382,7 @@ export default function AdminDashboard() {
       setCoupons(res[9].coupons || []);
       setFlashSales(res[10].flash_sales || []);
       setCouponRules(res[11].coupon_rules || []);
+      setSmsTasks(res[12].sms_tasks || []);
       setView("overview");
     }).catch(function (e) {
       if (e && e.status === 401) { clearToken(); location.href = "/admin/index.html"; return; }
@@ -938,6 +947,77 @@ export default function AdminDashboard() {
       else if (e && e.status === 404) toast("自动发券规则不存在");
       else toast((e && e.data && e.data.error) || "保存失败，请检查表单");
     }).finally(function () { setCouponRuleBusyId(null); });
+  }
+  // R3-5 SMS tasks: no provider is registered this wave, so a task
+  // only travels draft -> queued -> waiting_provider ("未发送 — 等待
+  // 服务商", terminal). Content (name/template/audience) is editable
+  // only while the task is a draft — the server enforces that, and the
+  // form disables the fields once the task has left draft.
+  function smsStatusLabel(status) {
+    return status === "draft" ? "草稿"
+      : status === "queued" ? "已排队"
+      : status === "waiting_provider" ? "未发送 — 等待服务商" : status;
+  }
+  function smsAudienceLabel(t) {
+    if (!t || !t.audience) return "全部用户";
+    if (t.audience.type === "tier") {
+      const tier = (memberTiers || []).find(function (x) { return x.id === t.audience.tier_id; });
+      return "会员等级：" + (tier ? tier.name : "#" + t.audience.tier_id);
+    }
+    return "全部用户";
+  }
+  function loadSmsTasks() {
+    apiGet("/api/admin/sms-tasks").then(function (d) {
+      setSmsTasks(d.sms_tasks || []);
+    }).catch(loadFail);
+  }
+  function openSmsTaskForm(r) {
+    setSmsTaskForm(r ? {
+      id: r.id, name: r.name || "", template: r.template || "",
+      audience_type: (r.audience && r.audience.type) || "all",
+      tier_id: r.audience && r.audience.tier_id != null ? String(r.audience.tier_id) : "",
+      status: r.status || "draft",
+      shop_id: String(r.shop_id),
+    } : {
+      id: null, name: "", template: "", audience_type: "all", tier_id: "",
+      status: "draft",
+      shop_id: isPlatformAdmin ? "1" : (me && me.shop_id ? String(me.shop_id) : "1"),
+    });
+  }
+  function editSmsTaskForm(key, value) {
+    setSmsTaskForm(function (f) { return f ? { ...f, [key]: value } : f; });
+  }
+  function saveSmsTaskForm() {
+    if (!smsTaskForm || smsTaskBusyId !== null) return;
+    if (!smsTaskForm.name.trim()) { toast("请填写任务名称"); return; }
+    if (!smsTaskForm.template.trim()) { toast("请填写短信模板"); return; }
+    if (smsTaskForm.audience_type === "tier" && !smsTaskForm.tier_id) { toast("请选择会员等级"); return; }
+    const body = {};
+    body.name = smsTaskForm.name.trim();
+    body.template = smsTaskForm.template.trim();
+    body.audience = smsTaskForm.audience_type === "tier"
+      ? { type: "tier", tier_id: Number(smsTaskForm.tier_id) }
+      : { type: "all" };
+    if (smsTaskForm.id !== null) body.status = smsTaskForm.status;
+    if (smsTaskForm.id === null && isPlatformAdmin) body.shop_id = Number(smsTaskForm.shop_id) || 1;
+    setSmsTaskBusyId(smsTaskForm.id === null ? "new" : smsTaskForm.id);
+    const call = smsTaskForm.id === null
+      ? apiPost("/api/admin/sms-tasks", body)
+      : apiPatch("/api/admin/sms-tasks/" + smsTaskForm.id, body);
+    call.then(function (d) {
+      const saved = d.sms_task;
+      setSmsTasks(function (rs) {
+        return smsTaskForm.id === null ? rs.concat([saved])
+          : rs.map(function (x) { return x.id === saved.id ? saved : x; });
+      });
+      setSmsTaskForm(null);
+      loadAudit();
+      toast("已保存");
+    }).catch(function (e) {
+      if (e && e.status === 403) toast("只能管理本店铺的短信任务");
+      else if (e && e.status === 404) toast("短信任务不存在");
+      else toast((e && e.data && e.data.error) || "保存失败，请检查表单");
+    }).finally(function () { setSmsTaskBusyId(null); });
   }
   function loadTemplates(venueId) {
     apiGet("/api/venues/" + venueId + "/seat-templates").then(function (d) {
@@ -2721,6 +2801,69 @@ export default function AdminDashboard() {
                       </tr>
                     ))
                     : <tr><td colSpan="8"><div className="empty">暂无自动发券规则</div></td></tr>}
+                </tbody>
+              </table>
+            </div>
+          </section>
+
+          <section className={"view" + (view === "smstasks" ? " on" : "")} id="view-smstasks">
+            <div className="search-row">
+              <button type="button" className="btn-export" onClick={() => openSmsTaskForm(null)}>添加短信任务</button>
+            </div>
+            <div className="note">短信群发尚未接入服务商：任务只做到“未发送 — 等待服务商”为止，本波不发送任何短信、不花钱。模板只认 {"{{name}}"} 与 {"{{code}}"} 两个占位符；受众按规则算好人数后存下来，不在发送时重查（本波不发送）。内容只在草稿时可改；进入“未发送 — 等待服务商”后任务不可再改。</div>
+            {smsTaskForm ? (
+              <fieldset className="tag-rule">
+                <legend>{smsTaskForm.id === null ? "添加短信任务" : "编辑短信任务：" + smsTaskForm.name}</legend>
+                <label>任务名称 <input type="text" value={smsTaskForm.name} maxLength={100} placeholder="例如：新春演出通知" disabled={smsTaskForm.id !== null && smsTaskForm.status !== "draft"} onChange={(e) => editSmsTaskForm("name", e.target.value)} /></label>
+                <label>短信模板 <input type="text" value={smsTaskForm.template} maxLength={500} placeholder="例如：{{name}}您好，新演出已开票，券码{{code}}" disabled={smsTaskForm.id !== null && smsTaskForm.status !== "draft"} onChange={(e) => editSmsTaskForm("template", e.target.value)} /></label>
+                <label>受众 <select value={smsTaskForm.audience_type} disabled={smsTaskForm.id !== null && smsTaskForm.status !== "draft"} onChange={(e) => editSmsTaskForm("audience_type", e.target.value)}>
+                  <option value="all">全部用户</option>
+                  <option value="tier">按会员等级</option>
+                </select></label>
+                {smsTaskForm.audience_type === "tier" ? (
+                  <label>会员等级 <select value={smsTaskForm.tier_id} disabled={smsTaskForm.id !== null && smsTaskForm.status !== "draft"} onChange={(e) => editSmsTaskForm("tier_id", e.target.value)}>
+                    <option value="">请选择会员等级</option>
+                    {memberTiers.map((t) => (<option key={t.id} value={String(t.id)}>{t.name}（{shopName(t.shop_id)}）</option>))}
+                  </select></label>
+                ) : null}
+                {smsTaskForm.id !== null ? (
+                  <label>状态 <select value={smsTaskForm.status} onChange={(e) => editSmsTaskForm("status", e.target.value)}>
+                    <option value="draft">草稿</option>
+                    <option value="queued">已排队</option>
+                    <option value="waiting_provider">未发送 — 等待服务商</option>
+                  </select></label>
+                ) : null}
+                {smsTaskForm.id === null && isPlatformAdmin ? (
+                  <label>店铺 <select value={smsTaskForm.shop_id} onChange={(e) => editSmsTaskForm("shop_id", e.target.value)}>
+                    {shops.map((s) => (<option key={s.id} value={String(s.id)}>{s.name}</option>))}
+                  </select></label>
+                ) : null}
+                <div>
+                  <button type="button" className="btn-export" disabled={smsTaskBusyId !== null} onClick={saveSmsTaskForm}>{smsTaskBusyId !== null ? "保存中…" : "保存"}</button>{" "}
+                  <button type="button" className="btn-resolve" onClick={() => setSmsTaskForm(null)}>取消</button>
+                </div>
+              </fieldset>
+            ) : null}
+            <div className="tbl-wrap">
+              <table>
+                <thead><tr><th scope="col">任务名称</th><th scope="col">店铺</th><th scope="col">短信模板</th><th scope="col">受众</th><th scope="col" className="num">人数</th><th scope="col">状态</th><th scope="col">操作</th></tr></thead>
+                <tbody id="smsTasksBody">
+                  {smsTasks.length
+                    ? smsTasks.map((t) => (
+                      <tr key={t.id}>
+                        <td>{t.name}</td><td>{shopName(t.shop_id)}</td>
+                        <td>{t.template}</td>
+                        <td>{smsAudienceLabel(t)}</td>
+                        <td className="num">{t.audience_count ?? 0}</td>
+                        <td>{smsStatusLabel(t.status)}</td>
+                        <td>
+                          <span className="row-actions">
+                            <button type="button" className="btn-view" disabled={smsTaskBusyId !== null || t.status === "waiting_provider"} onClick={() => openSmsTaskForm(t)}>编辑</button>
+                          </span>
+                        </td>
+                      </tr>
+                    ))
+                    : <tr><td colSpan="7"><div className="empty">暂无短信任务</div></td></tr>}
                 </tbody>
               </table>
             </div>

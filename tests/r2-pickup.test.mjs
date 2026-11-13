@@ -345,7 +345,7 @@ test("setting a new default clears the old default", async () => {
   assert.equal(pub2.data.ticket_template.name, "默认票面");
 });
 
-test("cross-shop template edit -> 403; i18n 353/157", async () => {
+test("cross-shop template edit -> 403; i18n 354/157", async () => {
   // The shop-B admin cannot touch shop 1's template, nor name shop 1
   // on a create; their own shop works.
   const list = await listTemplates(adminToken);
@@ -369,7 +369,7 @@ test("cross-shop template edit -> 403; i18n 353/157", async () => {
     path.resolve(repoDir, "web", "assets", "js", "data.js")
   );
   const counts = data.LANGS.map((l) => Object.keys(data.I18N[l]).length);
-  assert.deepEqual(counts, [353, 353, 353]);
+  assert.deepEqual(counts, [354, 354, 354]);
   for (const k of ["pickupTitle", "pickupEmpty", "pickupPick"]) {
     for (const l of data.LANGS)
       assert.ok(k in data.I18N[l], `${k} missing in H5 ${l}`);

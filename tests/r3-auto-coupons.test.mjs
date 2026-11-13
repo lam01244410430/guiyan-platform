@@ -16,7 +16,7 @@
 // still leaves exactly 1 gift); a gifted coupon is usable on the next
 // order exactly like a normal coupon (same code path, per-user limit
 // counts, second use -> 400) and cancelling the order that used it
-// flips the gift back to 'gifted'; i18n key counts (H5 353,
+// flips the gift back to 'gifted'; i18n key counts (H5 354,
 // miniprogram 157, equal sets).
 import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
@@ -517,13 +517,13 @@ test("gifted coupon is usable on the next order like a normal coupon; cancelling
   await disableRule(adminToken, ruleId);
 });
 
-test("r3-auto-coupons i18n: H5 353 keys/language, miniprogram 157, equal sets", async () => {
-  // i18n: 3 new gift-coupon keys on both sides (350 -> 353, 154 -> 157).
+test("r3-auto-coupons i18n: H5 354 keys/language, miniprogram 157, equal sets", async () => {
+  // i18n: 3 new gift-coupon keys on both sides (350 -> 353, 154 -> 157); R3-5 adds 1 socMaoyan key H5-only (353 -> 354).
   const data = await import(
     path.resolve(repoDir, "web", "assets", "js", "data.js")
   );
   const counts = data.LANGS.map((l) => Object.keys(data.I18N[l]).length);
-  assert.deepEqual(counts, [353, 353, 353]);
+  assert.deepEqual(counts, [354, 354, 354]);
   for (const k of ["giftCouponTitle", "giftCouponEmpty", "giftCouponUsed"]) {
     for (const l of data.LANGS)
       assert.ok(k in data.I18N[l], `${k} missing in H5 ${l}`);

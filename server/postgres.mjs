@@ -335,9 +335,10 @@ export async function openPostgresStore(
             // R3-1: member_tiers joins them too (tier create needs the id).
             // R3-2: coupons joins them too (coupon create needs the id).
             // R3-3: flash_sales joins them too (sale create needs the id).
+            // R3-5: sms_tasks joins them too (task create needs the id).
             // R3-4: coupon_rules + coupon_gifts join them too (rule /
             // gift create needs the id).
-            /^\s*INSERT\s+INTO\s+(users|resources|orders|demands|comments|messages|events|audit_logs|shops|shows|performances|ticket_types|pickup_points|ticket_templates|venues|seat_templates|seats|member_tiers|coupons|flash_sales|coupon_rules|coupon_gifts)\b/i.test(
+            /^\s*INSERT\s+INTO\s+(users|resources|orders|demands|comments|messages|events|audit_logs|shops|shows|performances|ticket_types|pickup_points|ticket_templates|venues|seat_templates|seats|member_tiers|coupons|flash_sales|coupon_rules|coupon_gifts|sms_tasks)\b/i.test(
               sql,
             );
           const result = await execute(

@@ -12,7 +12,7 @@
 // (¥28000 -> 5% tier -> ¥26600 -> 10% coupon -> ¥23940); cancel and
 // refund approval release the redemption (quota + per-user restored);
 // cross-shop code isolation (same code in two shops is fine, a
-// shop-B-only code is not found in shop 1); i18n key counts (H5 353,
+// shop-B-only code is not found in shop 1); i18n key counts (H5 354,
 // miniprogram 157, equal sets).
 import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
@@ -530,12 +530,12 @@ test("cross-shop: create/patch in shop 1 -> 403; same code in two shops is fine;
   })).status, 400);
 });
 
-test("r3-coupons i18n: H5 353 keys/language, miniprogram 157, equal sets", async () => {
+test("r3-coupons i18n: H5 354 keys/language, miniprogram 157, equal sets", async () => {
   const data = await import(
     path.resolve(repoDir, "web", "assets", "js", "data.js")
   );
   const counts = data.LANGS.map((l) => Object.keys(data.I18N[l]).length);
-  assert.deepEqual(counts, [353, 353, 353]);
+  assert.deepEqual(counts, [354, 354, 354]);
   for (const k of ["couponCode", "couponCodePh", "couponSaved"]) {
     for (const l of data.LANGS)
       assert.ok(k in data.I18N[l], `${k} missing in H5 ${l}`);

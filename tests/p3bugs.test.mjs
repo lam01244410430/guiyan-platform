@@ -232,12 +232,12 @@ test("p3bugs B-038a regression: approveRefund message keeps 已模拟退款", as
 
 // --- B-038b/c + B-039 + B-040 + B-041 + B-030 + P3-1: i18n + file reads ----
 
-test("p3bugs B-038b: H5 i18n is 353 keys/language with the 3 demand keys", async () => {
+test("p3bugs B-038b: H5 i18n is 354 keys/language with the 3 demand keys", async () => {
   const data = await import(
     path.resolve(repoDir, "web", "assets", "js", "data.js")
   );
   const counts = data.LANGS.map((l) => Object.keys(data.I18N[l]).length);
-  assert.deepEqual(counts, [353, 353, 353]);
+  assert.deepEqual(counts, [354, 354, 354]);
   for (const k of ["dmPending", "dmApproved", "dmRejected"]) {
     for (const l of data.LANGS)
       assert.ok(k in data.I18N[l], `${k} missing in ${l}`);

@@ -56,6 +56,7 @@ import { listShopTiers, listAdminTiers, createMemberTier, patchMemberTier, getAc
 import { listAdminCoupons, getAdminCoupon, createCoupon, patchCoupon } from "./routes/coupons.mjs";
 import { listAdminFlashSales, getAdminFlashSale, createFlashSale, patchFlashSale } from "./routes/flash-sales.mjs";
 import { listAdminCouponRules, getAdminCouponRule, createCouponRule, patchCouponRule, getAccountCouponGifts } from "./routes/auto-coupons.mjs";
+import { listAdminSmsTasks, getAdminSmsTask, createSmsTask, patchSmsTask } from "./routes/sms-tasks.mjs";
 
 // Commit before sending the response, so the next request sees saved changes.
 function createRequestHandler(db, handle) {
@@ -271,6 +272,10 @@ export async function createApp({ database }) {
       if (await createCouponRule(ctx)) return;
       if (await patchCouponRule(ctx)) return;
       if (await getAccountCouponGifts(ctx)) return;
+      if (await listAdminSmsTasks(ctx)) return;
+      if (await getAdminSmsTask(ctx)) return;
+      if (await createSmsTask(ctx)) return;
+      if (await patchSmsTask(ctx)) return;
 
       send({ error: "接口不存在" }, 404);
     } catch (e) {
