@@ -231,6 +231,7 @@ var CATS = [
 ];
 function catName(id){ for(var i=0;i<CATS.length;i++) if(CATS[i][0]===id) return CATS[i][1+li()]; return id; }
 function catZh(id){ for(var i=0;i<CATS.length;i++) if(CATS[i][0]===id) return CATS[i][1]; return id; }
+function catBoth(id){ return li() === 0 ? catName(id) : catZh(id) + " · " + catName(id); }
 var CITYN = {"南宁":["南宁","Nam Ninh","Nanning"],"柳州":["柳州","Liễu Châu","Liuzhou"],"桂林":["桂林","Quế Lâm","Guilin"],"北海":["北海","Bắc Hải","Beihai"],"崇左":["崇左","Sùng Tả","Chongzuo"],"河池":["河池","Hà Trì","Hechi"],"全区":["全区","Toàn vùng","Region-wide"]};
 function cityName(c){ return CITYN[c] ? CITYN[c][li()] : c; }
 var UNITN = {"张":["张","vé","ticket"],"天":["天","ngày","day"],"场":["场","buổi","session"],"人":["人","người","person"],"件":["件","chiếc","item"],"份":["份","phần","copy"],"次":["次","lần","session"],"项":["项","hạng mục","item"]};
@@ -317,4 +318,4 @@ var money = function(n){ return "¥" + n.toLocaleString("zh-CN"); };
 var state = { cat:"all", q:"", city:"all", sort:"hot", shown:12, favs:{}, orders:[], seq:137, pref:null, priceMin:"", priceMax:"", minRating:0 };
 
 // ESM exports (React entries import this module; no globals anymore).
-export { I18N, t, fmt, CATS, catName, catZh, CITYN, cityName, UNITN, unitName, CATIMG, RES, DEMANDS, money, state, li, L };
+export { I18N, t, fmt, CATS, catName, catZh, catBoth, CITYN, cityName, UNITN, unitName, CATIMG, RES, DEMANDS, money, state, li, L };

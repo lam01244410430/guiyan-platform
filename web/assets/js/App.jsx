@@ -7,7 +7,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
   langState, t, fmt, money, CATS, RES, DEMANDS, CATIMG, CITYN,
-  catName, catZh, cityName, unitName, li, state as store,
+  catName, catZh, catBoth, cityName, unitName, li, state as store,
 } from "./data.js";
 import {
   APIRES, APIID2IDX, apiGet, apiPost, currentUser, getToken, setToken,
@@ -528,7 +528,7 @@ export default function App() {
               const n = catCount(c[0]);
               return (
                 <button key={c[0]} type="button" className="cat" data-cat={c[0]} onClick={() => { setCat(c[0]); document.getElementById("catalog").scrollIntoView({ behavior: "smooth" }); }}>
-                  <b>{n}</b><span className="zh">{c[1]}</span><span>{catName(c[0])}</span>
+                  <b>{n}</b><span className="zh">{c[1]}</span>{li() !== 0 && (<span>{catName(c[0])}</span>)}
                   <span className="bar"><i style={{ width: Math.round((n / maxCat) * 100) + "%" }}></i></span>
                 </button>
               );
@@ -547,7 +547,7 @@ export default function App() {
           <div className="filters" id="catFilters">
             <button type="button" className={"chip" + (store.cat === "all" ? " on" : "")} data-c="all" onClick={() => setCat("all")}>{t("allChip")} ({RES.length})</button>
             {CATS.map((c) => (
-              <button key={c[0]} type="button" className={"chip" + (store.cat === c[0] ? " on" : "")} data-c={c[0]} onClick={() => setCat(c[0])}>{catZh(c[0])} · {catName(c[0])}</button>
+              <button key={c[0]} type="button" className={"chip" + (store.cat === c[0] ? " on" : "")} data-c={c[0]} onClick={() => setCat(c[0])}>{catBoth(c[0])}</button>
             ))}
           </div>
           <div className="filters">
@@ -765,7 +765,7 @@ export default function App() {
               <h5>{t("footCats")}</h5>
               <ul id="footCats">
                 {["show", "heritage", "tourism", "digital"].map((id) => (
-                  <li key={id}><a href="#catalog" data-goto-cat={id} onClick={(e) => { e.preventDefault(); gotoCat(id); }}>{catZh(id)} · {catName(id)}</a></li>
+                  <li key={id}><a href="#catalog" data-goto-cat={id} onClick={(e) => { e.preventDefault(); gotoCat(id); }}>{catBoth(id)}</a></li>
                 ))}
               </ul>
             </div>

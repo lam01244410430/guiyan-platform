@@ -294,3 +294,22 @@ test("p3bugs B-038c: miniprogram i18n is 129 keys/language, STATUS_KEY covers 8 
   }
 });
 
+test("p3bugs B-039: catBoth shows one name in zh, bilingual in vi/en", async () => {
+  const data = await import(
+    path.resolve(repoDir, "web", "assets", "js", "data.js")
+  );
+  try {
+    data.langState.lang = "zh";
+    assert.equal(data.catBoth("show"), "演出剧目");
+    assert.ok(!data.catBoth("show").includes(" · "));
+    data.langState.lang = "vi";
+    assert.ok(data.catBoth("show").includes(" · "));
+    assert.ok(data.catBoth("show").startsWith("演出剧目"));
+    data.langState.lang = "en";
+    assert.ok(data.catBoth("show").includes(" · "));
+    assert.ok(data.catBoth("show").startsWith("演出剧目"));
+  } finally {
+    data.langState.lang = "zh";
+  }
+});
+
