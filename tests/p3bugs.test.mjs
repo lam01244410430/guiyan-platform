@@ -232,12 +232,12 @@ test("p3bugs B-038a regression: approveRefund message keeps 已模拟退款", as
 
 // --- B-038b/c + B-039 + B-040 + B-041 + B-030 + P3-1: i18n + file reads ----
 
-test("p3bugs B-038b: H5 i18n is 325 keys/language with the 3 demand keys", async () => {
+test("p3bugs B-038b: H5 i18n is 328 keys/language with the 3 demand keys", async () => {
   const data = await import(
     path.resolve(repoDir, "web", "assets", "js", "data.js")
   );
   const counts = data.LANGS.map((l) => Object.keys(data.I18N[l]).length);
-  assert.deepEqual(counts, [325, 325, 325]);
+  assert.deepEqual(counts, [328, 328, 328]);
   for (const k of ["dmPending", "dmApproved", "dmRejected"]) {
     for (const l of data.LANGS)
       assert.ok(k in data.I18N[l], `${k} missing in ${l}`);
@@ -266,10 +266,10 @@ function miniI18nCounts() {
   return blocks;
 }
 
-test("p3bugs B-038c: miniprogram i18n is 129 keys/language, STATUS_KEY covers 8 states", async () => {
+test("p3bugs B-038c: miniprogram i18n is 132 keys/language, STATUS_KEY covers 8 states", async () => {
   const blocks = miniI18nCounts();
   for (const lang of ["zh", "vi", "en"]) {
-    assert.equal(blocks[lang].length, 129, `${lang} key count`);
+    assert.equal(blocks[lang].length, 132, `${lang} key count`);
     assert.ok(blocks[lang].includes("stRefundRequested"), `${lang} lacks stRefundRequested`);
     assert.ok(blocks[lang].includes("stDisputed"), `${lang} lacks stDisputed`);
   }

@@ -46,6 +46,7 @@ import { adminStatsSeries, adminAnalysis, adminAlerts, adminOrdersCsv, adminRevi
 import { adminTagRules } from "./routes/tag-rules.mjs";
 import { createAdminResource, editAdminResource, listAdminResources, syncAdminResource } from "./routes/admin-resources.mjs";
 import { listAdminShops, createAdminShop, patchAdminShop, getShopTheme, patchShopTheme } from "./routes/shops.mjs";
+import { createShow, listShows, getShow, listAdminShows, reviewShow, createPerformance, patchPerformance } from "./routes/shows.mjs";
 import { patchAdminProfile, patchAdminUserStatus, adminChangePassword } from "./routes/admin-account.mjs";
 
 // Commit before sending the response, so the next request sees saved changes.
@@ -213,6 +214,13 @@ export async function createApp({ database }) {
       if (await patchAdminShop(ctx)) return;
       if (await getShopTheme(ctx)) return;
       if (await patchShopTheme(ctx)) return;
+      if (await createShow(ctx)) return;
+      if (await listShows(ctx)) return;
+      if (await getShow(ctx)) return;
+      if (await listAdminShows(ctx)) return;
+      if (await reviewShow(ctx)) return;
+      if (await createPerformance(ctx)) return;
+      if (await patchPerformance(ctx)) return;
       if (await patchAdminProfile(ctx)) return;
       if (await patchAdminUserStatus(ctx)) return;
       if (await adminChangePassword(ctx)) return;

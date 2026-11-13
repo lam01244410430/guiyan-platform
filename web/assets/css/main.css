@@ -406,6 +406,12 @@ th .sort-btn:focus-visible{outline:2px solid var(--red);outline-offset:1px}
 .availrow{margin-top:10px;font-size:13.5px;font-weight:700;color:var(--gold)}
 .availdates{display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-top:8px;font-size:12.5px;color:var(--ink2)}
 .availdates .datechip{border:1px solid var(--line2);background:var(--surface);border-radius:99px;padding:3px 10px;font-size:12px;font-weight:600;color:var(--ink2)}
+/* R2-1: on-sale performances in the resource detail overlay. */
+.perf-list{margin-top:18px}
+.perf-list h4{font-family:"Noto Serif SC",serif;font-size:16px;font-weight:900;margin:0 0 10px}
+.perf-row{display:flex;gap:12px;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--line);font-size:13.5px}
+.perf-row .perf-status{font-weight:700;color:var(--jade)}
+.perf-empty{margin:0;font-size:13px;color:var(--ink3)}
 .seatmap{margin-top:18px}
 .seatmap h4{font-family:"Noto Serif SC",serif;font-size:16px;font-weight:900;margin:0 0 10px}
 .seatgrid{display:grid;gap:3px}

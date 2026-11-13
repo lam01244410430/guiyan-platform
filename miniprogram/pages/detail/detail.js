@@ -17,7 +17,7 @@ Page({
   data: {
     L: {}, langIdx: 1, langName: 'Tiếng Việt', langs: ['中文', 'Tiếng Việt', 'English'],
     idx: 0, res: null, date: '', qty: 1, total: '', fav: false,
-    order: null, flowSteps: []
+    order: null, flowSteps: [], perfs: null,
   },
   onLoad: function (options) {
     var idx = parseInt(options.idx || '0', 10);
@@ -45,7 +45,8 @@ Page({
       'actConfirm', 'actCancel', 'actPay', 'actComplete', 'actRefund',
       'doneNote', 'statusToast', 'stPending', 'stConfirmed', 'stPaid',
       'stCompleted', 'stCancelled', 'stRefunded', 'stRefundRequested', 'stDisputed', 'simPay',       'ticketTitle', 'ticketCode', 'datePh', 'modalCancel', 'modalRefund',
-      'confirmBtn', 'cancelBtn', 'bookFirst', 'viewsUnit', 'myTickets'];
+      'confirmBtn', 'cancelBtn', 'bookFirst', 'viewsUnit', 'myTickets',
+      'perfTitle', 'perfEmpty', 'perfOnSale'];
     var L = {};
     keys.forEach(function (k) { L[k] = i18n.t(k, lang); });
     var r = api.resourceByIdx(this.data.idx) || data.RES[0];
@@ -71,8 +72,27 @@ Page({
       api.loadResources().then(function () {
         self._loadingOnline = false;
         self.applyLang();
+        self.loadPerformances();
       }, function () { self._loadingOnline = false; });
     }, function () { self._loadingOnline = false; });
+  },
+  // R2-1: on-sale performances for a show resource (read-only,
+  // best-effort like the theme fetch on the home page): a failed
+  // fetch just leaves the list hidden (offline fallback keeps the
+  // local behaviour, no error is ever shown).
+  loadPerformances: function () {
+    var self = this;
+    var r = api.resourceByIdx(this.data.idx);
+    if (!r || r.cat !== 'show') return;
+    var apiId = api.apiIdForIdx(this.data.idx);
+    if (apiId == null || !api.getBase()) return;
+    api.get('/api/resources/' + apiId + '/availability', {}, false).then(function (d) {
+      var list = (d && d.performances) || [];
+      self.setData({ perfs: list.map(function (p) {
+        return { id: p.id, show_id: p.show_id, start_at: p.start_at,
+          price: data.money(api.centsToYuan(p.price_cents)) };
+      }) });
+    }, function () {});
   },
   refreshOrder: function () {
     var lang = i18n.getLang();

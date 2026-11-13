@@ -1,4 +1,5 @@
 import { assert, date, resourceRow } from "../lib/http.mjs";
+import { performancesForResource } from "./shows.mjs";
 import { CACHE_KEYS, CACHE_TTLS } from "../lib/cache.mjs";
 
 export async function listResources(ctx) {
@@ -147,7 +148,7 @@ export async function getAvailability(ctx) {
     } else {
       available = r.stock;
     }
-    send({ id, date: d, mode, available, capacity: r.stock, dates });
+    send({ id, date: d, mode, available, capacity: r.stock, dates, performances: await performancesForResource(all, get, id) });
     return true;
   }
   return false;

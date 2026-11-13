@@ -189,7 +189,9 @@ export async function openPostgresStore(
         get: async (...params) => (await execute(sql, params)).rows[0],
         run: async (...params) => {
           const insert =
-            /^\s*INSERT\s+INTO\s+(users|resources|orders|demands|comments|messages|events|audit_logs|shops)\b/i.test(
+            // R2-1: shows + performances join the tables whose INSERTs
+            // get `RETURNING id` so run() can report lastInsertRowid.
+            /^\s*INSERT\s+INTO\s+(users|resources|orders|demands|comments|messages|events|audit_logs|shops|shows|performances)\b/i.test(
               sql,
             );
           const result = await execute(

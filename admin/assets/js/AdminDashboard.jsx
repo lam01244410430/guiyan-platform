@@ -36,6 +36,7 @@ const NAV_ICONS = {
   resources: (<><path d="M12.83 2.18a2 2 0 0 0-1.66 0L2.6 6.08a1 1 0 0 0 0 1.83l8.58 3.91a2 2 0 0 0 1.66 0l8.58-3.9a1 1 0 0 0 0-1.83z" /><path d="M2 12a1 1 0 0 0 .58.91l8.6 3.91a2 2 0 0 0 1.65 0l8.58-3.9A1 1 0 0 0 22 12" /><path d="M2 17a1 1 0 0 0 .58.91l8.6 3.91a2 2 0 0 0 1.65 0l8.58-3.9A1 1 0 0 0 22 17" /></>),
   demands: (<><rect width="8" height="4" x="8" y="2" rx="1" ry="1" /><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2m4 7h4m-4 5h4m-8-5h.01M8 16h.01" /></>),
   shops: (<><path d="M3 9l1.5-5h15L21 9" /><path d="M4 9v11a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1V9" /><path d="M9 21v-6h6v6" /></>),
+  shows: (<><path d="M2 9a3 3 0 0 1 0 6v2a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-2a3 3 0 0 1 0-6V7a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2Z" /><path d="M13 5v2" /><path d="M13 17v2" /><path d="M13 11v2" /></>),
   trends: (<><path d="M3 3v16a2 2 0 0 0 2 2h16" /><path d="m19 9-5 5-4-4-3 3" /></>),
   analysis: (<><path d="M15 12h-5m5-4h-5m9 9V5a2 2 0 0 0-2-2H4" /><path d="M8 21h12a2 2 0 0 0 2-2v-1a1 1 0 0 0-1-1H11a1 1 0 0 0-1 1v1a2 2 0 1 1-4 0V5a2 2 0 1 0-4 0v2a1 1 0 0 0 1 1h3" /></>),
   alerts: (<><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3" /><path d="M12 9v4" /><path d="M12 17h.01" /></>),
@@ -62,6 +63,7 @@ function heroMoney(v) {
    same /api/admin/stats response. No invented figures. */
 const ORDER_STATUS = ["pending", "confirmed", "paid", "completed", "cancelled", "refunded", "refund_requested", "disputed"];
 const DEMAND_STATUS = { approved: "已通过", pending: "待审核", rejected: "已拒绝" };
+const PERF_STATUS = { scheduled: "待上架", on_sale: "在售", cancelled: "已取消" };
 const VIEWS = [
   { id: "overview", label: "总览", iconName: "ui:layout-dashboard", group: "main" },
   { id: "orders", label: "订单", iconName: "ui:receipt", group: "main" },
@@ -70,6 +72,7 @@ const VIEWS = [
   { id: "tagrules", label: "标签规则", iconName: "ui:tags", group: "main" },
   { id: "aicopy", label: "文案生成", iconName: "ui:pen", group: "main" },
   { id: "resources", label: "资源", iconName: "ui:layers", group: "main" },
+  { id: "shows", label: "演出", iconName: "ui:ticket", group: "main" },
   { id: "shops", label: "店铺", iconName: "ui:store", group: "main" },
   { id: "demands", label: "需求", iconName: "ui:clipboard-list", group: "main" },
   { id: "trends", label: "趋势统计", iconName: "ui:chart-line", group: "premium" },
@@ -166,7 +169,7 @@ export default function AdminDashboard() {
       return out;
     });
   }
-  function changeView(v) { setView(v); setQuery(""); setSorts({}); setTagFilter(""); setResShopFilter(""); setDrawerOpen(false); }
+  function changeView(v) { setView(v); setQuery(""); setSorts({}); setTagFilter(""); setResShopFilter(""); setShowStatusFilter(""); setPerfShowId(null); setPerfForm(null); setDrawerOpen(false); }
   // Mobile drawer (≤860px): open state + Esc closes + focus returns to
   // the hamburger. Desktop sidebar is unaffected (drawer CSS only
   // applies at ≤860px).
@@ -236,6 +239,18 @@ export default function AdminDashboard() {
   // the id of the user whose enable/disable is in flight.
   const [acctName, setAcctName] = useState("");
   const [acctEmail, setAcctEmail] = useState("");
+  // R2-1 shows + performances: the show list + the open create form
+  // draft + the status filter + the id of the show under review +
+  // the open per-show performance manager (perfShowId) + its create
+  // form draft (null = closed) + the id of the performance in flight.
+  const [shows, setShows] = useState([]);
+  const [showForm, setShowForm] = useState(null);
+  const [showBusyId, setShowBusyId] = useState(null);
+  const [showStatusFilter, setShowStatusFilter] = useState("");
+  const [showReviewBusyId, setShowReviewBusyId] = useState(null);
+  const [perfShowId, setPerfShowId] = useState(null);
+  const [perfForm, setPerfForm] = useState(null);
+  const [perfBusyId, setPerfBusyId] = useState(null);
   const [acctBusy, setAcctBusy] = useState(false);
   const [acctOtp, setAcctOtp] = useState("");
   const [acctOtpInput, setAcctOtpInput] = useState("");
@@ -277,7 +292,7 @@ export default function AdminDashboard() {
     Promise.all([
       apiGet("/api/admin/stats"), apiGet("/api/admin/orders"), apiGet("/api/admin/users"),
       apiGet("/api/admin/resources"), apiGet("/api/admin/demands"),
-      apiGet("/api/admin/shops"),
+      apiGet("/api/admin/shops"), apiGet("/api/admin/shows"),
     ]).then(function (res) {
       setStats(res[0]);
       setOrders(res[1].orders || []);
@@ -288,6 +303,7 @@ export default function AdminDashboard() {
       setResources(res[3].resources || []);
       setDemands(res[4].demands || []);
       setShops(res[5].shops || []);
+      setShows(res[6].shows || []);
       setView("overview");
     }).catch(function (e) {
       if (e && e.status === 401) { clearToken(); location.href = "/admin/index.html"; return; }
@@ -619,6 +635,121 @@ export default function AdminDashboard() {
     }).finally(function () { setThemeBusyId(null); });
   }
 
+  // R2-1 shows + performances (same disabled-while-processing pattern
+  // as the shop form). A shop-scoped admin creates/reviews only their
+  // own shop's shows (the server returns 403 otherwise); a platform
+  // admin names the shop in the create form. New shows are pending;
+  // only an approved show takes performances, and only an on-sale
+  // performance is visible to buyers.
+  function loadShows() {
+    apiGet("/api/admin/shows").then(function (d) {
+      setShows(d.shows || []);
+    }).catch(loadFail);
+  }
+  function openShowForm() {
+    setShowForm({
+      title: "",
+      resource_id: "",
+      shop_id: isPlatformAdmin ? "1" : (me && me.shop_id ? String(me.shop_id) : "1"),
+      description: "",
+    });
+  }
+  function editShowForm(key, value) {
+    setShowForm(function (f) { return f ? { ...f, [key]: value } : f; });
+  }
+  function saveShowForm() {
+    if (!showForm || showBusyId !== null) return;
+    if (!showForm.title.trim()) { toast("请填写演出名称"); return; }
+    if (!showForm.resource_id) { toast("请选择演出剧目资源"); return; }
+    const body = {
+      title: showForm.title.trim(),
+      resource_id: Number(showForm.resource_id),
+      description: showForm.description.trim(),
+    };
+    if (isPlatformAdmin) body.shop_id = Number(showForm.shop_id) || 1;
+    setShowBusyId("new");
+    apiPost("/api/shows", body).then(function (d) {
+      setShows(function (ss) { return [d.show].concat(ss); });
+      setShowForm(null);
+      loadAudit();
+      toast("已提交审核");
+    }).catch(function (e) {
+      if (e && e.status === 403) toast("只能在本店铺创建演出");
+      else if (e && e.status === 404) toast("店铺或资源不存在");
+      else toast((e && e.data && e.data.error) || "保存失败，请检查表单");
+    }).finally(function () { setShowBusyId(null); });
+  }
+  function doReviewShow(s, status) {
+    if (showReviewBusyId !== null) return;
+    setShowReviewBusyId(s.id);
+    apiPatch("/api/admin/shows/" + s.id, { status: status }).then(function (d) {
+      const saved = d.show;
+      setShows(function (ss) { return ss.map(function (x) { return x.id === saved.id ? saved : x; }); });
+      loadAudit();
+      toast(status === "approved" ? "已通过" : "已拒绝");
+    }).catch(function (e) {
+      if (e && e.status === 403) toast("只能审核本店铺的演出");
+      else if (e && e.status === 404) toast("演出不存在");
+      else toast((e && e.data && e.data.error) || "操作失败，请稍后重试");
+    }).finally(function () { setShowReviewBusyId(null); });
+  }
+  function togglePerfManager(s) {
+    if (perfShowId === s.id) {
+      setPerfShowId(null);
+      setPerfForm(null);
+    } else {
+      setPerfShowId(s.id);
+      setPerfForm({ showId: s.id, start_at: "", price: "" });
+    }
+  }
+  function editPerfForm(key, value) {
+    setPerfForm(function (f) { return f ? { ...f, [key]: value } : f; });
+  }
+  function savePerfForm() {
+    if (!perfForm || perfBusyId !== null) return;
+    if (!perfForm.start_at) { toast("请填写开演时间"); return; }
+    const price = Number(perfForm.price);
+    if (!Number.isFinite(price) || price < 0) { toast("请填写有效票价"); return; }
+    const showId = perfForm.showId;
+    setPerfBusyId("new");
+    apiPost("/api/shows/" + showId + "/performances", {
+      start_at: perfForm.start_at, price_cents: Math.round(price * 100),
+    }).then(function (d) {
+      const created = d.performance;
+      setShows(function (ss) {
+        return ss.map(function (x) {
+          if (x.id !== showId) return x;
+          return { ...x, performances: (x.performances || []).concat([created]) };
+        });
+      });
+      setPerfForm({ showId: showId, start_at: "", price: "" });
+      loadAudit();
+      toast("已创建场次");
+    }).catch(function (e) {
+      if (e && e.status === 403) toast("只能管理本店铺的场次");
+      else if (e && e.status === 404) toast("演出不存在");
+      else toast((e && e.data && e.data.error) || "保存失败，请检查表单");
+    }).finally(function () { setPerfBusyId(null); });
+  }
+  function doPerfStatus(pf, status) {
+    if (perfBusyId !== null) return;
+    setPerfBusyId(pf.id);
+    apiPatch("/api/admin/performances/" + pf.id, { status: status }).then(function (d) {
+      const saved = d.performance;
+      setShows(function (ss) {
+        return ss.map(function (x) {
+          if (x.id !== saved.show_id) return x;
+          return { ...x, performances: (x.performances || []).map(function (p) { return p.id === saved.id ? saved : p; }) };
+        });
+      });
+      loadAudit();
+      toast(status === "on_sale" ? "已上架" : "已取消");
+    }).catch(function (e) {
+      if (e && e.status === 403) toast("只能管理本店铺的场次");
+      else if (e && e.status === 404) toast("场次不存在");
+      else toast((e && e.data && e.data.error) || "操作失败，请稍后重试");
+    }).finally(function () { setPerfBusyId(null); });
+  }
   // R1-2 admin accounts: own profile (name/email) + OTP password
   // change + enable/disable other accounts. The OTP target is always
   // the SAVED email (from the users list), never the unsaved draft —
@@ -779,6 +910,7 @@ export default function AdminDashboard() {
     tagrules: ["标签规则", "自动标签规则 · 保存后立即重算"],
     aicopy: ["文案生成", "本地模板 · 未接入大模型"],
     resources: ["资源总览", "共 " + resources.length + " 项"],
+    shows: ["演出管理", "共 " + shows.length + " 场演出 · 通过审核后可售票"],
     shops: ["店铺管理", "共 " + shops.length + " 家店铺 · 仅平台管理员可创建/修改"],
     demands: ["需求总览", "共 " + demands.length + " 条"],
     trends: ["趋势统计", "按周期查看订单趋势"],
@@ -818,9 +950,18 @@ export default function AdminDashboard() {
     const s = shops.find(function (x) { return x.id === id; });
     return s ? s.name : "店铺#" + id;
   }
+  function resourceName(id) {
+    if (id === null || id === undefined) return "—";
+    const r = resources.find(function (x) { return x.id === id; });
+    return r ? r.name : "资源#" + id;
+  }
   function demandMatch(d) {
     return has(d.title) || categoryMatch(d.category) || has(d.city)
       || has(d.user_name) || has(DEMAND_STATUS[d.status]);
+  }
+  function showMatch(s) {
+    return has(s.title) || has(resourceName(s.resource_id)) || has(shopName(s.shop_id))
+      || has(String(s.id)) || has(DEMAND_STATUS[s.status]);
   }
   // Orders: status chip AND search, one filter. Overview filters the
   // whole order list first and only then slices the first 8, so an older
@@ -837,6 +978,9 @@ export default function AdminDashboard() {
     return (resShopFilter === "" || String(r.shop_id) === resShopFilter) && (!q || resourceMatch(r));
   });
   const filteredShops = q ? shops.filter(shopMatch) : shops;
+  const filteredShows = shows.filter(function (s) {
+    return (showStatusFilter === "" || s.status === showStatusFilter) && (!q || showMatch(s));
+  });
   const filteredDemands = q ? demands.filter(demandMatch) : demands;
   const trendSeries = seriesData ? seriesData.series : [];
   const filteredSeries = q ? trendSeries.filter(function (s) { return has(s.label); }) : trendSeries;
@@ -867,6 +1011,7 @@ export default function AdminDashboard() {
     },
     users: { id: (u) => u.id, name: (u) => u.name ?? "", username: (u) => u.username ?? "" },
     resources: { name: (r) => r.name ?? "", price: (r) => r.price, stock: (r) => r.stock },
+    shows: { title: (s) => s.title ?? "" },
     shops: { name: (s) => s.name ?? "", resource_count: (s) => s.resource_count },
     demands: { title: (d) => d.title ?? "", budget: (d) => d.budget },
     trends: { label: (s) => s.label, amount: (s) => s.amount, count: (s) => s.count },
@@ -891,6 +1036,7 @@ export default function AdminDashboard() {
   const sortedOrders = sorted("orders", filteredOrders);
   const sortedUsers = sorted("users", filteredUsers);
   const sortedResources = sorted("resources", filteredResources);
+  const sortedShows = sorted("shows", filteredShows);
   const sortedShops = sorted("shops", filteredShops);
   const sortedDemands = sorted("demands", filteredDemands);
   const sortedSeries = sorted("trends", filteredSeries);
@@ -1303,6 +1449,115 @@ export default function AdminDashboard() {
                 </tbody>
               </table>
             </div>
+          </section>
+
+          <section className={"view" + (view === "shows" ? " on" : "")} id="view-shows">
+            <div className="search-row">
+              <SearchBox id="search-shows" label="搜索演出" placeholder="输入演出名称、资源或店铺…"
+                value={query} onChange={setQuery} resultCount={q ? filteredShows.length : null} />
+              <select className="tag-filter" aria-label="按状态筛选" value={showStatusFilter} onChange={(e) => setShowStatusFilter(e.target.value)}>
+                <option value="">全部状态</option>
+                <option value="pending">待审核</option>
+                <option value="approved">已通过</option>
+                <option value="rejected">已拒绝</option>
+              </select>
+              <button type="button" className="btn-export" onClick={openShowForm}>添加演出</button>
+            </div>
+            <div className="note">演出须关联本店的演出剧目类资源；新建为待审核，通过后才可创建场次、上架售票。子店管理员仅可见、可改本店演出。</div>
+            {showForm ? (
+              <fieldset className="tag-rule">
+                <legend>添加演出</legend>
+                <label>演出名称 <input type="text" value={showForm.title} maxLength={100} onChange={(e) => editShowForm("title", e.target.value)} /></label>
+                <label>演出剧目 <select value={showForm.resource_id} onChange={(e) => editShowForm("resource_id", e.target.value)}>
+                  <option value="">请选择…</option>
+                  {resources.filter((r) => r.category === "show").map((r) => (<option key={r.id} value={String(r.id)}>{r.name}（{shopName(r.shop_id)}）</option>))}
+                </select></label>
+                {isPlatformAdmin ? (
+                  <label>店铺 <select value={showForm.shop_id} onChange={(e) => editShowForm("shop_id", e.target.value)}>
+                    {shops.map((s) => (<option key={s.id} value={String(s.id)}>{s.name}</option>))}
+                  </select></label>
+                ) : (
+                  <label>店铺 <input type="text" value={me && me.shop_id ? shopName(me.shop_id) : ""} disabled /></label>
+                )}
+                <label>演出介绍 <input type="text" value={showForm.description} maxLength={3000} onChange={(e) => editShowForm("description", e.target.value)} /></label>
+                <div>
+                  <button type="button" className="btn-export" disabled={showBusyId !== null} onClick={saveShowForm}>{showBusyId !== null ? "保存中…" : "保存"}</button>{" "}
+                  <button type="button" className="btn-resolve" onClick={() => setShowForm(null)}>取消</button>
+                </div>
+              </fieldset>
+            ) : null}
+            <div className="tbl-wrap">
+              <table>
+                <thead><tr><th scope="col">ID</th><th scope="col" aria-sort={ariaSort("shows", "title")}>名称<SortButton label="名称" sortKey="title" tableId="shows" sort={sorts.shows} onToggle={toggleSort} /></th><th scope="col">资源</th><th scope="col">店铺</th><th scope="col">状态</th><th scope="col">场次</th><th scope="col">操作</th></tr></thead>
+                <tbody id="showsBody">
+                  {shows.length
+                    ? (filteredShows.length ? sortedShows.map((s) => (
+                      <Fragment key={s.id}>
+                        <tr>
+                          <td>{s.id}</td><td>{s.title}</td><td>{resourceName(s.resource_id)}</td>
+                          <td>{shopName(s.shop_id)}</td><td>{DEMAND_STATUS[s.status] || s.status}</td>
+                          <td className="num">{(s.performances || []).length}</td>
+                          <td>
+                            <span className="row-actions">
+                              {s.status === "pending" ? (
+                                <>
+                                  <button type="button" className="btn-approve" disabled={showReviewBusyId === s.id} onClick={() => doReviewShow(s, "approved")}>{showReviewBusyId === s.id ? "处理中…" : "通过"}</button>
+                                  <button type="button" className="btn-reject" disabled={showReviewBusyId === s.id} onClick={() => doReviewShow(s, "rejected")}>{showReviewBusyId === s.id ? "处理中…" : "拒绝"}</button>
+                                </>
+                              ) : null}
+                              <button type="button" className="btn-view" onClick={() => togglePerfManager(s)}>{perfShowId === s.id ? "收起场次" : "场次管理"}</button>
+                            </span>
+                          </td>
+                        </tr>
+                        {perfShowId === s.id ? (
+                          <tr>
+                            <td colSpan="7">
+                              {(s.performances || []).length ? (
+                                <table>
+                                  <thead><tr><th scope="col">开演时间</th><th scope="col">票价</th><th scope="col">状态</th><th scope="col">操作</th></tr></thead>
+                                  <tbody>
+                                    {(s.performances || []).map((pf) => (
+                                      <Fragment key={pf.id}>
+                                      <tr>
+                                        <td>{pf.start_at}</td><td className="num">{fmtMoney(pf.price_cents)}</td>
+                                        <td>{PERF_STATUS[pf.status] || pf.status}</td>
+                                        <td>
+                                          <span className="row-actions">
+                                            {pf.status === "scheduled" ? (
+                                              <button type="button" className="btn-approve" disabled={perfBusyId === pf.id} onClick={() => doPerfStatus(pf, "on_sale")}>{perfBusyId === pf.id ? "处理中…" : "上架"}</button>
+                                            ) : null}
+                                            {pf.status !== "cancelled" ? (
+                                              <button type="button" className="btn-reject" disabled={perfBusyId === pf.id} onClick={() => doPerfStatus(pf, "cancelled")}>{perfBusyId === pf.id ? "处理中…" : "取消"}</button>
+                                            ) : null}
+                                          </span>
+                                        </td>
+                                      </tr>
+                                      </Fragment>
+                                    ))}
+                                  </tbody>
+                                </table>
+                              ) : (<div className="empty">暂无场次</div>)}
+                              {s.status === "approved" && perfForm && perfForm.showId === s.id ? (
+                                <div style={{ marginTop: 12 }}>
+                                  <label>开演时间 <input type="datetime-local" value={perfForm.start_at} onChange={(e) => editPerfForm("start_at", e.target.value)} /></label>{" "}
+                                  <label>票价（元） <input type="number" min="0" step="1" value={perfForm.price} onChange={(e) => editPerfForm("price", e.target.value)} /></label>{" "}
+                                  <button type="button" className="btn-export" disabled={perfBusyId !== null} onClick={savePerfForm}>{perfBusyId !== null ? "保存中…" : "创建场次"}</button>
+                                </div>
+                              ) : s.status === "approved" ? (
+                                <div style={{ marginTop: 12 }}><button type="button" className="btn-view" onClick={() => setPerfForm({ showId: s.id, start_at: "", price: "" })}>添加场次</button></div>
+                              ) : (
+                                <div className="note" style={{ marginTop: 12 }}>演出未通过审核，不可创建场次。</div>
+                              )}
+                            </td>
+                          </tr>
+                        ) : null}
+                      </Fragment>
+                    )) : searchEmpty(7))
+                    : <tr><td colSpan="7"><div className="empty">暂无演出</div></td></tr>}
+                </tbody>
+              </table>
+            </div>
+            <p className="def-note">审核结果在操作审计中留痕；仅已通过演出的在售场次对顾客可见。</p>
           </section>
 
           <section className={"view" + (view === "aicopy" ? " on" : "")} id="view-aicopy">

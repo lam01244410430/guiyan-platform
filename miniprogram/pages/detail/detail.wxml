@@ -28,6 +28,22 @@
     <view class="btn" bindtap="book">{{L.bookNow}}</view>
     </view>
 
+  <!-- R2-1: on-sale performances of the resource's approved shows.
+  <block wx:if="{{perfs}}">
+    <view class="card">
+      <view class="sec-title serif" style="font-size:32rpx">{{L.perfTitle}}</view>
+      <block wx:if="{{perfs.length}}">
+        <view wx:for="{{perfs}}" wx:key="start_at">
+          <view style="display:flex;justify-content:space-between;margin-top:16rpx;font-size:28rpx">
+            <text>{{item.start_at}}</text><text style="font-weight:700">{{item.price}}</text><text style="color:#0d6e5f;font-weight:700">{{L.perfOnSale}}</text>
+          </view>
+        </view>
+      </block>
+      <block wx:else>
+        <view class="note">{{L.perfEmpty}}</view>
+      </block>
+    </view>
+  </block>
   <block wx:if="{{order}}">
     <view class="card">
       <view class="sec-title serif" style="font-size:32rpx">{{order.code}}</view>

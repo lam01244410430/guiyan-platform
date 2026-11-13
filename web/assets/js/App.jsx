@@ -869,6 +869,24 @@ export default function App() {
                 {avail && avail.mode === "rental" && avail.dates && avail.dates.length > 0 && (
                   <div className="availdates"><span>{t("bookedDates")}：</span>{avail.dates.map((d) => (<span key={d.booking_date} className="datechip">{d.booking_date}</span>))}</div>
                 )}
+                {/* R2-1: on-sale performances of the resource's approved
+                    shows (avail.performances, already fetched with the
+                    availability above). Only for show resources.
+                    */}
+                {cur[1] === "show" && avail && (
+                  <div className="perf-list">
+                    <h4>{t("perfTitle")}</h4>
+                    {avail.performances && avail.performances.length ? (
+                      avail.performances.map((pf) => (
+                        <div key={pf.id}>
+                          <button type="button" className="perf-row" style={{ width: "100%", background: "transparent", border: "none", textAlign: "left" }}>
+                            <span>{pf.start_at}</span><span>{money(pf.price_cents / 100)}</span><span className="perf-status">{t("perfOnSale")}</span>
+                          </button>
+                        </div>
+                      ))
+                    ) : (<p className="perf-empty">{t("perfEmpty")}</p>)}
+                  </div>
+                )}
                 <div className="totalrow"><span>{t("totalLabel")}</span><b id="bkTotal">{money(cur[3] * bkQty)}</b></div>
                 <div className="acts">
                   <button type="button" className="btn red" id="bkGo" onClick={() => bookResource(detailIdx, bkQty, bkDate || "2026-12-05")}>{t("bookNow")}</button>
