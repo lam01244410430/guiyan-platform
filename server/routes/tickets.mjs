@@ -22,6 +22,13 @@
 // - Verify checks ticket status ONLY — no date/performance check
 //   this wave (an expired performance's ticket still verifies;
 //   documented, never claimed otherwise).
+// - Batch verify (R4-3, rows 31, 78): `POST /api/verify/batch`
+//   verifies up to 50 codes in ONE transaction, one result per
+//   code; a bad code never throws the batch; re-sending the same
+//   batch returns already_used (no double-use); every attempt
+//   writes a verify_logs row (the batch answers 200 overall, so
+//   the logs live in the main transaction — no separateRequest
+//   needed, unlike the single-verify 4xx paths).
 // - Every verify attempt writes a verify_logs row (success +
 //   failures, including the 404 case). A 4xx response rolls the
 //   request transaction back, so failure logs go through
@@ -246,6 +253,121 @@ export async function verifyTicket(ctx) {
   });
   const fresh = await get("SELECT * FROM tickets WHERE id=?", ticket.id);
   send({ ok: true, ticket: ticketRow(fresh), order: orderInfo(order) });
+  return true;
+}
+
+// --- R4-3: batch verify (xlsx rows 31, 78) ----------------------
+// POST /api/verify/batch — admin only (staff = admin role; same
+// convention as verifyTicket: anonymous -> 401 via needUser,
+// signed-in non-admin -> 403). Body {codes: [...]}: at most 50
+// codes, an empty array -> 400, a non-array -> 400. ONE
+// transaction, one result per code in input order:
+//   {code, result, ticket?, order?} with result in
+//   used/already_used/not_found/void/refund_pending.
+// A single bad code NEVER throws the batch — the loop continues
+// and the batch still answers 200. Idempotent: a code verified
+// earlier in this batch (or in a previous batch) is re-read inside
+// the same transaction, so the second occurrence sees status
+// 'used' and answers already_used — no double-use. Every attempt
+// writes a verify_logs row in the same transaction (the batch
+// answers 200, so the main transaction commits and the logs
+// survive — no separateRequest needed here).
+// NOTE: this route must be dispatched BEFORE verifyTicket (see
+// server/index.mjs) — the single-verify matcher
+// /^\/api\/verify\/([^/]+)$/ would otherwise swallow "batch" as
+// a ticket code.
+export async function verifyBatch(ctx) {
+  const { p, req, b, send, needUser, session, get, run } = ctx;
+  if (p !== "/api/verify/batch" || req.method !== "POST") return false;
+  const u = needUser();
+  assertAdmin(session);
+  assert(Array.isArray(b?.codes), "请提供票码列表", 400);
+  assert(b.codes.length > 0, "票码列表不能为空", 400);
+  assert(b.codes.length <= 50, "一次最多核销 50 张票", 400);
+  const now = time();
+  const results = [];
+  for (const raw of b.codes) {
+    const code = String(raw ?? "").trim().toUpperCase();
+    if (!code) {
+      await logVerify(run, {
+        ticketId: null,
+        code,
+        result: "not_found",
+        verifiedBy: u.id,
+        now,
+      });
+      results.push({ code, result: "not_found", ticket: null, order: null });
+      continue;
+    }
+    const ticket = await get("SELECT * FROM tickets WHERE code=?", code);
+    if (!ticket) {
+      await logVerify(run, {
+        ticketId: null,
+        code,
+        result: "not_found",
+        verifiedBy: u.id,
+        now,
+      });
+      results.push({ code, result: "not_found", ticket: null, order: null });
+      continue;
+    }
+    const order = await get(
+      "SELECT o.*, r.name AS resource_name FROM orders o JOIN resources r ON r.id=o.resource_id WHERE o.id=?",
+      ticket.order_id,
+    );
+    const found = {
+      code,
+      ticket: ticketRow(ticket),
+      order: orderInfo(order),
+    };
+    const fail = async (result) => {
+      await logVerify(run, {
+        ticketId: ticket.id,
+        code,
+        result,
+        verifiedBy: u.id,
+        now,
+      });
+      results.push({ ...found, result });
+    };
+    // Frozen in a pending partial refund (R4-4) — same probe as
+    // verifyTicket; a missing column means nothing is frozen.
+    const frozen = await pendingRefundTicketIds(get, ticket.order_id);
+    if (frozen.includes(ticket.id)) {
+      await fail("refund_pending");
+      continue;
+    }
+    if (ticket.status === "void") {
+      await fail("void");
+      continue;
+    }
+    if (ticket.status === "used") {
+      await fail("already_used");
+      continue;
+    }
+    // issued -> used, with the log, in the batch transaction.
+    await run(
+      "UPDATE tickets SET status='used', verified_at=?, verified_by=? WHERE id=? AND status='issued'",
+      now,
+      u.id,
+      ticket.id,
+    );
+    await logVerify(run, {
+      ticketId: ticket.id,
+      code,
+      result: "used",
+      verifiedBy: u.id,
+      now,
+    });
+    const fresh = await get("SELECT * FROM tickets WHERE id=?", ticket.id);
+    results.push({
+      code,
+      result: "used",
+      ticket: ticketRow(fresh),
+      order: orderInfo(order),
+    });
+  }
+  send({ results });
   return true;
 }
 

@@ -349,6 +349,19 @@ export default function AdminDashboard() {
   const [verifyResult, setVerifyResult] = useState(null);
   const [verifyBusy, setVerifyBusy] = useState(false);
   const [verifyHistory, setVerifyHistory] = useState([]);
+  // R4-3 批量核销 + 离线队列: pasted multi-code input, per-code
+  // batch results, and the localStorage offline queue (key
+  // guiyan-verify-queue — the SAME key the mini-program uses).
+  // Admin-only labels stay hardcoded Chinese (admin rule: no i18n).
+  const [batchCodes, setBatchCodes] = useState("");
+  const [batchBusy, setBatchBusy] = useState(false);
+  const [batchResults, setBatchResults] = useState([]);
+  const [verifyQueue, setVerifyQueue] = useState(() => {
+    try {
+      const q = JSON.parse(localStorage.getItem("guiyan-verify-queue") || "[]");
+      return Array.isArray(q) ? q : [];
+    } catch (e) { return []; }
+  });
   // R4-2 打印纸质票: the order id being printed + the in-flight
   // flag (same disabled-while-processing pattern as the other
   // admin writes).
@@ -855,6 +868,68 @@ export default function AdminDashboard() {
       if (e && e.status === 403) { setForbidden(true); return; }
       toast(data.error || "核销失败");
     }).finally(function () { setVerifyBusy(false); });
+  }
+  // R4-3 批量核销 + 离线队列: POST /api/verify/batch (admin
+  // only, max 50 codes, one result per code, a bad code never
+  // throws the batch). Pasted codes (one per line) verify in one
+  // call; the localStorage queue holds codes whose batch call
+  // failed (offline) — they sync with the 同步 button and leave
+  // the queue ONLY after the batch call succeeds. Voice +
+  // vibration are H5-only: Web Speech API (speechSynthesis)
+  // speaks the batch summary and navigator.vibrate buzzes on a
+  // failed batch — the mini-program has NO native TTS (see
+  // miniprogram/pages/verify/verify.js), so voice is never
+  // claimed there, and no third-party voice plugin is used.
+  const batchResultText = { used: "已核销", already_used: "票已核销", not_found: "票不存在", void: "票已作废", refund_pending: "票正在退款审核中" };
+  function saveVerifyQueue(q) {
+    try { localStorage.setItem("guiyan-verify-queue", JSON.stringify(q)); } catch (e) {}
+    setVerifyQueue(q);
+  }
+  function speakBatch(ok, total) {
+    try {
+      if (!("speechSynthesis" in window)) return;
+      window.speechSynthesis.cancel();
+      window.speechSynthesis.speak(new SpeechSynthesisUtterance(
+        ok === total ? "批量核销完成，" + ok + "张全部成功" : "批量核销完成，成功" + ok + "张，失败" + (total - ok) + "张"));
+    } catch (e) {}
+  }
+  function buzzBatch(failed) {
+    try { if (navigator.vibrate) navigator.vibrate(failed ? [100, 50, 100] : 200); } catch (e) {}
+  }
+  function doBatchVerify(codes) {
+    if (batchBusy) return;
+    const list = (codes || batchCodes.split(/[\n,，、\s]+/)).map((c) => String(c).trim().toUpperCase()).filter(Boolean);
+    if (!list.length) { toast("请填写票码"); return; }
+    if (list.length > 50) { toast("一次最多核销 50 张票"); return; }
+    setBatchBusy(true);
+    apiPost("/api/verify/batch", { codes: list }).then(function (d) {
+      const results = (d && d.results) || [];
+      const ok = results.filter((r) => r.result === "used").length;
+      setBatchResults(results);
+      setVerifyHistory(function (h) {
+        return results.map((r) => ({ code: r.code, ok: r.result === "used", result: batchResultText[r.result] || r.result, ticket: r.ticket || null, order: r.order || null, at: new Date().toISOString() })).concat(h).slice(0, 20);
+      });
+      // Synced codes leave the queue only now that the call succeeded.
+      const done = {};
+      results.forEach((r) => { done[r.code] = true; });
+      saveVerifyQueue(verifyQueue.filter((c) => !done[c]));
+      setBatchCodes("");
+      speakBatch(ok, results.length);
+      buzzBatch(results.length - ok);
+      toast("批量核销完成：成功 " + ok + " 张，失败 " + (results.length - ok) + " 张");
+    }).catch(function (e) {
+      // A failed batch call keeps the codes queued — nothing is lost.
+      const q = verifyQueue.slice();
+      list.forEach((c) => { if (q.indexOf(c) < 0) q.push(c); });
+      saveVerifyQueue(q);
+      if (e && e.status === 401) { clearToken(); location.href = "/admin/index.html"; return; }
+      if (e && e.status === 403) { setForbidden(true); return; }
+      toast("批量核销失败，已存入离线队列");
+    }).finally(function () { setBatchBusy(false); });
+  }
+  function syncVerifyQueue() {
+    if (!verifyQueue.length) { toast("离线队列为空"); return; }
+    doBatchVerify(verifyQueue.slice());
   }
   // R4-2 打印纸质票: POST /api/admin/tickets/print records the
   // print event (one print_logs row per ticket + printed_at) and
@@ -3161,6 +3236,50 @@ export default function AdminDashboard() {
               <div>
                 <button type="button" className="btn-export" disabled={verifyBusy} onClick={doVerify}>{verifyBusy ? "核销中…" : "核销"}</button>
               </div>
+            </fieldset>
+            {/* R4-3 批量核销 + 离线队列: paste many codes (one per
+                line, max 50) and verify them in one batch call; a
+                bad code never stops the rest. Codes whose batch
+                call failed sit in the localStorage offline queue
+                (same key as the mini-program) until 同步 succeeds.
+                Voice + vibration are H5-only (Web Speech API +
+                navigator.vibrate); the mini-program has no TTS. */}
+            <fieldset className="tag-rule">
+              <legend>批量核销</legend>
+              <div className="note">一次粘贴多个票码（每行一个，最多 50 个），一次调用全部核销；单个坏码不影响其余。语音播报与震动仅限本页（Web Speech API + navigator.vibrate），小程序无语音播报。</div>
+              <label>票码 <textarea className="copy-prompt" aria-label="批量票码" placeholder={"每行一个票码，例如\nGY7K2Q9X4M\nGY00000000"} value={batchCodes} onChange={(e) => setBatchCodes(e.target.value)} /></label>
+              <div>
+                <button type="button" className="btn-export" disabled={batchBusy} onClick={() => doBatchVerify()}>{batchBusy ? "核销中…" : "批量核销"}</button>
+              </div>
+              {batchResults.length ? (
+                <div className="tbl-wrap">
+                  <table>
+                    <thead><tr><th scope="col">票码</th><th scope="col">结果</th><th scope="col">资源</th></tr></thead>
+                    <tbody>
+                      {batchResults.map((r, i) => (
+                        <tr key={r.code + "-" + i}>
+                          <td><span className="code">{r.code}</span></td>
+                          <td>{batchResultText[r.result] || r.result}</td>
+                          <td>{r.order ? r.order.resource_name : "—"}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              ) : null}
+            </fieldset>
+            <fieldset className="tag-rule">
+              <legend>离线队列（{verifyQueue.length}）</legend>
+              <div className="note">批量核销失败的票码会存入本地队列；点“同步”重新发送，同步成功后才移出队列。</div>
+              {verifyQueue.length ? (
+                <>
+                  <div className="note">{verifyQueue.join("、")}</div>
+                  <div>
+                    <button type="button" className="btn-export" disabled={batchBusy} onClick={syncVerifyQueue}>{batchBusy ? "同步中…" : "同步"}</button>
+                    <button type="button" className="btn-export" onClick={() => saveVerifyQueue([])}>清空队列</button>
+                  </div>
+                </>
+              ) : <div className="empty">离线队列为空</div>}
             </fieldset>
             {/* R4-2 打印纸质票: record the print event for one order's
                 tickets, then open the ticket layout for the browser

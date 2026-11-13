@@ -1,0 +1,47 @@
+<view class="wrap">
+<topbar bind:langchange="onLangChange" />
+  <view class="sec-title serif">{{L.verifyBatchTitle}}</view>
+
+  <block wx:if="{{!isAdmin}}">
+    <view class="section">
+      <view class="empty">{{L.verifyAdminOnly}}</view>
+    </view>
+  </block>
+
+  <block wx:else>
+    <view class="section">
+      <view class="sec-title serif" style="font-size:32rpx">{{L.ticketCode}}</view>
+      <input class="field" value="{{code}}" maxlength="10" placeholder="GY7K2Q9X4M" bindinput="onCodeInput" />
+      <view class="btn" bindtap="verifyManual">{{L.confirmBtn}}</view>
+      <view class="btn ghost" bindtap="scanCode">{{L.verifyScan}}</view>
+      <view class="note">{{L.verifyBatchPaste}}</view>
+    </view>
+
+    <view class="section">
+      <view class="sec-title serif" style="font-size:32rpx">{{L.verifyQueueTitle}}（{{queue.length}}）</view>
+      <block wx:if="{{queue.length===0}}">
+        <view class="empty">{{L.verifyQueueEmpty}}</view>
+      </block>
+      <block wx:else>
+        <block wx:for="{{queue}}" wx:key="*this">
+          <view class="note">{{item}}</view>
+        </block>
+        <view class="btn" bindtap="syncQueue">{{L.verifyBatchSync}}</view>
+        <view class="btn ghost" bindtap="clearQueue">{{L.cancelBtn}}</view>
+      </block>
+    </view>
+
+    <view class="section">
+      <block wx:for="{{results}}" wx:key="code">
+        <view class="rescard">
+          <view class="name serif" style="font-size:40rpx">{{item.code}}</view>
+          <view class="meta">{{item.result}}</view>
+          <view class="meta" wx:if="{{item.order}}">{{item.order.resource_name}} · {{item.order.code}}</view>
+        </view>
+      </block>
+      <block wx:if="{{results.length===0}}">
+        <view class="empty">{{L.ticketEmpty}}</view>
+      </block>
+    </view>
+  </block>
+</view>

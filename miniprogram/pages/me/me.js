@@ -57,7 +57,8 @@ Page({
       'memberTierSpendMore', 'memberTierDiscount',
       'giftCouponTitle', 'giftCouponEmpty', 'giftCouponUsed',
       'storedValueTitle', 'storedValueBalance', 'storedValueTopup',
-      'storedValuePlan', 'storedValueEmpty', 'storedValueUsed'];
+      'storedValuePlan', 'storedValueEmpty', 'storedValueUsed',
+      'verifyBatchTitle'];
     var L = {};
     keys.forEach(function (k) { L[k] = i18n.t(k, lang); });
     wx.setNavigationBarTitle({ title: L.meTitle });
@@ -228,6 +229,8 @@ Page({
   },
   // --- navigation -----------------------------------------------------------
   goOrders: function () { wx.navigateTo({ url: '/pages/orders/orders' }); },
+  // R4-3: PDA + phone scanning page (admin-only inside the page).
+  goVerify: function () { wx.navigateTo({ url: '/pages/verify/verify' }); },
   goDemands: function () { wx.switchTab({ url: '/pages/demands/demands' }); },
   toggleAbout: function () { this.setData({ showAbout: !this.data.showAbout }); },
   doLogout: function () {

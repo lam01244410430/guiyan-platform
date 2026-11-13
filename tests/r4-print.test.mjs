@@ -20,7 +20,7 @@
 // ?order_id=); cross-shop print -> 403 (scoped admin) and the
 // scoped admin's print-logs list hides other shops' rows;
 // non-admin print / print-logs -> 403, anonymous -> 403; i18n key
-// counts (H5 367, miniprogram 169, equal sets).
+// counts (H5 367, miniprogram 176, equal sets).
 import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
@@ -310,7 +310,7 @@ test("non-admin print / print-logs -> 403; anonymous print / print-logs -> 403",
   assert.equal(await printLogCount(printTickets[1].id), 1);
 });
 
-test("i18n 367/169: printTicket key on both sides, equal sets", async () => {
+test("i18n 367/176: printTicket key on both sides, equal sets", async () => {
   const data = await import(
     path.resolve(repoDir, "web", "assets", "js", "data.js")
   );
@@ -333,7 +333,7 @@ test("i18n 367/169: printTicket key on both sides, equal sets", async () => {
     ].map((m) => m[1]);
   }
   for (const lang of ["zh", "vi", "en"]) {
-    assert.equal(blocks[lang].length, 169, `${lang} key count`);
+    assert.equal(blocks[lang].length, 176, `${lang} key count`);
     assert.ok(blocks[lang].includes("printTicket"), `printTicket missing in mini ${lang}`);
   }
   const sets = Object.values(blocks).map((k) => new Set(k));

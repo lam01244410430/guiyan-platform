@@ -19,7 +19,7 @@
 // shop, shop coupon wins on the same code, duplicate platform code
 // 409, shop-scoped admin cannot create one); subsidy grant (balance +
 // bonus ledger row, cross-shop 403, validation 400/404); plan admin
-// CRUD + cross-shop 403; i18n key counts (H5 367, miniprogram 169,
+// CRUD + cross-shop 403; i18n key counts (H5 367, miniprogram 176,
 // equal sets).
 import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
@@ -498,7 +498,7 @@ test("subsidy grant: balance + bonus ledger row; cross-shop 403; validation 400/
   assert.equal(ownShop.data.account.balance_cents, 100);
 });
 
-test("plan admin CRUD + cross-shop 403; i18n 367/169", async () => {
+test("plan admin CRUD + cross-shop 403; i18n 367/176", async () => {
   const created = await req("/api/admin/stored-value-plans", {
     method: "POST", token: adminToken,
     body: { amount_cents: 30000, bonus_cents: 2000 },
@@ -532,7 +532,7 @@ test("plan admin CRUD + cross-shop 403; i18n 367/169", async () => {
   assert.equal(ownPlan.status, 200, JSON.stringify(ownPlan.data));
   assert.equal(ownPlan.data.stored_value_plan.shop_id, shopBId);
 
-  // i18n: 6 new stored-value keys on both sides (354 -> 360, 157 -> 163); R4-1 adds 6 ticket keys H5 (360 -> 366), 5 mini (163 -> 168); R4-2 adds 1 print key (366 -> 367, 168 -> 169).
+  // i18n: 6 new stored-value keys on both sides (354 -> 360, 157 -> 163); R4-1 adds 6 ticket keys H5 (360 -> 366), 5 mini (163 -> 168); R4-2 adds 1 print key (366 -> 367, 168 -> 169); R4-3 adds 7 batch keys mini-only (169 -> 176).
   const data = await import(
     path.resolve(repoDir, "web", "assets", "js", "data.js")
   );
@@ -556,7 +556,7 @@ test("plan admin CRUD + cross-shop 403; i18n 367/169", async () => {
     ].map((m) => m[1]);
   }
   for (const lang of ["zh", "vi", "en"]) {
-    assert.equal(blocks[lang].length, 169, `${lang} key count`);
+    assert.equal(blocks[lang].length, 176, `${lang} key count`);
     for (const k of ["storedValueTitle", "storedValueBalance", "storedValueTopup", "storedValuePlan", "storedValueEmpty", "storedValueUsed"])
       assert.ok(blocks[lang].includes(k), `${k} missing in mini ${lang}`);
   }

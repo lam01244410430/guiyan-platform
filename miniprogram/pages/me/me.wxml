@@ -28,6 +28,7 @@
     <view class="merow" bindtap="goOrders"><view>{{L.ordersSection}}</view><text class="arrow">›</text></view>
     <view class="merow" bindtap="goOrders"><view>{{L.favSection}}</view><text class="arrow">›</text></view>
     <view class="merow" bindtap="goDemands"><view>{{L.myDemandsRow}}</view><text class="arrow">›</text></view>
+    <view class="merow" bindtap="goVerify"><view>{{L.verifyBatchTitle}}</view><text class="arrow">›</text></view>
   </view>
 
   <view class="section" wx:if="{{loggedUser}}">

@@ -15,7 +15,7 @@
 // -> original price (200, never 409), cancel frees the quota; an
 // order created inside the window keeps its snapshot price when paid
 // after the window ends; old-flow orders never get a flash price;
-// i18n key counts (H5 367, miniprogram 169, equal sets).
+// i18n key counts (H5 367, miniprogram 176, equal sets).
 import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
@@ -625,7 +625,7 @@ test("cross-shop: create/patch in shop 1 -> 403; shop-B performance in shop 1 ->
   assert.equal(ob2.data.flash_cents, 5600);
 });
 
-test("old-flow order never gets a flash price; i18n 367/169", async () => {
+test("old-flow order never gets a flash price; i18n 367/176", async () => {
   // A live sale on a performance does not touch the plain old-flow
   // order on the same shop.
   const { perfId } = await makePerf();
@@ -642,7 +642,7 @@ test("old-flow order never gets a flash price; i18n 367/169", async () => {
   assert.equal(o.data.flash_sale_id, null);
   assert.equal(o.data.flash_cents, 0);
 
-  // i18n: 3 new flash-sale keys on both sides (347 -> 350, 151 -> 154); R3-4 adds 3 gift keys (350 -> 353, 154 -> 157); R3-5 adds 1 socMaoyan key H5-only (353 -> 354); R3-6 adds 6 stored-value keys (354 -> 360, 157 -> 163); R4-1 adds 6 ticket keys H5 (360 -> 366), 5 mini (163 -> 168); R4-2 adds 1 print key (366 -> 367, 168 -> 169).
+  // i18n: 3 new flash-sale keys on both sides (347 -> 350, 151 -> 154); R3-4 adds 3 gift keys (350 -> 353, 154 -> 157); R3-5 adds 1 socMaoyan key H5-only (353 -> 354); R3-6 adds 6 stored-value keys (354 -> 360, 157 -> 163); R4-1 adds 6 ticket keys H5 (360 -> 366), 5 mini (163 -> 168); R4-2 adds 1 print key (366 -> 367, 168 -> 169); R4-3 adds 7 batch keys mini-only (169 -> 176).
   const data = await import(
     path.resolve(repoDir, "web", "assets", "js", "data.js")
   );
@@ -667,7 +667,7 @@ test("old-flow order never gets a flash price; i18n 367/169", async () => {
     ].map((m) => m[1]);
   }
   for (const lang of ["zh", "vi", "en"]) {
-    assert.equal(blocks[lang].length, 169, `${lang} key count`);
+    assert.equal(blocks[lang].length, 176, `${lang} key count`);
     for (const k of ["flashSale", "flashSaleLeft", "flashSaleSaved"])
       assert.ok(blocks[lang].includes(k), `${k} missing in mini ${lang}`);
   }

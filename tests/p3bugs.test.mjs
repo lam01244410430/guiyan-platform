@@ -266,10 +266,10 @@ function miniI18nCounts() {
   return blocks;
 }
 
-test("p3bugs B-038c: miniprogram i18n is 169 keys/language, STATUS_KEY covers 8 states", async () => {
+test("p3bugs B-038c: miniprogram i18n is 176 keys/language, STATUS_KEY covers 8 states", async () => {
   const blocks = miniI18nCounts();
   for (const lang of ["zh", "vi", "en"]) {
-    assert.equal(blocks[lang].length, 169, `${lang} key count`);
+    assert.equal(blocks[lang].length, 176, `${lang} key count`);
     assert.ok(blocks[lang].includes("stRefundRequested"), `${lang} lacks stRefundRequested`);
     assert.ok(blocks[lang].includes("stDisputed"), `${lang} lacks stDisputed`);
   }
