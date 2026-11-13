@@ -737,7 +737,7 @@ export default function AdminDashboard() {
               onClick={() => setDrawerOpen(!drawerOpen)}>
               <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16" /></svg>
             </button>
-            <h1><span id="pageTitle">{titles[view][0]}</span><span className="sub" id="pageSub">{view === "users" ? "共 " + filteredUsers.length + " 人" : titles[view][1]}</span></h1>
+            <h1><span id="pageTitle">{titles[view][0]}</span><span className="sub" id="pageSub">{view === "users" ? "共 " + filteredUsers.length + " 人" : view === "orders" ? "共 " + filteredOrders.length + " 单 · 可处理售后" : view === "resources" ? "共 " + filteredResources.length + " 项" : view === "demands" ? "共 " + filteredDemands.length + " 条" : titles[view][1]}</span></h1>
             <span className="badge">管理操作 · 审计留痕</span>
           </div>
 

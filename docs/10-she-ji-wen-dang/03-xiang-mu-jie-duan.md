@@ -726,4 +726,5 @@ Plan：`~/workspace/_work/guiyan-p3bugs-plan.md`（541 行）。Lam 批准 2026-
 - **B-039 — 品类名中文界面只出现一次：**`web/assets/js/data.js` 加 helper `catBoth`（中文只返回 1 个名，vi/en 保持“中文 · 本地语”双语显示）；`web/assets/js/App.jsx:531/550/768` 改用 `catBoth`（:531 仅中文时隐藏第二个 span；:602/:804 是“品类 · 城市”，两个不同字段，不改）。
 - **B-040 — 管理端徽章始终写真实权限：**徽章“仅查看 · 只读”是错的一方——admin 确有写权限（全部管理端路由都校验 admin 角色，4 个售后决定仅 admin 可做，管理端 web 没有 viewer 角色）；`admin/assets/js/AdminDashboard.jsx:747` 改为固定“管理操作 · 审计留痕”，删 `canWrite`（:683，仅 :747 用）；:758 注释（用户表无修改操作）正确，保留。以后若加 viewer 角色，徽章须改回按角色判断（不按 view）。
 - **B-041 — 座位图改真网格：**`web/assets/css/main.css:404` `.seatgrid` 由 `display:flex;flex-wrap:wrap` 改 `display:grid`；`web/assets/js/App.jsx:852` 加动态列数 `gridTemplateColumns: "repeat(" + seatCols + ", 8px)"`，按各场馆真实 `seatCols`（20×20 / 11×20 / 10×18，绝不 hard-code 20）；圆点 8px + 间距 3px 不变。
+- **B-030 — 3 个管理端表格标题用已筛选数字：**沿用 B-029 在 `:745` 的模式扩展到 orders/resources/demands，用已有已筛选数组 `filteredOrders/filteredResources/filteredDemands`；未筛选时数字与旧总数相同，标题不变。
 - **测试：** 新 `tests/p3bugs.test.mjs`（B-038a 新消息含“已支付”且无“→ paid”、售后决定消息回归、P3-2 两组新状态现身且回答无英文状态码；i18n key 集断言 H5 325 / 小程序 129；读文件断言 B-040/B-041/P3-1）；`tests/wave3.test.mjs` i18n 断言 322 → 325。

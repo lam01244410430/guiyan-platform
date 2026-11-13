@@ -353,3 +353,24 @@ test("p3bugs B-041: seatgrid is a real grid with dynamic columns", async () => {
   );
 });
 
+test("p3bugs B-030: admin page subtitle uses filtered counts", async () => {
+  const src = fs.readFileSync(
+    path.resolve(repoDir, "admin", "assets", "js", "AdminDashboard.jsx"),
+    "utf8",
+  );
+  const sub = src.match(/id="pageSub">([\s\S]*?)<\/span>/);
+  assert.ok(sub, "pageSub render not found");
+  assert.ok(
+    sub[1].includes("filteredOrders.length"),
+    "orders subtitle must use filteredOrders.length",
+  );
+  assert.ok(
+    sub[1].includes("filteredResources.length"),
+    "resources subtitle must use filteredResources.length",
+  );
+  assert.ok(
+    sub[1].includes("filteredDemands.length"),
+    "demands subtitle must use filteredDemands.length",
+  );
+});
+
