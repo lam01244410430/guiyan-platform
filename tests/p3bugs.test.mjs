@@ -313,3 +313,16 @@ test("p3bugs B-039: catBoth shows one name in zh, bilingual in vi/en", async () 
   }
 });
 
+test("p3bugs B-040: admin badge never says 仅查看 · 只读", async () => {
+  const src = fs.readFileSync(
+    path.resolve(repoDir, "admin", "assets", "js", "AdminDashboard.jsx"),
+    "utf8",
+  );
+  assert.ok(!src.includes("仅查看 · 只读"), "badge must not say 仅查看 · 只读");
+  assert.ok(!src.includes("canWrite"), "canWrite must be gone");
+  assert.ok(
+    src.includes("管理操作 · 审计留痕"),
+    "badge must say 管理操作 · 审计留痕",
+  );
+});
+

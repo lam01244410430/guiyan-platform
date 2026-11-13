@@ -72,7 +72,6 @@ const VIEWS = [
   { id: "analysis", label: "经营分析", iconName: "ui:scroll-text", group: "premium" },
   { id: "alerts", label: "预警中心", iconName: "ui:triangle-alert", group: "premium" },
 ];
-const PREMIUM_VIEWS = ["trends", "analysis", "alerts"];
 const FILTERS = [
   ["all", "全部"], ["pending", "待确认"], ["confirmed", "已确认"], ["paid", "已支付"],
   ["completed", "已完成"], ["cancelled", "已取消"], ["refunded", "已退款"],
@@ -676,11 +675,6 @@ export default function AdminDashboard() {
     </div></td></tr>
   );
 
-  const isPremium = PREMIUM_VIEWS.indexOf(view) !== -1;
-  // Badge reflects real write ability, not just the premium group:
-  // 订单 exports CSV (writes an audit row) and 需求 approves/rejects
-  // (writes audit + notifies), so both are write views too.
-  const canWrite = isPremium || view === "demands" || view === "orders" || view === "tagrules" || view === "aicopy" || view === "resources";
   const reportLines = analysis && typeof analysis.report === "string" ? analysis.report.split("\n") : [];
   const reportTitle = reportLines.length ? reportLines[0] : "模拟经营分析报告";
   const reportBody = reportLines.length > 1 ? reportLines.slice(1).join("\n") : "";
@@ -744,7 +738,7 @@ export default function AdminDashboard() {
               <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16" /></svg>
             </button>
             <h1><span id="pageTitle">{titles[view][0]}</span><span className="sub" id="pageSub">{view === "users" ? "共 " + filteredUsers.length + " 人" : titles[view][1]}</span></h1>
-            <span className="badge">{canWrite ? "管理操作 · 审计留痕" : "仅查看 · 只读"}</span>
+            <span className="badge">管理操作 · 审计留痕</span>
           </div>
 
           <section className={"view" + (view === "overview" ? " on" : "")} id="view-overview">
