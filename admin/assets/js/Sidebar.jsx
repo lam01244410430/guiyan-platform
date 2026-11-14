@@ -4,7 +4,7 @@
    it only renders the nav and calls onSelect(view). The operator card
    + 返回首页 live in AppHeader (shell split). */
 /* Nav icons are inlined (not <img>) so currentColor inherits the button
-   colour — the gold active icon (DESIGN.md §5) is impossible through
+   colour — the mint active icon (redesign 2026-11-15) is impossible through
    <img>, where currentColor resolves to black. Path data copied verbatim
    from admin/assets/icons/*.svg (stroke-width 1.7 per §6, 1.6–1.8px);
    the icon files themselves are untouched. */
@@ -75,7 +75,7 @@ export default function Sidebar({ view, onSelect, drawerOpen }) {
   return (
     <aside className={"sidebar" + (drawerOpen ? " open" : "")} id="adminSidebar">
       <div className="mark">桂演<small>Admin Console</small></div>
-      <nav>
+      <nav className="thin-scroll">
         {VIEWS.filter((v) => v.group === "main").map((v) => (
           <button key={v.id} type="button" data-view={v.id} className={view === v.id ? "on" : ""}
             aria-current={view === v.id ? "page" : undefined} onClick={() => onSelect(v.id)}>

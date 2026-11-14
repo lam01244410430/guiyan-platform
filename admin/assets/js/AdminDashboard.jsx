@@ -1398,7 +1398,7 @@ export default function AdminDashboard() {
     const w = window.open("", "_blank");
     if (!w) { toast("浏览器拦截了打印窗口，请允许弹出窗口后重试"); return; }
     const rows = (tickets || []).map((tk) => "<tr><td>" + esc(tk.code) + "</td><td>" + (tk.status === "used" ? "已核销" : tk.status === "void" ? "已作废" : "已出票") + "</td><td>" + (tk.printed_at ? esc(String(tk.printed_at).slice(0, 19).replace("T", " ")) : "—") + "</td></tr>").join("");
-    w.document.write("<!doctype html><html lang=\"zh\"><head><meta charset=\"utf-8\"><title>桂演纸质票</title><style>body{font-family:\"Noto Sans SC\",sans-serif;color:#1c1710;padding:24px}h1{font-size:20px}table{border-collapse:collapse;width:100%;margin-top:12px}th,td{border:1px solid #999;padding:6px 8px;text-align:left;font-size:14px}@media print{body{padding:0}}</style></head><body><h1>桂演纸质票</h1><p>订单号：" + esc(orderId) + "</p><table><thead><tr><th>票码</th><th>状态</th><th>打印时间</th></tr></thead><tbody>" + rows + "</tbody></table><p style=\"font-size:12px;color:#5d5344\">纸质票由浏览器打印出票；本系统不连接实体打印机。</p></body></html>");
+    w.document.write("<!doctype html><html lang=\"zh\"><head><meta charset=\"utf-8\"><title>桂演纸质票</title><style>body{font-family:\"Noto Sans SC\",sans-serif;color:#232323;padding:24px}h1{font-size:20px}table{border-collapse:collapse;width:100%;margin-top:12px}th,td{border:1px solid #999;padding:6px 8px;text-align:left;font-size:14px}@media print{body{padding:0}}</style></head><body><h1>桂演纸质票</h1><p>订单号：" + esc(orderId) + "</p><table><thead><tr><th>票码</th><th>状态</th><th>打印时间</th></tr></thead><tbody>" + rows + "</tbody></table><p style=\"font-size:12px;color:#686868\">纸质票由浏览器打印出票；本系统不连接实体打印机。</p></body></html>");
     w.document.close();
     w.focus();
     w.print();
@@ -4042,7 +4042,7 @@ export default function AdminDashboard() {
                       <tr key={c.id}>
                         <td className="num">{c.id}</td><td>{c.resource_name || ""}</td><td>{c.user_name || ""}</td>
                         <td className="num">{"★".repeat(c.rating)}{"☆".repeat(5 - c.rating)}</td>
-                        <td>{c.content}{c.reply ? (<div style={{ fontSize: 12.5, color: "var(--ink2)" }}>回复：{c.reply}</div>) : null}</td>
+                        <td>{c.content}{c.reply ? (<div style={{ fontSize: 12.5, color: "var(--p-muted)" }}>回复：{c.reply}</div>) : null}</td>
                         <td>{c.status === "approved" ? "已通过" : c.status === "pending" ? "待审核" : c.status === "rejected" ? "已拒绝" : (c.status || "")}</td>
                         <td>
                           {c.status === "pending" ? (
