@@ -17,11 +17,11 @@
 // may have recorded their own events today, so no test ever asserts
 // a whole-day total.
 //
-// i18n key counts (H5 372, miniprogram 181) are asserted by
+// i18n key counts (H5 384, miniprogram 193) are asserted by
 // tests/r4-tickets.test.mjs, tests/r2-pickup.test.mjs and
 // tests/p3bugs.test.mjs — this file adds NO customer-visible string
 // (the admin view labels are hardcoded Chinese; the H5/mini sends
-// are silent), so the counts stay 372/181.
+// are silent), so the counts stay 384/193.
 import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";

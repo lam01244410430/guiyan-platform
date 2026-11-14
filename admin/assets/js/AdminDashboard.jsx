@@ -81,6 +81,7 @@ const VIEWS = [
   { id: "tagrules", label: "标签规则", iconName: "ui:tags", group: "main" },
   { id: "aicopy", label: "文案生成", iconName: "ui:pen", group: "main" },
   { id: "resources", label: "资源", iconName: "ui:layers", group: "main" },
+  { id: "licenses", label: "版权登记", iconName: "ui:scroll-text", group: "main" },
   { id: "shows", label: "演出", iconName: "ui:ticket", group: "main" },
   { id: "venues", label: "场馆", iconName: "ui:map-pin", group: "main" },
   { id: "tiers", label: "会员等级", iconName: "ui:crown", group: "main" },
@@ -393,6 +394,13 @@ export default function AdminDashboard() {
   const [smsTasks, setSmsTasks] = useState([]);
   const [smsTaskForm, setSmsTaskForm] = useState(null);
   const [smsTaskBusyId, setSmsTaskBusyId] = useState(null);
+  // R6-1 版权登记: the licence list (public endpoint; writes are
+  // shop-scoped by the resource's shop) + the open create draft +
+  // the in-flight flag. Admin labels stay hardcoded Chinese
+  // (admin rule: no i18n).
+  const [licenses, setLicenses] = useState([]);
+  const [licForm, setLicForm] = useState(null);
+  const [licBusy, setLicBusy] = useState(false);
   // R3-6 stored value 文惠卡: the plan list (already shop-scoped by
   // the server) + the open create/edit draft + the id of the plan in
   // flight + the subsidy-grant form + the per-user account lookup.
@@ -764,6 +772,11 @@ export default function AdminDashboard() {
     if (view === "financeledger") loadFinanceLedger();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [view, ledgerKind, ledgerReconciled]);
+  // R6-1 版权登记: load the licence list when the view opens.
+  useEffect(() => {
+    if (view === "licenses") loadLicenses();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [view]);
   useEffect(() => {
     if (!biFullscreen) return;
     function onKey(e) { if (e.key === "Escape") setBiFullscreen(false); }
@@ -1593,6 +1606,71 @@ export default function AdminDashboard() {
       else toast((e && e.data && e.data.error) || "保存失败，请检查表单");
     }).finally(function () { setSmsTaskBusyId(null); });
   }
+  function loadLicenses() {
+    apiGet("/api/licenses").then(function (d) {
+      setLicenses(d.licenses || []);
+    }).catch(loadFail);
+  }
+  function openLicForm() {
+    setLicForm({
+      resource_id: "", licensor: "", licensee: "", kind: "buy",
+      price_yuan: "", status: "pending", start_at: "", end_at: "",
+      copyright_holder: "", license_type: "", ip_region: "",
+    });
+  }
+  function editLicForm(key, value) {
+    setLicForm(function (f) { return f ? { ...f, [key]: value } : f; });
+  }
+  function saveLicForm() {
+    if (!licForm || licBusy) return;
+    if (!licForm.resource_id) { toast("请选择资源"); return; }
+    if (!licForm.licensor.trim()) { toast("请填写授权方"); return; }
+    if (!licForm.licensee.trim()) { toast("请填写被授权方"); return; }
+    const priceYuan = Number(licForm.price_yuan);
+    if (!Number.isFinite(priceYuan) || priceYuan < 0) { toast("请填写授权价格（元）"); return; }
+    const body = {
+      resource_id: Number(licForm.resource_id),
+      licensor: licForm.licensor.trim(),
+      licensee: licForm.licensee.trim(),
+      kind: licForm.kind,
+      price_cents: Math.round(priceYuan * 100),
+      status: licForm.status,
+    };
+    if (licForm.start_at) body.start_at = licForm.start_at;
+    if (licForm.end_at) body.end_at = licForm.end_at;
+    setLicBusy(true);
+    apiPost("/api/admin/licenses", body).then(function (d) {
+      // Copyright facts (if any) ride on the resource meta through
+      // the existing resource PATCH — merged, never overwriting the
+      // resource's other meta keys.
+      const metaPatch = {};
+      if (licForm.copyright_holder.trim()) metaPatch.copyright_holder = licForm.copyright_holder.trim();
+      if (licForm.license_type.trim()) metaPatch.license_type = licForm.license_type.trim();
+      if (licForm.ip_region.trim()) metaPatch.ip_region = licForm.ip_region.trim();
+      const done = function () {
+        setLicenses(function (rs) { return [d.license].concat(rs); });
+        setLicForm(null);
+        loadAudit();
+        toast("已登记版权");
+      };
+      if (Object.keys(metaPatch).length === 0) { done(); return; }
+      const res = resources.find(function (r) { return r.id === body.resource_id; });
+      const merged = { ...(res && res.meta ? res.meta : {}), ...metaPatch };
+      apiPatch("/api/admin/resources/" + body.resource_id, { meta: merged }).then(function (u) {
+        setResources(function (rs) { return rs.map(function (x) { return x.id === u.resource.id ? u.resource : x; }); });
+        done();
+      }).catch(function (e) {
+        // The licence is already registered; a meta failure must not
+        // hide that — report it and still show the new licence.
+        toast("版权已登记，但版权信息保存失败：" + ((e && e.data && e.data.error) || "请重试"));
+        done();
+      });
+    }).catch(function (e) {
+      if (e && e.status === 403) toast("只能管理本店铺的版权");
+      else if (e && e.status === 404) toast("资源不存在");
+      else toast((e && e.data && e.data.error) || "保存失败，请检查表单");
+    }).finally(function () { setLicBusy(false); });
+  }
   function loadTemplates(venueId) {
     apiGet("/api/venues/" + venueId + "/seat-templates").then(function (d) {
       setTemplatesByVenue(function (m) { return { ...m, [venueId]: d.seat_templates || [] }; });
@@ -2246,6 +2324,7 @@ export default function AdminDashboard() {
     tagrules: ["标签规则", "自动标签规则 · 保存后立即重算"],
     aicopy: ["文案生成", "本地模板 · 未接入大模型"],
     resources: ["资源总览", "共 " + resources.length + " 项"],
+    licenses: ["版权登记", "共 " + licenses.length + " 条授权 · 按店铺管理"],
     shows: ["演出管理", "共 " + shows.length + " 场演出 · 通过审核后可售票"],
     venues: ["场馆管理", "共 " + venues.length + " 个场馆 · 座位模板决定是否可选座"],
     shops: ["店铺管理", "共 " + shops.length + " 家店铺 · 仅平台管理员可创建/修改"],
@@ -3456,6 +3535,62 @@ export default function AdminDashboard() {
                       </tr>
                     ))
                     : <tr><td colSpan="7"><div className="empty">暂无短信任务</div></td></tr>}
+                </tbody>
+              </table>
+            </div>
+          </section>
+
+          <section className={"view" + (view === "licenses" ? " on" : "")} id="view-licenses">
+            <div className="search-row">
+              <button type="button" className="btn-export" onClick={() => openLicForm()}>登记版权</button>
+            </div>
+            <div className="note">版权授权登记：选一个资源，填授权方、被授权方、方向与价格；版权方、授权类型与 IP 地区是资源的事实字段，随登记一起写入资源详情，不编造持有人。跨店铺的资源不能登记。</div>
+            {licForm ? (
+              <fieldset className="tag-rule">
+                <legend>登记版权</legend>
+                <label>资源 <select value={licForm.resource_id} onChange={(e) => editLicForm("resource_id", e.target.value)}>
+                  <option value="">请选择资源</option>
+                  {resources.map((r) => (<option key={r.id} value={String(r.id)}>{r.name}（{catZh(r.category)}）</option>))}
+                </select></label>
+                <label>授权方 <input type="text" value={licForm.licensor} maxLength={100} placeholder="例如：广西演艺集团" onChange={(e) => editLicForm("licensor", e.target.value)} /></label>
+                <label>被授权方 <input type="text" value={licForm.licensee} maxLength={100} placeholder="例如：南宁大剧院" onChange={(e) => editLicForm("licensee", e.target.value)} /></label>
+                <label>授权方向 <select value={licForm.kind} onChange={(e) => editLicForm("kind", e.target.value)}>
+                  <option value="buy">买入</option>
+                  <option value="sell">卖出</option>
+                </select></label>
+                <label>授权价格（元） <input type="number" min="0" step="1" value={licForm.price_yuan} placeholder="例如：8000" onChange={(e) => editLicForm("price_yuan", e.target.value)} /></label>
+                <label>授权状态 <select value={licForm.status} onChange={(e) => editLicForm("status", e.target.value)}>
+                  <option value="pending">待生效</option>
+                  <option value="active">生效中</option>
+                  <option value="expired">已过期</option>
+                </select></label>
+                <label>开始日期 <input type="date" value={licForm.start_at} onChange={(e) => editLicForm("start_at", e.target.value)} /></label>
+                <label>结束日期 <input type="date" value={licForm.end_at} onChange={(e) => editLicForm("end_at", e.target.value)} /></label>
+                <label>版权方（资源详情） <input type="text" value={licForm.copyright_holder} maxLength={100} placeholder="选填：与授权方一致时可填" onChange={(e) => editLicForm("copyright_holder", e.target.value)} /></label>
+                <label>授权类型（资源详情） <input type="text" value={licForm.license_type} maxLength={100} placeholder="选填：例如商业授权" onChange={(e) => editLicForm("license_type", e.target.value)} /></label>
+                <label>IP 地区（资源详情） <input type="text" value={licForm.ip_region} maxLength={100} placeholder="选填：例如广西" onChange={(e) => editLicForm("ip_region", e.target.value)} /></label>
+                <div>
+                  <button type="button" className="btn-export" disabled={licBusy} onClick={saveLicForm}>{licBusy ? "保存中…" : "保存"}</button>{" "}
+                  <button type="button" className="btn-resolve" onClick={() => setLicForm(null)}>取消</button>
+                </div>
+              </fieldset>
+            ) : null}
+            <div className="tbl-wrap">
+              <table>
+                <thead><tr><th scope="col">ID</th><th scope="col">资源</th><th scope="col">授权方 → 被授权方</th><th scope="col">方向</th><th scope="col" className="num">价格</th><th scope="col">状态</th><th scope="col">起止日期</th></tr></thead>
+                <tbody id="licensesBody">
+                  {licenses.length
+                    ? licenses.map((l) => (
+                      <tr key={l.id}>
+                        <td>{l.id}</td><td>{l.resource_name}</td>
+                        <td>{l.licensor} → {l.licensee}</td>
+                        <td>{l.kind === "buy" ? "买入" : "卖出"}</td>
+                        <td className="num">{fmtMoney(l.price_cents)}</td>
+                        <td>{l.status === "pending" ? "待生效" : l.status === "active" ? "生效中" : "已过期"}</td>
+                        <td>{[l.start_at, l.end_at].filter(Boolean).join(" ~ ") || "—"}</td>
+                      </tr>
+                    ))
+                    : <tr><td colSpan="7"><div className="empty">暂无版权登记</div></td></tr>}
                 </tbody>
               </table>
             </div>

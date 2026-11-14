@@ -471,7 +471,9 @@ export async function openPostgresStore(
             // R5-5: alert_rules + finance_ledger join them too (the
             // rule create + every ledger write needs its id the
             // same way — the R3-5 lesson).
-            /^\s*INSERT\s+INTO\s+(users|resources|orders|demands|comments|messages|events|audit_logs|shops|shows|performances|ticket_types|pickup_points|ticket_templates|venues|seat_templates|seats|member_tiers|coupons|flash_sales|coupon_rules|coupon_gifts|sms_tasks|stored_value_accounts|stored_value_ledger|stored_value_plans|tickets|verify_logs|print_logs|event_aggregates|analysis_snapshots|alert_rules|finance_ledger)\b/i.test(
+            // R6-1: licenses joins them too (the licence create
+            // needs its id the same way — the R3-5 lesson).
+            /^\s*INSERT\s+INTO\s+(users|resources|orders|demands|comments|messages|events|audit_logs|shops|shows|performances|ticket_types|pickup_points|ticket_templates|venues|seat_templates|seats|member_tiers|coupons|flash_sales|coupon_rules|coupon_gifts|sms_tasks|stored_value_accounts|stored_value_ledger|stored_value_plans|tickets|verify_logs|print_logs|event_aggregates|analysis_snapshots|alert_rules|finance_ledger|licenses)\b/i.test(
               sql,
             );
           const result = await execute(

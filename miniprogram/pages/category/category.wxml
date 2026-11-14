@@ -19,6 +19,31 @@
     <view class="picker">{{L.sortLabel}}：{{sortNames[sortIdx]}} <text class="arrow">▾</text></view>
   </picker>
   </view>
+  <block wx:if="{{catSel==='copyright'||catSel==='show-license'}}">
+    <view class="filterrow">
+    <picker mode="selector" range="{{licKindNames}}" value="{{licKindIdx}}" bindchange="onLicKind">
+      <view class="picker">{{L.licKind}}：{{licKindNames[licKindIdx]}} <text class="arrow">▾</text></view>
+    </picker>
+    <picker mode="selector" range="{{licStatusNames}}" value="{{licStatusIdx}}" bindchange="onLicStatus">
+      <view class="picker">{{L.licStatus}}：{{licStatusNames[licStatusIdx]}} <text class="arrow">▾</text></view>
+    </picker>
+    </view>
+    <view class="sec-title serif">{{L.licLibrary}}</view>
+    <block wx:if="{{licenses.length===0}}">
+      <view class="empty">{{L.emptyRes}}</view>
+    </block>
+    <block wx:for="{{licenses}}" wx:key="id">
+      <view class="rescard">
+        <view class="name serif">{{item.name}}</view>
+        <view class="meta"><text class="tag">{{item.kind}}</text><text class="tag gold">{{item.status}}</text></view>
+        <view class="desc">{{item.licensor}} → {{item.licensee}}</view>
+        <view class="foot">
+          <view class="price">{{item.price}}</view>
+          <view class="views">{{item.dates}}</view>
+        </view>
+      </view>
+    </block>
+  </block>
   <view class="note">{{resultLine}}</view>
   <block wx:if="{{list.length===0}}">
     <view class="empty">{{L.emptyRes}}</view>

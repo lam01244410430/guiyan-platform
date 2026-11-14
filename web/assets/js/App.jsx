@@ -131,6 +131,9 @@ export default function App() {
   const [seats, setSeats] = useState(null); /* R2-5: seats of the selected performance (null = not loaded); empty = no seats generated */
   const [seatSel, setSeatSel] = useState([]); /* R2-5: selected seat ids within seats */
   const [avail, setAvail] = useState(null); /* Wave 4 #12: {mode, available, capacity, dates} for the open detail + bkDate, null when unknown/offline */
+  const [licKind, setLicKind] = useState("all"); /* R6-1: 版权库 kind filter (all/buy/sell) */
+  const [licStatus, setLicStatus] = useState("all"); /* R6-1: 版权库 status filter (all/pending/active/expired) */
+  const [licenses, setLicenses] = useState([]); /* R6-1: public licence rows for the open 版权库 category, [] = none loaded */
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [toastMsg, setToastMsg] = useState("");
   const [chatMsgs, setChatMsgs] = useState([]);
@@ -223,6 +226,26 @@ export default function App() {
       .catch(function () { if (alive) setAvail(null); });
     return function () { alive = false; };
   }, [detailIdx, bkDate]);
+
+  /* R6-1 版权库: when the catalog category is copyright/show-license,
+     load the public licence list (kind/status filter server-side, the
+     category filters client-side — GET /api/licenses has no category
+     parameter). Fire-and-forget like the availability fetch: a failed
+     fetch just leaves the panel empty (offline fallback keeps the local
+     behaviour, no error is ever shown). */
+  useEffect(() => {
+    if (store.cat !== "copyright" && store.cat !== "show-license") { if (licenses.length) setLicenses([]); return; }
+    if (!isApiAvailable()) { setLicenses([]); return; }
+    let alive = true;
+    let qs = "";
+    if (licKind !== "all") qs += (qs ? "&" : "?") + "kind=" + licKind;
+    if (licStatus !== "all") qs += (qs ? "&" : "?") + "status=" + licStatus;
+    apiGet("/api/licenses" + qs)
+      .then(function (d) { if (alive) setLicenses((d.licenses || []).filter(function (l) { return l.resource_category === store.cat; })); })
+      .catch(function () { if (alive) setLicenses([]); });
+    return function () { alive = false; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [store.cat, licKind, licStatus]);
 
   /* R1-3: per-shop storefront theme (?shop=, default 1). Fire-and-
      forget like the availability fetch: a failed fetch just keeps the
@@ -738,6 +761,41 @@ export default function App() {
               </select>
             )}
           </div>
+          {(store.cat === "copyright" || store.cat === "show-license") && (
+            <div className="lic-panel">
+              <h3>{t("licLibrary")}</h3>
+              <div className="filters">
+                <label>{t("licKind")}
+                  <select value={licKind} onChange={(e) => setLicKind(e.target.value)}>
+                    <option value="all">{t("allChip")}</option>
+                    <option value="buy">{t("licBuy")}</option>
+                    <option value="sell">{t("licSell")}</option>
+                  </select>
+                </label>
+                <label>{t("licStatus")}
+                  <select value={licStatus} onChange={(e) => setLicStatus(e.target.value)}>
+                    <option value="all">{t("allChip")}</option>
+                    <option value="pending">{t("licPending")}</option>
+                    <option value="active">{t("licActive")}</option>
+                    <option value="expired">{t("licExpired")}</option>
+                  </select>
+                </label>
+              </div>
+              {licenses.length ? (
+                <div className="lic-list">
+                  {licenses.map((l) => (
+                    <div key={l.id} className="lic-row">
+                      <b>{l.resource_name}</b>
+                      <span>{l.licensor} → {l.licensee}</span>
+                      <span>{l.kind === "buy" ? t("licBuy") : t("licSell")} · {l.status === "pending" ? t("licPending") : l.status === "active" ? t("licActive") : t("licExpired")}</span>
+                      <span>{money(l.price_cents / 100)}</span>
+                      <span>{[l.start_at, l.end_at].filter(Boolean).join(" ~ ")}</span>
+                    </div>
+                  ))}
+                </div>
+              ) : (<div className="empty">{t("emptyRes")}</div>)}
+            </div>
+          )}
           <p className="resultline" id="resultLine">
             {fmt(t("results"), { a: show.length, b: list.length })}{store.pref ? fmt(t("prefSuffix"), { c: catName(store.pref) }) : ""}
           </p>
@@ -791,7 +849,7 @@ export default function App() {
               <p>{t("spotText")}</p>
               <div className="spec">
                 <div><b id="spotCities">7</b><span>{t("spotS1")}</span></div>
-                <div><b>10</b><span>{t("spotS2")}</span></div>
+                <div><b>{CATS.length}</b><span>{t("spotS2")}</span></div>
                 <div><b>9</b><span>{t("spotS3")}</span></div>
               </div>
               <button className="btn red" type="button" data-goto-cat="tourism" onClick={() => gotoCat("tourism")}>{t("spotBtn")}</button>
@@ -976,6 +1034,14 @@ export default function App() {
                     {metaEntries.map(([k, v]) => (
                       <div key={k} className="row"><span className="k">{t(META_LABELS[k])}</span><span className="v">{metaValue(k, v)}</span></div>
                     ))}
+                  </div>
+                )}
+                {detailMeta && (detailMeta.copyright_holder || detailMeta.license_type || detailMeta.ip_region) && (
+                  <div className="metalist">
+                    <h4>{t("licInfo")}</h4>
+                    {detailMeta.copyright_holder ? (<div className="row"><span className="k">{t("licHolder")}</span><span className="v">{detailMeta.copyright_holder}</span></div>) : null}
+                    {detailMeta.license_type ? (<div className="row"><span className="k">{t("licType")}</span><span className="v">{detailMeta.license_type}</span></div>) : null}
+                    {detailMeta.ip_region ? (<div className="row"><span className="k">{t("licRegion")}</span><span className="v">{detailMeta.ip_region}</span></div>) : null}
                   </div>
                 )}
                 {cur[1] === "equipment" && <EquipmentPreview />}

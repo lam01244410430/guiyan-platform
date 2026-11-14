@@ -157,11 +157,12 @@ test("health reports postgres mode", async () => {
   assert.equal(r.json.database, "postgres");
 });
 
-test("categories list the 10 resource types", async () => {
+test("categories list the 11 resource types", async () => {
   const r = await req("/api/categories");
   assert.equal(r.status, 200);
-  assert.equal(r.json.categories.length, 10);
+  assert.equal(r.json.categories.length, 11);
   assert.ok(r.json.categories.some((c) => c.id === "show"));
+  assert.ok(r.json.categories.some((c) => c.id === "show-license"));
 });
 
 test("resource list has exactly the 62 seeded resources", async () => {

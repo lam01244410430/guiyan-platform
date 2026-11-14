@@ -197,7 +197,10 @@ function toLocalResource(apiR, local) {
     image: apiR.image, capacity: apiR.capacity, status: apiR.status,
     // R2-4: linked venue ({id, name, address} or null).
     venue: apiR.venue || null,
-    tags: apiR.tags || []
+    tags: apiR.tags || [],
+    // R6-1: copyright facts (copyright_holder / license_type /
+    // ip_region) ride along so the detail page can show them.
+    meta: apiR.meta || {}
   };
 }
 

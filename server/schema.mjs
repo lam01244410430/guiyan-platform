@@ -45,6 +45,7 @@ CREATE TABLE IF NOT EXISTS users(id INTEGER PRIMARY KEY, username TEXT UNIQUE NO
     CREATE TABLE IF NOT EXISTS analysis_snapshots(id INTEGER PRIMARY KEY, period TEXT NOT NULL, payload TEXT NOT NULL, created_at TEXT NOT NULL, UNIQUE(period));
     CREATE TABLE IF NOT EXISTS alert_rules(id INTEGER PRIMARY KEY, shop_id INTEGER REFERENCES shops(id), kind TEXT NOT NULL, config TEXT NOT NULL DEFAULT '{}', status TEXT NOT NULL DEFAULT 'active', created_at TEXT NOT NULL);
     CREATE TABLE IF NOT EXISTS finance_ledger(id INTEGER PRIMARY KEY, shop_id INTEGER REFERENCES shops(id), kind TEXT NOT NULL, amount_cents INTEGER NOT NULL, order_id INTEGER REFERENCES orders(id), note TEXT NOT NULL DEFAULT '', reconciled INTEGER NOT NULL DEFAULT 0, created_at TEXT NOT NULL);
+    CREATE TABLE IF NOT EXISTS licenses(id INTEGER PRIMARY KEY, resource_id INTEGER REFERENCES resources(id), licensor TEXT NOT NULL, licensee TEXT NOT NULL, kind TEXT NOT NULL, price_cents INTEGER NOT NULL, status TEXT DEFAULT 'pending', start_at TEXT, end_at TEXT, created_at TEXT NOT NULL);
     CREATE INDEX IF NOT EXISTS idx_order_resource_date ON orders(resource_id,booking_date,status);
     CREATE INDEX IF NOT EXISTS idx_order_user ON orders(user_id);
     CREATE INDEX IF NOT EXISTS idx_comments_resource ON comments(resource_id,status);

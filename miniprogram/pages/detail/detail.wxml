@@ -38,6 +38,17 @@
     </view>
   </block>
 
+  <!-- R6-1: copyright facts from resources.meta (fact fields only —
+       never invented; the block hides when none are set). -->
+  <block wx:if="{{licRows.length}}">
+    <view class="card">
+      <view class="sec-title serif" style="font-size:32rpx">{{L.licInfo}}</view>
+      <block wx:for="{{licRows}}" wx:key="k">
+        <view class="note">{{item.k}}：{{item.v}}</view>
+      </block>
+    </view>
+  </block>
+
   <!-- R2-1: on-sale performances of the resource's approved shows.
        R2-2: tap a performance, then a ticket type — the total and the
        order follow the tier price. -->

@@ -8,7 +8,10 @@ Page({
     L: {}, langIdx: 1, langName: 'Tiếng Việt', langs: ['中文', 'Tiếng Việt', 'English'],
     kw: '', catSel: 'all', citySel: 'all', sortSel: 'hot',
     cityNames: [], cityIds: [], sortNames: [], sortIds: ['hot', 'asc', 'desc', 'name'],
-    list: [], resultLine: ''
+    list: [], resultLine: '',
+    licKindSel: 'all', licStatusSel: 'all',
+    licKindIds: ['all', 'buy', 'sell'], licStatusIds: ['all', 'pending', 'active', 'expired'],
+    licKindNames: [], licStatusNames: [], licKindIdx: 0, licStatusIdx: 0, licenses: []
   },
   onLoad: function () { this.applyLang(); },
   onShow: function () {
@@ -34,7 +37,9 @@ Page({
     var lang = i18n.getLang();
     var keys = ['brandTag', 'searchPh', 'searchBtn', 'allChip', 'allCities',
       'sortLabel', 'cityLabel', 'sortHot', 'sortAsc', 'sortDesc', 'sortName',
-      'results', 'emptyRes', 'viewsUnit', 'favAdd', 'favRemove', 'catTitle'];
+      'results', 'emptyRes', 'viewsUnit', 'favAdd', 'favRemove', 'catTitle',
+      'licLibrary', 'licKind', 'licBuy', 'licSell', 'licStatus', 'licPending',
+      'licActive', 'licExpired', 'licHolder', 'licType', 'licRegion', 'licInfo'];
     var L = {};
     keys.forEach(function (k) { L[k] = i18n.t(k, lang); });
     wx.setNavigationBarTitle({ title: L.catTitle });
@@ -48,6 +53,8 @@ Page({
       langName: i18n.LANGS[i18n.langIndex()].label, cats: cats,
       cityIds: cityIds, cityNames: cityNames,
       sortNames: [L.sortHot, L.sortAsc, L.sortDesc, L.sortName],
+      licKindNames: [L.allChip, L.licBuy, L.licSell],
+      licStatusNames: [L.allChip, L.licPending, L.licActive, L.licExpired],
       cityIdx: cityIds.indexOf(this.data.citySel),
       sortIdx: this.data.sortIds.indexOf(this.data.sortSel) });
     this.refresh();
@@ -87,6 +94,7 @@ Page({
     var view = this.buildView();
     this.setData({ list: view, resultLine: this.resultLineFor(view.length) });
     this.refreshOnline();
+    this.refreshLicenses();
   },
   // Online: GET /api/resources with the same filters, merge by name, then
   // re-render from the merged catalog. Silent fallback on any failure.
@@ -108,6 +116,40 @@ Page({
         self.setData({ list: view, resultLine: self.resultLineFor(view.length) });
       }, function () { self._loadingOnline = false; });
     }, function () { self._loadingOnline = false; });
+  },
+  // R6-1: the copyright library (GET /api/licenses, public) shows
+  // only when the category is copyright/show-license; kind/status
+  // filter server-side, the category filters client-side (the
+  // endpoint has no category parameter). Offline the list stays
+  // empty — no error is ever shown.
+  refreshLicenses: function () {
+    var self = this;
+    var cat = this.data.catSel;
+    if (cat !== 'copyright' && cat !== 'show-license') { if (this.data.licenses.length) this.setData({ licenses: [] }); return; }
+    if (!api.getBase()) { this.setData({ licenses: [] }); return; }
+    var params = {};
+    if (this.data.licKindSel && this.data.licKindSel !== 'all') params.kind = this.data.licKindSel;
+    if (this.data.licStatusSel && this.data.licStatusSel !== 'all') params.status = this.data.licStatusSel;
+    api.get('/api/licenses', params, false).then(function (d) {
+      var rows = (d.licenses || []).filter(function (l) { return l.resource_category === cat; });
+      self.setData({ licenses: rows.map(function (l) {
+        return { id: l.id, name: l.resource_name, licensor: l.licensor, licensee: l.licensee,
+          kind: i18n.t(l.kind === 'buy' ? 'licBuy' : 'licSell'),
+          status: i18n.t(l.status === 'pending' ? 'licPending' : l.status === 'active' ? 'licActive' : 'licExpired'),
+          price: data.money(l.price_cents / 100),
+          dates: (l.start_at || '') + (l.end_at ? ' ~ ' + l.end_at : '') };
+      }) });
+    }, function () { self.setData({ licenses: [] }); });
+  },
+  onLicKind: function (e) {
+    var id = this.data.licKindIds[e.detail.value];
+    this.setData({ licKindSel: id, licKindIdx: e.detail.value });
+    this.refreshLicenses();
+  },
+  onLicStatus: function (e) {
+    var id = this.data.licStatusIds[e.detail.value];
+    this.setData({ licStatusSel: id, licStatusIdx: e.detail.value });
+    this.refreshLicenses();
   },
   onKw: function (e) { this.setData({ kw: e.detail.value }); this.refresh(); },
   onCat: function (e) { this.setData({ catSel: e.currentTarget.dataset.cat }); this.refresh(); },

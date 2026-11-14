@@ -63,6 +63,7 @@ import { recordEvent, aggregateEvents, listEventAggregates } from "./routes/even
 import { listMemberInsights, getMemberInsightRules, patchMemberInsightRules } from "./routes/member-insights.mjs";
 import { getBi, exportBi } from "./routes/bi.mjs";
 import { listAlertRules, createAlertRule, patchAlertRule, listFinanceLedger, reconcileFinanceLedger, getResourceStats } from "./routes/alerts-ledger.mjs";
+import { createAdminLicense, listLicenses } from "./routes/licenses.mjs";
 
 // A stored-value CSV export (?format=csv on the own-account or the
 // admin endpoint) audits "导出储值流水" — one INSERT — so it needs a
@@ -336,6 +337,8 @@ export async function createApp({ database }) {
       if (await listFinanceLedger(ctx)) return;
       if (await reconcileFinanceLedger(ctx)) return;
       if (await getResourceStats(ctx)) return;
+      if (await createAdminLicense(ctx)) return;
+      if (await listLicenses(ctx)) return;
 
       send({ error: "接口不存在" }, 404);
     } catch (e) {

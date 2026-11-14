@@ -84,11 +84,19 @@ Page({
       'pickupTitle', 'pickupEmpty', 'pickupPick',
       'venueTitle', 'seatPick', 'seatSelected',
       'couponCode', 'couponCodePh', 'couponSaved',
-      'flashSale', 'flashSaleLeft', 'flashSaleSaved'];
+      'flashSale', 'flashSaleLeft', 'flashSaleSaved',
+      'licInfo', 'licHolder', 'licType', 'licRegion'];
     var L = {};
     keys.forEach(function (k) { L[k] = i18n.t(k, lang); });
     var r = api.resourceByIdx(this.data.idx) || data.RES[0];
     wx.setNavigationBarTitle({ title: r.name });
+    // R6-1: copyright facts from resources.meta (fact fields only,
+    // never invented — the block hides when none are set).
+    var licMeta = (r && r.meta) || {};
+    var licRows = [];
+    if (licMeta.copyright_holder) licRows.push({ k: L.licHolder, v: licMeta.copyright_holder });
+    if (licMeta.license_type) licRows.push({ k: L.licType, v: licMeta.license_type });
+    if (licMeta.ip_region) licRows.push({ k: L.licRegion, v: licMeta.ip_region });
     this.setData({ L: L, lang: lang, langIdx: i18n.langIndex(),
       langName: i18n.LANGS[i18n.langIndex()].label,
       res: { name: r.name, cat: data.catName(r.cat, lang),
@@ -97,7 +105,7 @@ Page({
         desc: data.descOf(r, lang) },
       total: data.money(r.price * this.data.qty),
       fav: store.isFav(this.data.idx),
-      flowSteps: L.flow });
+      flowSteps: L.flow, licRows: licRows });
     // R2-2: a language switch re-renders the tier left/sold-out text
     // (baked per language in refreshTierText), and the total follows
     // the selected tier price.

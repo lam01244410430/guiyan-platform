@@ -21,6 +21,7 @@ export const categories = [
   ["digital", "数字演出"],
   ["tourism", "文旅套餐"],
   ["service", "配套服务"],
+  ["show-license", "剧目授权"],
 ].map(([id, name]) => ({ id, name }));
 export function hashPassword(password, salt = randomBytes(16).toString("hex")) {
   return `${salt}:${scryptSync(password, salt, 32).toString("hex")}`;

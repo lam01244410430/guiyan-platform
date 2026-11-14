@@ -10,9 +10,9 @@
 #   docker compose -p guiyan-p8-smoke up -d --build
 #   ./scripts/smoke-docker.sh [project]   # default project: guiyan-p8-smoke
 #
-# The script checks the 3 containers are healthy, runs the 53 checks in the
+# The script checks the 3 containers are healthy, runs the 54 checks in the
 # plan Appendix A against the stack, prints PASS/FAIL per check and exits
-# non-zero if any check fails. Check 54 tears the stack down (down -v) and
+# non-zero if any check fails. Check 56 tears the stack down (down -v) and
 # verifies no project containers/volumes remain. All curl calls are direct
 # (no background processes left behind). Target is a disposable stack with a
 # fresh DB — never run it against the live Vercel/Neon deployment.
@@ -108,9 +108,9 @@ if [ "$CODE" = "200" ]; then ok "3 GET /api/resources?sort=hot 200"; else bad "3
 CODE="$(get "/api/resources/$RID")"
 if [ "$CODE" = "200" ]; then ok "4 GET /api/resources/$RID 200"; else bad "4 GET /api/resources/$RID (code=$CODE)"; fi
 
-# 5. categories — 10
+# 5. categories — 11 (R6-1: show-license joins the 10)
 CODE="$(get /api/categories)"
-if [ "$CODE" = "200" ] && [ "$(jlen "['categories']")" = "10" ]; then ok "5 GET /api/categories 200, 10 categories"; else bad "5 GET /api/categories (code=$CODE, count=$(jlen "['categories']"))"; fi
+if [ "$CODE" = "200" ] && [ "$(jlen "['categories']")" = "11" ]; then ok "5 GET /api/categories 200, 11 categories"; else bad "5 GET /api/categories (code=$CODE, count=$(jlen "['categories']"))"; fi
 
 # 6. assistant (rule fallback or ai — never 5xx)
 CODE="$(get "/api/assistant?q=hi")"
@@ -360,11 +360,16 @@ if [ "$CODE" = "200" ] && has '"ok":true' && has '"period":"day"'; then ok "53 P
 CODE="$(get "/api/admin/finance-ledger" "$ADMIN_TOKEN")"
 if [ "$CODE" = "200" ] && has '"ledger"'; then ok "54 GET /api/admin/finance-ledger as admin 200, ledger list"; else bad "54 GET /api/admin/finance-ledger as admin (code=$CODE, body=$(cat "$TMP/body"))"; fi
 
-# 55. teardown — down -v, then 0 project containers and 0 project volumes.
+# 55. licenses — 200, empty list on a fresh DB (R6-1; the public
+# library has no registrations yet, so the count IS asserted)
+CODE="$(get /api/licenses)"
+if [ "$CODE" = "200" ] && [ "$(jlen "['licenses']")" = "0" ]; then ok "55 GET /api/licenses 200, empty list"; else bad "55 GET /api/licenses (code=$CODE, licenses=$(jlen "['licenses']"))"; fi
+
+# 56. teardown — down -v, then 0 project containers and 0 project volumes.
 docker compose -p "$PROJECT" down -v >/dev/null 2>&1
 LEFT_C="$(docker ps --format '{{.Names}}' | grep -c "$PROJECT" || true)"
 LEFT_V="$(docker volume ls --format '{{.Name}}' | grep -c "^${PROJECT}_" || true)"
-if [ "$LEFT_C" = "0" ] && [ "$LEFT_V" = "0" ]; then ok "55 down -v: 0 project containers, 0 project volumes"; else bad "55 down -v (containers left=$LEFT_C, volumes left=$LEFT_V)"; fi
+if [ "$LEFT_C" = "0" ] && [ "$LEFT_V" = "0" ]; then ok "56 down -v: 0 project containers, 0 project volumes"; else bad "56 down -v (containers left=$LEFT_C, volumes left=$LEFT_V)"; fi
 
-echo "== smoke-docker: PASS $PASS / FAIL $FAIL (54 checks) =="
+echo "== smoke-docker: PASS $PASS / FAIL $FAIL (55 checks) =="
 [ "$FAIL" = "0" ]

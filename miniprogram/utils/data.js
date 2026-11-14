@@ -14,7 +14,8 @@ var CATS = [
   { id: "creative", zh: "文创衍生", vi: "Văn sáng & quà tặng", en: "Creative goods" },
   { id: "digital", zh: "数字演出", vi: "Diễn số & nhập vai", en: "Digital shows" },
   { id: "tourism", zh: "文旅套餐", vi: "Gói văn–du", en: "Travel packages" },
-  { id: "service", zh: "配套服务", vi: "Dịch vụ hỗ trợ", en: "Services" }
+  { id: "service", zh: "配套服务", vi: "Dịch vụ hỗ trợ", en: "Services" },
+  { id: "show-license", zh: "剧目授权", vi: "Ủy quyền kịch mục", en: "Show licensing" }
 ];
 
 var CITYN = {
