@@ -46,6 +46,8 @@ CREATE TABLE IF NOT EXISTS users(id INTEGER PRIMARY KEY, username TEXT UNIQUE NO
     CREATE TABLE IF NOT EXISTS alert_rules(id INTEGER PRIMARY KEY, shop_id INTEGER REFERENCES shops(id), kind TEXT NOT NULL, config TEXT NOT NULL DEFAULT '{}', status TEXT NOT NULL DEFAULT 'active', created_at TEXT NOT NULL);
     CREATE TABLE IF NOT EXISTS finance_ledger(id INTEGER PRIMARY KEY, shop_id INTEGER REFERENCES shops(id), kind TEXT NOT NULL, amount_cents INTEGER NOT NULL, order_id INTEGER REFERENCES orders(id), note TEXT NOT NULL DEFAULT '', reconciled INTEGER NOT NULL DEFAULT 0, created_at TEXT NOT NULL);
     CREATE TABLE IF NOT EXISTS licenses(id INTEGER PRIMARY KEY, resource_id INTEGER REFERENCES resources(id), licensor TEXT NOT NULL, licensee TEXT NOT NULL, kind TEXT NOT NULL, price_cents INTEGER NOT NULL, status TEXT DEFAULT 'pending', start_at TEXT, end_at TEXT, created_at TEXT NOT NULL);
+    CREATE TABLE IF NOT EXISTS kg_nodes(id INTEGER PRIMARY KEY, kind TEXT NOT NULL, ref_id INTEGER, name TEXT NOT NULL, meta TEXT NOT NULL DEFAULT '{}', source TEXT NOT NULL DEFAULT '', created_at TEXT NOT NULL);
+    CREATE TABLE IF NOT EXISTS kg_edges(id INTEGER PRIMARY KEY, from_id INTEGER NOT NULL REFERENCES kg_nodes(id), to_id INTEGER NOT NULL REFERENCES kg_nodes(id), relation TEXT NOT NULL, source TEXT NOT NULL DEFAULT '', created_at TEXT NOT NULL, UNIQUE(from_id, to_id, relation));
     CREATE INDEX IF NOT EXISTS idx_order_resource_date ON orders(resource_id,booking_date,status);
     CREATE INDEX IF NOT EXISTS idx_order_user ON orders(user_id);
     CREATE INDEX IF NOT EXISTS idx_comments_resource ON comments(resource_id,status);

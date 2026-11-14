@@ -226,6 +226,7 @@ export default function App() {
   const [licenses, setLicenses] = useState([]); /* R6-1: public licence rows for the open 版权库 category, [] = none loaded */
 
   const [comments, setComments] = useState([]); /* R6-5: approved comments (+ the caller's own pending/rejected) for the open detail */
+  const [kgRelated, setKgRelated] = useState([]); /* R7-3: knowledge-graph neighbours for the open detail ([] = none) */
   const [cmtRating, setCmtRating] = useState(5); /* R6-5: rating picked in the comment form */
   const [cmtText, setCmtText] = useState(""); /* R6-5: comment text being typed */
   const [cmtBusy, setCmtBusy] = useState(false); /* R6-5: comment submit in flight */
@@ -354,6 +355,26 @@ export default function App() {
     apiGet("/api/resources/" + rid + "/comments")
       .then(function (d) { if (alive) setComments((d && d.comments) || []); })
       .catch(function () { if (alive) setComments([]); });
+    return function () { alive = false; };
+  }, [detailIdx]);
+
+  useEffect(() => {
+    const rid = APIRES[detailIdx] && APIRES[detailIdx].id;
+    let alive = true;
+    return function () { alive = false; };
+  }, [detailIdx]);
+
+  /* R7-3: knowledge-graph neighbours for the open detail (related
+     recommendations, each with its kind label; [] when the graph has
+     nothing for this show). Same best-effort pattern as the itinerary. */
+  useEffect(() => {
+    if (detailIdx == null) { setKgRelated([]); return; }
+    const rid = APIRES[detailIdx] && APIRES[detailIdx].id;
+    if (rid == null) { setKgRelated([]); return; }
+    let alive = true;
+    apiGet("/api/kg/related/" + rid)
+      .then(function (d) { if (alive) setKgRelated((d && d.related) || []); })
+      .catch(function () { if (alive) setKgRelated([]); });
     return function () { alive = false; };
   }, [detailIdx]);
 
@@ -1436,6 +1457,18 @@ export default function App() {
                     </div>
                   ) : null}
                 </div>
+                  <div className="metalist">
+                  </div>
+                ) : null}
+                {/* R7-3: knowledge-graph neighbours — related
+                    recommendations with their kind label (a genre node
+                    carries no label; the name is the genre). */}
+                {kgRelated.length ? (
+                  <div className="metalist">
+                    <h4>{t("kgRelated")}</h4>
+                    <div style={{ fontSize: 13.5 }}>{kgRelated.map((n) => n.name + (n.kind === "genre" ? "" : "（" + catName(n.kind === "ip" ? "copyright" : n.kind) + "）")).join("、")}</div>
+                  </div>
+                ) : null}
               </div>
             </>
           )}

@@ -184,6 +184,19 @@
     </block>
   </block>
 
+    <view class="card">
+    </view>
+  </block>
+
+  <!-- R7-3: knowledge-graph neighbours — related recommendations with
+       their kind label; hidden when the graph has nothing for this show. -->
+  <block wx:if="{{kgText}}">
+    <view class="card">
+      <view class="sec-title serif" style="font-size:32rpx">{{L.kgRelated}}</view>
+      <view class="note">{{kgText}}</view>
+    </view>
+  </block>
+
   <!-- R6-5: comments — only approved rows are public; the author
        additionally sees their own pending/rejected rows (server-side).
        New comments start pending. -->

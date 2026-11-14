@@ -245,6 +245,7 @@ var STR = {
     msgTypeResourceUpdate: "资源更新",
     msgTypeCommentReply: "评论回复",
     msgTypeOrderStatus: "订单状态",
+    kgRelated: "相关推荐",
   },
   vi: {
     brandTag: "Nền tảng diễn nghệ Quảng Tây",
@@ -488,6 +489,7 @@ var STR = {
     msgTypeResourceUpdate: "Cập nhật tài nguyên",
     msgTypeCommentReply: "Phản hồi bình luận",
     msgTypeOrderStatus: "Trạng thái đơn hàng",
+    kgRelated: "Gợi ý liên quan",
   },
   en: {
     brandTag: "Guangxi Performing Arts",
@@ -731,6 +733,7 @@ var STR = {
     msgTypeResourceUpdate: "Resource updates",
     msgTypeCommentReply: "Comment replies",
     msgTypeOrderStatus: "Order status",
+    kgRelated: "Related recommendations",
   }
 };
 

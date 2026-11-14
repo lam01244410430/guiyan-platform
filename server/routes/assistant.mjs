@@ -2,6 +2,7 @@ import { assert } from "../lib/http.mjs";
 import { CACHE_KEYS, CACHE_TTLS } from "../lib/cache.mjs";
 import { ORDER_STATUS_ZH } from "../lib/status-labels.mjs";
 import { buildAnalysis } from "./admin-insights.mjs";
+import { graphAnswer } from "../lib/kg.mjs";
 
 // Canonical Chinese assistant copy — the same wording as the web prototype
 // (web/index.html I18N zh: ansRefund/ansResched/ansHeritage/ansBook/
@@ -173,6 +174,12 @@ export async function answerRules(ctx, q) {
     // orders" — ask the user to log in first (kind stays myOrders).
     return { kind: "myOrders", answer: "请先登录，再查询你的订单。" };
   }
+  // R7-3: knowledge graph before the rule fallback — a question
+  // naming a show and asking about its performers / other shows /
+  // venue is answered from the graph with its sources; anything the
+  // graph cannot answer falls through to the generic branches below.
+  const kg = await graphAnswer(ctx, q);
+  if (kg) return kg;
   if (/退款|退票|refund|hoàn/.test(s)) {
     kind = "refund";
     answer = ANSWERS.refund;

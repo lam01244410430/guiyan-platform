@@ -13,7 +13,7 @@
 // server (yuan -> cents), bad values -> 400; (7) ?region= is a city
 // alias, conflict -> 400; (8) ?min_rating= uses the approved-only
 // rating; (9) matchesSearch client filters agree with the server rules.
-// i18n key counts (H5 427, miniprogram 241) are asserted here too:
+// i18n key counts (H5 428, miniprogram 242) are asserted here too:
 // 6 new match keys on both sides (372 + 6 = 378, 181 + 11 = 192 — the
 // mini side also gains the 5 price/rating filter-bar keys).
 import { test, before, after } from "node:test";
@@ -228,7 +228,7 @@ test("r6-4 search: rating floor uses the approved-only rating", async () => {
   assert.equal(zero.data.resources.length, all.data.resources.length);
 });
 
-test("r6-4 search.js: client filters agree with the server rules; i18n 427/241", async () => {
+test("r6-4 search.js: client filters agree with the server rules; i18n 428/242", async () => {
   const res = (name, price, rating, reviewCount, city) => ({
     name, description: "民歌", city, category: "演出剧目", tags: [],
     price, rating, reviewCount,
@@ -253,12 +253,12 @@ test("r6-4 search.js: client filters agree with the server rules; i18n 427/241",
   assert.equal(matchesSearch(inRange, "民歌", { minPrice: 100, maxPrice: 300 }), true);
   assert.equal(matchesSearch(inRange, "民歌", { minPrice: 300 }), false);
 
-  // i18n: H5 427 keys/language, miniprogram 241, equal sets per side.
+  // i18n: H5 428 keys/language, miniprogram 242, equal sets per side.
   const data = await import(
     path.resolve(repoDir, "web", "assets", "js", "data.js")
   );
   const counts = data.LANGS.map((l) => Object.keys(data.I18N[l]).length);
-  assert.deepEqual(counts, [427, 427, 427]);
+  assert.deepEqual(counts, [428, 428, 428]);
   for (const k of ["matchReasonCity", "matchReasonCat", "matchReasonBudget", "matchNoteServer", "matchRejected", "matchLoading"])
     for (const l of data.LANGS)
       assert.ok(k in data.I18N[l], `${k} missing in H5 ${l}`);
@@ -273,7 +273,7 @@ test("r6-4 search.js: client filters agree with the server rules; i18n 427/241",
     const end = text.indexOf("\n  }", start);
     const block = text.slice(start, end);
     blocks[lang] = [...block.matchAll(/^    ([A-Za-z0-9_]+):/gm)].map((m) => m[1]);
-    assert.equal(blocks[lang].length, 241, `miniprogram ${lang} key count`);
+    assert.equal(blocks[lang].length, 242, `miniprogram ${lang} key count`);
   }
   assert.deepEqual([...blocks.zh].sort(), [...blocks.vi].sort());
   assert.deepEqual([...blocks.zh].sort(), [...blocks.en].sort());

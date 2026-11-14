@@ -396,6 +396,161 @@ export async function openPostgresStore(
           ]);
         }
       }
+      // R7-3 knowledge-graph seed (2026-11-14): 26 nodes + 7 edges,
+      // hand-derived from the seeded resources only — Lam decision (c).
+      // Nodes: 6 shows + 5 artists + 6 venues + 6 ip (resources by
+      // category; the demo seed has 2 copyrights, the catalog 4) +
+      // 1 genre (民族歌舞 — the only meta.genre value anywhere) +
+      // 2 teams (八桂青年歌舞团 / 壮乡艺术团 from seed meta.team).
+      // Edges: belongs_to (show -> genre, seed meta.genre);
+      // performs (team -> show, seed meta.team); related_to between
+      // shows sharing a genre (刘三姐 <-> 壮乡情）; held_at — the ONE
+      // verified link, reused from R7-6 (刘三姐 staged at 广西文化艺术
+      // 中心， 南宁市良庆区龙堤路25号， verified public address);
+      // related_to show -> IP (刘三姐主题IP授权 is the same-IP
+      // derivative of 刘三姐 by name). NOT in the graph: the generic
+      // catalog team 八桂文化合作团队 (a placeholder shared by all 40
+      // catalog resources, not an artist identity); no city
+      // co-location edges; no other held_at edge (no public source
+      // attributes any other show to a venue — checked 2026-11-14:
+      // real 刘三姐 productions are different works, so no 广西戏剧院 /
+      // 广西歌舞剧院 link). Runs on every setup; existence checks make
+      // a re-run a no-op, so an admin's later graph edit is never
+      // overwritten (the UNIQUE triple on kg_edges is the backstop).
+      {
+        const now = new Date().toISOString();
+        const metaOf = (r) => {
+          try {
+            return JSON.parse(r.meta || "{}") || {};
+          } catch {
+            return {};
+          }
+        };
+        const nodeId = async (kind, refId, name, meta, source) => {
+          const found =
+            refId == null
+              ? await client.query(
+                  "SELECT id FROM kg_nodes WHERE kind=$1 AND ref_id IS NULL AND name=$2",
+                  [kind, name],
+                )
+              : await client.query(
+                  "SELECT id FROM kg_nodes WHERE kind=$1 AND ref_id=$2",
+                  [kind, refId],
+                );
+          if (found.rows.length) return found.rows[0].id;
+          const ins = await client.query(
+            "INSERT INTO kg_nodes(kind,ref_id,name,meta,source,created_at) VALUES($1,$2,$3,$4,$5,$6) RETURNING id",
+            [kind, refId, name, JSON.stringify(meta || {}), source, now],
+          );
+          return ins.rows[0].id;
+        };
+        const edge = async (fromId, toId, relation, source) => {
+          const found = await client.query(
+            "SELECT id FROM kg_edges WHERE from_id=$1 AND to_id=$2 AND relation=$3",
+            [fromId, toId, relation],
+          );
+          if (found.rows.length) return;
+          await client.query(
+            "INSERT INTO kg_edges(from_id,to_id,relation,source,created_at) VALUES($1,$2,$3,$4,$5)",
+            [fromId, toId, relation, source, now],
+          );
+        };
+        const resources = await client.query(
+          "SELECT id, category, name, meta FROM resources WHERE category IN ('show','artist','venue','copyright') ORDER BY id",
+        );
+        const byName = new Map();
+        for (const r of resources.rows) {
+          const kind = r.category === "copyright" ? "ip" : r.category;
+          const id = await nodeId(
+            kind,
+            r.id,
+            r.name,
+            metaOf(r),
+            "seed:resources",
+          );
+          byName.set(r.name, { id, kind, row: r });
+        }
+        const genreIds = new Map();
+        const teamIds = new Map();
+        for (const r of resources.rows) {
+          const meta = metaOf(r);
+          if (meta.genre && !genreIds.has(meta.genre))
+            genreIds.set(
+              meta.genre,
+              await nodeId(
+                "genre",
+                null,
+                meta.genre,
+                {},
+                "seed:resources.meta.genre",
+              ),
+            );
+          // The generic catalog team is a placeholder, not an identity.
+          if (meta.team && meta.team !== "八桂文化合作团队" && !teamIds.has(meta.team))
+            teamIds.set(
+              meta.team,
+              await nodeId(
+                "artist",
+                null,
+                meta.team,
+                {},
+                "seed:resources.meta.team",
+              ),
+            );
+        }
+        for (const r of resources.rows) {
+          if (r.category !== "show") continue;
+          const meta = metaOf(r);
+          const showNode = byName.get(r.name);
+          if (meta.genre && genreIds.has(meta.genre))
+            await edge(
+              showNode.id,
+              genreIds.get(meta.genre),
+              "belongs_to",
+              "seed:resources.meta.genre",
+            );
+          if (meta.team && teamIds.has(meta.team))
+            await edge(
+              teamIds.get(meta.team),
+              showNode.id,
+              "performs",
+              "seed:resources.meta.team",
+            );
+        }
+        const shows = resources.rows.filter((r) => r.category === "show");
+        for (let i = 0; i < shows.length; i++) {
+          for (let j = i + 1; j < shows.length; j++) {
+            const gi = metaOf(shows[i]).genre;
+            const gj = metaOf(shows[j]).genre;
+            if (gi && gi === gj)
+              await edge(
+                byName.get(shows[i].name).id,
+                byName.get(shows[j].name).id,
+                "related_to",
+                "derived: shared genre " + gi,
+              );
+          }
+        }
+        const liu = byName.get("民族歌舞剧《刘三姐》");
+        const centre = byName.get("广西文化艺术中心");
+        if (liu && centre)
+          await edge(
+            liu.id,
+            centre.id,
+            "held_at",
+            "R7-6 verified public address: 南宁市良庆区龙堤路25号",
+          );
+        // The other 5 copyrights (花山岩画主题舞美设计 + 4 catalog)
+        // match no show by name — checked 2026-11-14, no edge for them.
+        const ip = byName.get("刘三姐主题IP授权");
+        if (liu && ip)
+          await edge(
+            liu.id,
+            ip.id,
+            "related_to",
+            "seeded copyright: same-IP derivative by name",
+          );
+      }
       // R4-1 ticket backfill (2026-11-14): paid / completed /
       // disputed / refund_requested orders with zero tickets get
       // `quantity` tickets (seat_id NULL — seeded orders are

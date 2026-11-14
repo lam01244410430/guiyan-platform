@@ -21,7 +21,7 @@
 // remaining -> 400, k = 0 -> 400 (and non-integer -> 400); (9)
 // non-owner -> 403 (anonymous -> 401).
 //
-// i18n key counts (H5 427, miniprogram 241) are asserted by
+// i18n key counts (H5 428, miniprogram 242) are asserted by
 // tests/r4-tickets.test.mjs, tests/r2-pickup.test.mjs and
 // tests/p3bugs.test.mjs — this file asserts the behaviour only.
 // The mini-program quantity picker is H5-only this wave (see
