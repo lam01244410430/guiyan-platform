@@ -313,16 +313,34 @@ test("p3bugs B-039: catBoth shows one name in zh, bilingual in vi/en", async () 
   }
 });
 
-test("p3bugs B-040: admin badge never says 仅查看 · 只读", async () => {
+test("p3bugs B-040: admin header badge is gone (approved redesign Item 3)", async () => {
+  // Admin redesign Item 3 (approved design): the header badge
+  // "管理操作 · 审计留痕" was removed — assert it is ABSENT, not
+  // present (R2-4 precedent: amend the test to the approved design,
+  // do not weaken the criterion). The audit log itself stays in the
+  // 预警中心 view (see tests/admin-redesign-totals.test.mjs).
   const src = fs.readFileSync(
     path.resolve(repoDir, "admin", "assets", "js", "AdminDashboard.jsx"),
+    "utf8",
+  );
+  const header = fs.readFileSync(
+    path.resolve(repoDir, "admin", "assets", "js", "AppHeader.jsx"),
     "utf8",
   );
   assert.ok(!src.includes("仅查看 · 只读"), "badge must not say 仅查看 · 只读");
   assert.ok(!src.includes("canWrite"), "canWrite must be gone");
   assert.ok(
-    src.includes("管理操作 · 审计留痕"),
-    "badge must say 管理操作 · 审计留痕",
+    !src.includes("管理操作 · 审计留痕"),
+    "header badge text must be gone from AdminDashboard.jsx",
+  );
+  assert.ok(
+    !header.includes("管理操作 · 审计留痕"),
+    "header badge text must be gone from AppHeader.jsx",
+  );
+  assert.ok(!src.includes("badge="), "no badge prop may be passed to AppHeader");
+  assert.ok(
+    !header.includes('className="badge"'),
+    "AppHeader must not render a badge element",
   );
 });
 
@@ -353,25 +371,42 @@ test("p3bugs B-041: seatgrid is a real grid with dynamic columns", async () => {
   );
 });
 
-test("p3bugs B-030: admin page subtitle uses filtered counts", async () => {
+test("p3bugs B-030: totals moved from subtitle to table footers (approved redesign Item 3)", async () => {
+  // Admin redesign Item 3 (approved design): totals left the title
+  // subtitle (pageSub) and moved to a footer line under each list
+  // table (R2-4 precedent: amend the test to the approved design,
+  // do not weaken the criterion). The filtered-count literals still
+  // exist in the file — now in the footers, not the subtitle.
   const src = fs.readFileSync(
     path.resolve(repoDir, "admin", "assets", "js", "AdminDashboard.jsx"),
     "utf8",
   );
   const sub = src.match(/id="pageSub">([\s\S]*?)<\/span>/);
   assert.ok(sub, "pageSub render not found");
+  assert.ok(!sub[1].includes("共"), "pageSub must not carry a total");
   assert.ok(
-    sub[1].includes("filteredOrders.length"),
-    "orders subtitle must use filteredOrders.length",
+    !sub[1].includes("filteredOrders.length"),
+    "orders total must not be in the subtitle",
   );
   assert.ok(
-    sub[1].includes("filteredResources.length"),
-    "resources subtitle must use filteredResources.length",
+    !sub[1].includes("filteredResources.length"),
+    "resources total must not be in the subtitle",
   );
   assert.ok(
-    sub[1].includes("filteredDemands.length"),
-    "demands subtitle must use filteredDemands.length",
+    !sub[1].includes("filteredDemands.length"),
+    "demands total must not be in the subtitle",
   );
+  for (const total of [
+    "共 {filteredOrders.length} 单",
+    "共 {filteredUsers.length} 人",
+    "共 {filteredResources.length} 项",
+    "共 {filteredDemands.length} 条",
+  ]) {
+    assert.ok(
+      src.includes(total),
+      "table footer must carry the filtered total: " + total,
+    );
+  }
 });
 
 test("p3bugs P3-1: deposit label says 元, never 分", async () => {

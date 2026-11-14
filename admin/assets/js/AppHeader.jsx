@@ -1,12 +1,13 @@
 /* Guiyan admin header (layout restructure 2026-11-14) — page head only.
-   Split out of AdminDashboard.jsx: breadcrumb + page title + badge +
+   Split out of AdminDashboard.jsx: breadcrumb + page title +
    notification bell + 返回首页 + operator card. The bell reuses the
    alerts + audit state the alerts view already loads (passed in as
    props from AdminDashboard — no fetching here, no new endpoints).
-   The title node (h1 with #pageTitle / #pageSub) and the badge text are
-   passed in from AdminDashboard — the source-grepping tests (B-030 /
-   B-040 in tests/p3bugs.test.mjs) read AdminDashboard.jsx, so those
-   literals must stay there. The bell badge counts UNREAD alerts only
+   The title node (h1 with #pageTitle / #pageSub) is passed in from
+   AdminDashboard — the source-grepping test (B-030 in
+   tests/p3bugs.test.mjs) reads AdminDashboard.jsx. The old header badge
+   text was removed by the approved admin redesign (Item 3); the audit
+   log itself stays in the 预警中心 view. The bell badge counts UNREAD alerts only
    (red = any unread critical, yellow = any unread warning, hidden at
    zero); audit events are listed as activity and never affect the
    badge. Read state is client-side only, per account, in localStorage
@@ -22,7 +23,7 @@ import {
   BELL_AUDIT_LIMIT,
 } from "./bellUtils.js";
 
-export default function AppHeader({ viewLabel, title, badge, whoName, onLogout, drawerOpen, onToggleDrawer, hamburgerRef, alerts, auditLogs, userId, onViewAlerts }) {
+export default function AppHeader({ viewLabel, title, whoName, onLogout, drawerOpen, onToggleDrawer, hamburgerRef, alerts, auditLogs, userId, onViewAlerts }) {
   const [bellOpen, setBellOpen] = useState(false);
   const [readKeys, setReadKeys] = useState(() => loadBellReadKeys(userId));
   const bellRef = useRef(null);
@@ -91,7 +92,6 @@ export default function AppHeader({ viewLabel, title, badge, whoName, onLogout, 
         </nav>
         {title}
       </div>
-      <span className="badge">{badge}</span>
       <div className="bell-wrap" ref={bellRef}>
         <button type="button" className="bell-btn" ref={bellBtnRef}
           aria-label="通知" aria-expanded={bellOpen ? "true" : "false"} aria-haspopup="true"

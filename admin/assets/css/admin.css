@@ -95,7 +95,7 @@ input{font:inherit}
 .sidebar nav button .ic{width:18px;height:18px;flex:none}
 .main{flex:1;margin-left:240px;padding:34px 36px 60px;min-width:0}
 /* App header (layout restructure 2026-11-14): breadcrumb + title +
-   badge + 返回首页 + operator card, one row, never wraps. */
+   返回首页 + operator card, one row, never wraps. */
 .app-header{display:flex;align-items:flex-start;gap:16px;margin-bottom:28px;flex-wrap:nowrap}
 .app-header-main{flex:1 1 auto;min-width:0}
 .crumbs{font-size:12px;font-weight:700;color:var(--p-muted);margin:0 0 4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -103,7 +103,6 @@ input{font:inherit}
 .app-header h1{font-family:var(--font-display);font-size:34px;font-weight:var(--display-weight);line-height:1.15;margin:0;min-width:0;letter-spacing:var(--display-tracking-xl)}
 .app-header h1 #pageTitle{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .app-header h1 .sub{display:block;font-family:var(--font-text);font-size:13.5px;font-weight:600;color:var(--p-muted);margin-top:6px}
-.app-header .badge{align-self:center;flex-shrink:0}
 .app-header .home-link{display:flex;align-items:center;gap:8px;box-sizing:border-box;padding:11px 14px;border:1px solid var(--line2);border-radius:9px;background:var(--p-bg);color:var(--p-ink);font-size:14px;font-weight:600;text-decoration:none;white-space:nowrap;align-self:center;flex-shrink:0}
 .app-header .home-link:hover{background:var(--p-surface)}
 .app-header .home-link .ic{width:18px;height:18px;flex:none}
@@ -147,7 +146,6 @@ input{font:inherit}
 .op-card button:hover{background:var(--p-surface)}
 .app-footer{margin-top:36px;padding:16px 0;border-top:1px solid var(--line);font-size:12px;color:var(--p-muted);text-align:center}
 .login-shell .app-footer{margin-top:0}
-.badge{margin-left:auto;font-size:12px;font-weight:800;padding:5px 12px;border-radius:99px;background:var(--p-surface);color:var(--p-ink);border:1px solid var(--line2);white-space:nowrap;flex-shrink:0}
 .menu-btn{display:none;align-items:center;justify-content:center;flex:none;width:40px;height:40px;border:1px solid var(--line2);border-radius:9px;background:var(--p-bg);color:var(--p-ink)}
 .menu-btn:hover{background:var(--p-surface)}
 .drawer-backdrop{display:none}
@@ -171,6 +169,19 @@ input{font:inherit}
 /* tables */
 .tbl-wrap{overflow-x:auto;border:1px solid var(--line);border-radius:var(--radius-md);background:var(--p-bg)}
 table{width:100%;border-collapse:collapse;font-size:13.5px;min-width:640px}
+/* Admin redesign Item 3: fixed layout on top-level list tables so long
+   names truncate (ellipsis + title tooltip) instead of wrapping rows
+   taller; the action column keeps an explicit width so its buttons
+   never overflow or wrap, and wide text columns keep room to read. */
+.tbl-wrap > table{table-layout:fixed}
+.tbl-wrap > table th.col-actions{width:170px}
+.tbl-wrap > table th.col-actions-wide{width:250px}
+.tbl-wrap > table th.col-actions-xwide{width:320px}
+.tbl-wrap > table th.col-wide{width:260px}
+td.cell-ellipsis{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+span.cell-ellipsis{display:inline-block;vertical-align:middle;max-width:calc(100% - 26px);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.tbl-wrap table table td.cell-ellipsis{max-width:220px}
+.tbl-total{margin-top:10px;font-size:13.5px;color:var(--p-muted)}
 th{text-align:left;font-size:13px;font-weight:700;color:var(--p-muted);padding:12px 14px;border-bottom:1px solid var(--line);white-space:nowrap}
 td{padding:11px 14px;border-bottom:1px solid var(--line);vertical-align:middle}
 td.code,.mono{font-family:var(--font-mono)}
@@ -253,7 +264,6 @@ th .sort-btn:focus-visible{outline:2px solid var(--p-action);outline-offset:1px}
   .stats{grid-template-columns:1fr}
   .stat.hero b{font-size:28px}
   .app-header h1{font-size:28px}
-  .app-header .badge{display:none}
 }
 @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important;scroll-behavior:auto!important}}
 

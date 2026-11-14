@@ -115,7 +115,7 @@ function OrderRow({ o, onContract, onReview, onEscrow, reviewBusyId, onViewAlert
   return (
     <>
       <tr>
-        <td className="code">{o.code}</td><td>{o.user_name || ""}</td><td>{o.resource_name || ""}</td>
+        <td className="code">{o.code}</td><td className="cell-ellipsis" title={o.user_name || ""}>{o.user_name || ""}</td><td className="cell-ellipsis" title={o.resource_name || ""}>{o.resource_name || ""}</td>
         <td className="num">{fmtMoney(o.amount)}</td><td>{o.booking_date || ""}</td>
         <td><span className={"pill " + o.status}>{STATUS[o.status] || o.status}</span>{mark ? (<button type="button" className={"inline-mark " + mark} title={o.status === "disputed" ? "纠纷待处理，点击前往预警中心" : "售后待处理，点击前往预警中心"} aria-label="查看预警中心" onClick={onViewAlerts}>!</button>) : null}</td>
         <td>{o.escrow || ""}</td>
@@ -2461,25 +2461,25 @@ export default function AdminDashboard() {
 
   const titles = {
     overview: ["总览", "运营数据一览"],
-    orders: ["全部订单", "共 " + orders.length + " 单 · 可处理售后"],
-    users: ["全部用户", "共 " + users.length + " 人"],
+    orders: ["全部订单", "可处理售后"],
+    users: ["全部用户", ""],
     account: ["账号", "本人资料 · 改密码（OTP 验证）"],
     tagrules: ["标签规则", "自动标签规则 · 保存后立即重算"],
     aicopy: ["文案生成", "本地模板 · 未接入大模型"],
     ipconfig: ["IP 配置", "文小惠形象配置 · 未设置时聊天保持原样"],
-    resources: ["资源总览", "共 " + resources.length + " 项"],
-    licenses: ["版权登记", "共 " + licenses.length + " 条授权 · 按店铺管理"],
-    shows: ["演出管理", "共 " + shows.length + " 场演出 · 通过审核后可售票"],
-    venues: ["场馆管理", "共 " + venues.length + " 个场馆 · 座位模板决定是否可选座"],
-    tiers: ["会员等级", "共 " + memberTiers.length + " 个等级"],
-    coupons: ["优惠券", "共 " + coupons.length + " 张优惠券"],
-    flashsales: ["限时抢购", "共 " + flashSales.length + " 场抢购"],
-    autorules: ["自动发券", "共 " + couponRules.length + " 条规则"],
-    smstasks: ["短信群发", "共 " + smsTasks.length + " 条短信任务"],
-    storedvalue: ["文惠卡", "共 " + storedValuePlans.length + " 种储值方案"],
-    verify: ["核销", "共 " + verifyHistory.length + " 条核销记录"],
-    shops: ["店铺管理", "共 " + shops.length + " 家店铺 · 仅平台管理员可创建/修改"],
-    demands: ["需求总览", "共 " + demands.length + " 条"],
+    resources: ["资源总览", ""],
+    licenses: ["版权登记", "按店铺管理"],
+    shows: ["演出管理", "通过审核后可售票"],
+    venues: ["场馆管理", "座位模板决定是否可选座"],
+    tiers: ["会员等级", ""],
+    coupons: ["优惠券", ""],
+    flashsales: ["限时抢购", ""],
+    autorules: ["自动发券", ""],
+    smstasks: ["短信群发", ""],
+    storedvalue: ["文惠卡", ""],
+    verify: ["核销", ""],
+    shops: ["店铺管理", "仅平台管理员可创建/修改"],
+    demands: ["需求总览", ""],
     comments: ["评论审核", "待审核评价 · 通过/拒绝/回复"],
     trends: ["趋势统计", "按周期查看订单趋势"],
     analysis: ["经营分析", "模拟经营分析报告"],
@@ -2662,8 +2662,7 @@ export default function AdminDashboard() {
         <main className="main" id="top" tabIndex={-1}>
           <AppHeader
             viewLabel={titles[view][0]}
-            title={<h1><span id="pageTitle">{titles[view][0]}</span><span className="sub" id="pageSub">{view === "users" ? "共 " + filteredUsers.length + " 人" : view === "orders" ? "共 " + filteredOrders.length + " 单 · 可处理售后" : view === "resources" ? "共 " + filteredResources.length + " 项" : view === "demands" ? "共 " + filteredDemands.length + " 条" : titles[view][1]}</span></h1>}
-            badge="管理操作 · 审计留痕"
+            title={<h1><span id="pageTitle">{titles[view][0]}</span><span className="sub" id="pageSub">{titles[view][1]}</span></h1>}
             whoName={whoName}
             alerts={alerts}
             auditLogs={auditLogs}
@@ -2711,7 +2710,7 @@ export default function AdminDashboard() {
               </div>
               <div className="tbl-wrap">
                 <table>
-                  <thead><tr><th scope="col" aria-sort={ariaSort("overview", "code")}>订单号<SortButton label="订单号" sortKey="code" tableId="overview" sort={sorts.overview} onToggle={toggleSort} /></th><th scope="col">用户</th><th scope="col">资源</th><th scope="col" className="num" aria-sort={ariaSort("overview", "amount")}>金额<SortButton label="金额" sortKey="amount" tableId="overview" sort={sorts.overview} onToggle={toggleSort} /></th><th scope="col" aria-sort={ariaSort("overview", "booking_date")}>预订日期<SortButton label="预订日期" sortKey="booking_date" tableId="overview" sort={sorts.overview} onToggle={toggleSort} /></th><th scope="col">状态</th><th scope="col">托管</th><th scope="col">协议</th><th scope="col">售后</th></tr></thead>
+                  <thead><tr><th scope="col" aria-sort={ariaSort("overview", "code")}>订单号<SortButton label="订单号" sortKey="code" tableId="overview" sort={sorts.overview} onToggle={toggleSort} /></th><th scope="col">用户</th><th scope="col">资源</th><th scope="col" className="num" aria-sort={ariaSort("overview", "amount")}>金额<SortButton label="金额" sortKey="amount" tableId="overview" sort={sorts.overview} onToggle={toggleSort} /></th><th scope="col" aria-sort={ariaSort("overview", "booking_date")}>预订日期<SortButton label="预订日期" sortKey="booking_date" tableId="overview" sort={sorts.overview} onToggle={toggleSort} /></th><th scope="col">状态</th><th scope="col">托管</th><th scope="col">协议</th><th scope="col" className="col-actions">售后</th></tr></thead>
                   <tbody id="recentBody">
                     {orders.length
                       ? (overviewMatches.length ? sortedOverview.slice(0, 8).map((o) => <OrderRow key={o.code} o={o} onContract={openContract} onReview={doReviewOrder} onEscrow={doEscrowOrder} reviewBusyId={reviewBusyId} />)
@@ -2720,6 +2719,7 @@ export default function AdminDashboard() {
                   </tbody>
                 </table>
               </div>
+              <div className="tbl-total">共 {overviewMatches.length} 单</div>
             </div>
           </section>
 
@@ -2739,13 +2739,14 @@ export default function AdminDashboard() {
             </div>
             <div className="tbl-wrap">
               <table>
-                <thead><tr><th scope="col" aria-sort={ariaSort("orders", "code")}>订单号<SortButton label="订单号" sortKey="code" tableId="orders" sort={sorts.orders} onToggle={toggleSort} /></th><th scope="col">用户</th><th scope="col">资源</th><th scope="col" className="num" aria-sort={ariaSort("orders", "amount")}>金额<SortButton label="金额" sortKey="amount" tableId="orders" sort={sorts.orders} onToggle={toggleSort} /></th><th scope="col" aria-sort={ariaSort("orders", "booking_date")}>预订日期<SortButton label="预订日期" sortKey="booking_date" tableId="orders" sort={sorts.orders} onToggle={toggleSort} /></th><th scope="col">状态</th><th scope="col">托管</th><th scope="col">协议</th><th scope="col">售后</th></tr></thead>
+                <thead><tr><th scope="col" aria-sort={ariaSort("orders", "code")}>订单号<SortButton label="订单号" sortKey="code" tableId="orders" sort={sorts.orders} onToggle={toggleSort} /></th><th scope="col">用户</th><th scope="col">资源</th><th scope="col" className="num" aria-sort={ariaSort("orders", "amount")}>金额<SortButton label="金额" sortKey="amount" tableId="orders" sort={sorts.orders} onToggle={toggleSort} /></th><th scope="col" aria-sort={ariaSort("orders", "booking_date")}>预订日期<SortButton label="预订日期" sortKey="booking_date" tableId="orders" sort={sorts.orders} onToggle={toggleSort} /></th><th scope="col">状态</th><th scope="col">托管</th><th scope="col">协议</th><th scope="col" className="col-actions">售后</th></tr></thead>
                 <tbody id="ordersBody">
                   {filteredOrders.length ? sortedOrders.map((o) => <OrderRow key={o.code} o={o} onContract={openContract} onReview={doReviewOrder} onEscrow={doEscrowOrder} reviewBusyId={reviewBusyId} onViewAlerts={() => changeView("alerts")} />)
                     : (q ? searchEmpty(9) : <tr><td colSpan="9"><div className="empty">暂无订单</div></td></tr>)}
                 </tbody>
               </table>
             </div>
+            <div className="tbl-total">共 {filteredOrders.length} 单</div>
           </section>
 
           <section className={"view" + (view === "users" ? " on" : "")} id="view-users">
@@ -2759,12 +2760,12 @@ export default function AdminDashboard() {
             </div>
             <div className="tbl-wrap">
               <table>
-                <thead><tr><th scope="col" aria-sort={ariaSort("users", "id")}>ID<SortButton label="ID" sortKey="id" tableId="users" sort={sorts.users} onToggle={toggleSort} /></th><th scope="col" aria-sort={ariaSort("users", "name")}>姓名<SortButton label="姓名" sortKey="name" tableId="users" sort={sorts.users} onToggle={toggleSort} /></th><th scope="col" aria-sort={ariaSort("users", "username")}>账号<SortButton label="账号" sortKey="username" tableId="users" sort={sorts.users} onToggle={toggleSort} /></th><th scope="col">角色</th><th scope="col">城市</th><th scope="col">渠道</th><th scope="col">认证</th><th scope="col">标签</th><th scope="col">状态</th><th scope="col">操作</th></tr></thead>
+                <thead><tr><th scope="col" aria-sort={ariaSort("users", "id")}>ID<SortButton label="ID" sortKey="id" tableId="users" sort={sorts.users} onToggle={toggleSort} /></th><th scope="col" aria-sort={ariaSort("users", "name")}>姓名<SortButton label="姓名" sortKey="name" tableId="users" sort={sorts.users} onToggle={toggleSort} /></th><th scope="col" aria-sort={ariaSort("users", "username")}>账号<SortButton label="账号" sortKey="username" tableId="users" sort={sorts.users} onToggle={toggleSort} /></th><th scope="col">角色</th><th scope="col">城市</th><th scope="col">渠道</th><th scope="col">认证</th><th scope="col">标签</th><th scope="col">状态</th><th scope="col" className="col-actions">操作</th></tr></thead>
                 <tbody id="usersBody">
                   {users.length
                     ? (filteredUsers.length ? sortedUsers.map((usr) => (
                       <tr key={usr.username}>
-                        <td className="id">{usr.id}</td><td>{usr.name || ""}</td><td>{usr.username}</td><td>{usr.role}</td>
+                        <td className="id">{usr.id}</td><td className="cell-ellipsis" title={usr.name || ""}>{usr.name || ""}</td><td>{usr.username}</td><td>{usr.role}</td>
                         <td>{usr.city || ""}</td><td>{usr.channel || ""}</td><td>{usr.verified ? "已认证" : "未认证"}</td>
                         <td>{(usr.tags || []).map((tg) => (<span key={tg} className="pill tag">{tg}</span>))}</td>
                         <td>{usr.status === "disabled" ? "停用" : "启用"}</td>
@@ -2781,6 +2782,7 @@ export default function AdminDashboard() {
                 </tbody>
               </table>
             </div>
+            <div className="tbl-total">共 {filteredUsers.length} 人</div>
           </section>
 
           <section className={"view" + (view === "account" ? " on" : "")} id="view-account">
@@ -2900,13 +2902,13 @@ export default function AdminDashboard() {
             ) : null}
             <div className="tbl-wrap">
               <table>
-                <thead><tr><th scope="col" aria-sort={ariaSort("resources", "name")}>名称<SortButton label="名称" sortKey="name" tableId="resources" sort={sorts.resources} onToggle={toggleSort} /></th><th scope="col">分类</th><th scope="col">城市</th><th scope="col">店铺</th><th scope="col" className="num" aria-sort={ariaSort("resources", "price")}>价格<SortButton label="价格" sortKey="price" tableId="resources" sort={sorts.resources} onToggle={toggleSort} /></th><th scope="col" className="num" aria-sort={ariaSort("resources", "stock")}>库存<SortButton label="库存" sortKey="stock" tableId="resources" sort={sorts.resources} onToggle={toggleSort} /></th><th scope="col">状态</th><th scope="col">统计</th><th scope="col">操作</th></tr></thead>
+                <thead><tr><th scope="col" aria-sort={ariaSort("resources", "name")}>名称<SortButton label="名称" sortKey="name" tableId="resources" sort={sorts.resources} onToggle={toggleSort} /></th><th scope="col">分类</th><th scope="col">城市</th><th scope="col">店铺</th><th scope="col" className="num" aria-sort={ariaSort("resources", "price")}>价格<SortButton label="价格" sortKey="price" tableId="resources" sort={sorts.resources} onToggle={toggleSort} /></th><th scope="col" className="num" aria-sort={ariaSort("resources", "stock")}>库存<SortButton label="库存" sortKey="stock" tableId="resources" sort={sorts.resources} onToggle={toggleSort} /></th><th scope="col">状态</th><th scope="col">统计</th><th scope="col" className="col-actions-wide">操作</th></tr></thead>
                 <tbody id="resBody">
                   {resources.length
                     ? (filteredResources.length ? sortedResources.map((r) => (
                       <Fragment key={r.id}>
                         <tr>
-                          <td>{r.name}{resourceMarkLevel(r, lowStockIds, threshold) ? (<button type="button" className={"inline-mark " + resourceMarkLevel(r, lowStockIds, threshold)} title="库存不足，点击前往预警中心" aria-label="查看预警中心" onClick={() => changeView("alerts")}>!</button>) : null}</td><td>{catZh(r.category)}</td><td>{r.city}</td><td>{shopName(r.shop_id)}</td>
+                          <td><span className="cell-ellipsis" title={r.name}>{r.name}</span>{resourceMarkLevel(r, lowStockIds, threshold) ? (<button type="button" className={"inline-mark " + resourceMarkLevel(r, lowStockIds, threshold)} title="库存不足，点击前往预警中心" aria-label="查看预警中心" onClick={() => changeView("alerts")}>!</button>) : null}</td><td>{catZh(r.category)}</td><td>{r.city}</td><td>{shopName(r.shop_id)}</td>
                           <td className="num">{fmtMoney(r.price)}</td><td className="num">{r.stock}</td>
                           <td>{r.status === "published" ? "上架" : "下架"}</td>
                           <td>
@@ -2948,6 +2950,7 @@ export default function AdminDashboard() {
                 </tbody>
               </table>
             </div>
+            <div className="tbl-total">共 {filteredResources.length} 项</div>
           </section>
 
           <section className={"view" + (view === "shops" ? " on" : "")} id="view-shops">
@@ -3033,11 +3036,11 @@ export default function AdminDashboard() {
             ) : null}
             <div className="tbl-wrap">
               <table>
-                <thead><tr><th scope="col">模板名称</th><th scope="col">店铺</th><th scope="col">颜色</th><th scope="col">默认</th><th scope="col">操作</th></tr></thead>
+                <thead><tr><th scope="col">模板名称</th><th scope="col">店铺</th><th scope="col">颜色</th><th scope="col">默认</th><th scope="col" className="col-actions">操作</th></tr></thead>
                 <tbody>
                   {templates.length ? templates.map((t) => (
                     <tr key={t.id}>
-                      <td>{t.name}</td><td>{shopName(t.shop_id)}</td>
+                      <td className="cell-ellipsis" title={t.name}>{t.name}</td><td>{shopName(t.shop_id)}</td>
                       <td><i style={{ display: "inline-block", width: 12, height: 12, background: t.color, borderRadius: 2, marginRight: 6, verticalAlign: "-1px" }} />{t.color}</td>
                       <td>{t.is_default ? "默认" : "—"}</td>
                       <td>
@@ -3050,15 +3053,16 @@ export default function AdminDashboard() {
                 </tbody>
               </table>
             </div>
+            <div className="tbl-total">共 {templates.length} 个模板</div>
             <div style={{ marginTop: 8 }}><button type="button" className="btn-export" onClick={() => openTemplateForm(null)}>添加票面模板</button></div>
             <div className="tbl-wrap">
               <table>
-                <thead><tr><th scope="col" aria-sort={ariaSort("shops", "name")}>名称<SortButton label="名称" sortKey="name" tableId="shops" sort={sorts.shops} onToggle={toggleSort} /></th><th scope="col">上级</th><th scope="col">店主</th><th scope="col" className="num" aria-sort={ariaSort("shops", "resource_count")}>资源数<SortButton label="资源数" sortKey="resource_count" tableId="shops" sort={sorts.shops} onToggle={toggleSort} /></th><th scope="col">状态</th><th scope="col">操作</th></tr></thead>
+                <thead><tr><th scope="col" aria-sort={ariaSort("shops", "name")}>名称<SortButton label="名称" sortKey="name" tableId="shops" sort={sorts.shops} onToggle={toggleSort} /></th><th scope="col">上级</th><th scope="col">店主</th><th scope="col" className="num" aria-sort={ariaSort("shops", "resource_count")}>资源数<SortButton label="资源数" sortKey="resource_count" tableId="shops" sort={sorts.shops} onToggle={toggleSort} /></th><th scope="col">状态</th><th scope="col" className="col-actions-wide">操作</th></tr></thead>
                 <tbody id="shopsBody">
                   {shops.length
                     ? (filteredShops.length ? sortedShops.map((s) => (
                       <tr key={s.id}>
-                        <td>{s.name}</td><td>{s.parent_id === null ? "—" : shopName(s.parent_id)}</td><td>{s.owner_name || "未指派"}</td>
+                        <td className="cell-ellipsis" title={s.name}>{s.name}</td><td>{s.parent_id === null ? "—" : shopName(s.parent_id)}</td><td>{s.owner_name || "未指派"}</td>
                         <td className="num">{s.resource_count}</td><td>{s.status === "active" ? "启用" : "停用"}</td>
                         <td>
                           {(isPlatformAdmin || (me && me.shop_id === s.id)) ? (
@@ -3081,6 +3085,7 @@ export default function AdminDashboard() {
                 </tbody>
               </table>
             </div>
+            <div className="tbl-total">共 {filteredShops.length} 家店铺</div>
           </section>
 
           <section className={"view" + (view === "shows" ? " on" : "")} id="view-shows">
@@ -3120,13 +3125,13 @@ export default function AdminDashboard() {
             ) : null}
             <div className="tbl-wrap">
               <table>
-                <thead><tr><th scope="col">ID</th><th scope="col" aria-sort={ariaSort("shows", "title")}>名称<SortButton label="名称" sortKey="title" tableId="shows" sort={sorts.shows} onToggle={toggleSort} /></th><th scope="col">资源</th><th scope="col">店铺</th><th scope="col">状态</th><th scope="col">场次</th><th scope="col">操作</th></tr></thead>
+                <thead><tr><th scope="col">ID</th><th scope="col" aria-sort={ariaSort("shows", "title")}>名称<SortButton label="名称" sortKey="title" tableId="shows" sort={sorts.shows} onToggle={toggleSort} /></th><th scope="col">资源</th><th scope="col">店铺</th><th scope="col">状态</th><th scope="col">场次</th><th scope="col" className="col-actions-xwide">操作</th></tr></thead>
                 <tbody id="showsBody">
                   {shows.length
                     ? (filteredShows.length ? sortedShows.map((s) => (
                       <Fragment key={s.id}>
                         <tr>
-                          <td>{s.id}</td><td>{s.title}</td><td>{resourceName(s.resource_id)}</td>
+                          <td>{s.id}</td><td className="cell-ellipsis" title={s.title}>{s.title}</td><td className="cell-ellipsis" title={resourceName(s.resource_id)}>{resourceName(s.resource_id)}</td>
                           <td>{shopName(s.shop_id)}</td><td>{DEMAND_STATUS[s.status] || s.status}</td>
                           <td className="num">{(s.performances || []).length}</td>
                           <td>
@@ -3175,7 +3180,7 @@ export default function AdminDashboard() {
                                                 <tbody>
                                                   {(tiersByPerf[pf.id] || []).map((tt) => (
                                                     <tr key={tt.id}>
-                                                      <td>{tt.name}</td><td className="num">{fmtMoney(tt.price_cents)}</td>
+                                                      <td className="cell-ellipsis" title={tt.name}>{tt.name}</td><td className="num">{fmtMoney(tt.price_cents)}</td>
                                                       <td className="num">{tt.quota}</td><td>{tt.sale_until || "—"}</td>
                                                       <td>
                                                         <span className="row-actions">
@@ -3230,7 +3235,7 @@ export default function AdminDashboard() {
                                   <tbody>
                                     {(pickupByShow[s.id] || []).map((pt) => (
                                       <tr key={pt.id}>
-                                        <td>{pt.name}</td><td>{pt.address}</td>
+                                        <td className="cell-ellipsis" title={pt.name}>{pt.name}</td><td className="cell-ellipsis" title={pt.address}>{pt.address}</td>
                                         <td>
                                           <span className="row-actions">
                                             <button type="button" className="btn-reject" disabled={pickupBusyId === pt.id} onClick={() => deletePickupPoint(pt)}>{pickupBusyId === pt.id ? "处理中…" : "删除"}</button>
@@ -3261,6 +3266,7 @@ export default function AdminDashboard() {
                 </tbody>
               </table>
             </div>
+            <div className="tbl-total">共 {filteredShows.length} 场演出</div>
             <p className="def-note">审核结果在操作审计中留痕；仅已通过演出的在售场次对顾客可见。</p>
           </section>
 
@@ -3303,13 +3309,13 @@ export default function AdminDashboard() {
             ) : null}
             <div className="tbl-wrap">
               <table>
-                <thead><tr><th scope="col">名称</th><th scope="col">地址</th><th scope="col">店铺</th><th scope="col" className="num">容量</th><th scope="col">座位模板</th><th scope="col">操作</th></tr></thead>
+                <thead><tr><th scope="col">名称</th><th scope="col">地址</th><th scope="col">店铺</th><th scope="col" className="num">容量</th><th scope="col">座位模板</th><th scope="col" className="col-actions-wide">操作</th></tr></thead>
                 <tbody id="venuesBody">
                   {venues.length
                     ? (filteredVenueList.length ? filteredVenueList.map((v) => (
                       <Fragment key={v.id}>
                         <tr>
-                          <td>{v.name}</td><td>{v.address || "—"}</td><td>{shopName(v.shop_id)}</td>
+                          <td className="cell-ellipsis" title={v.name}>{v.name}</td><td className="cell-ellipsis" title={v.address || "—"}>{v.address || "—"}</td><td>{shopName(v.shop_id)}</td>
                           <td className="num">{v.capacity}</td>
                           <td>{v.has_seats ? "已配置" : "未配置座位模板"}</td>
                           <td>
@@ -3329,8 +3335,8 @@ export default function AdminDashboard() {
                                   <tbody>
                                     {(templatesByVenue[v.id] || []).map((tpl) => (
                                       <tr key={tpl.id}>
-                                        <td>{tpl.name}</td>
-                                        <td>{(tpl.zones || []).map((z) => z.name + " " + z.rows + "×" + z.cols).join("；")}</td>
+                                        <td className="cell-ellipsis" title={tpl.name}>{tpl.name}</td>
+                                        <td className="cell-ellipsis" title={(tpl.zones || []).map((z) => z.name + " " + z.rows + "×" + z.cols).join("；")}>{(tpl.zones || []).map((z) => z.name + " " + z.rows + "×" + z.cols).join("；")}</td>
                                         <td>
                                           <span className="row-actions">
                                             <button type="button" className="btn-view" onClick={() => openTplForm(v, tpl)}>编辑</button>
@@ -3373,6 +3379,7 @@ export default function AdminDashboard() {
                 </tbody>
               </table>
             </div>
+            <div className="tbl-total">共 {filteredVenueList.length} 个场馆</div>
           </section>
 
           <section className={"view" + (view === "tiers" ? " on" : "")} id="view-tiers">
@@ -3400,15 +3407,15 @@ export default function AdminDashboard() {
             ) : null}
             <div className="tbl-wrap">
               <table>
-                <thead><tr><th scope="col">等级</th><th scope="col">店铺</th><th scope="col" className="num">消费门槛（分）</th><th scope="col" className="num">折扣</th><th scope="col">权益</th><th scope="col">操作</th></tr></thead>
+                <thead><tr><th scope="col">等级</th><th scope="col">店铺</th><th scope="col" className="num">消费门槛（分）</th><th scope="col" className="num">折扣</th><th scope="col">权益</th><th scope="col" className="col-actions">操作</th></tr></thead>
                 <tbody id="tiersBody">
                   {memberTiers.length
                     ? memberTiers.map((t) => (
                       <tr key={t.id}>
-                        <td>{t.name}</td><td>{shopName(t.shop_id)}</td>
+                        <td className="cell-ellipsis" title={t.name}>{t.name}</td><td>{shopName(t.shop_id)}</td>
                         <td className="num">{t.min_spend_cents}</td>
                         <td className="num">{t.discount_pct}%</td>
-                        <td>{t.benefits || "—"}</td>
+                        <td className="cell-ellipsis" title={t.benefits || "—"}>{t.benefits || "—"}</td>
                         <td>
                           <span className="row-actions">
                             <button type="button" className="btn-view" disabled={memberTierBusyId !== null} onClick={() => openMemberTierForm(t)}>编辑</button>
@@ -3420,6 +3427,7 @@ export default function AdminDashboard() {
                 </tbody>
               </table>
             </div>
+            <div className="tbl-total">共 {memberTiers.length} 个等级</div>
           </section>
 
           <section className={"view" + (view === "coupons" ? " on" : "")} id="view-coupons">
@@ -3464,7 +3472,7 @@ export default function AdminDashboard() {
             ) : null}
             <div className="tbl-wrap">
               <table>
-                <thead><tr><th scope="col">券码</th><th scope="col">店铺</th><th scope="col">类型</th><th scope="col" className="num">减免</th><th scope="col" className="num">最低消费（分）</th><th scope="col">有效期</th><th scope="col" className="num">已用 / 总名额</th><th scope="col" className="num">每人限次</th><th scope="col">状态</th><th scope="col">操作</th></tr></thead>
+                <thead><tr><th scope="col">券码</th><th scope="col">店铺</th><th scope="col">类型</th><th scope="col" className="num">减免</th><th scope="col" className="num">最低消费（分）</th><th scope="col">有效期</th><th scope="col" className="num">已用 / 总名额</th><th scope="col" className="num">每人限次</th><th scope="col">状态</th><th scope="col" className="col-actions">操作</th></tr></thead>
                 <tbody id="couponsBody">
                   {coupons.length
                     ? coupons.map((c) => (
@@ -3488,6 +3496,7 @@ export default function AdminDashboard() {
                 </tbody>
               </table>
             </div>
+            <div className="tbl-total">共 {coupons.length} 张优惠券</div>
           </section>
 
           <section className={"view" + (view === "flashsales" ? " on" : "")} id="view-flashsales">
@@ -3536,13 +3545,13 @@ export default function AdminDashboard() {
             ) : null}
             <div className="tbl-wrap">
               <table>
-                <thead><tr><th scope="col">抢购名称</th><th scope="col">店铺</th><th scope="col">场次</th><th scope="col">类型</th><th scope="col" className="num">减免</th><th scope="col">时间窗口</th><th scope="col" className="num">已售 / 总名额</th><th scope="col">状态</th><th scope="col">操作</th></tr></thead>
+                <thead><tr><th scope="col">抢购名称</th><th scope="col">店铺</th><th scope="col">场次</th><th scope="col">类型</th><th scope="col" className="num">减免</th><th scope="col">时间窗口</th><th scope="col" className="num">已售 / 总名额</th><th scope="col">状态</th><th scope="col" className="col-actions">操作</th></tr></thead>
                 <tbody id="flashSalesBody">
                   {flashSales.length
                     ? flashSales.map((s) => (
                       <tr key={s.id}>
-                        <td>{s.name}</td><td>{shopName(s.shop_id)}</td>
-                        <td>{flashPerfLabel(s.performance_id)}</td>
+                        <td className="cell-ellipsis" title={s.name}>{s.name}</td><td>{shopName(s.shop_id)}</td>
+                        <td className="cell-ellipsis" title={flashPerfLabel(s.performance_id)}>{flashPerfLabel(s.performance_id)}</td>
                         <td>{s.kind === "fixed" ? "每张减固定金额" : "比例折扣"}</td>
                         <td className="num">{s.kind === "fixed" ? s.value_cents + " 分" : s.discount_pct + "%"}</td>
                         <td>{String(s.start_at).slice(0, 16).replace("T", " ")} ~ {String(s.end_at).slice(0, 16).replace("T", " ")}</td>
@@ -3559,6 +3568,7 @@ export default function AdminDashboard() {
                 </tbody>
               </table>
             </div>
+            <div className="tbl-total">共 {flashSales.length} 场抢购</div>
           </section>
 
           <section className={"view" + (view === "autorules" ? " on" : "")} id="view-autorules">
@@ -3607,12 +3617,12 @@ export default function AdminDashboard() {
             ) : null}
             <div className="tbl-wrap">
               <table>
-                <thead><tr><th scope="col">规则名称</th><th scope="col">店铺</th><th scope="col">触发条件</th><th scope="col">优惠券</th><th scope="col" className="num">最低消费（分）</th><th scope="col" className="num">已赠送</th><th scope="col">状态</th><th scope="col">操作</th></tr></thead>
+                <thead><tr><th scope="col">规则名称</th><th scope="col">店铺</th><th scope="col">触发条件</th><th scope="col">优惠券</th><th scope="col" className="num">最低消费（分）</th><th scope="col" className="num">已赠送</th><th scope="col">状态</th><th scope="col" className="col-actions">操作</th></tr></thead>
                 <tbody id="couponRulesBody">
                   {couponRules.length
                     ? couponRules.map((r) => (
                       <tr key={r.id}>
-                        <td>{r.name}</td><td>{shopName(r.shop_id)}</td>
+                        <td className="cell-ellipsis" title={r.name}>{r.name}</td><td>{shopName(r.shop_id)}</td>
                         <td>{r.trigger === "first_purchase" ? "首次购买" : "会员升级"}</td>
                         <td>{r.coupon_code || couponRuleCouponLabel(r.coupon_id)}</td>
                         <td className="num">{r.conditions && r.conditions.min_spend_cents != null ? r.conditions.min_spend_cents : "不限"}</td>
@@ -3629,6 +3639,7 @@ export default function AdminDashboard() {
                 </tbody>
               </table>
             </div>
+            <div className="tbl-total">共 {couponRules.length} 条规则</div>
           </section>
 
           <section className={"view" + (view === "smstasks" ? " on" : "")} id="view-smstasks">
@@ -3671,13 +3682,13 @@ export default function AdminDashboard() {
             ) : null}
             <div className="tbl-wrap">
               <table>
-                <thead><tr><th scope="col">任务名称</th><th scope="col">店铺</th><th scope="col">短信模板</th><th scope="col">受众</th><th scope="col" className="num">人数</th><th scope="col">状态</th><th scope="col">操作</th></tr></thead>
+                <thead><tr><th scope="col">任务名称</th><th scope="col">店铺</th><th scope="col">短信模板</th><th scope="col">受众</th><th scope="col" className="num">人数</th><th scope="col">状态</th><th scope="col" className="col-actions">操作</th></tr></thead>
                 <tbody id="smsTasksBody">
                   {smsTasks.length
                     ? smsTasks.map((t) => (
                       <tr key={t.id}>
-                        <td>{t.name}</td><td>{shopName(t.shop_id)}</td>
-                        <td>{t.template}</td>
+                        <td className="cell-ellipsis" title={t.name}>{t.name}</td><td>{shopName(t.shop_id)}</td>
+                        <td className="cell-ellipsis" title={t.template}>{t.template}</td>
                         <td>{smsAudienceLabel(t)}</td>
                         <td className="num">{t.audience_count ?? 0}</td>
                         <td>{smsStatusLabel(t.status)}</td>
@@ -3692,6 +3703,7 @@ export default function AdminDashboard() {
                 </tbody>
               </table>
             </div>
+            <div className="tbl-total">共 {smsTasks.length} 条短信任务</div>
           </section>
 
           <section className={"view" + (view === "licenses" ? " on" : "")} id="view-licenses">
@@ -3736,8 +3748,8 @@ export default function AdminDashboard() {
                   {licenses.length
                     ? licenses.map((l) => (
                       <tr key={l.id}>
-                        <td>{l.id}</td><td>{l.resource_name}</td>
-                        <td>{l.licensor} → {l.licensee}</td>
+                        <td>{l.id}</td><td className="cell-ellipsis" title={l.resource_name}>{l.resource_name}</td>
+                        <td className="cell-ellipsis" title={l.licensor + " → " + l.licensee}>{l.licensor} → {l.licensee}</td>
                         <td>{l.kind === "buy" ? "买入" : "卖出"}</td>
                         <td className="num">{fmtMoney(l.price_cents)}</td>
                         <td>{l.status === "pending" ? "待生效" : l.status === "active" ? "生效中" : "已过期"}</td>
@@ -3748,6 +3760,7 @@ export default function AdminDashboard() {
                 </tbody>
               </table>
             </div>
+            <div className="tbl-total">共 {licenses.length} 条授权</div>
           </section>
 
           <section className={"view" + (view === "storedvalue" ? " on" : "")} id="view-storedvalue">
@@ -3777,7 +3790,7 @@ export default function AdminDashboard() {
             ) : null}
             <div className="tbl-wrap">
               <table>
-                <thead><tr><th scope="col">套餐</th><th scope="col">店铺</th><th scope="col" className="num">充值金额</th><th scope="col" className="num">赠送金额</th><th scope="col">状态</th><th scope="col">操作</th></tr></thead>
+                <thead><tr><th scope="col">套餐</th><th scope="col">店铺</th><th scope="col" className="num">充值金额</th><th scope="col" className="num">赠送金额</th><th scope="col">状态</th><th scope="col" className="col-actions">操作</th></tr></thead>
                 <tbody id="storedValuePlansBody">
                   {storedValuePlans.length
                     ? storedValuePlans.map((pl) => (
@@ -3797,6 +3810,7 @@ export default function AdminDashboard() {
                 </tbody>
               </table>
             </div>
+            <div className="tbl-total">共 {storedValuePlans.length} 种储值方案</div>
             <fieldset className="tag-rule">
               <legend>发放平台补贴</legend>
               <label>用户编号 <input type="number" min={1} value={grantForm.user_id} onChange={(e) => setGrantForm((f) => ({ ...f, user_id: e.target.value }))} /></label>
@@ -3885,7 +3899,7 @@ export default function AdminDashboard() {
                         <tr key={r.code + "-" + i}>
                           <td><span className="code">{r.code}</span></td>
                           <td>{batchResultText[r.result] || r.result}</td>
-                          <td>{r.order ? r.order.resource_name : "—"}</td>
+                          <td className="cell-ellipsis" title={r.order ? r.order.resource_name : "—"}>{r.order ? r.order.resource_name : "—"}</td>
                         </tr>
                       ))}
                     </tbody>
@@ -3942,14 +3956,14 @@ export default function AdminDashboard() {
             ) : null}
             <div className="tbl-wrap">
               <table>
-                <thead><tr><th scope="col">票码</th><th scope="col">结果</th><th scope="col">资源</th><th scope="col">时间</th><th scope="col">打印</th></tr></thead>
+                <thead><tr><th scope="col">票码</th><th scope="col">结果</th><th scope="col">资源</th><th scope="col">时间</th><th scope="col" className="col-actions">打印</th></tr></thead>
                 <tbody id="verifyLogsBody">
                   {verifyHistory.length
                     ? verifyHistory.map((h, i) => (
                       <tr key={h.code + "-" + i}>
                         <td><span className="code">{h.code}</span></td>
                         <td>{h.ok ? "已核销" : h.result}</td>
-                        <td>{h.order ? h.order.resource_name : "—"}</td>
+                        <td className="cell-ellipsis" title={h.order ? h.order.resource_name : "—"}>{h.order ? h.order.resource_name : "—"}</td>
                         <td>{String(h.at).slice(0, 19).replace("T", " ")}</td>
                         {/* R4-2: print button per order (this session's
                             verify history only — the fieldset above
@@ -3961,6 +3975,7 @@ export default function AdminDashboard() {
                 </tbody>
               </table>
             </div>
+            <div className="tbl-total">共 {verifyHistory.length} 条核销记录</div>
           </section>
 
           <section className={"view" + (view === "aicopy" ? " on" : "")} id="view-aicopy">
@@ -4020,13 +4035,13 @@ export default function AdminDashboard() {
             </div>
             <div className="tbl-wrap">
               <table>
-                <thead><tr><th scope="col" aria-sort={ariaSort("demands", "title")}>标题<SortButton label="标题" sortKey="title" tableId="demands" sort={sorts.demands} onToggle={toggleSort} /></th><th scope="col">分类</th><th scope="col" className="num" aria-sort={ariaSort("demands", "budget")}>预算<SortButton label="预算" sortKey="budget" tableId="demands" sort={sorts.demands} onToggle={toggleSort} /></th><th scope="col">城市</th><th scope="col">发布人</th><th scope="col">状态</th><th scope="col">操作</th></tr></thead>
+                <thead><tr><th scope="col" aria-sort={ariaSort("demands", "title")}>标题<SortButton label="标题" sortKey="title" tableId="demands" sort={sorts.demands} onToggle={toggleSort} /></th><th scope="col">分类</th><th scope="col" className="num" aria-sort={ariaSort("demands", "budget")}>预算<SortButton label="预算" sortKey="budget" tableId="demands" sort={sorts.demands} onToggle={toggleSort} /></th><th scope="col">城市</th><th scope="col">发布人</th><th scope="col">状态</th><th scope="col" className="col-actions">操作</th></tr></thead>
                 <tbody id="demBody">
                   {demands.length
                     ? (filteredDemands.length ? sortedDemands.map((d) => (
                       <tr key={d.id}>
-                        <td>{d.title}</td><td>{d.category}</td>
-                        <td className="num">{fmtMoney(d.budget)}</td><td>{d.city}</td><td>{d.user_name || ""}</td>
+                        <td className="cell-ellipsis" title={d.title}>{d.title}</td><td>{d.category}</td>
+                        <td className="num">{fmtMoney(d.budget)}</td><td>{d.city}</td><td className="cell-ellipsis" title={d.user_name || ""}>{d.user_name || ""}</td>
                         <td>{d.status === "approved" ? "已通过" : d.status === "pending" ? "待审核" : d.status === "rejected" ? "已拒绝" : (d.status || "")}</td>
                         <td>
                           {d.status === "pending" ? (
@@ -4042,6 +4057,7 @@ export default function AdminDashboard() {
                 </tbody>
               </table>
             </div>
+            <div className="tbl-total">共 {filteredDemands.length} 条</div>
             <p className="def-note">审核结果会通知发布人，并在操作审计中留痕。</p>
           </section>
 
@@ -4058,12 +4074,12 @@ export default function AdminDashboard() {
             </div>
             <div className="tbl-wrap">
               <table>
-                <thead><tr><th scope="col">编号</th><th scope="col">资源</th><th scope="col">用户</th><th scope="col">评分</th><th scope="col">评价内容</th><th scope="col">状态</th><th scope="col">操作</th></tr></thead>
+                <thead><tr><th scope="col">编号</th><th scope="col">资源</th><th scope="col">用户</th><th scope="col">评分</th><th scope="col" className="col-wide">评价内容</th><th scope="col">状态</th><th scope="col" className="col-actions-wide">操作</th></tr></thead>
                 <tbody id="cmtBody">
                   {comments.length
                     ? comments.map((c) => (
                       <tr key={c.id}>
-                        <td className="num">{c.id}</td><td>{c.resource_name || ""}</td><td>{c.user_name || ""}</td>
+                        <td className="num">{c.id}</td><td className="cell-ellipsis" title={c.resource_name || ""}>{c.resource_name || ""}</td><td className="cell-ellipsis" title={c.user_name || ""}>{c.user_name || ""}</td>
                         <td className="num">{"★".repeat(c.rating)}{"☆".repeat(5 - c.rating)}</td>
                         <td>{c.content}{c.reply ? (<div style={{ fontSize: 12.5, color: "var(--p-muted)" }}>回复：{c.reply}</div>) : null}</td>
                         <td>{c.status === "approved" ? "已通过" : c.status === "pending" ? "待审核" : c.status === "rejected" ? "已拒绝" : (c.status || "")}</td>
@@ -4088,6 +4104,7 @@ export default function AdminDashboard() {
                 </tbody>
               </table>
             </div>
+            <div className="tbl-total">共 {comments.length} 条评价</div>
             <p className="def-note">通过后评价公开可见，资源评分与评价数随之更新；回复会通知评价作者。</p>
           </section>
 
@@ -4128,6 +4145,7 @@ export default function AdminDashboard() {
                       </tbody>
                     </table>
                   </div>
+                  <div className="tbl-total">共 {filteredSeries.length} 个周期</div>
                 </div>
               </>
             ) : null}
@@ -4167,13 +4185,14 @@ export default function AdminDashboard() {
                       <tbody>
                         {filteredChannels.length ? sortedChannels.map((c) => (
                           <tr key={c.name}>
-                            <td>{c.name}</td><td className="num">{fmtMoney(c.amount)}</td><td className="num">{c.orders}</td>
+                            <td className="cell-ellipsis" title={c.name}>{c.name}</td><td className="num">{fmtMoney(c.amount)}</td><td className="num">{c.orders}</td>
                             <td className="num">{analysis.kpis.revenue ? ((c.amount / analysis.kpis.revenue) * 100).toFixed(1) + "%" : "—"}</td>
                           </tr>
                         )) : (q ? searchEmpty(4) : <tr><td colSpan="4"><div className="empty">暂无渠道</div></td></tr>)}
                       </tbody>
                     </table>
                   </div>
+                  <div className="tbl-total">共 {filteredChannels.length} 条渠道</div>
                   <p className="def-note">{analysis.insights[4] || ""}</p>
                 </div>
                 <div className="sec">
@@ -4184,7 +4203,7 @@ export default function AdminDashboard() {
                       <tbody>
                         {filteredRanking.length ? sortedRanking.slice(0, 10).map((r) => (
                           <tr key={r.id} className={r.rank === 1 ? "top1" : ""}>
-                            <td>{r.rank}</td><td>{r.name}</td><td className="num">{r.sales}</td><td className="num">{r.quantity}</td><td className="num">{fmtMoney(r.revenue)}</td>
+                            <td>{r.rank}</td><td className="cell-ellipsis" title={r.name}>{r.name}</td><td className="num">{r.sales}</td><td className="num">{r.quantity}</td><td className="num">{fmtMoney(r.revenue)}</td>
                           </tr>
                         )) : (q ? searchEmpty(5) : <tr><td colSpan="5"><div className="empty">暂无资源</div></td></tr>)}
                       </tbody>
@@ -4213,20 +4232,21 @@ export default function AdminDashboard() {
                     rule text, NOT AI (the AI half stays in R7). */}
                 <div className="sec">
                   <h2>演出分析</h2>
-                  {(analysis.shows || []).length ? (
+                  {(analysis.shows || []).length ? (<>
                     <div className="tbl-wrap">
                       <table>
                         <thead><tr><th scope="col">演出</th><th scope="col" className="num">场次</th><th scope="col" className="num">订单</th><th scope="col" className="num">收入</th><th scope="col" className="num">上座率</th></tr></thead>
                         <tbody>
                           {(analysis.shows || []).map((s) => (
                             <tr key={s.show_id}>
-                              <td>{s.title}</td><td className="num">{s.performances}</td><td className="num">{s.orders}</td>
+                              <td className="cell-ellipsis" title={s.title}>{s.title}</td><td className="num">{s.performances}</td><td className="num">{s.orders}</td>
                               <td className="num">{fmtMoney(s.revenue_cents)}</td><td className="num">{s.occupancy === null ? "暂无座位样本" : s.occupancy + "%"}</td>
                             </tr>
                           ))}
                         </tbody>
                       </table>
                     </div>
+                    <div className="tbl-total">共 {(analysis.shows || []).length} 场演出</div></>
                   ) : <div className="empty">暂无演出</div>}
                   <p className="def-note">订单与收入只计有效已支付订单；上座率为已售座位 / 全部座位，无座位数据的演出显示“暂无座位样本”。</p>
                 </div>
@@ -4235,7 +4255,7 @@ export default function AdminDashboard() {
                   {analysis.promos ? (
                     <>
                       <p>优惠券核销 {analysis.promos.total_redemptions} 次，共减免 {fmtMoney(analysis.promos.total_discount_cents)}；用券订单 {analysis.promos.orders_with_coupon} 笔，不用券订单 {analysis.promos.orders_without_coupon} 笔。</p>
-                      {(analysis.promos.coupons || []).length ? (
+                      {(analysis.promos.coupons || []).length ? (<>
                         <div className="tbl-wrap">
                           <table>
                             <thead><tr><th scope="col">优惠券</th><th scope="col" className="num">核销数</th><th scope="col" className="num">总折扣</th></tr></thead>
@@ -4246,18 +4266,20 @@ export default function AdminDashboard() {
                             </tbody>
                           </table>
                         </div>
+                        <div className="tbl-total">共 {(analysis.promos.coupons || []).length} 张优惠券</div></>
                       ) : <div className="empty">暂无优惠券核销</div>}
-                      {(analysis.promos.flash_sales || []).length ? (
+                      {(analysis.promos.flash_sales || []).length ? (<>
                         <div className="tbl-wrap">
                           <table>
                             <thead><tr><th scope="col">限时抢购</th><th scope="col" className="num">已售</th><th scope="col" className="num">收入</th><th scope="col" className="num">总折扣</th></tr></thead>
                             <tbody>
                               {(analysis.promos.flash_sales || []).map((f) => (
-                                <tr key={f.flash_sale_id}><td>{f.name}</td><td className="num">{f.sold}</td><td className="num">{fmtMoney(f.revenue_cents)}</td><td className="num">{fmtMoney(f.total_discount_cents)}</td></tr>
+                                <tr key={f.flash_sale_id}><td className="cell-ellipsis" title={f.name}>{f.name}</td><td className="num">{f.sold}</td><td className="num">{fmtMoney(f.revenue_cents)}</td><td className="num">{fmtMoney(f.total_discount_cents)}</td></tr>
                               ))}
                             </tbody>
                           </table>
                         </div>
+                        <div className="tbl-total">共 {(analysis.promos.flash_sales || []).length} 场抢购</div></>
                       ) : <div className="empty">暂无限时抢购</div>}
                     </>
                   ) : <div className="empty">暂无促销数据</div>}
@@ -4267,7 +4289,7 @@ export default function AdminDashboard() {
                   {analysis.members ? (
                     <>
                       <p>会员总数 {analysis.members.total_users} 人（主店等级，按实际消费实时划分）。</p>
-                      {(analysis.members.tiers || []).length ? (
+                      {(analysis.members.tiers || []).length ? (<>
                         <div className="tbl-wrap">
                           <table>
                             <thead><tr><th scope="col">等级</th><th scope="col" className="num">人数</th><th scope="col" className="num">流失人数</th><th scope="col" className="num">流失率</th></tr></thead>
@@ -4278,6 +4300,7 @@ export default function AdminDashboard() {
                             </tbody>
                           </table>
                         </div>
+                        <div className="tbl-total">共 {(analysis.members.tiers || []).length} 个等级</div></>
                       ) : <div className="empty">暂无会员等级</div>}
                       <p className="def-note">消费分档：{(analysis.members.buckets || []).map((b) => `${b.label} ${b.users} 人`).join(" · ")}</p>
                     </>
@@ -4411,7 +4434,7 @@ export default function AdminDashboard() {
               </fieldset>
               <div className="tbl-wrap">
                 <table>
-                  <thead><tr><th scope="col">类型</th><th scope="col">店铺</th><th scope="col">配置</th><th scope="col">状态</th><th scope="col">操作</th></tr></thead>
+                  <thead><tr><th scope="col">类型</th><th scope="col">店铺</th><th scope="col">配置</th><th scope="col">状态</th><th scope="col" className="col-actions">操作</th></tr></thead>
                   <tbody>
                     {alertRules.length ? alertRules.map((r) => (
                       <tr key={r.id}>
@@ -4425,12 +4448,13 @@ export default function AdminDashboard() {
                   </tbody>
                 </table>
               </div>
+              <div className="tbl-total">共 {alertRules.length} 条规则</div>
             </div>
             <div className="sec">
               <h2>操作审计</h2>
               <div className="tbl-wrap">
                 <table>
-                  <thead><tr><th scope="col" aria-sort={ariaSort("audit", "created_at")}>时间<SortButton label="时间" sortKey="created_at" tableId="audit" sort={sorts.audit} onToggle={toggleSort} /></th><th scope="col">操作人</th><th scope="col">操作</th><th scope="col">详情</th></tr></thead>
+                  <thead><tr><th scope="col" aria-sort={ariaSort("audit", "created_at")}>时间<SortButton label="时间" sortKey="created_at" tableId="audit" sort={sorts.audit} onToggle={toggleSort} /></th><th scope="col">操作人</th><th scope="col">操作</th><th scope="col" className="col-wide">详情</th></tr></thead>
                   <tbody>
                     {auditLogs.length
                       ? (filteredAudit.length ? sortedAudit.map((l) => (
@@ -4443,6 +4467,7 @@ export default function AdminDashboard() {
                   </tbody>
                 </table>
               </div>
+              <div className="tbl-total">共 {filteredAudit.length} 条审计记录</div>
               <p className="def-note">仅显示最近 60 条，最新在前。每次导出、审核、触发与处理预警都会在此留痕。</p>
             </div>
           </section>
@@ -4487,6 +4512,7 @@ export default function AdminDashboard() {
                 </tbody>
               </table>
             </div>
+            <div className="tbl-total">共 {eventAggregates.length} 条聚合记录</div>
           </section>
 
           {/* R5-2 会员数据: per-shop member rows (spending = R3-1
@@ -4511,13 +4537,13 @@ export default function AdminDashboard() {
             {insightRules ? (<div className="note">当前规则：流失天数 {insightRules.churnDays} 天 · 可升级差距 {insightRules.upgradeGapPct}% · 回访天数 {insightRules.callbackDays} 天</div>) : null}
             <div className="tbl-wrap">
               <table>
-                <thead><tr><th scope="col">经营建议</th><th scope="col">对象</th><th scope="col">建议内容</th></tr></thead>
+                <thead><tr><th scope="col">经营建议</th><th scope="col">对象</th><th scope="col" className="col-wide">建议内容</th></tr></thead>
                 <tbody>
                   {memberInsights && memberInsights.suggestions.length
                     ? memberInsights.suggestions.map((s, i) => (
                       <tr key={s.type + "-" + (s.user_id || s.show_id || i)}>
                         <td>{{ upgrade: "可升级", callback: "回访", push_show: "推广演出" }[s.type] || s.type}</td>
-                        <td>{s.name || s.title || "—"}</td>
+                        <td className="cell-ellipsis" title={s.name || s.title || "—"}>{s.name || s.title || "—"}</td>
                         <td>{s.text}</td>
                       </tr>
                     ))
@@ -4525,6 +4551,7 @@ export default function AdminDashboard() {
                 </tbody>
               </table>
             </div>
+            <div className="tbl-total">共 {memberInsights ? memberInsights.suggestions.length : 0} 条建议</div>
             <div className="tbl-wrap">
               <table>
                 <thead><tr><th scope="col">会员</th><th scope="col" className="num">累计消费</th><th scope="col">等级</th><th scope="col">最近已付订单</th><th scope="col">流失</th><th scope="col">可升级</th><th scope="col">下一等级</th><th scope="col" className="num">还差</th></tr></thead>
@@ -4532,7 +4559,7 @@ export default function AdminDashboard() {
                   {memberInsights && memberInsights.users.length
                     ? memberInsights.users.map((u) => (
                       <tr key={u.user_id}>
-                        <td>{u.name}</td>
+                        <td className="cell-ellipsis" title={u.name}>{u.name}</td>
                         <td className="num">{fmtMoney(u.spending_cents)}</td>
                         <td>{u.tier || "—"}</td>
                         <td>{u.last_order_at ? u.last_order_at.slice(0, 10) : "—"}</td>
@@ -4546,6 +4573,7 @@ export default function AdminDashboard() {
                 </tbody>
               </table>
             </div>
+            <div className="tbl-total">共 {memberInsights ? memberInsights.users.length : 0} 位会员</div>
           </section>
 
           {/* R5-3 数据大屏: fullscreen BI layout — big KPI cards
@@ -4644,7 +4672,7 @@ export default function AdminDashboard() {
             </div>
             <div className="tbl-wrap">
               <table>
-                <thead><tr><th scope="col">流水号</th><th scope="col">时间</th><th scope="col">类型</th><th scope="col" className="num">金额</th><th scope="col">订单号</th><th scope="col">备注</th><th scope="col">对账</th><th scope="col">操作</th></tr></thead>
+                <thead><tr><th scope="col">流水号</th><th scope="col">时间</th><th scope="col">类型</th><th scope="col" className="num">金额</th><th scope="col">订单号</th><th scope="col">备注</th><th scope="col">对账</th><th scope="col" className="col-actions">操作</th></tr></thead>
                 <tbody>
                   {financeLedger.length
                     ? financeLedger.map((l) => (
@@ -4667,6 +4695,7 @@ export default function AdminDashboard() {
                 </tbody>
               </table>
             </div>
+            <div className="tbl-total">共 {financeLedger.length} 条流水</div>
           </section>
           <AppFooter />
         </main>
