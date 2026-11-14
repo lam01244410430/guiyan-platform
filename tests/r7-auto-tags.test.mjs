@@ -14,6 +14,11 @@
 // (no `conditions` injected — the server validator refuses them —
 // and the signal survives), and an auto rule with `conditions: []`
 // is rejected with 400.
+// (10) B-054: booting on a database whose stored rules predate R7-5
+// (the old 4 manual rules, no `folk`) merges the missing auto rule
+// in — the 4 originals byte-identical, `folk` appended — and the
+// merge preserves admin edits + custom rules and is idempotent
+// (a second boot changes nothing).
 //
 // Genre grounding (verified in code, never invented): the only genre
 // value in the seed is meta.genre "民族歌舞" (resources 2 刘三姐 and
@@ -133,7 +138,7 @@ let adminToken;
 let view1Token;
 let view1Id;
 
-before(async () => {
+async function startServer() {
   child = spawn("node", ["server.mjs"], {
     cwd: new URL("../server", import.meta.url).pathname,
     env: {
@@ -149,10 +154,39 @@ before(async () => {
   while (Date.now() < deadline) {
     try {
       const res = await fetch(`${BASE}/api/health`);
-      if (res.ok) break;
+      if (res.ok) return;
     } catch {}
     await new Promise((r) => setTimeout(r, 200));
   }
+  throw new Error("server did not become healthy in 15s");
+}
+
+// B-054: restart the server so openPostgresStore (and its tagRules
+// backfill) runs again against the current stored rules, then
+// re-login as admin. The admin session survives in the DB, but a
+// fresh login keeps the token valid whatever the restart did.
+async function restartServer() {
+  if (child) {
+    const exited = new Promise((r) => child.once("exit", r));
+    child.kill("SIGTERM");
+    const done = await Promise.race([
+      exited.then(() => true),
+      new Promise((r) => setTimeout(() => r(false), 5000)),
+    ]);
+    if (!done) child.kill("SIGKILL");
+    child = null;
+  }
+  await startServer();
+  adminToken = await login("admin", "admin123");
+}
+
+async function storedTagRulesRaw() {
+  const row = await pool.query("SELECT value FROM settings WHERE key='tagRules'");
+  return row.rows[0]?.value ?? null;
+}
+
+before(async () => {
+  await startServer();
   adminToken = await login("admin", "admin123");
   view1Token = await register("r7tagview1", "Test1234");
   view1Id = await userId("r7tagview1");
@@ -360,5 +394,91 @@ test("R7-5: re-evaluation never duplicates the auto-tag row", async () => {
     tags.filter((t) => t === FOLK_TAG).length,
     1,
     `tag must appear exactly once: ${JSON.stringify(tags)}`,
+  );
+});
+
+test("B-054: boot merges the missing auto rule into old stored rules", async () => {
+  // Simulate a database seeded before R7-5 (live Neon): the stored
+  // set holds only the 4 manual rules. Write it straight to the
+  // settings row, exactly as the old backfill left it.
+  const defaults = await getTagRules(adminToken);
+  assert.equal(defaults.length, 5, `fresh DB must hold 5 rules: ${JSON.stringify(defaults.map((r) => r.id))}`);
+  const old4 = defaults.filter((r) => r.id !== "folk");
+  assert.equal(old4.length, 4);
+  await pool.query("UPDATE settings SET value=$1 WHERE key='tagRules'", [
+    JSON.stringify(old4),
+  ]);
+  assert.deepEqual(JSON.parse(await storedTagRulesRaw()), old4);
+  // A fresh boot (openPostgresStore) must merge `folk` in.
+  await restartServer();
+  const merged = await getTagRules(adminToken);
+  assert.equal(merged.length, 5, `merged rules must be 5: ${JSON.stringify(merged.map((r) => r.id))}`);
+  assert.deepEqual(
+    merged.slice(0, 4),
+    old4,
+    "the 4 original rules must be byte-identical and first",
+  );
+  const folk = merged[4];
+  assert.equal(folk.id, "folk");
+  assert.equal(folk.mode, "auto");
+  assert.equal("conditions" in folk, false, "merged auto rule must carry no conditions key");
+  assert.deepEqual(folk.signal, { kind: "view_genre", genre: "民族歌舞", threshold: 3 });
+  // The merge is a boot-time write, not a read-time fallback: the
+  // stored value itself must now hold the merged array.
+  assert.deepEqual(JSON.parse(await storedTagRulesRaw()), merged);
+});
+
+test("B-054: admin edits and custom rules survive the merge", async () => {
+  // Old stored set + admin edits: `high` threshold raised, a custom
+  // manual rule added, `folk` still absent (the live shape).
+  const defaults = await getTagRules(adminToken);
+  assert.equal(defaults.length, 5);
+  const edited = defaults
+    .filter((r) => r.id !== "folk")
+    .map((r) =>
+      r.id === "high"
+        ? { ...r, conditions: [{ field: "spent", op: "gte", value: 2000000 }] }
+        : r,
+    );
+  const custom = {
+    id: "custom1",
+    name: "规则自定义",
+    enabled: true,
+    mode: "manual",
+    match: "all",
+    conditions: [{ field: "paid_count", op: "gte", value: 5 }],
+  };
+  edited.push(custom);
+  await pool.query("UPDATE settings SET value=$1 WHERE key='tagRules'", [
+    JSON.stringify(edited),
+  ]);
+  await restartServer();
+  const merged = await getTagRules(adminToken);
+  assert.equal(merged.length, 6, `merged rules must be 6: ${JSON.stringify(merged.map((r) => r.id))}`);
+  assert.deepEqual(
+    merged.slice(0, 5),
+    edited,
+    "edited + custom rules must be byte-identical and keep their order",
+  );
+  assert.equal(merged[5].id, "folk", "folk must be appended last");
+  assert.equal(merged[5].mode, "auto");
+  assert.deepEqual(JSON.parse(await storedTagRulesRaw()), merged);
+  // Leave the default rule set behind for whatever runs next.
+  await restoreTagRules(adminToken, defaults);
+  assert.deepEqual(await getTagRules(adminToken), defaults);
+});
+
+test("B-054: the merge is idempotent — a second boot changes nothing", async () => {
+  const before = await storedTagRulesRaw();
+  assert.ok(before, "settings must hold the tagRules value");
+  await restartServer();
+  const after = await storedTagRulesRaw();
+  assert.equal(after, before, "second boot must not rewrite the stored rules");
+  const rules = await getTagRules(adminToken);
+  assert.equal(rules.length, 5);
+  assert.equal(
+    rules.filter((r) => r.id === "folk").length,
+    1,
+    "exactly one folk rule after two boots",
   );
 });

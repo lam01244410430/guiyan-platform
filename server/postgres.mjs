@@ -655,14 +655,48 @@ export async function openPostgresStore(
          WHERE l.kind IN ('topup','bonus')
          AND NOT EXISTS (SELECT 1 FROM finance_ledger f WHERE f.kind='topup_in' AND f.note='svl:'||l.id)`,
       );
-      // Wave 3 #9: backfill the tagRules settings key for databases that
-      // were seeded before it existed (incl. live Neon). Guard-key
-      // INSERT, same idempotent pattern as enrichCatalog above: existing
-      // rules are never overwritten, so an admin's edits survive reboots.
-      await client.query(
-        "INSERT INTO settings(key,value) VALUES('tagRules',$1) ON CONFLICT (key) DO NOTHING",
-        [JSON.stringify(defaultTagRules)],
-      );
+      // B-054: merge missing default rules into the stored tagRules
+      // (2026-11-15). The old guard-key INSERT only seeded
+      // tagRules when the key was absent, so databases seeded before
+      // R7-5 (incl. live Neon, key present since Wave 3 with the 4
+      // manual rules) never gained the auto rule `folk` — R7-5
+      // auto-tagging did nothing there. Read the stored array, append
+      // any default rule whose `id` is absent, and write back only
+      // when something was added. Stored rules are never overwritten,
+      // modified, or removed, so an admin's edits and custom rules
+      // survive; a re-run finds nothing missing and writes nothing.
+      // A stored value that is not a JSON array is left alone —
+      // loadTagRules serves the defaults at read time for it, and
+      // this step must never clobber data it cannot parse.
+      {
+        const stored = await client.query(
+          "SELECT value FROM settings WHERE key='tagRules'",
+        );
+        if (stored.rows.length === 0) {
+          await client.query(
+            "INSERT INTO settings(key,value) VALUES('tagRules',$1)",
+            [JSON.stringify(defaultTagRules)],
+          );
+        } else {
+          let rules = null;
+          try {
+            const parsed = JSON.parse(stored.rows[0].value);
+            if (Array.isArray(parsed)) rules = parsed;
+          } catch {
+            rules = null;
+          }
+          if (rules !== null) {
+            const ids = new Set(rules.map((r) => r && r.id));
+            const missing = defaultTagRules.filter((r) => !ids.has(r.id));
+            if (missing.length > 0) {
+              await client.query(
+                "UPDATE settings SET value=$1 WHERE key='tagRules'",
+                [JSON.stringify([...rules, ...missing])],
+              );
+            }
+          }
+        }
+      }
       // R5-2: backfill the memberInsightRules settings key the same
       // way — existing rules are never overwritten, so an admin's
       // edits survive reboots.
