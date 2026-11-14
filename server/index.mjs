@@ -61,6 +61,7 @@ import { listShopPlans, listAdminPlans, createPlan, patchPlan, topup, getAccount
 import { verifyTicket, verifyBatch, listOrderTickets, listAdminTickets, printTickets, listPrintLogs } from "./routes/tickets.mjs";
 import { recordEvent, aggregateEvents, listEventAggregates } from "./routes/events.mjs";
 import { listMemberInsights, getMemberInsightRules, patchMemberInsightRules } from "./routes/member-insights.mjs";
+import { getBi, exportBi } from "./routes/bi.mjs";
 
 // A stored-value CSV export (?format=csv on the own-account or the
 // admin endpoint) audits "导出储值流水" — one INSERT — so it needs a
@@ -92,6 +93,11 @@ function createRequestHandler(db, handle) {
           !["GET", "HEAD", "OPTIONS"].includes(req.method) ||
           new URL(req.url, "http://localhost").pathname ===
             "/api/admin/orders.csv" ||
+          // R5-3: the BI export audits "导出报表" (one INSERT), like
+          // the orders CSV above — same read-only-transaction 500
+          // otherwise.
+          new URL(req.url, "http://localhost").pathname ===
+            "/api/admin/bi/export" ||
           csvExportPath(new URL(req.url, "http://localhost")),
         success: () => res.statusCode < 400,
       });
@@ -317,6 +323,8 @@ export async function createApp({ database }) {
       if (await listMemberInsights(ctx)) return;
       if (await getMemberInsightRules(ctx)) return;
       if (await patchMemberInsightRules(ctx)) return;
+      if (await getBi(ctx)) return;
+      if (await exportBi(ctx)) return;
 
       send({ error: "接口不存在" }, 404);
     } catch (e) {

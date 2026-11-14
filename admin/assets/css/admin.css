@@ -280,3 +280,35 @@ tr.top1 td{background:var(--gold-soft)}
 /* ≤560px: search spans the full column width (DESIGN.md §10).
    Placed after the SearchBox section so it wins over .search-box{max-width:340px} above. */
 @media(max-width:560px){.search-box{max-width:none;width:100%}}
+
+/* ================= R5-3 数据大屏 (BI) ================= */
+/* Big KPI cards: 4 per row on desktop (8 cards = 2 rows); the hero
+   revenue card keeps the .stats grid's first slot. Horizontal bars
+   for top shows / top venues are plain divs (no chart library). */
+.bi-stats{grid-template-columns:repeat(4,1fr)}
+.bi-bars{display:flex;flex-direction:column;gap:10px;margin-bottom:30px}
+.bi-bar-row{display:grid;grid-template-columns:minmax(120px,220px) 1fr auto;gap:12px;align-items:center}
+.bi-bar-label{font-size:13.5px;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.bi-bar-track{display:block;height:14px;background:var(--surface2);border-radius:99px;overflow:hidden}
+.bi-bar-fill{display:block;height:100%;background:var(--pine);border-radius:99px}
+.bi-bar-val{font-size:13px;color:var(--ink2);font-variant-numeric:tabular-nums;white-space:nowrap}
+/* Fullscreen: the BI section becomes a fixed overlay (Esc or the
+   button exits; leaving the view exits too — see AdminDashboard). */
+.view.bi-fullscreen{display:block;position:fixed;inset:0;z-index:60;background:var(--bg);overflow:auto;padding:34px 36px 60px}
+@media(max-width:860px){
+  .bi-stats{grid-template-columns:repeat(2,1fr)}
+  .bi-bar-row{grid-template-columns:minmax(90px,140px) 1fr auto}
+}
+/* Print (R4-2 paper-ticket precedent): only the BI view prints —
+   sidebar, header actions, toasts and the other views are hidden,
+   and the export/print buttons themselves are hidden too. This is
+   how the "打印/导出 PDF" button produces a PDF: the browser's
+   "另存为 PDF" destination. The server generates no PDF file. */
+@media print{
+  .sidebar,.main-head,.toast,.bi-actions{display:none !important}
+  .main{margin-left:0;padding:0}
+  .view{display:none !important}
+  .view#view-bi{display:block !important}
+  .view.bi-fullscreen{position:static;padding:0}
+  .bi-stats{grid-template-columns:repeat(4,1fr)}
+}

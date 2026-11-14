@@ -2,6 +2,20 @@ import { assert, safeUser } from "../lib/http.mjs";
 import { CACHE_KEYS, CACHE_TTLS } from "../lib/cache.mjs";
 import { profileRows } from "../lib/profiles.mjs";
 
+// The five cumulative totals — the ONE query text behind both
+// GET /api/admin/stats and the BI KPIs (routes/bi.mjs). Shared so
+// the two endpoints can never drift apart; the BI test asserts
+// equality. (R5-3.)
+export async function adminStatsTotals(get) {
+  return get(`
+    SELECT
+      (SELECT COUNT(*) FROM users) AS users,
+      (SELECT COUNT(*) FROM orders) AS orders,
+      (SELECT COALESCE(SUM(amount),0) FROM orders WHERE status IN ('paid','completed')) AS revenue_cents,
+      (SELECT COUNT(*) FROM resources) AS resources,
+      (SELECT COUNT(*) FROM demands) AS demands`);
+}
+
 export async function adminStats(ctx) {
   const { req, p, send, session, get, all, url, cache, res } = ctx;
   if (p !== "/api/admin/stats" || req.method !== "GET") return false;
@@ -18,13 +32,7 @@ export async function adminStats(ctx) {
       return true;
     }
   }
-  const stats = await get(`
-    SELECT
-      (SELECT COUNT(*) FROM users) AS users,
-      (SELECT COUNT(*) FROM orders) AS orders,
-      (SELECT COALESCE(SUM(amount),0) FROM orders WHERE status IN ('paid','completed')) AS revenue_cents,
-      (SELECT COUNT(*) FROM resources) AS resources,
-      (SELECT COUNT(*) FROM demands) AS demands`);
+  const stats = await adminStatsTotals(get);
   const statuses = await all(
     "SELECT status,COUNT(*) AS count FROM orders GROUP BY status ORDER BY status",
   );

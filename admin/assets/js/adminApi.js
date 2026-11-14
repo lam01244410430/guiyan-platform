@@ -47,6 +47,39 @@ export function apiGet(path) { return apiFetch(path, { method: "GET" }); }
 export function apiPost(path, body) { return apiFetch(path, { method: "POST", body }); }
 export function apiPatch(path, body) { return apiFetch(path, { method: "PATCH", body }); }
 export function apiDelete(path) { return apiFetch(path, { method: "DELETE" }); }
+/* File download (not apiFetch: the payload is not JSON). Sends the
+   Bearer token, saves as the given filename. Errors carry .status
+   like apiFetch (403 for a non-admin account). R5-3: the BI view
+   downloads XLSX + CSV through this; apiDownloadCsv below stays
+   the orders-CSV path. */
+export function apiDownloadFile(path, filename) {
+  let ctrl = null;
+  try { ctrl = new AbortController(); } catch (e) { ctrl = null; }
+  let timer = null;
+  if (ctrl) { timer = setTimeout(function () { try { ctrl.abort(); } catch (e) {} }, 5000); }
+  const headers = {};
+  const tk = getToken(); if (tk) headers.Authorization = "Bearer " + tk;
+  return fetch(apiBase() + path, { method: "GET", headers, signal: ctrl ? ctrl.signal : undefined })
+    .then(function (res) {
+      if (timer) clearTimeout(timer);
+      if (!res.ok) {
+        return res.text().then(function (txt) {
+          let data = null; try { data = txt ? JSON.parse(txt) : null; } catch (e) { data = null; }
+          const err = new Error((data && data.error) || ("HTTP " + res.status));
+          err.status = res.status; err.data = data; throw err;
+        });
+      }
+      return res.blob().then(function (blob) {
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url; a.download = filename || "download";
+        document.body.appendChild(a); a.click(); a.remove();
+        setTimeout(function () { URL.revokeObjectURL(url); }, 1000);
+        return true;
+      });
+    })
+    .catch(function (e) { if (timer) clearTimeout(timer); throw e; });
+}
 /* CSV download (not apiFetch: CSV is not JSON). Sends the Bearer token,
    keeps the server's UTF-8 BOM intact for Excel, saves as the filename
    the server advertises (guiyan-orders.csv). Errors carry .status like

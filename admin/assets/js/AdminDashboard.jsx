@@ -13,7 +13,7 @@
    every write lands in audit_logs. Premium data loads lazily, only when its view opens. */
 import { Fragment, useEffect, useRef, useState } from "react";
 import {
-  apiGet, apiPost, apiPatch, apiDelete, apiDownloadCsv, downloadText, clearToken, currentUser, getToken, fmtMoney, STATUS,
+  apiGet, apiPost, apiPatch, apiDelete, apiDownloadCsv, apiDownloadFile, downloadText, clearToken, currentUser, getToken, fmtMoney, STATUS,
 } from "./adminApi.js";
 import TrendChart from "./TrendChart.jsx";
 import SearchBox from "./SearchBox.jsx";
@@ -97,6 +97,7 @@ const VIEWS = [
   { id: "alerts", label: "预警中心", iconName: "ui:triangle-alert", group: "premium" },
   { id: "events", label: "数据运营", iconName: "ui:chart-line", group: "premium" },
   { id: "memberinsights", label: "会员数据", iconName: "ui:crown", group: "premium" },
+  { id: "bi", label: "数据大屏", iconName: "ui:chart-line", group: "premium" },
 ];
 const FILTERS = [
   ["all", "全部"], ["pending", "待确认"], ["confirmed", "已确认"], ["paid", "已支付"],
@@ -252,6 +253,13 @@ export default function AdminDashboard() {
   const [insightRules, setInsightRules] = useState(null);
   const [insightRuleForm, setInsightRuleForm] = useState({ churnDays: "90", upgradeGapPct: "20", callbackDays: "90" });
   const [insightBusy, setInsightBusy] = useState(false);
+  // R5-3 数据大屏: the BI payload (KPIs + top shows/venues +
+  // 30-day series), the export in-flight flag, and the fullscreen
+  // toggle (CSS class on the section; Esc closes it — see the
+  // keydown effect below).
+  const [biData, setBiData] = useState(null);
+  const [biBusy, setBiBusy] = useState(false);
+  const [biFullscreen, setBiFullscreen] = useState(false);
   const [auditLogs, setAuditLogs] = useState([]);
   const [csvBusy, setCsvBusy] = useState(false);
   // Wave 3 #9 tag rules (lazy-loaded like the premium views) + the users
@@ -509,6 +517,34 @@ export default function AdminDashboard() {
     });
   }
 
+  // R5-3: load the BI payload when the view opens.
+  function loadBi() {
+    apiGet("/api/admin/bi").then(function (d) {
+      setBiData(d);
+    }).catch(loadFail);
+  }
+  // R5-3: export the BI report as XLSX (hand-built real .xlsx from
+  // the server) or CSV (BOM). The filename carries the Beijing date,
+  // matching the server's Content-Disposition.
+  function doExportBi(format) {
+    if (biBusy) return;
+    const date = new Date(Date.now() + 8 * 3600000).toISOString().slice(0, 10);
+    setBiBusy(true);
+    apiDownloadFile("/api/admin/bi/export?format=" + format, "bi-" + date + "." + format).then(function () {
+      toast(format === "xlsx" ? "已导出 BI 报表（Excel）" : "已导出 BI 报表（CSV）");
+    }).catch(function (e) {
+      if (e && e.status === 403) toast("无权导出");
+      else toast("导出失败，请稍后重试");
+    }).finally(function () { setBiBusy(false); });
+  }
+  // R5-3: PDF goes via browser print (window.print + the print
+  // stylesheet) — the server does NOT generate PDF files this wave
+  // (no CJK font dependency), so the button says so honestly:
+  // "浏览器打印另存为 PDF", never "导出 PDF 文件".
+  function doPrintBi() {
+    try { window.print(); } catch (e) { toast("当前浏览器不支持打印"); }
+  }
+
   useEffect(() => {
     const u = currentUser();
     if (!getToken() || !u) { location.href = "/admin/index.html"; return; }
@@ -592,6 +628,21 @@ export default function AdminDashboard() {
     if (view === "memberinsights") loadMemberInsights();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [view, insightShop]);
+
+  // R5-3 数据大屏: load the BI payload when the view opens.
+  // Fullscreen is per-view: leaving the view exits fullscreen, so
+  // the next view never inherits the fixed overlay; Esc also exits.
+  useEffect(() => {
+    if (view === "bi") loadBi();
+    else if (biFullscreen) setBiFullscreen(false);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [view]);
+  useEffect(() => {
+    if (!biFullscreen) return;
+    function onKey(e) { if (e.key === "Escape") setBiFullscreen(false); }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [biFullscreen]);
 
   function doLogout() {
     apiPost("/api/auth/logout", {}).catch(function () {});
@@ -2059,6 +2110,7 @@ export default function AdminDashboard() {
     alerts: ["预警中心", "库存与模拟预警 · 操作留痕"],
     events: ["数据运营", "埋点聚合 · 按小时/天查看"],
     memberinsights: ["会员数据", "会员消费 · 流失与可升级 · 经营建议（规则建议，非 AI）"],
+    bi: ["数据大屏", "关键指标 · 近 30 天趋势 · 热门演出 / 场馆"],
   };
   const by = (stats && stats.orders_by_status) || {};
   // R1-1: the signed-in admin's scope (the sessionStorage user carries
@@ -3842,6 +3894,73 @@ export default function AdminDashboard() {
                 </tbody>
               </table>
             </div>
+          </section>
+
+          {/* R5-3 数据大屏: fullscreen BI layout — big KPI cards
+              (same scope as GET /api/admin/stats: 已付 = paid /
+              completed) + the 30-day series via the existing
+              TrendChart + horizontal bars for the top shows and top
+              venues. Export: XLSX is a real .xlsx built by the
+              server (no new dependency); CSV carries the BOM.
+              PDF honesty boundary: the server does NOT generate PDF
+              files this wave (no CJK font dependency) — the button
+              below prints via the browser ("浏览器打印另存为 PDF"),
+              it never claims the server produced a PDF file. */}
+          <section className={"view" + (view === "bi" ? " on" : "") + (biFullscreen ? " bi-fullscreen" : "")} id="view-bi">
+            <div className="note">关键指标与 admin 统计同口径（已付 = 已支付 / 已完成）；近 30 天按日（北京时间）统计已付订单。PDF 不由服务端生成：点“打印/导出 PDF”后用浏览器打印另存为 PDF。</div>
+            <div className="search-row bi-actions">
+              <button type="button" className="btn-export" disabled={biBusy} onClick={() => doExportBi("xlsx")}>{biBusy ? "导出中…" : "导出 Excel（.xlsx）"}</button>
+              <button type="button" className="btn-export" disabled={biBusy} onClick={() => doExportBi("csv")}>{biBusy ? "导出中…" : "导出 CSV"}</button>
+              <button type="button" className="btn-export" onClick={doPrintBi}>打印 / 导出 PDF（浏览器打印另存为 PDF）</button>
+              <button type="button" className="btn-export" onClick={() => setBiFullscreen(function (f) { return !f; })}>{biFullscreen ? "退出全屏" : "全屏"}</button>
+              <button type="button" className="btn-export" onClick={loadBi}>刷新</button>
+            </div>
+            {biData ? (
+              <>
+                <div className="stats bi-stats">
+                  <div className="stat hero"><b>{fmtMoney(biData.kpis.revenue_cents)}</b><span>总收入（已付）</span></div>
+                  <div className="stat"><b>{biData.kpis.users}</b><span>用户数</span></div>
+                  <div className="stat"><b>{biData.kpis.orders}</b><span>订单数</span></div>
+                  <div className="stat"><b>{biData.kpis.resources}</b><span>资源数</span></div>
+                  <div className="stat"><b>{biData.kpis.demands}</b><span>需求数</span></div>
+                  <div className="stat"><b>{biData.kpis.today_orders}</b><span>今日订单（已付）</span></div>
+                  <div className="stat"><b>{fmtMoney(biData.kpis.today_revenue_cents)}</b><span>今日收入（已付）</span></div>
+                  <div className="stat"><b>{(biData.kpis.paid_rate * 100).toFixed(1)}%</b><span>已付订单占比</span></div>
+                </div>
+                <h2>近 30 天趋势</h2>
+                <TrendChart series={biData.series.map(function (s) { return { date: s.date, label: s.date.slice(5), amount: s.revenue_cents, count: s.orders }; })} period="day" />
+                <h2>热门演出</h2>
+                {biData.top_shows.length ? (
+                  <div className="bi-bars">
+                    {biData.top_shows.map(function (s) {
+                      const max = Math.max.apply(null, biData.top_shows.map(function (x) { return x.revenue_cents; }).concat([1]));
+                      return (
+                        <div className="bi-bar-row" key={s.show_id}>
+                          <span className="bi-bar-label">{s.title}</span>
+                          <span className="bi-bar-track"><span className="bi-bar-fill" style={{ width: Math.max(1, Math.round((s.revenue_cents / max) * 100)) + "%" }} /></span>
+                          <span className="bi-bar-val">{fmtMoney(s.revenue_cents)} · {s.orders}单</span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                ) : <div className="empty">暂无已付演出收入</div>}
+                <h2>热门场馆</h2>
+                {biData.top_venues.length ? (
+                  <div className="bi-bars">
+                    {biData.top_venues.map(function (v) {
+                      const max = Math.max.apply(null, biData.top_venues.map(function (x) { return x.revenue_cents; }).concat([1]));
+                      return (
+                        <div className="bi-bar-row" key={v.venue_id}>
+                          <span className="bi-bar-label">{v.name}</span>
+                          <span className="bi-bar-track"><span className="bi-bar-fill" style={{ width: Math.max(1, Math.round((v.revenue_cents / max) * 100)) + "%" }} /></span>
+                          <span className="bi-bar-val">{fmtMoney(v.revenue_cents)} · {v.orders}单</span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                ) : <div className="empty">暂无已付场馆收入</div>}
+              </>
+            ) : <div className="empty">加载中…</div>}
           </section>
         </main>
       </div>
