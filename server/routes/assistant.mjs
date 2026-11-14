@@ -1,8 +1,10 @@
-import { assert } from "../lib/http.mjs";
+import { assert, resourceRow } from "../lib/http.mjs";
 import { CACHE_KEYS, CACHE_TTLS } from "../lib/cache.mjs";
 import { ORDER_STATUS_ZH } from "../lib/status-labels.mjs";
 import { buildAnalysis } from "./admin-insights.mjs";
+import { recommendationsFor } from "../lib/profiles.mjs";
 import { graphAnswer } from "../lib/kg.mjs";
+import { resolveTier, MAIN_SHOP_ID } from "./member-tiers.mjs";
 
 // Canonical Chinese assistant copy — the same wording as the web prototype
 // (web/index.html I18N zh: ansRefund/ansResched/ansHeritage/ansBook/
@@ -21,12 +23,205 @@ export const ANSWERS = {
     "我可以帮你处理这些事：退票退款 · 改签换期 · 如何预订 · 非遗体验推荐 · 热门演出推荐。点下方快捷问题试试。",
 };
 
+// R7-4: proactive recommendation — preferences live ONLY in this
+// in-memory map, keyed by the logged-in user id, never in the DB (no
+// session table is intentional this wave). A completed recommendation
+// or a switch to another intent deletes the entry, so nothing about
+// the conversation survives past the session.
+const prefSessions = new Map();
+
+// Starts (or continues) the 3-turn preference flow: genre/category ->
+// city -> budget. A bare genre/category/city/budget answer only counts
+// while a session is open; a fresh recommendation request starts one.
+const RECOMMEND_TRIGGER = /推荐|想看|帮我选|recommend/i;
+// A message that clearly asks something else while a preference
+// session is open ends the session instead of being parsed as a
+// preference answer (the caller's other branches answer it below).
+const OTHER_INTENT =
+  /退款|退票|改签|订单|会员|文惠卡|储值|非遗|预订|预约|订票|热门|今晚|你好|您好|hello/i;
+
+// Next step per Wave 4 #13 after-sales state (read-only: the
+// assistant never moves an order, it only reports where it is).
+const REFUND_NEXT = {
+  paid: "已支付，可在「我的票券」申请退款；管理员通过后变为「已退款」。",
+  refund_requested: "已申请退款，等待管理员处理；通过后变为「已退款」，驳回则回到「已支付」。",
+  disputed: "申诉处理中，等待管理员处理；处理后变为「已完成」或回到「已支付」。",
+  refunded: "已退款，款项按原路返回（模拟）。",
+  completed: "已完成，不支持在线退款。",
+  cancelled: "已取消，不涉及退款。",
+  pending: "待确认，可直接取消，无需走退款流程。",
+  confirmed: "待支付，可直接取消，无需走退款流程。",
+};
+
+// Budget from a turn-3 answer, in integer cents: "100到300元" ->
+// [10000, 30000]; "200元以下" -> [0, 20000]; "500元以上" -> [50000,
+// Infinity]; a bare "300元" reads as an upper bound. Returns null
+// when the message carries no budget.
+function parseBudget(q) {
+  const range = q.match(/(\d+)\s*(?:-|—|~|～|到)\s*(\d+)\s*元/);
+  if (range) {
+    const a = Number(range[1]) * 100;
+    const b = Number(range[2]) * 100;
+    return a <= b ? { min: a, max: b } : { min: b, max: a };
+  }
+  const below = q.match(/(\d+)\s*元?\s*(?:以下|以内)/);
+  if (below) return { min: 0, max: Number(below[1]) * 100 };
+  const above = q.match(/(\d+)\s*元?\s*(?:以上|起|起步)/);
+  if (above) return { min: Number(above[1]) * 100, max: Infinity };
+  const single = q.match(/(\d+)\s*元/);
+  if (single) return { min: 0, max: Number(single[1]) * 100 };
+  return null;
+}
+
+function fmtBudget(b) {
+  if (b.max === Infinity) return `${b.min / 100}元以上`;
+  if (b.min === 0) return `${b.max / 100}元以下`;
+  return `${b.min / 100}–${b.max / 100}元`;
+}
+
+// Stated preferences found in one message, matched against REAL
+// catalog values only (distinct meta.genre / category names / cities
+// from the published resources) — never a guessed genre or city.
+function matchPrefs(q, resources, categories) {
+  const found = {};
+  for (const g of [
+    ...new Set(resources.map((r) => r.meta?.genre).filter(Boolean)),
+  ]) {
+    if (q.includes(g)) {
+      found.genre = g;
+      break;
+    }
+  }
+  for (const c of categories) {
+    if (q.includes(c.name) || q.includes(c.id)) {
+      found.category = c.id;
+      found.categoryName = c.name;
+      break;
+    }
+  }
+  for (const c of [
+    ...new Set(resources.map((r) => r.city).filter(Boolean)),
+  ]) {
+    if (q.includes(c)) {
+      found.city = c;
+      break;
+    }
+  }
+  const budget = parseBudget(q);
+  if (budget) found.budget = budget;
+  return found;
+}
+
+// R7-4 proactive recommendation. Returns null when the message is
+// not part of the flow, so the caller falls through to the generic
+// branches. Asks at most 3 questions (genre/category -> city ->
+// budget); once all three are stated, calls the existing
+// recommendationsFor() with the stated preferences and clears the
+// session. Anonymous callers get the first question only — without a
+// login there is no session to keep the answers in.
+async function recommendFlow(ctx, q) {
+  const { all, get, categories, yuan } = ctx;
+  const userId = ctx.session?.id;
+  const stored = userId ? prefSessions.get(userId) : null;
+  if (!stored && !RECOMMEND_TRIGGER.test(q)) return null;
+  if (stored && OTHER_INTENT.test(q) && !RECOMMEND_TRIGGER.test(q)) {
+    prefSessions.delete(userId);
+    return null;
+  }
+  const resources = (
+    await all("SELECT * FROM resources WHERE status='published'")
+  ).map(resourceRow);
+  const prefs = { ...(stored || {}), ...matchPrefs(q, resources, categories) };
+  if (userId) prefSessions.set(userId, prefs);
+  const head = "【本地规则推荐，未接入大模型】\n";
+  if (!prefs.genre && !prefs.category) {
+    const genres = [
+      ...new Set(resources.map((r) => r.meta?.genre).filter(Boolean)),
+    ];
+    return {
+      kind: "recommend",
+      answer:
+        head +
+        `想看什么体裁？比如${genres.slice(0, 3).join("、") || "民族歌舞"}；也可以直接说演出类型，比如${categories
+          .slice(0, 4)
+          .map((c) => c.name)
+          .join("、")}。` +
+        (userId ? "" : "\n登录后我会按你说的体裁、城市和预算一路推荐。"),
+    };
+  }
+  if (!prefs.city) {
+    const cities = [
+      ...new Set(resources.map((r) => r.city).filter(Boolean)),
+    ];
+    return {
+      kind: "recommend",
+      answer: head + `想在哪个城市看？比如${cities.slice(0, 5).join("、")}。`,
+    };
+  }
+  if (!prefs.budget) {
+    return {
+      kind: "recommend",
+      answer: head + "预算大概多少？比如 100到300元，或 200元以下。",
+    };
+  }
+  // All three stated: recommend from real data, then forget the
+  // preferences — they were session-only by design.
+  if (userId) prefSessions.delete(userId);
+  const user = await get("SELECT * FROM users WHERE id=?", userId);
+  if (!user)
+    return { kind: "recommend", answer: "请先登录，再按偏好为你推荐。" };
+  const stated = {
+    ...user,
+    preference: prefs.category ?? user.preference,
+    city: prefs.city,
+  };
+  const recs = await recommendationsFor(stated, resources, ctx);
+  const byId = new Map(resources.map((r) => [r.id, r]));
+  const matched = recs
+    .filter((r) => {
+      const full = byId.get(r.resourceId);
+      if (!full) return false;
+      if (prefs.genre && full.meta?.genre !== prefs.genre) return false;
+      if (full.city !== prefs.city) return false;
+      if (full.price < prefs.budget.min || full.price > prefs.budget.max)
+        return false;
+      return true;
+    })
+    .slice(0, 3);
+  const prefText = `体裁：${prefs.genre || prefs.categoryName}；城市：${prefs.city}；预算：${fmtBudget(prefs.budget)}`;
+  if (!matched.length)
+    return {
+      kind: "recommend",
+      answer:
+        head +
+        `按你说的偏好（${prefText}）暂时没有匹配的演出，换个城市或放宽预算试试。`,
+    };
+  const items = matched.map((r) => ({
+    name: r.resource.name,
+    city: r.resource.city,
+    price: r.resource.price,
+    unit: r.resource.unit,
+  }));
+  const list = matched
+    .map(
+      (r) =>
+        `• ${r.resource.name} — ${r.resource.city} · ${yuan(r.resource.price)}/${r.resource.unit}` +
+        (r.reason ? `（${r.reason}）` : ""),
+    )
+    .join("\n");
+  return {
+    kind: "recommend",
+    answer: head + `按你说的偏好为你推荐（${prefText}）：\n${list}`,
+    items,
+  };
+}
+
 // Shared rule engine: the kind/answer/items chain behind GET
 // /api/assistant. Also the fail-open fallback for POST /api/assistant/chat
 // when the trial AI backend is unreachable or returns nothing usable.
 // q must already be trimmed. Returns {kind, answer, items?}.
 export async function answerRules(ctx, q) {
-  const { all, yuan, ANSWERS, cache, res } = ctx;
+  const { all, get, yuan, ANSWERS, cache, res } = ctx;
   const s = q.toLowerCase();
   let kind, answer, items;
   // Wave 3 #8, operator intents — port of zhou assistants.mjs
@@ -110,6 +305,34 @@ export async function answerRules(ctx, q) {
   if (ctx.session) {
     const orders = await ctx.orderRows(ctx.session);
     if (/退款|退票|退订|退钱|cancel|refund|能退|怎么退|改签/.test(s)) {
+      // R7-4: a specific order code in the question answers THAT order
+      // (read-only over the Wave 4 #13 state machine); without a code
+      // the grouped summary below still reads the real orders.
+      prefSessions.delete(ctx.session.id);
+      // Codes are GY + digits + hex: live codes are GY + Date.now()
+      // + 4 hex chars (orders.mjs), seeded codes are GY2026 + 6
+      // digits. Match the whole alphanumeric run — a digits-only
+      // match truncates at the first hex letter (a-f).
+      const codeMatch = s.match(/gy[0-9a-z]+/);
+      if (codeMatch) {
+        const code = codeMatch[0].toUpperCase();
+        const one = orders.find((o) => o.code.toUpperCase() === code);
+        if (!one)
+          return {
+            kind: "myRefund",
+            answer:
+              "【本地规则客服，未接入大模型】\n没有找到你的订单 " +
+              code +
+              "，请核对订单号后再问。",
+          };
+        return {
+          kind: "myRefund",
+          answer:
+            "【本地规则客服，未接入大模型】\n订单 " +
+            `${one.code} · ${one.resource_name} · ${ORDER_STATUS_ZH[one.status] || one.status} · ${yuan(one.amount)}：` +
+            (REFUND_NEXT[one.status] || "状态未知，请联系客服。"),
+        };
+      }
       const groups = [
         ["pending", "待确认，可直接取消"],
         ["confirmed", "待支付，可直接取消"],
@@ -140,17 +363,22 @@ export async function answerRules(ctx, q) {
       };
     }
     if (/订单|预约|支付|付款/.test(s)) {
+      // R7-4: status / amount / performance (booking_date) all come
+      // from the caller's real orders table rows — never invented.
+      prefSessions.delete(ctx.session.id);
       items = orders.slice(0, 5).map((o) => ({
         code: o.code,
         resource_name: o.resource_name,
         status: o.status,
         amount: o.amount,
+        booking_date: o.booking_date || null,
       }));
       const list = orders
         .slice(0, 5)
         .map(
           (o) =>
-            `${o.code} · ${o.resource_name} · ${ORDER_STATUS_ZH[o.status] || o.status} · ${yuan(o.amount)}`,
+            `${o.code} · ${o.resource_name} · ${ORDER_STATUS_ZH[o.status] || o.status} · ${yuan(o.amount)}` +
+            (o.booking_date ? ` · 场次日期 ${String(o.booking_date).slice(0, 10)}` : ""),
         )
         .join("\n");
       return {
@@ -162,18 +390,56 @@ export async function answerRules(ctx, q) {
         items,
       };
     }
-    if (/会员|文惠|消费卡|储值/.test(s)) {
+    // R7-4: real membership, not the old stub — tier per the R3-1
+    // definition (live resolution from main-shop spending) and the
+    // R3-6 real stored-value balance. A message that is really a
+    // recommendation request ("文小惠帮我推荐") goes to the flow
+    // below instead of this branch.
+    if (/会员|文惠|消费卡|储值/.test(s) && !RECOMMEND_TRIGGER.test(s)) {
+      prefSessions.delete(ctx.session.id);
+      const resolved = await resolveTier(
+        get,
+        all,
+        ctx.session.id,
+        MAIN_SHOP_ID,
+      );
+      const balRow = await get(
+        "SELECT balance_cents FROM stored_value_accounts WHERE user_id=? AND shop_id=1",
+        ctx.session.id,
+      );
+      const tier = resolved.tier;
+      const balance = balRow?.balance_cents || 0;
+      const next = resolved.next_tier
+        ? `下一级${resolved.next_tier.name}还差${yuan(resolved.remaining_cents)}消费`
+        : "已是最高等级";
       return {
         kind: "member",
         answer:
-          "【本地规则客服，未接入大模型】\n会员与权益：演示支持兴趣偏好、收藏和模拟订单。文惠卡、消费卡、储值与真实优惠券尚未接入，不产生扣款或真实权益。",
+          "【本地规则客服，未接入大模型】\n会员信息（主店，实时计算）：\n" +
+          `等级：${tier ? tier.name : "普通会员"}（${tier?.benefits || "注册即享"}）\n` +
+          `累计消费：${yuan(resolved.spending_cents)}\n` +
+          `文惠卡余额：${yuan(balance)}\n` +
+          `${next}。`,
       };
     }
   } else if (/我的订单|订单/.test(s)) {
     // Anonymous: never return an empty order list that looks like "no
     // orders" — ask the user to log in first (kind stays myOrders).
     return { kind: "myOrders", answer: "请先登录，再查询你的订单。" };
+  } else if (/会员|文惠卡|储值|消费卡/.test(s)) {
+    // Anonymous membership / stored-value questions need a login too
+    // (the balance and tier belong to one user); the public refund
+    // rules below stay anonymous.
+    return { kind: "member", answer: "请先登录，再查看你的会员信息。" };
+  } else if (/我的退款|我的退换|退换货/.test(s)) {
+    return { kind: "myRefund", answer: "请先登录，再查询你的退换货状态。" };
   }
+  // R7-4: proactive recommendation (3-turn preference flow). Runs
+  // after the logged-in intents above, so a mid-flow "我的订单"
+  // still wins and clears the session; before the generic branches,
+  // so "帮我推荐" does not fall into the hot list.
+  const rec = await recommendFlow(ctx, q);
+  if (rec) return rec;
   // R7-3: knowledge graph before the rule fallback — a question
   // naming a show and asking about its performers / other shows /
   // venue is answered from the graph with its sources; anything the
