@@ -267,6 +267,12 @@ section{padding:76px 0}
 .ai-form input:focus{border-color:var(--red)}
 .ai-form button{background:var(--red);border:0;color:#fff;font-weight:800;border-radius:12px;padding:11px 18px}
 .ai-form button:disabled{opacity:.55}
+/* R7-2 voice input: mic button in the chat form (red while listening). */
+.ai-mic{flex:none;width:40px;height:40px;border-radius:12px;border:1px solid var(--line);background:var(--surface);color:var(--ink);display:flex;align-items:center;justify-content:center;cursor:pointer}
+.ai-mic.on{background:var(--red);border-color:var(--red);color:#fff}
+.ai-mic:disabled{opacity:.5;cursor:default}
+.ai-avatar{width:32px;height:32px;border-radius:50%;object-fit:cover;flex:none}
+.ai-voice-status{margin:0;padding:0 14px 12px;font-size:12.5px;color:var(--ink2)}
 @media(max-width:560px){.ai-fab{right:12px;bottom:12px}.ai-panel{right:12px;left:12px;width:auto;bottom:80px;max-height:min(520px,62vh)}}
 
 /* WeChat mini program — one small card linking to the real mini program. */

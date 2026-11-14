@@ -33,7 +33,7 @@
 // register rejects hyphens). All assertions filter by this file's
 // own usernames / resource / show / venue / coupon code — other test
 // files share this DB. This file creates no i18n keys (admin labels
-// are hardcoded Chinese), so the H5 423 / miniprogram 236 counts stay.
+// are hardcoded Chinese), so the H5 427 / miniprogram 241 counts stay.
 import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";

@@ -93,6 +93,16 @@ export default function AiChat({ lang }) {
       .catch(() => { if (!cancelled) setIpConfig({}); });
     return () => { cancelled = true; };
   }, []);
+  // R7-2 voice input (speech -> text): browser Web Speech API only —
+  // free, no server cost, no new model. `voiceStatus` is null |
+  // "listening" | "unsupported" | "failed".
+  const [voiceStatus, setVoiceStatus] = useState(null);
+  const [listening, setListening] = useState(false);
+  const recRef = useRef(null);
+  // R7-1 IP avatar: shown ONLY when the R7-1 config sets one. The
+  // /api/ip endpoint may not exist yet (R7-1 lands separately) — a
+  // 404 here just keeps the current appearance.
+  const [ipAvatar, setIpAvatar] = useState("");
   const logRef = useRef(null);
   const inputRef = useRef(null);
   const fabRef = useRef(null);
@@ -123,12 +133,97 @@ export default function AiChat({ lang }) {
   useEffect(
     () => () => {
       if (ctrlRef.current) ctrlRef.current.abort();
+      // R7-2: stop any in-flight recognition when the widget unmounts.
+      try {
+        if (recRef.current) recRef.current.stop();
+      } catch (e) {}
     },
     [],
   );
 
+  useEffect(() => {
+    let cancelled = false;
+    apiGet("/api/ip")
+      .then((d) => {
+        if (
+          !cancelled &&
+          d &&
+          typeof d.ip_avatar_url === "string" &&
+          d.ip_avatar_url
+        )
+          setIpAvatar(d.ip_avatar_url);
+      })
+      .catch(() => {
+        // No R7-1 config yet (or no endpoint): keep the current look.
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  // R7-2 voice input: the transcript goes into the input for the user to
+  // confirm — it is NEVER auto-sent. Unsupported browsers / recognition
+  // errors show a message, never a faked transcript. Recognition language
+  // follows the chat language (zh -> zh-CN, vi -> vi-VN, en -> en-US).
+  function toggleVoice() {
+    if (listening) {
+      try {
+        if (recRef.current) recRef.current.stop();
+      } catch (e) {}
+      return;
+    }
+    const SR =
+      (typeof window !== "undefined" &&
+        (window.SpeechRecognition || window.webkitSpeechRecognition)) ||
+      null;
+    if (!SR) {
+      setVoiceStatus("unsupported");
+      return;
+    }
+    let rec;
+    try {
+      rec = new SR();
+    } catch (e) {
+      setVoiceStatus("failed");
+      return;
+    }
+    rec.lang = lang === "vi" ? "vi-VN" : lang === "en" ? "en-US" : "zh-CN";
+    rec.interimResults = false;
+    rec.maxAlternatives = 1;
+    recRef.current = rec;
+    setVoiceStatus("listening");
+    setListening(true);
+    rec.onresult = (e) => {
+      try {
+        const text =
+          e.results && e.results[0] && e.results[0][0]
+            ? String(e.results[0][0].transcript || "").trim()
+            : "";
+        if (text) setInput((prev) => (prev ? prev + text : text));
+      } catch (err) {}
+      setVoiceStatus(null);
+      if (inputRef.current) inputRef.current.focus();
+    };
+    rec.onerror = () => {
+      setVoiceStatus("failed");
+    };
+    rec.onend = () => {
+      setListening(false);
+      recRef.current = null;
+    };
+    try {
+      rec.start();
+    } catch (e) {
+      setVoiceStatus("failed");
+      setListening(false);
+    }
+  }
+
   function close() {
     setOpen(false);
+    try {
+      if (recRef.current) recRef.current.stop();
+    } catch (e) {}
     if (fabRef.current) fabRef.current.focus();
   }
 
@@ -202,7 +297,7 @@ export default function AiChat({ lang }) {
       {open && (
         <div className="ai-panel" id="ai-chat-panel" role="dialog" aria-label={t("aiChatTitle")}>
           <div className="ai-panel-head">
-            <span className="ai-mark">{ipConfig && ipConfig.ip_avatar_url ? <img src={ipConfig.ip_avatar_url} alt="" style={{ width: 28, height: 28, borderRadius: "50%", objectFit: "cover", display: "block" }} /> : "桂演"}</span>
+            <span className="ai-mark">{ipConfig && ipConfig.ip_avatar_url ? <img src={ipConfig.ip_avatar_url} alt="" style={{ width: 28, height: 28, borderRadius: "50%", objectFit: "cover", display: "block" }} /> : ipAvatar ? <img className="ai-avatar" src={ipAvatar} alt="" /> : "桂演"}</span>
             <b>{(ipConfig && ipConfig.ip_name) || t("aiChatTitle")}</b>
             <button type="button" className="ai-close" aria-label={t("aiChatClose")} onClick={close}>✕</button>
           </div>
@@ -240,8 +335,33 @@ export default function AiChat({ lang }) {
               placeholder={t("aiChatPh")}
               aria-label={t("aiChatPh")}
             />
+            <button
+              type="button"
+              className={"ai-mic" + (listening ? " on" : "")}
+              aria-label={t("voiceMic")}
+              aria-pressed={listening}
+              onClick={toggleVoice}
+              disabled={busy}
+            >
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z" />
+                <path d="M19 10v2a7 7 0 0 1-14 0v-2" />
+                <line x1="12" x2="12" y1="19" y2="22" />
+              </svg>
+            </button>
             <button type="submit" disabled={busy}>{t("sendBtn")}</button>
           </form>
+          {voiceStatus && (
+            <p className="ai-voice-status" aria-live="polite">
+              {t(
+                voiceStatus === "listening"
+                  ? "voiceListening"
+                  : voiceStatus === "unsupported"
+                    ? "voiceUnsupported"
+                    : "voiceFailed",
+              )}
+            </p>
+          )}
         </div>
       )}
     </>

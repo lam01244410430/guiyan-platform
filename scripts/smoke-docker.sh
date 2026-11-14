@@ -12,7 +12,7 @@
 #
 # The script checks the 3 containers are healthy, runs the 61 checks in the
 # plan Appendix A against the stack, prints PASS/FAIL per check and exits
-# non-zero if any check fails. Check 62 tears the stack down (down -v) and
+# non-zero if any check fails. Check 63 tears the stack down (down -v) and
 # verifies no project containers/volumes remain. All curl calls are direct
 # (no background processes left behind). Target is a disposable stack with a
 # fresh DB — never run it against the live Vercel/Neon deployment.
@@ -404,11 +404,19 @@ if [ "$CODE" = "200" ] && has '托管条款'; then ok "60 GET /api/orders/1/cont
 CODE="$(get /api/ip)"
 if [ "$CODE" = "200" ] && has '{}'; then ok "61 GET /api/ip 200, unset (empty object)"; else bad "61 GET /api/ip (code=$CODE, body=$(cat "$TMP/body"))"; fi
 
-# 62. teardown — down -v, then 0 project containers and 0 project volumes.
+# 62. voice text entry — 400 on an empty message (R7-2; the spoken
+# transcript goes through the same assistant proxy as typed text, and
+# the browser recognition itself is client-side — only the proxy's
+# empty-text rejection is asserted here. Check 61 belongs to R7-1
+# and lands in the merge.)
+CODE="$(post "/api/assistant/chat" '{"message":"   ","language":"zh"}')"
+if [ "$CODE" = "400" ]; then ok "62 POST /api/assistant/chat empty voice text 400"; else bad "62 POST /api/assistant/chat empty voice text (code=$CODE, body=$(cat "$TMP/body"))"; fi
+
+# 63. teardown — down -v, then 0 project containers and 0 project volumes.
 docker compose -p "$PROJECT" down -v >/dev/null 2>&1
 LEFT_C="$(docker ps --format '{{.Names}}' | grep -c "$PROJECT" || true)"
 LEFT_V="$(docker volume ls --format '{{.Name}}' | grep -c "^${PROJECT}_" || true)"
-if [ "$LEFT_C" = "0" ] && [ "$LEFT_V" = "0" ]; then ok "62 down -v: 0 project containers, 0 project volumes"; else bad "62 down -v (containers left=$LEFT_C, volumes left=$LEFT_V)"; fi
+if [ "$LEFT_C" = "0" ] && [ "$LEFT_V" = "0" ]; then ok "63 down -v: 0 project containers, 0 project volumes"; else bad "63 down -v (containers left=$LEFT_C, volumes left=$LEFT_V)"; fi
 
-echo "== smoke-docker: PASS $PASS / FAIL $FAIL (61 checks) =="
+echo "== smoke-docker: PASS $PASS / FAIL $FAIL (62 checks) =="
 [ "$FAIL" = "0" ]

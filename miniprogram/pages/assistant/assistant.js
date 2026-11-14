@@ -30,7 +30,7 @@ function botAnswer(q) {
 Page({
   data: {
     L: {}, langIdx: 1, langName: 'Tiếng Việt', langs: ['中文', 'Tiếng Việt', 'English'],
-    msgs: [], input: '', quicks: []
+    msgs: [], input: '', quicks: [], recording: false, voiceNote: ''
   },
   onLoad: function () { this.applyLang(); },
   onShow: function () {
@@ -43,12 +43,15 @@ Page({
   applyLang: function () {
     var lang = i18n.getLang();
     var keys = ['brandTag', 'aiTitle', 'aiSub', 'aiNote', 'chatName', 'chatMode',
-      'chatPh', 'sendBtn', 'greeting', 'quicks', ];
+      'chatPh', 'sendBtn', 'greeting', 'quicks',
+      'voiceMic', 'voiceRecording', 'voiceRecordFailed', 'voiceNotConnected',
+      'voiceTypeInstead', ];
     var L = {};
     keys.forEach(function (k) { L[k] = i18n.t(k, lang); });
     wx.setNavigationBarTitle({ title: L.aiTitle });
     this.setData({ L: L, lang: lang, langIdx: i18n.langIndex(),
       langName: i18n.LANGS[i18n.langIndex()].label, quicks: L.quicks,
+      voiceNote: '',
       msgs: [{ who: 'bot', text: L.greeting }] });
   },
   onInput: function (e) { this.setData({ input: e.detail.value }); },
@@ -78,5 +81,49 @@ Page({
     if (!v) return;
     this.ask(v);
   },
-  quick: function (e) { this.ask(e.currentTarget.dataset.q); }
+  quick: function (e) { this.ask(e.currentTarget.dataset.q); },
+  onHide: function () {
+    // Stop a recording left running when the page is hidden.
+    if (this.data.recording && this._recorder) {
+      try { this._recorder.stop(); } catch (e) {}
+    }
+  },
+  // R7-2 mini-program honesty boundary: WeChat has no browser voice API;
+  // wx.getRecorderManager only records audio, and recognition needs a
+  // recognition provider (a third-party service, needs a separate
+  // Lam/group decision — NOT connected in this wave). So the mic button
+  // records, and on stop the page says so honestly and the user types
+  // the question instead: the recorded file is DISCARDED — it is never
+  // uploaded (no upload call anywhere in this page) and never turned
+  // into text. No fake result, ever.
+  onMicTap: function () {
+    var self = this;
+    if (this.data.recording) {
+      if (this._recorder) { try { this._recorder.stop(); } catch (e) {} }
+      return;
+    }
+    var L = this.data.L || {};
+    if (typeof wx.getRecorderManager !== 'function') {
+      this.setData({ voiceNote: (L.voiceNotConnected || '') + ' — ' + (L.voiceTypeInstead || '') });
+      return;
+    }
+    if (!this._recorder) {
+      var rec = wx.getRecorderManager();
+      rec.onStart(function () {
+        var cur = self.data.L || {};
+        self.setData({ recording: true, voiceNote: cur.voiceRecording });
+      });
+      rec.onStop(function () {
+        // The recorded file is intentionally ignored — no provider, no text.
+        var cur = self.data.L || {};
+        self.setData({ recording: false, voiceNote: (cur.voiceNotConnected || '') + ' — ' + (cur.voiceTypeInstead || '') });
+      });
+      rec.onError(function () {
+        var cur = self.data.L || {};
+        self.setData({ recording: false, voiceNote: cur.voiceRecordFailed });
+      });
+      this._recorder = rec;
+    }
+    this._recorder.start({ duration: 60000, sampleRate: 16000, numberOfChannels: 1, encodeBitRate: 96000, format: 'mp3' });
+  }
 });

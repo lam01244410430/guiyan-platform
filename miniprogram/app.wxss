@@ -22,6 +22,10 @@ page { background: #F7F4EE; color: #1E2A26; font-family: "Noto Sans SC", "PingFa
 .searchrow { display: flex; margin-top: 24rpx; }
 .searchrow input { flex: 1; min-height: 88rpx; box-sizing: border-box; background: #FFFFFF; border-radius: 16rpx 0 0 16rpx; padding: 18rpx 28rpx; font-size: 28rpx; }
 .searchrow .go { background: #C8452C; color: #FFFFFF; border-radius: 0 16rpx 16rpx 0; padding: 18rpx 30rpx; font-size: 28rpx; font-weight: 700; min-height: 88rpx; box-sizing: border-box; display: flex; align-items: center; }
+/* R7-2 voice input: mic button in the assistant chat bar (red while recording). */
+.searchrow .mic { background: #FFFFFF; border-left: 2rpx solid #DCE3DC; padding: 18rpx 20rpx; font-size: 32rpx; min-height: 88rpx; box-sizing: border-box; display: flex; align-items: center; }
+.searchrow .mic.rec { background: #C8452C; color: #FFFFFF; }
+.chatbar .voice-note { font-size: 24rpx; color: #5D5344; line-height: 1.6; margin-top: 12rpx; }
 /* Cards: plain tier below, featured tier carries a gold top rule. */
 .card { background: #FFFFFF; border-radius: 24rpx; padding: 28rpx; margin-top: 20rpx; box-shadow: 0 4rpx 16rpx rgba(11,61,54,.06); }
 .rescard { background: #FFFFFF; border-radius: 24rpx; padding: 26rpx 28rpx; margin-top: 18rpx; box-shadow: 0 4rpx 16rpx rgba(11,61,54,.06); }
@@ -65,7 +69,8 @@ page { background: #F7F4EE; color: #1E2A26; font-family: "Noto Sans SC", "PingFa
 .msg { max-width: 82%; padding: 18rpx 22rpx; border-radius: 20rpx; font-size: 28rpx; line-height: 1.7; margin-top: 16rpx; white-space: pre-wrap; }
 .msg.bot { background: #FFFFFF; align-self: flex-start; }
 .msg.me { background: #0B3D36; color: #FFFFFF; align-self: flex-end; }
-.chatlog { display: flex; flex-direction: column; padding-bottom: 200rpx; }
+/* R7-2: 260rpx leaves room for the voice-note line inside the fixed bar. */
+.chatlog { display: flex; flex-direction: column; padding-bottom: 260rpx; }
 .quickrow { display: flex; flex-wrap: wrap; margin-top: 16rpx; }
 /* Fixed input bar: stays above the tab bar; the log's bottom padding
    (bar height + safe area) keeps the last message + chips visible. */

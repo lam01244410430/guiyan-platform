@@ -19,6 +19,8 @@
 <view class="chatbar">
   <view class="searchrow">
     <input placeholder="{{L.chatPh}}" value="{{input}}" bindinput="onInput" confirm-type="send" bindconfirm="send" />
+    <view class="mic {{recording ? 'rec' : ''}}" bindtap="onMicTap">{{recording ? '■' : '🎙'}}</view>
     <view class="go" bindtap="send">{{L.sendBtn}}</view>
   </view>
+  <view class="voice-note" wx:if="{{voiceNote}}">{{voiceNote}}</view>
 </view>
