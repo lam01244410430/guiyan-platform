@@ -192,6 +192,13 @@ export async function openPostgresStore(
       await client.query(
         "ALTER TABLE orders ADD COLUMN IF NOT EXISTS pending_refund_tickets TEXT DEFAULT '[]'",
       );
+      // R5-1 (events + batch aggregation, 2026-11-14): how long a
+      // dwell event lasted, in ms. Fresh databases get it from
+      // schema.mjs; existing ones get it here, same idempotent
+      // pattern as the columns above. view/click/search write 0.
+      await client.query(
+        "ALTER TABLE events ADD COLUMN IF NOT EXISTS duration_ms INTEGER NOT NULL DEFAULT 0",
+      );
       if (!(await client.query("SELECT COUNT(*) AS n FROM users")).rows[0].n) {
         // Batch adjacent inserts to keep first-time setup fast over the network.
         const groups = [];
@@ -416,7 +423,9 @@ export async function openPostgresStore(
             // the id back then hits 22P02 -> 500).
             // R4-2: print_logs joins them too (the print insert
             // needs its id the same way).
-            /^\s*INSERT\s+INTO\s+(users|resources|orders|demands|comments|messages|events|audit_logs|shops|shows|performances|ticket_types|pickup_points|ticket_templates|venues|seat_templates|seats|member_tiers|coupons|flash_sales|coupon_rules|coupon_gifts|sms_tasks|stored_value_accounts|stored_value_ledger|stored_value_plans|tickets|verify_logs|print_logs)\b/i.test(
+            // R5-1: event_aggregates joins them too (the aggregate
+            // insert needs its id the same way).
+            /^\s*INSERT\s+INTO\s+(users|resources|orders|demands|comments|messages|events|audit_logs|shops|shows|performances|ticket_types|pickup_points|ticket_templates|venues|seat_templates|seats|member_tiers|coupons|flash_sales|coupon_rules|coupon_gifts|sms_tasks|stored_value_accounts|stored_value_ledger|stored_value_plans|tickets|verify_logs|print_logs|event_aggregates)\b/i.test(
               sql,
             );
           const result = await execute(

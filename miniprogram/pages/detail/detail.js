@@ -33,6 +33,18 @@ Page({
     this.setData({ idx: idx, date: date });
     this.applyLang();
     this.loadOnline();
+    // R5-1 埋点采集: opening a detail is a click on that resource,
+    // fire-and-forget (no await, no retry, never blocks the UI).
+    // Offline the send is simply dropped — the client never claims
+    // an event was recorded when it was not. Anonymous sends count
+    // too (server-side). No apiId yet (offline/local catalog) means
+    // nothing is recorded. The dwell clock starts here as well.
+    this._detailOpenedAt = Date.now();
+    var apiId = api.apiIdForIdx(idx);
+    this._detailApiId = apiId;
+    if (apiId != null) {
+      api.post('/api/events', { type: 'click', detail: 'resource:' + apiId }).then(function () {}, function () {});
+    }
   },
   onShow: function () {
     if (this.data.langIdx !== i18n.langIndex()) this.applyLang();
@@ -47,6 +59,13 @@ Page({
   onUnload: function () {
     // R3-3: drop the countdown timer with the page.
     this.stopFlashTimer();
+    // R5-1: one dwell event for the detail just left, capped at the
+    // server's 3600000 ms. Fire-and-forget, like the click above.
+    if (this._detailApiId != null && this._detailOpenedAt) {
+      var ms = Date.now() - this._detailOpenedAt;
+      if (ms > 3600000) ms = 3600000;
+      api.post('/api/events', { type: 'dwell', detail: 'resource:' + this._detailApiId, duration_ms: ms }).then(function () {}, function () {});
+    }
   },
   onLangChange: function (e) {
     i18n.setLang(i18n.LANGS[e.detail.value].code);
@@ -248,6 +267,9 @@ Page({
       return;
     }
     this.setData({ perfSel: id, tierSel: null, pickupSel: null, pickupPoints: null, seats: null, seatSel: [] });
+    // R5-1: picking a performance is a click on that show
+    // (fire-and-forget, never blocks the UI).
+    api.post('/api/events', { type: 'click', detail: 'show:' + id }).then(function () {}, function () {});
     this.refreshSeats();
     // R2-3: selecting a performance loads its show's pickup points
     // (public, best-effort like the performance list); a failed fetch
@@ -278,6 +300,10 @@ Page({
     var id = e.currentTarget.dataset.id;
     if (Number(e.currentTarget.dataset.avail || 0) <= 0) return;
     this.setData({ tierSel: this.data.tierSel === id ? null : id });
+    // R5-1: picking a ticket type is a click on it (fire-and-forget).
+    if (this.data.tierSel === id) {
+      api.post('/api/events', { type: 'click', detail: 'ticket_type:' + id }).then(function () {}, function () {});
+    }
     this.refreshTotal();
     this.refreshFlashCountdown();
   },

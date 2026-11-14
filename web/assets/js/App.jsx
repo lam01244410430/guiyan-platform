@@ -146,6 +146,19 @@ export default function App() {
   const toastTimer = useRef(null);
   const chatLogRef = useRef(null);
   const matchBoxRef = useRef(null);
+  const detailOpenedAt = useRef(null); /* R5-1: {rid, started} of the open detail, for the dwell event (see the effect below) */
+
+  /* R5-1 埋点采集: fire-and-forget event send (never awaits, never
+     retries, never blocks the UI, never toasts on failure). Offline
+     the send is simply dropped — the client never claims an event
+     was recorded when it was not. Anonymous sends count too
+     (server-side, like the view recording). */
+  function recordEvent(type, detail, durationMs) {
+    if (!isApiAvailable()) return;
+    const body = { type, detail };
+    if (durationMs != null) body.duration_ms = durationMs;
+    apiPost("/api/events", body).catch(function () {});
+  }
 
   const toast = useCallback((msg) => {
     setToastMsg(msg);
@@ -176,6 +189,25 @@ export default function App() {
   useEffect(() => {
     if (match && matchBoxRef.current) matchBoxRef.current.scrollIntoView({ behavior: "smooth", block: "nearest" });
   }, [match]);
+
+  /* R5-1 停留时长: when a detail opens, note the time; when it
+     closes (or another detail opens — the cleanup runs first), send
+     one dwell event for the detail just left, capped at the server's
+     3600000 ms. Fire-and-forget like the view recording; offline the
+     send is dropped. The cleanup also runs on unmount. */
+  useEffect(() => {
+    if (detailIdx == null) return;
+    const rid = APIRES[detailIdx] && APIRES[detailIdx].id;
+    detailOpenedAt.current = { rid: rid != null ? rid : null, started: Date.now() };
+    return function () {
+      const prev = detailOpenedAt.current;
+      detailOpenedAt.current = null;
+      if (prev && prev.rid != null) {
+        recordEvent("dwell", "resource:" + prev.rid, Math.min(Date.now() - prev.started, 3600000));
+      }
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [detailIdx]);
 
   /* Wave 4 #12: availability for the open detail, re-fetched when the
      date changes. Fire-and-forget like the view recording in openDetail:
@@ -490,11 +522,14 @@ export default function App() {
   // never blocks the UI, never toasts on failure). API id comes from
   // APIRES (RES index -> API id); offline/embedded data has no id, so
   // nothing is recorded then. Anonymous views count too (server-side).
+  // R5-1: opening a detail is also a click on that resource
+  // (detail `resource:{id}`).
   function openDetail(i) {
     setDetailIdx(i); setBkQty(1); setBkDate("2026-12-05"); setPerfSel(null); setTierSel(null); setPickupPoints(null); setPickupSel(null); setSeats(null); setSeatSel([]);
     const rid = APIRES[i] && APIRES[i].id;
     if (rid != null && isApiAvailable()) {
       apiPost("/api/resources/" + rid + "/view", {}).catch(function () {});
+      recordEvent("click", "resource:" + rid);
     }
   }
   function selectDemand(i) {
@@ -571,6 +606,8 @@ export default function App() {
   function pickPerf(pf) {
     if (pf.id === perfSel) { setPerfSel(null); setTierSel(null); setPickupPoints(null); setPickupSel(null); setSeats(null); setSeatSel([]); return; }
     setPerfSel(pf.id); setTierSel(null); setPickupSel(null); setPickupPoints(null); setSeats(null); setSeatSel([]);
+    // R5-1: picking a performance is a click on that show.
+    recordEvent("click", "show:" + pf.id);
     if (pf.show_id) apiGet("/api/shows/" + pf.show_id + "/pickup-points").then(function (d) { setPickupPoints(d.pickup_points || []); }).catch(function () { setPickupPoints([]); });
     else setPickupPoints([]);
     apiGet("/api/performances/" + pf.id + "/seats").then(function (d) { setSeats(d.seats || []); }).catch(function () { setSeats([]); });
@@ -987,7 +1024,7 @@ export default function App() {
                                 pf.ticket_types.map((tt) => (
                                   <button key={tt.id} type="button" className="perf-row" style={{ width: "100%", background: tt.id === tierSel ? "var(--sand)" : "transparent", border: "none", cursor: tt.available > 0 ? "pointer" : "not-allowed", textAlign: "left", opacity: tt.available > 0 ? 1 : 0.55 }}
                                     disabled={tt.available <= 0}
-                                    onClick={() => setTierSel(tt.id)}>
+                                    onClick={() => { setTierSel(tt.id); recordEvent("click", "ticket_type:" + tt.id); }}>
                                     <span>{tt.name}</span>{tt.flash_sale ? (<span><s>{money(tt.price_cents / 100)}</s> {money(tt.flash_sale.sale_price_cents / 100)}</span>) : (<span>{money(tt.price_cents / 100)}</span>)}
                                     <span className="perf-status">{tt.available > 0 ? fmt(t("tierLeft"), { a: tt.available }) : t("tierSoldOut")}</span>
                                   </button>

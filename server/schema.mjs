@@ -41,6 +41,7 @@ CREATE TABLE IF NOT EXISTS users(id INTEGER PRIMARY KEY, username TEXT UNIQUE NO
     CREATE INDEX IF NOT EXISTS idx_verify_logs_ticket ON verify_logs(ticket_id);
     CREATE TABLE IF NOT EXISTS print_logs(id INTEGER PRIMARY KEY, ticket_id INTEGER REFERENCES tickets(id), printed_by INTEGER REFERENCES users(id), printed_at TEXT NOT NULL, created_at TEXT NOT NULL);
     CREATE INDEX IF NOT EXISTS idx_print_logs_ticket ON print_logs(ticket_id);
+    CREATE TABLE IF NOT EXISTS event_aggregates(id INTEGER PRIMARY KEY, period TEXT NOT NULL, period_key TEXT NOT NULL, type TEXT NOT NULL, key TEXT NOT NULL, count INTEGER NOT NULL DEFAULT 0, total_duration_ms INTEGER NOT NULL DEFAULT 0, updated_at TEXT NOT NULL, UNIQUE(period, period_key, type, key));
     CREATE INDEX IF NOT EXISTS idx_order_resource_date ON orders(resource_id,booking_date,status);
     CREATE INDEX IF NOT EXISTS idx_order_user ON orders(user_id);
     CREATE INDEX IF NOT EXISTS idx_comments_resource ON comments(resource_id,status);

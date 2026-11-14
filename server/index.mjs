@@ -59,6 +59,7 @@ import { listAdminCouponRules, getAdminCouponRule, createCouponRule, patchCoupon
 import { listAdminSmsTasks, getAdminSmsTask, createSmsTask, patchSmsTask } from "./routes/sms-tasks.mjs";
 import { listShopPlans, listAdminPlans, createPlan, patchPlan, topup, getAccountStoredValue, getAdminStoredValue, grantStoredValue } from "./routes/stored-value.mjs";
 import { verifyTicket, verifyBatch, listOrderTickets, listAdminTickets, printTickets, listPrintLogs } from "./routes/tickets.mjs";
+import { recordEvent, aggregateEvents, listEventAggregates } from "./routes/events.mjs";
 
 // A stored-value CSV export (?format=csv on the own-account or the
 // admin endpoint) audits "导出储值流水" — one INSERT — so it needs a
@@ -187,6 +188,7 @@ export async function createApp({ database }) {
       if (await getResource(ctx)) return;
       if (await getAvailability(ctx)) return;
       if (await viewResource(ctx)) return;
+      if (await recordEvent(ctx)) return;
       if (await login(ctx)) return;
       if (await register(ctx)) return;
       if (await logout(ctx)) return;
@@ -309,6 +311,8 @@ export async function createApp({ database }) {
       if (await getAccountStoredValue(ctx)) return;
       if (await getAdminStoredValue(ctx)) return;
       if (await grantStoredValue(ctx)) return;
+      if (await aggregateEvents(ctx)) return;
+      if (await listEventAggregates(ctx)) return;
 
       send({ error: "接口不存在" }, 404);
     } catch (e) {

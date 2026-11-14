@@ -95,6 +95,7 @@ const VIEWS = [
   { id: "trends", label: "趋势统计", iconName: "ui:chart-line", group: "premium" },
   { id: "analysis", label: "经营分析", iconName: "ui:scroll-text", group: "premium" },
   { id: "alerts", label: "预警中心", iconName: "ui:triangle-alert", group: "premium" },
+  { id: "events", label: "数据运营", iconName: "ui:chart-line", group: "premium" },
 ];
 const FILTERS = [
   ["all", "全部"], ["pending", "待确认"], ["confirmed", "已确认"], ["paid", "已支付"],
@@ -233,6 +234,15 @@ export default function AdminDashboard() {
   const [analysisStale, setAnalysisStale] = useState(false);
   const [alerts, setAlerts] = useState([]);
   const [threshold, setThreshold] = useState(5);
+  // R5-1 数据运营: the stored aggregates for the chosen period +
+  // date + type filter ("" = all types), and the re-aggregate
+  // in-flight flag. Date "" = today (server default); the aggregates
+  // table is read-only — recompute runs only via the button below.
+  const [eventAggregates, setEventAggregates] = useState([]);
+  const [eventPeriod, setEventPeriod] = useState("day");
+  const [eventDate, setEventDate] = useState("");
+  const [eventType, setEventType] = useState("");
+  const [eventBusy, setEventBusy] = useState(false);
   const [auditLogs, setAuditLogs] = useState([]);
   const [csvBusy, setCsvBusy] = useState(false);
   // Wave 3 #9 tag rules (lazy-loaded like the premium views) + the users
@@ -419,6 +429,35 @@ export default function AdminDashboard() {
       setAuditLogs(d.logs || []);
     }).catch(loadFail);
   }
+  // R5-1: read the STORED aggregates for the current period/date/
+  // type filter (the list endpoint never recomputes live).
+  function loadEventAggregates() {
+    const qs = "/api/admin/event-aggregates?period=" + eventPeriod
+      + (eventDate ? "&date=" + encodeURIComponent(eventDate) : "")
+      + (eventType ? "&type=" + encodeURIComponent(eventType) : "");
+    apiGet(qs).then(function (d) {
+      setEventAggregates(d.event_aggregates || []);
+    }).catch(loadFail);
+  }
+  // R5-1: recompute the aggregates for the current period/date
+  // (manual trigger only — there is no cron/worker this wave), then
+  // reload the table. Idempotent: running it twice changes nothing.
+  function doAggregateEvents() {
+    if (eventBusy) return;
+    setEventBusy(true);
+    apiPost("/api/admin/aggregate-events", {
+      period: eventPeriod,
+      ...(eventDate ? { date: eventDate } : {}),
+    }).then(function () {
+      setEventBusy(false);
+      toast("已重新聚合");
+      loadEventAggregates();
+    }).catch(function (e) {
+      setEventBusy(false);
+      if (e && e.status === 403) toast("无权重新聚合");
+      else toast((e && e.message) || "重新聚合失败");
+    });
+  }
 
   useEffect(() => {
     const u = currentUser();
@@ -489,6 +528,13 @@ export default function AdminDashboard() {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [view, period, analysisStale]);
+
+  // R5-1 数据运营: load the stored aggregates when the view opens
+  // and whenever its period/date/type filter changes.
+  useEffect(() => {
+    if (view === "events") loadEventAggregates();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [view, eventPeriod, eventDate, eventType]);
 
   function doLogout() {
     apiPost("/api/auth/logout", {}).catch(function () {});
@@ -1954,6 +2000,7 @@ export default function AdminDashboard() {
     trends: ["趋势统计", "按周期查看订单趋势"],
     analysis: ["经营分析", "模拟经营分析报告"],
     alerts: ["预警中心", "库存与模拟预警 · 操作留痕"],
+    events: ["数据运营", "埋点聚合 · 按小时/天查看"],
   };
   const by = (stats && stats.orders_by_status) || {};
   // R1-1: the signed-in admin's scope (the sessionStorage user carries
@@ -3635,6 +3682,48 @@ export default function AdminDashboard() {
                 </table>
               </div>
               <p className="def-note">仅显示最近 60 条，最新在前。每次导出、审核、触发与处理预警都会在此留痕。</p>
+            </div>
+          </section>
+          {/* R5-1 数据运营: stored event aggregates by period + date
+              + type. The table reads the aggregates table only — it
+              never recomputes live. "重新聚合" recomputes from the
+              raw events for the chosen period/date (manual trigger
+              only; there is no cron/worker this wave) and is
+              idempotent: running it twice changes nothing. */}
+          <section className={"view" + (view === "events" ? " on" : "")} id="view-events">
+            <div className="note">埋点事件（浏览 / 点击 / 搜索 / 停留）按小时或天汇总。聚合按人工触发重算，无定时任务；重新聚合可重复执行，结果不变。</div>
+            <div className="search-row">
+              <label>周期 <select value={eventPeriod} onChange={(e) => setEventPeriod(e.target.value)}>
+                <option value="day">按天</option>
+                <option value="hour">按小时</option>
+              </select></label>
+              <label>日期 <input type="date" value={eventDate} onChange={(e) => setEventDate(e.target.value)} /></label>
+              <label>事件类型 <select value={eventType} onChange={(e) => setEventType(e.target.value)}>
+                <option value="">全部</option>
+                <option value="view">浏览</option>
+                <option value="click">点击</option>
+                <option value="search">搜索</option>
+                <option value="dwell">停留</option>
+              </select></label>
+              <button type="button" className="btn-export" disabled={eventBusy} onClick={doAggregateEvents}>{eventBusy ? "聚合中…" : "重新聚合"}</button>
+            </div>
+            <div className="tbl-wrap">
+              <table>
+                <thead><tr><th scope="col">时段</th><th scope="col">事件类型</th><th scope="col">对象</th><th scope="col">次数</th><th scope="col">总停留时长（毫秒）</th></tr></thead>
+                <tbody>
+                  {eventAggregates.length
+                    ? eventAggregates.map((a) => (
+                      <tr key={a.period + "-" + a.period_key + "-" + a.type + "-" + a.key}>
+                        <td>{a.period_key}</td>
+                        <td>{({ view: "浏览", click: "点击", search: "搜索", dwell: "停留" })[a.type] || a.type}</td>
+                        <td><span className="code">{a.key}</span></td>
+                        <td className="num">{a.count}</td>
+                        <td className="num">{a.total_duration_ms}</td>
+                      </tr>
+                    ))
+                    : <tr><td colSpan="5"><div className="empty">暂无聚合数据（先点“重新聚合”从事件汇总）</div></td></tr>}
+                </tbody>
+              </table>
             </div>
           </section>
         </main>
