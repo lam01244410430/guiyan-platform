@@ -11,6 +11,7 @@
 // any shop. Validate first, write after, never throw after a write in
 // the same request (OTP lesson).
 import { assert, text, int, time, today } from "../lib/http.mjs";
+import { isAdminRole } from "../lib/roles.mjs";
 import { ticketTypesForPerformance } from "./ticket-types.mjs";
 
 const SHOW_STATUSES = ["pending", "approved", "rejected"];
@@ -18,7 +19,7 @@ const PERF_STATUSES = ["scheduled", "on_sale", "cancelled"];
 const MAIN_SHOP_ID = 1;
 
 function assertAdmin(session) {
-  assert(session?.role === "admin", "无权访问管理后台", 403);
+  assert(isAdminRole(session?.role), "无权访问管理后台", 403);
 }
 
 // R1-1 shop scoping: platform admin (shop_id NULL) sees all shops; a
@@ -191,7 +192,7 @@ export async function getShow(ctx) {
   const s = await getShowOr404(get, Number(m[1]));
   // Public only when approved; any admin sees any show.
   assert(
-    s.status === "approved" || session?.role === "admin",
+    s.status === "approved" || isAdminRole(session?.role),
     "演出不存在",
     404,
   );

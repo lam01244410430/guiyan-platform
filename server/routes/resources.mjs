@@ -1,4 +1,5 @@
 import { assert, date, resourceRow } from "../lib/http.mjs";
+import { isAdminRole } from "../lib/roles.mjs";
 import { evaluateAutoTags } from "../lib/profiles.mjs";
 import { performancesForResource } from "./shows.mjs";
 import { CACHE_KEYS, CACHE_TTLS } from "../lib/cache.mjs";
@@ -209,7 +210,7 @@ export async function getAvailability(ctx) {
     );
     assert(r, "资源不存在", 404);
     assert(
-      r.status === "published" || session?.role === "admin",
+      r.status === "published" || isAdminRole(session?.role),
       "资源不存在",
       404,
     );

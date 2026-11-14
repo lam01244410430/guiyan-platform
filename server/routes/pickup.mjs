@@ -13,6 +13,7 @@
 // any shop. Validate first, write after, never throw after a write in
 // the same request (OTP lesson).
 import { assert, text, int, time } from "../lib/http.mjs";
+import { isAdminRole } from "../lib/roles.mjs";
 
 // The Guiyan 7-colour allowlist — the same list as R1-3 shop theming
 // (server/routes/shops.mjs THEME_COLORS); a template colour must be
@@ -41,7 +42,7 @@ export const BUILTIN_TEMPLATE = {
 const MAIN_SHOP_ID = 1;
 
 function assertAdmin(session) {
-  assert(session?.role === "admin", "无权访问管理后台", 403);
+  assert(isAdminRole(session?.role), "无权访问管理后台", 403);
 }
 
 // R1-1 shop scoping: platform admin (shop_id NULL) sees all shops; a

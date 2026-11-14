@@ -230,7 +230,7 @@ async function adminLogin() {
     body: { username: "admin", password: process.env.ADMIN_PASSWORD },
   });
   assert.equal(r.status, 200);
-  assert.equal(r.json.user.role, "admin");
+  assert.equal(r.json.user.role, "root");
   return r.json.token;
 }
 

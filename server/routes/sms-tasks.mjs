@@ -52,6 +52,7 @@
 // shop, cross-shop -> 403 (explicit-403, NOT admin-resources' silent
 // re-scoping).
 import { assert, text, int, time } from "../lib/http.mjs";
+import { isAdminRole } from "../lib/roles.mjs";
 import { MAIN_SHOP_ID } from "./member-tiers.mjs";
 
 export const SMS_TASK_STATUSES = ["draft", "queued", "waiting_provider"];
@@ -71,7 +72,7 @@ const TEMPLATE_MAX_CHARS = 500;
 const TEMPLATE_PLACEHOLDERS = ["{{name}}", "{{code}}"];
 
 function assertAdmin(session) {
-  assert(session?.role === "admin", "无权访问管理后台", 403);
+  assert(isAdminRole(session?.role), "无权访问管理后台", 403);
 }
 
 // R1-1 shop scoping: platform admin (shop_id NULL) sees all shops; a

@@ -11,6 +11,7 @@
 // from the session join).
 import { scryptSync, timingSafeEqual } from "node:crypto";
 import { assert, text, safeUser, time } from "../lib/http.mjs";
+import { isAdminRole, isRootUser } from "../lib/roles.mjs";
 import { hashPassword } from "./auth.mjs";
 import { consumeVerifiedCode } from "./account.mjs";
 
@@ -19,18 +20,26 @@ const ACCOUNT_STATUSES = ["active", "disabled"];
 // Admin redesign Item 4 (2026-11-15) — user CRUD (Q7(a)): the 账号
 // view merged into 用户, so the admin account endpoints live here
 // next to the R1-2 status endpoint.
-// INTERIM (Item 4): the default admin — the highest-privilege account
-// — is identified by id === 1. The `root` role value arrives in Item
-// 5, which replaces every `id === 1` check below with
-// `role === "root"`.
-const ROOT_ADMIN_ID = 1;
+// Admin redesign Item 5 (2026-11-15) — Oracle-style RBAC (Q1(a)):
+// the default admin (id 1) is now role "root" (seed.mjs + backfill
+// in postgres.mjs); every interim `id === 1` check is replaced by
+// the role-based `isRootUser()` (roles.mjs), which treats
+// role === "root" OR id === 1 as root, so an old DB stays safe even
+// before the backfill runs.
 // Same username rule as registration (auth.mjs); same phone rule as
 // the customer phone change (account.mjs).
 const USERNAME_RE = /^[A-Za-z0-9_]{3,20}$/;
 const PHONE_RE = /^\+?\d{9,15}$/;
 
 function assertAdmin(session) {
-  assert(session?.role === "admin", "无权访问管理后台", 403);
+  assert(isAdminRole(session?.role), "无权访问管理后台", 403);
+}
+
+// Admin redesign Item 5 — root-only gate (Q1(a)): ONLY the root
+// account grants / revokes the admin role or touches the root
+// account. A non-root admin gets 403 here, same as a plain user.
+function assertRoot(session) {
+  assert(isRootUser(session), "只有最高管理员可执行此操作", 403);
 }
 
 // Platform admin = role admin with NO shop (shop_id NULL).
@@ -99,12 +108,12 @@ export async function patchAdminUserStatus(ctx) {
   const target = await get("SELECT * FROM users WHERE id=?", id);
   assert(target, "用户不存在", 404);
   assert(ACCOUNT_STATUSES.includes(b.status), "账号状态错误", 400);
-  // Admin redesign Item 4: the default admin (id 1 — INTERIM root
-  // check, Item 5 switches to role === "root") can never be disabled,
-  // and nobody disables their own account. Both are 403 (a
-  // permission refusal), not 400: the R1-2 self-disable check was 400
-  // and is changed here per the approved redesign.
-  assert(id !== ROOT_ADMIN_ID, "默认管理员账号不可停用", 403);
+  // Admin redesign Item 4: the root account (role "root", defensive
+  // id === 1 — Item 5) can never be disabled, and nobody disables
+  // their own account. Both are 403 (a permission refusal), not 400:
+  // the R1-2 self-disable check was 400 and is changed here per the
+  // approved redesign.
+  assert(!isRootUser(target), "默认管理员账号不可停用", 403);
   if (id === me.id && b.status === "disabled")
     assert(false, "不能停用自己的账号", 403);
   await run("UPDATE users SET status=? WHERE id=?", b.status, id);
@@ -215,10 +224,10 @@ export async function createAdminUser(ctx) {
 
 // Admin redesign Item 4 — edit a regular user (Q7(a)): 姓名/城市/
 // 邮箱/手机号 only. Platform-admin only; the target must be a plain
-// user — an admin-role account (and the default admin, id 1 — INTERIM
-// root check, Item 5 switches to role === "root") is never editable
-// here, and neither is the caller's own row (own profile editing left
-// the dashboard with the 账号 view; only root manages admin accounts).
+// user — an admin-role account (and the root account — Item 5,
+// role-based `isRootUser()`) is never editable here, and neither is
+// the caller's own row (own profile editing left the dashboard with
+// the 账号 view; only root manages admin accounts).
 // username/id/role are never editable through this endpoint: sending
 // any of them is a 400 (role changes are a separate root-only action,
 // Item 5). Email follows the profile rules (trim + lowercase,
@@ -233,8 +242,8 @@ export async function patchAdminUser(ctx) {
   const id = Number(m[1]);
   const target = await get("SELECT * FROM users WHERE id=?", id);
   assert(target, "用户不存在", 404);
-  assert(target.role !== "admin", "管理员账号不可通过此接口修改", 403);
-  assert(target.id !== ROOT_ADMIN_ID, "默认管理员账号不可修改", 403);
+  assert(!isAdminRole(target.role), "管理员账号不可通过此接口修改", 403);
+  assert(!isRootUser(target), "默认管理员账号不可修改", 403);
   assert(target.id !== me.id, "不能修改自己的账号", 403);
   assert(
     !("username" in b) && !("role" in b) && !("id" in b),
@@ -322,8 +331,8 @@ const USER_REFERENCES = [
 
 // Admin redesign Item 4 — delete a user (Q7(a)). Platform-admin
 // only; only a plain role=user account, never an admin (and never
-// the default admin, id 1 — INTERIM root check, Item 5 switches to
-// role === "root"), never the caller themself. If the user owns any
+// the root account — Item 5, role-based `isRootUser()`), never the
+// caller themself. If the user owns any
 // referential data (orders/demands/comments/favorites/tickets or any
 // other row in USER_REFERENCES) the delete is refused with 400 —
 // no cascade-delete. Otherwise the row is hard-deleted and the
@@ -337,8 +346,8 @@ export async function deleteAdminUser(ctx) {
   const id = Number(m[1]);
   const target = await get("SELECT * FROM users WHERE id=?", id);
   assert(target, "用户不存在", 404);
-  assert(target.role !== "admin", "管理员账号不可删除", 403);
-  assert(target.id !== ROOT_ADMIN_ID, "默认管理员账号不可删除", 403);
+  assert(!isAdminRole(target.role), "管理员账号不可删除", 403);
+  assert(!isRootUser(target), "默认管理员账号不可删除", 403);
   assert(target.id !== me.id, "不能删除自己的账号", 403);
   for (const [table, col, label] of USER_REFERENCES) {
     const row = await get(
@@ -350,5 +359,47 @@ export async function deleteAdminUser(ctx) {
   await run("DELETE FROM users WHERE id=?", id);
   await audit(me, "管理账号", `删除用户 ${target.username}`);
   send({ ok: true });
+  return true;
+}
+
+// Admin redesign Item 5 — grant / revoke the admin role (Q1(a)).
+// ROOT-ONLY: a non-root admin gets 403 here (granting roles is the
+// one power reserved to root), a plain user 403, anonymous 401
+// (needUser). Body {role: "admin" | "user"} only: "root" is never
+// grantable (root is only id 1) -> 400, any other value -> 400.
+// The caller's own role can never change through this endpoint
+// (no self-demotion) -> 403, and neither can the root account's
+// role -> 403. On success (200) the role is updated and the change
+// is written to the audit log (action 授予管理员 / 收回管理员).
+// NOTE: this endpoint deliberately does NOT use assertPlatformAdmin
+// — root is the platform admin by construction (id 1, shop_id NULL),
+// and the root check alone is the gate.
+export async function patchAdminUserRole(ctx) {
+  const { p, req, b, send, needUser, get, run, audit } = ctx;
+  const m = p.match(/^\/api\/admin\/users\/(\d+)\/role$/);
+  if (!m || req.method !== "PATCH") return false;
+  const me = needUser();
+  assertRoot(me);
+  const id = Number(m[1]);
+  const target = await get("SELECT * FROM users WHERE id=?", id);
+  assert(target, "用户不存在", 404);
+  assert(target.id !== me.id, "不能修改自己的角色", 403);
+  assert(!isRootUser(target), "默认管理员账号的角色不可修改", 403);
+  assert(
+    b.role === "admin" || b.role === "user",
+    b.role === "root" ? "不能授予最高管理员角色" : "角色只能为 admin 或 user",
+    400,
+  );
+  await run("UPDATE users SET role=? WHERE id=?", b.role, id);
+  const granting = b.role === "admin";
+  await audit(
+    me,
+    granting ? "授予管理员" : "收回管理员",
+    granting
+      ? `授予 ${target.username} 管理员权限`
+      : `收回 ${target.username} 管理员权限`,
+  );
+  const fresh = await get("SELECT * FROM users WHERE id=?", id);
+  send({ user: safeUser(fresh) });
   return true;
 }

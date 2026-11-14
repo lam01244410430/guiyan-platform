@@ -12,6 +12,7 @@
 // resource -> 404; a draft resource's graph is not public (same rule
 // as GET /api/resources/:id, which only serves published rows).
 import { assert } from "../lib/http.mjs";
+import { isAdminRole } from "../lib/roles.mjs";
 import { KG_KINDS, nodeForResource, relatedForNode } from "../lib/kg.mjs";
 
 export async function getRelated(ctx) {
@@ -24,7 +25,7 @@ export async function getRelated(ctx) {
       assert(false, "kind 非法", 400);
     const r = await get("SELECT id, status FROM resources WHERE id=?", id);
     assert(r, "资源不存在", 404);
-    if (r.status !== "published" && session?.role !== "admin") {
+    if (r.status !== "published" && !isAdminRole(session?.role)) {
       assert(false, "资源不存在", 404);
     }
     const node = await nodeForResource(ctx, id, kind);

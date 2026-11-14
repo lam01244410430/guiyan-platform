@@ -7,7 +7,7 @@
 // Q13 DECIDED 2026-11-12 (Lam: "sửa resource", option (a), in Wave 4
 // after #14): admin goes from read-only (server/index.mjs:1) to
 // managing resources. All four endpoints are admin-only
-// (assert(session?.role === "admin"), same as admin.mjs:12).
+// (assert(isAdminRole(session?.role)), same as admin.mjs:12).
 //
 // Q14 DECIDED: POST /api/sync is NOT built — it would insert a fake
 // paid order and pollute real statistics. The sync here is FULLY
@@ -22,13 +22,14 @@
 // meta, which directly affects availability (#12), recommendations
 // (#11) and statistics — the admin-only gate is the control.
 import { assert, text, int, resourceRow, time } from "../lib/http.mjs";
+import { isAdminRole } from "../lib/roles.mjs";
 import { attachVenues } from "./resources.mjs";
 
 const STATUSES = ["published", "draft"];
 const SYNC_CHANNELS = ["抖音", "小红书", "大麦"];
 
 function assertAdmin(session) {
-  assert(session?.role === "admin", "无权访问管理后台", 403);
+  assert(isAdminRole(session?.role), "无权访问管理后台", 403);
 }
 
 // R1-1 shop scoping: platform admin (shop_id NULL) sees all shops; a

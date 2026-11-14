@@ -5,6 +5,7 @@
 // endpoint change. No admin profile API in this wave (Q10): an admin
 // reads the internal profiles inside GET /api/admin/analysis instead.
 import { assert, resourceRow } from "../lib/http.mjs";
+import { isAdminRole } from "../lib/roles.mjs";
 import { profileRows, recommendationsFor } from "../lib/profiles.mjs";
 
 export async function getProfile(ctx) {
@@ -24,7 +25,7 @@ export async function getRecommendations(ctx) {
   const id = Number(url.searchParams.get("userId") || session.id);
   assert(Number.isSafeInteger(id) && id >= 1, "用户编号错误");
   if (id !== session.id)
-    assert(session.role === "admin", "无权查看他人推荐", 403);
+    assert(isAdminRole(session.role), "无权查看他人推荐", 403);
   const target = await get("SELECT * FROM users WHERE id=?", id);
   assert(target, "用户不存在", 404);
   const limitRaw = Number(url.searchParams.get("limit") || 10);

@@ -46,6 +46,7 @@
 //   check-then-update in verify is race-safe (same reasoning as the
 //   R2-5 seat hold).
 import { randomBytes } from "node:crypto";
+import { isAdminRole } from "../lib/roles.mjs";
 import { assert, int, time } from "../lib/http.mjs";
 
 const CODE_ALPHABET = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
@@ -60,7 +61,7 @@ export function generateTicketCode() {
 }
 
 function assertAdmin(session) {
-  assert(session?.role === "admin", "无权访问管理后台", 403);
+  assert(isAdminRole(session?.role), "无权访问管理后台", 403);
 }
 
 function ticketRow(t) {
@@ -380,7 +381,7 @@ export async function listOrderTickets(ctx) {
   const u = needUser();
   const o = await get("SELECT * FROM orders WHERE id=?", Number(m[1]));
   assert(o, "订单不存在", 404);
-  assert(o.user_id === u.id || u.role === "admin", "无权查看此订单", 403);
+  assert(o.user_id === u.id || isAdminRole(u.role), "无权查看此订单", 403);
   const rows = await all(
     "SELECT t.*, s.row AS seat_row, s.col AS seat_col FROM tickets t LEFT JOIN seats s ON s.id=t.seat_id WHERE t.order_id=? ORDER BY t.id ASC",
     o.id,

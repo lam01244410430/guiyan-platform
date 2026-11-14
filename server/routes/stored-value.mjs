@@ -41,6 +41,7 @@
 //   transaction with the advisory lock (same reasoning as the R2-5 seat
 //   hold), so check-then-write is race-safe.
 import { assert, text, int, time } from "../lib/http.mjs";
+import { isAdminRole } from "../lib/roles.mjs";
 import { MAIN_SHOP_ID } from "./member-tiers.mjs";
 import { addFinanceLedger } from "./alerts-ledger.mjs";
 
@@ -64,7 +65,7 @@ const KIND_LABELS = {
 };
 
 function assertAdmin(session) {
-  assert(session?.role === "admin", "无权访问管理后台", 403);
+  assert(isAdminRole(session?.role), "无权访问管理后台", 403);
 }
 
 // R1-1 shop scoping: platform admin (shop_id NULL) sees all shops; a

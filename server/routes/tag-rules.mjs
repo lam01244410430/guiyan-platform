@@ -4,6 +4,7 @@
 // zhou rule check (guiyan-demo/server/index.mjs PATCH /api/settings),
 // moved into lib/profiles.mjs so the API and the engine share one rule.
 import { assert } from "../lib/http.mjs";
+import { isAdminRole } from "../lib/roles.mjs";
 import {
   loadTagRules,
   validateTagRules,
@@ -12,7 +13,7 @@ import {
 export async function adminTagRules(ctx) {
   const { req, p, send, session, run, audit, cache } = ctx;
   if (p !== "/api/admin/tag-rules") return false;
-  assert(session?.role === "admin", "无权访问管理后台", 403);
+  assert(isAdminRole(session?.role), "无权访问管理后台", 403);
   if (req.method === "GET") {
     send({ tagRules: await loadTagRules(ctx) });
     return true;

@@ -29,6 +29,7 @@
 // ISO created_at), day -> `2026-11-14`. `key` is the event detail
 // verbatim (e.g. `resource:12`, or the search query itself).
 import { assert, int, time } from "../lib/http.mjs";
+import { isAdminRole } from "../lib/roles.mjs";
 import { evaluateAutoTags } from "../lib/profiles.mjs";
 
 export const EVENT_TYPES = ["view", "click", "search", "dwell"];
@@ -37,7 +38,7 @@ const MAX_SEARCH_CHARS = 200;
 const MAX_DURATION_MS = 3600000;
 
 function assertAdmin(session) {
-  assert(session?.role === "admin", "无权访问管理后台", 403);
+  assert(isAdminRole(session?.role), "无权访问管理后台", 403);
 }
 
 function parseDate(raw, fallback) {

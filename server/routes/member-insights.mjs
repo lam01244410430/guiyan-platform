@@ -67,6 +67,7 @@
 // says; the platform admin (shop_id NULL) picks a shop with ?shop=
 // (default 1). Anonymous -> 401, non-admin -> 403.
 import { assert, int } from "../lib/http.mjs";
+import { isAdminRole } from "../lib/roles.mjs";
 import { PAID_STATUSES } from "../lib/profiles.mjs";
 import { resolveTier, MAIN_SHOP_ID } from "./member-tiers.mjs";
 
@@ -91,7 +92,7 @@ const PAID_LIST = `'${PAID_STATUSES.join("','")}'`;
 
 function assertAdminSession(session) {
   assert(session, "请先登录", 401);
-  assert(session?.role === "admin", "无权访问管理后台", 403);
+  assert(isAdminRole(session?.role), "无权访问管理后台", 403);
 }
 
 // R1-1 shop scoping (listAdminTiers pattern): a shop-scoped admin
@@ -205,7 +206,7 @@ export async function listMemberInsights(ctx) {
   // (any status) on a resource of the shop.
   const members = await all(
     `SELECT u.id, u.name FROM users u
-     WHERE u.role<>'admin' AND EXISTS (
+     WHERE u.role NOT IN ('admin','root') AND EXISTS (
        SELECT 1 FROM orders o JOIN resources r ON r.id=o.resource_id
        WHERE o.user_id=u.id AND r.shop_id=?
      ) ORDER BY u.id`,

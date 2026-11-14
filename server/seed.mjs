@@ -35,7 +35,7 @@ function seed(db, passwords) {
     "admin",
     hashPassword(passwords.admin),
     "平台管理员",
-    "admin",
+    "root",
     "南宁",
     28,
     "未设置",

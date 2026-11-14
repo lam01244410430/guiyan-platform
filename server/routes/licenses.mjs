@@ -8,12 +8,13 @@
 // and are written through the existing admin resource PATCH — this
 // file only records the licence itself, never invents a holder.
 import { assert, text, int, time } from "../lib/http.mjs";
+import { isAdminRole } from "../lib/roles.mjs";
 
 const KINDS = ["buy", "sell"];
 const STATUSES = ["pending", "active", "expired"];
 
 function assertAdmin(session) {
-  assert(session?.role === "admin", "无权访问管理后台", 403);
+  assert(isAdminRole(session?.role), "无权访问管理后台", 403);
 }
 
 // R1-1 shop scoping: platform admin (shop_id NULL) sees all shops; a

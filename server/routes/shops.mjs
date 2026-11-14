@@ -8,12 +8,13 @@
 // and can never be disabled. Shop status is administrative: creating a
 // resource or a sub-shop under a disabled shop is rejected (400).
 import { assert, text, int, time } from "../lib/http.mjs";
+import { isAdminRole } from "../lib/roles.mjs";
 
 const SHOP_STATUSES = ["active", "disabled"];
 const MAIN_SHOP_ID = 1;
 
 function assertAdmin(session) {
-  assert(session?.role === "admin", "无权访问管理后台", 403);
+  assert(isAdminRole(session?.role), "无权访问管理后台", 403);
 }
 
 // Platform admin = role admin with NO shop (shop_id NULL). A shop-scoped
@@ -56,7 +57,7 @@ async function assertOwnerEligible(get, ownerId, shopId) {
   // shopId is the shop being created/edited (owning it already is fine).
   const owner = await get("SELECT * FROM users WHERE id=?", ownerId);
   assert(owner, "店主不存在", 404);
-  assert(owner.role === "admin", "店主须为管理员账号", 400);
+  assert(isAdminRole(owner.role), "店主须为管理员账号", 400);
   assert(
     owner.shop_id === null ||
       owner.shop_id === undefined ||

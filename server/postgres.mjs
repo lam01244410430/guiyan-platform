@@ -714,6 +714,15 @@ export async function openPostgresStore(
           [key, JSON.stringify("")],
         );
       }
+      // Admin redesign Item 5 (2026-11-15) — root role backfill:
+      // the default admin (id 1) was seeded with role "admin" before
+      // Item 5; promote exactly that one row to "root". Guarded and
+      // idempotent: only id 1, only when it still says "admin" —
+      // a row already "root" (fresh seed) or any other row is never
+      // touched, so re-running this on every boot is safe.
+      await client.query(
+        "UPDATE users SET role='root' WHERE id=1 AND role='admin'",
+      );
       await client.query("COMMIT");
     } catch (error) {
       await client.query("ROLLBACK");

@@ -1,4 +1,5 @@
 import { assert, safeUser } from "../lib/http.mjs";
+import { isAdminRole } from "../lib/roles.mjs";
 import { CACHE_KEYS, CACHE_TTLS } from "../lib/cache.mjs";
 import { profileRows } from "../lib/profiles.mjs";
 
@@ -23,7 +24,7 @@ export async function adminStats(ctx) {
   // (registered after the admin routes); without it, the cumulative
   // totals below stay the response, as before.
   if (url.searchParams.has("period")) return false;
-  assert(session?.role === "admin", "无权访问管理后台", 403);
+  assert(isAdminRole(session?.role), "无权访问管理后台", 403);
   if (cache?.enabled) {
     const hit = await cache.get(CACHE_KEYS.adminStatsTotal);
     if (hit) {
@@ -55,7 +56,7 @@ export async function adminStats(ctx) {
 export async function adminOrders(ctx) {
   const { req, p, send, session, all } = ctx;
   if (p !== "/api/admin/orders" || req.method !== "GET") return false;
-  assert(session?.role === "admin", "无权访问管理后台", 403);
+  assert(isAdminRole(session?.role), "无权访问管理后台", 403);
   const orders = await all(
     `SELECT o.*,u.name AS user_name,r.name AS resource_name FROM orders o
      JOIN users u ON u.id=o.user_id JOIN resources r ON r.id=o.resource_id
@@ -68,7 +69,7 @@ export async function adminOrders(ctx) {
 export async function adminUsers(ctx) {
   const { req, p, send, session, all, url } = ctx;
   if (p !== "/api/admin/users" || req.method !== "GET") return false;
-  assert(session?.role === "admin", "无权访问管理后台", 403);
+  assert(isAdminRole(session?.role), "无权访问管理后台", 403);
   // Wave 3 #9: tags are computed at read time from the shared rule
   // engine (same tags as the analysis userSummary), never stored — so a
   // rule change is reflected immediately, with no migration.
@@ -87,7 +88,7 @@ export async function adminUsers(ctx) {
 export async function adminDemands(ctx) {
   const { req, p, send, session, all } = ctx;
   if (p !== "/api/admin/demands" || req.method !== "GET") return false;
-  assert(session?.role === "admin", "无权访问管理后台", 403);
+  assert(isAdminRole(session?.role), "无权访问管理后台", 403);
   // Admin sees ALL demands, including pending ones awaiting review — the
   // public /api/demands list only returns approved ones (plus the caller's
   // own), which is why the stat card count and the table disagreed before.

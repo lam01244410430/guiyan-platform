@@ -351,7 +351,7 @@ export async function profileRows(ctx) {
   const { all, categories } = ctx;
   const today = todayBeijing();
   const users = await all(
-    "SELECT id,username,name,city,age,gender,channel,preference,verified,role,created_at FROM users WHERE role<>'admin' ORDER BY id",
+    "SELECT id,username,name,city,age,gender,channel,preference,verified,role,created_at FROM users WHERE role NOT IN ('admin','root') ORDER BY id",
   );
   const orders = await all(
     `SELECT o.*,r.category FROM orders o

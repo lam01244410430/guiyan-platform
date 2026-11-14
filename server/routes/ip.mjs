@@ -23,6 +23,7 @@
 // Audits "修改IP配置". Anonymous -> 403 (tag-rules precedent: the
 // assert is on role only, no separate 401 — see docs/03 R7-1).
 import { assert } from "../lib/http.mjs";
+import { isAdminRole } from "../lib/roles.mjs";
 
 export const IP_KEYS = ["ip_name", "ip_avatar_url", "ip_greeting"];
 const MAX_LEN = { ip_name: 20, ip_avatar_url: 500, ip_greeting: 200 };
@@ -91,7 +92,7 @@ export async function getIp(ctx) {
 export async function patchIp(ctx) {
   const { req, p, b, send, session, run, audit } = ctx;
   if (p !== "/api/admin/ip" || req.method !== "PATCH") return false;
-  assert(session?.role === "admin", "无权访问管理后台", 403);
+  assert(isAdminRole(session?.role), "无权访问管理后台", 403);
   // Validate everything BEFORE any write (OTP lesson).
   const updates = validateIpPatch(b);
   for (const [k, v] of Object.entries(updates)) {

@@ -46,6 +46,7 @@
 // adminOrdersCsv, so /api/admin/bi/export needs a write transaction
 // (see server/index.mjs createRequestHandler).
 import { assert } from "../lib/http.mjs";
+import { isAdminRole } from "../lib/roles.mjs";
 import { adminStatsTotals } from "./admin.mjs";
 
 const PAID_SQL = "('paid','completed')";
@@ -60,7 +61,7 @@ const shiftDay = (d, n) =>
 
 function assertAdminSession(session) {
   assert(session, "请先登录", 401);
-  assert(session?.role === "admin", "无权访问管理后台", 403);
+  assert(isAdminRole(session?.role), "无权访问管理后台", 403);
 }
 
 async function loadBi(ctx) {

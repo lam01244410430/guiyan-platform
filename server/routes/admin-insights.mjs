@@ -24,6 +24,7 @@
 // - "Today" is the real current date (Beijing), like the original's clock.
 
 import { assert, int, text, bookingType, resourceRow} from "../lib/http.mjs";
+import { isAdminRole } from "../lib/roles.mjs";
 import { profileRows } from "../lib/profiles.mjs";
 import { CACHE_KEYS, CACHE_TTLS } from "../lib/cache.mjs";
 import { resolveTier, MAIN_SHOP_ID } from "./member-tiers.mjs";
@@ -133,7 +134,7 @@ return buildSeries(rows, period, todayBeijing());
 }
 
 function requireAdmin(session) {
-assert(session?.role === "admin", "无权访问管理后台", 403);
+assert(isAdminRole(session?.role), "无权访问管理后台", 403);
 }
 function requirePeriod(ctx) {
 const period = ctx.url.searchParams.get("period") || "day";
@@ -173,7 +174,7 @@ JOIN resources r ON r.id=o.resource_id ORDER BY o.id`,
 );
 const resources = (await all("SELECT * FROM resources")).map(resourceRow);
 const users = await all(
-"SELECT * FROM users WHERE role<>'admin' ORDER BY id",
+"SELECT * FROM users WHERE role NOT IN ('admin','root') ORDER BY id",
 );
 const favorites = await all("SELECT user_id,resource_id FROM favorites");
 // R2-4/R2-5: the venues table + the show/performance/seat rows the
@@ -768,7 +769,7 @@ export async function refreshAnalysis(ctx) {
 const { req, p, send, session, run, audit, time, b } = ctx;
 if (p!== "/api/admin/analysis/refresh" || req.method!== "POST") return false;
 assert(session, "请先登录", 401);
-assert(session?.role === "admin", "无权访问管理后台", 403);
+assert(isAdminRole(session?.role), "无权访问管理后台", 403);
 const rawPeriod =
 (b && typeof b.period === "string" && b.period) ||
 ctx.url.searchParams.get("period") ||

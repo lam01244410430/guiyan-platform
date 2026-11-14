@@ -59,6 +59,7 @@
 // re-scoping). The trigger, coupon_id and shop_id are immutable after
 // creation.
 import { assert, text, int, time } from "../lib/http.mjs";
+import { isAdminRole } from "../lib/roles.mjs";
 import { MAIN_SHOP_ID } from "./member-tiers.mjs";
 import { PAID_STATUSES } from "../lib/profiles.mjs";
 
@@ -94,7 +95,7 @@ function parseConditions(raw, trigger) {
 }
 
 function assertAdmin(session) {
-  assert(session?.role === "admin", "无权访问管理后台", 403);
+  assert(isAdminRole(session?.role), "无权访问管理后台", 403);
 }
 
 // R1-1 shop scoping: platform admin (shop_id NULL) sees all shops; a

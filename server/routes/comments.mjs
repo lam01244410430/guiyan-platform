@@ -13,11 +13,12 @@
 // validate first, write after, never throw after a write in the same
 // request (OTP lesson); GETs run in REPEATABLE READ READ ONLY.
 import { assert, text, int, time } from "../lib/http.mjs";
+import { isAdminRole } from "../lib/roles.mjs";
 
 const STATUSES = ["approved", "rejected"];
 
 function assertAdmin(session) {
-  assert(session?.role === "admin", "无权访问管理后台", 403);
+  assert(isAdminRole(session?.role), "无权访问管理后台", 403);
 }
 
 // R1-1 shop scoping: platform admin (shop_id NULL) sees all shops; a
@@ -60,7 +61,7 @@ export async function listComments(ctx) {
       id,
     );
     assert(r, "资源不存在", 404);
-    const isAdmin = session?.role === "admin";
+    const isAdmin = isAdminRole(session?.role);
     // A draft resource's comments are not public (same rule as
     // GET /api/resources/:id, which only serves published rows).
     if (r.status !== "published" && !isAdmin) {

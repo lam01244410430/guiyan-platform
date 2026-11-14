@@ -1,4 +1,5 @@
 import { assert, resourceRow } from "../lib/http.mjs";
+import { isAdminRole } from "../lib/roles.mjs";
 import { CACHE_KEYS, CACHE_TTLS } from "../lib/cache.mjs";
 import { ORDER_STATUS_ZH } from "../lib/status-labels.mjs";
 import { buildAnalysis } from "./admin-insights.mjs";
@@ -549,7 +550,7 @@ export async function assistant(ctx) {
     // real analysis payload. The audit records the action only — never
     // the message content (same no-logging rule as the chat itself).
     if (b.kind === "operator") {
-      assert(ctx.session?.role === "admin", "无权访问管理后台", 403);
+      assert(isAdminRole(ctx.session?.role), "无权访问管理后台", 403);
       const { kind, answer, items } = await answerRules(
         { ...ctx, operator: true },
         q,

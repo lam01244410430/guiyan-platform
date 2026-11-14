@@ -434,10 +434,11 @@ test("my-account card: read-only, at the top of the users view, no edit controls
 });
 
 test("root row locked + CRUD buttons and modals present in the users view", () => {
-  // The default admin (id 1) is identified in the UI by id — the
-  // `root` role value arrives in Item 5, which replaces this check.
-  assert.ok(dashboardJsx.includes("function isRootUser(usr) { return !!usr && usr.id === 1; }"), "isRootUser must check id === 1");
-  assert.ok(dashboardJsx.includes("Item 5 replaces this with role === \"root\""), "the interim id === 1 check must be documented");
+  // Admin redesign Item 5: the root account is identified in the UI
+  // by ROLE (role === "root", defensive OR id === 1 — the Item 4
+  // interim id-only check is gone).
+  assert.ok(dashboardJsx.includes('function isRootUser(usr) { return !!usr && (usr.role === "root" || usr.id === 1); }'), "isRootUser must check role === \"root\" (defensive OR id === 1)");
+  assert.ok(!dashboardJsx.includes("INTERIM"), "no interim id === 1 root check may remain");
   assert.ok(
     dashboardJsx.includes('<tr key={usr.username} className={isRootUser(usr) ? "row-locked" : undefined}>'),
     "root row must render with the row-locked class",
@@ -472,8 +473,11 @@ test("CRUD server: endpoints + guards + delete-block rule present in code", () =
   assert.ok(accountMjs.includes("export async function createAdminUser"), "createAdminUser must exist");
   assert.ok(accountMjs.includes("export async function patchAdminUser"), "patchAdminUser must exist");
   assert.ok(accountMjs.includes("export async function deleteAdminUser"), "deleteAdminUser must exist");
-  assert.ok(accountMjs.includes("const ROOT_ADMIN_ID = 1;"), "root must be identified by id 1 (interim)");
-  assert.ok(accountMjs.includes("Item 5 switches to role === \"root\""), "the interim root check must be documented server-side");
+  // Admin redesign Item 5: the interim id-only constant is gone —
+  // root is identified role-based (isRootUser in lib/roles.mjs).
+  assert.ok(!accountMjs.includes("ROOT_ADMIN_ID"), "the interim ROOT_ADMIN_ID constant must be gone");
+  assert.ok(accountMjs.includes('import { isAdminRole, isRootUser } from "../lib/roles.mjs";'), "admin-account must use the roles helpers");
+  assert.ok(accountMjs.includes("assert(!isRootUser(target),"), "root-target guards must use isRootUser");
   assert.ok(accountMjs.includes("USER_REFERENCES"), "delete must check every user-referencing table");
   assert.ok(accountMjs.includes("NEVER"), "delete must document the no-cascade-delete rule");
   assert.ok(accountMjs.includes('["orders", "user_id", "订单"]'), "orders must block deletion");

@@ -2317,11 +2317,13 @@ export default function AdminDashboard() {
     }).finally(function () { setUserStatusBusyId(null); });
   }
 
-  // Admin redesign Item 4 — user CRUD (Q7(a)). The default admin
-  // (id 1) is locked in the UI: no edit/disable/delete buttons and a
-  // grayed row. INTERIM: the root account is identified by id === 1 —
-  // Item 5 replaces this with role === "root".
-  function isRootUser(usr) { return !!usr && usr.id === 1; }
+  // Admin redesign Item 4 — user CRUD (Q7(a)). The root account is
+  // locked in the UI: no edit/disable/delete buttons and a grayed
+  // row. Admin redesign Item 5 — the root account is identified by
+  // ROLE, not id: role === "root", with the defensive OR id === 1
+  // (same rule as server/lib/roles.mjs) so an old DB stays safe even
+  // before the backfill runs.
+  function isRootUser(usr) { return !!usr && (usr.role === "root" || usr.id === 1); }
   // Edit/delete are offered only for plain users, never for an admin
   // row and never for the caller's own row (the server enforces the
   // same rules with 403). Enable/disable keeps the R1-2 rule: any
@@ -2392,6 +2394,24 @@ export default function AdminDashboard() {
       toast("已删除用户");
     }).catch(function (e) {
       toast((e && e.data && e.data.error) || "删除失败");
+    }).finally(function () { setUserCrudBusyId(null); });
+  }
+
+  // Admin redesign Item 5 — grant / revoke the admin role (Q1(a)).
+  // Root-only: the buttons render ONLY when the signed-in caller is
+  // root (see isRoot below); the server enforces the same rule with
+  // 403, so hiding the buttons here is display only, never the
+  // security layer. On a user row the button grants admin; on a
+  // non-root admin row it revokes back to user.
+  function doChangeUserRole(usr, role) {
+    if (!usr || userCrudBusyId !== null) return;
+    setUserCrudBusyId(usr.id);
+    apiPatch("/api/admin/users/" + usr.id + "/role", { role: role }).then(function (d) {
+      setUsers(function (us) { return us.map(function (x) { return x.id === d.user.id ? d.user : x; }); });
+      loadAudit();
+      toast(role === "admin" ? "已授予管理员" : "已收回管理员");
+    }).catch(function (e) {
+      toast((e && e.data && e.data.error) || "操作失败，请稍后重试");
     }).finally(function () { setUserCrudBusyId(null); });
   }
 
@@ -2528,6 +2548,10 @@ export default function AdminDashboard() {
   // shop_id since R1-1; NULL = platform admin, all shops).
   const me = currentUser();
   const isPlatformAdmin = !me || me.shop_id === null || me.shop_id === undefined;
+  // Admin redesign Item 5 — the signed-in caller is root when their
+  // role is "root" (defensive OR id === 1, same rule as
+  // server/lib/roles.mjs). Only root sees the grant/revoke buttons.
+  const isRoot = !!me && (me.role === "root" || me.id === 1);
   // Admin redesign Item 4: the signed-in admin's row — the read-only
   // "my account" card at the top of the users view. Profile + password
   // change left the dashboard with the 账号 view, so this row is
@@ -2835,6 +2859,13 @@ export default function AdminDashboard() {
                                   <button type="button" className="btn-view" disabled={userCrudBusyId !== null} onClick={() => setUserDeleteTarget(usr)}>删除</button>
                                 </>
                               ) : null}
+                              {isRoot ? (
+                                usr.role === "admin" ? (
+                                  <button type="button" className="btn-view" disabled={userCrudBusyId !== null} onClick={() => doChangeUserRole(usr, "user")}>收回管理</button>
+                                ) : (
+                                  <button type="button" className="btn-view" disabled={userCrudBusyId !== null} onClick={() => doChangeUserRole(usr, "admin")}>授予管理</button>
+                                )
+                              ) : null}
                               <button type="button" className="btn-view" disabled={userStatusBusyId !== null} onClick={() => doToggleUserStatus(usr)}>{userStatusBusyId === usr.id ? "处理中…" : (usr.status === "disabled" ? "启用" : "停用")}</button>
                             </span>
                           ) : "—"}
@@ -3010,7 +3041,7 @@ export default function AdminDashboard() {
                 )}
                 <label>店主 <select value={shopForm.owner_id} onChange={(e) => editShopForm("owner_id", e.target.value)}>
                   <option value="">未指派</option>
-                  {users.filter((u) => u.role === "admin").map((u) => (<option key={u.id} value={String(u.id)}>{u.name}（{u.username}）</option>))}
+                  {users.filter((u) => u.role === "admin" || u.role === "root").map((u) => (<option key={u.id} value={String(u.id)}>{u.name}（{u.username}）</option>))}
                 </select></label>
                 {shopForm.id !== null ? (
                   <label>状态 <select value={shopForm.status} onChange={(e) => editShopForm("status", e.target.value)}>

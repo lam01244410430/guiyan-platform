@@ -12,6 +12,7 @@
 // (same rule as GET /api/resources/:id, which only serves published
 // rows).
 import { assert } from "../lib/http.mjs";
+import { isAdminRole } from "../lib/roles.mjs";
 
 function itineraryRow(row) {
   let eat = [];
@@ -50,7 +51,7 @@ export async function getItinerary(ctx) {
       id,
     );
     assert(r, "资源不存在", 404);
-    if (r.status !== "published" && session?.role !== "admin") {
+    if (r.status !== "published" && !isAdminRole(session?.role)) {
       assert(false, "资源不存在", 404);
     }
     const row = await get(

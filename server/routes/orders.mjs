@@ -1,4 +1,5 @@
 import { randomBytes } from "node:crypto";
+import { isAdminRole } from "../lib/roles.mjs";
 import { assert, text, int, date, today, bookingType } from "../lib/http.mjs";
 import { ORDER_STATUS_ZH } from "../lib/status-labels.mjs";
 import { enrichOrder } from "./pickup.mjs";
@@ -372,7 +373,7 @@ export async function getOrder(ctx) {
   const u = needUser();
   const o = await get("SELECT * FROM orders WHERE id=?", Number(m[1]));
   assert(o, "订单不存在", 404);
-  assert(o.user_id === u.id || u.role === "admin", "无权查看此订单", 403);
+  assert(o.user_id === u.id || isAdminRole(u.role), "无权查看此订单", 403);
   const extra = await enrichOrder(get, o);
   send({
     order: { ...o, pickup_point: extra.pickup_point, ticket_template: extra.ticket_template },
@@ -398,9 +399,9 @@ export async function transitionOrder(ctx) {
     // confirm/pay/complete/cancel on someone else's order still gets 403.
     const DECISIONS = ["approveRefund", "resolve", "rejectRefund", "rejectDispute"];
     if (DECISIONS.includes(action))
-      assert(u.role === "admin", "仅管理员可处理售后", 403);
+      assert(isAdminRole(u.role), "仅管理员可处理售后", 403);
     else if (action === "refund" || action === "dispute")
-      assert(o.user_id === u.id || u.role === "admin", "无权操作此订单", 403);
+      assert(o.user_id === u.id || isAdminRole(u.role), "无权操作此订单", 403);
     else assert(o.user_id === u.id, "无权操作此订单", 403);
     const transitions = {
       confirm: ["pending", "confirmed"],
@@ -936,11 +937,11 @@ export async function escrowOrder(ctx) {
   const u = needUser();
   const o = await get("SELECT * FROM orders WHERE id=?", Number(m[1]));
   assert(o, "订单不存在", 404);
-  assert(o.user_id === u.id || u.role === "admin", "无权操作此订单", 403);
+  assert(o.user_id === u.id || isAdminRole(u.role), "无权操作此订单", 403);
   const action = b?.action;
   assert(action === "hold" || action === "release", "托管操作无效", 400);
   if (action === "release")
-    assert(u.role === "admin", "仅管理员可释放托管", 403);
+    assert(isAdminRole(u.role), "仅管理员可释放托管", 403);
   assert(o.status !== "disputed", "争议处理中，托管已冻结", 400);
   assert(o.status === "paid", "仅已支付订单可托管", 400);
   const next =
@@ -975,7 +976,7 @@ export async function getOrderContract(ctx) {
       Number(m[1]),
     );
     assert(o, "订单不存在", 404);
-    assert(o.user_id === u.id || u.role === "admin", "无权查看此订单", 403);
+    assert(o.user_id === u.id || isAdminRole(u.role), "无权查看此订单", 403);
     let meta = {};
     try {
       meta = JSON.parse(o.resource_meta || "{}") || {};

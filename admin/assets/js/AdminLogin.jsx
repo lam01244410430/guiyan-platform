@@ -15,7 +15,7 @@ export default function AdminLogin() {
   useEffect(() => {
     if (getToken()) {
       const u = currentUser();
-      if (u && u.role === "admin") location.href = "/admin/dashboard.html";
+      if (u && (u.role === "admin" || u.role === "root")) location.href = "/admin/dashboard.html";
     }
   }, []);
 
@@ -26,7 +26,11 @@ export default function AdminLogin() {
     setBusy(true);
     apiPost("/api/auth/login", { username: u, password: p }).then(function (d) {
       if (d && d.token) {
-        if (d.user && d.user.role !== "admin") {
+        // Admin redesign Item 5: root (role "root") logs into the
+        // dashboard exactly like an admin; only role "user" is
+        // turned away here (the server gates every admin endpoint
+        // with 403 as well).
+        if (d.user && d.user.role !== "admin" && d.user.role !== "root") {
           clearToken();
           setErr("该账号无权访问管理后台");
           setBusy(false);

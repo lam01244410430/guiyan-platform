@@ -89,6 +89,7 @@
 // (tickets issued/used for this resource's orders), verify_count
 // (verify_logs rows with result `used` for this resource's tickets)}.
 import { assert, int, text } from "../lib/http.mjs";
+import { isAdminRole } from "../lib/roles.mjs";
 import { MAIN_SHOP_ID } from "./member-tiers.mjs";
 
 const PAID_SQL = "('paid','completed')";
@@ -122,7 +123,7 @@ const RULE_KINDS = {
 
 function assertAdminSession(session) {
   assert(session, "请先登录", 401);
-  assert(session?.role === "admin", "无权访问管理后台", 403);
+  assert(isAdminRole(session?.role), "无权访问管理后台", 403);
 }
 
 // R1-1 shop scoping (member-insights / stored-value pattern): a
