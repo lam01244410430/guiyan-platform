@@ -141,14 +141,14 @@ test("wave3 #11a: a logged-in view also increments views by exactly 1", async ()
 
 // --- #9: tags (read path; rule-mutation tests run last in this file) ----
 
-test("wave3 #9: GET /api/admin/tag-rules returns the 4 default rules", async () => {
+test("wave3 #9: GET /api/admin/tag-rules returns the 5 default rules", async () => {
   const admin = await adminLogin();
   const r = await req("/api/admin/tag-rules", { token: admin });
   assert.equal(r.status, 200, JSON.stringify(r.json));
-  assert.equal(r.json.tagRules.length, 4);
+  assert.equal(r.json.tagRules.length, 5);
   assert.deepEqual(
     r.json.tagRules.map((x) => x.id),
-    ["high", "potential", "silent", "heritage"],
+    ["high", "potential", "silent", "heritage", "folk"],
   );
   const heritage = r.json.tagRules.find((x) => x.id === "heritage");
   assert.ok(heritage.conditions.some((c) => c.field === "view_category" && c.op === "eq" && c.value === "heritage"));

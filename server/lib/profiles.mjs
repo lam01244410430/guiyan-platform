@@ -13,7 +13,7 @@
 // column, so "last payment" is the last paid order's creation time
 // (stated in the analysis `definitions`, as before).
 
-import { assert, int, text } from "./http.mjs";
+import { assert, int, text, time } from "./http.mjs";
 
 // Paid statuses — the same list as server/routes/admin-insights.mjs
 // PAID_STATUSES. `disputed` / `refund_requested` never occur in Lam's
@@ -41,12 +41,14 @@ export function ruleMatches(user, rule) {
   return rule.match === "any" ? result.some(Boolean) : result.every(Boolean);
 }
 
-// Port of review-upgrade.mjs defaultTagRules (4 rules, money in 分).
+// Port of review-upgrade.mjs defaultTagRules (4 manual rules, money in 分)
+// + the R7-5 auto rule (mode 'auto', signal below).
 export const defaultTagRules = [
   {
     id: "high",
     name: "高价值用户",
     enabled: true,
+    mode: "manual",
     match: "all",
     conditions: [{ field: "spent", op: "gte", value: 1000000 }],
   },
@@ -54,6 +56,7 @@ export const defaultTagRules = [
     id: "potential",
     name: "潜力会员",
     enabled: true,
+    mode: "manual",
     match: "all",
     conditions: [
       { field: "spent", op: "gte", value: 100000 },
@@ -66,6 +69,7 @@ export const defaultTagRules = [
     id: "silent",
     name: "沉默用户",
     enabled: true,
+    mode: "manual",
     match: "all",
     conditions: [
       { field: "paid_count", op: "gte", value: 1 },
@@ -76,11 +80,27 @@ export const defaultTagRules = [
     id: "heritage",
     name: "非遗浏览未购",
     enabled: true,
+    mode: "manual",
     match: "all",
     conditions: [
       { field: "view_category", op: "eq", value: "heritage" },
       { field: "paid_count", op: "eq", value: 0 },
     ],
+  },
+  {
+    // R7-5: the first stored auto-tag rule. Signal (verified in code,
+    // never invented): meta.genre "民族歌舞" — the only genre value in
+    // the seed (resources 2 刘三姐 and 3 壮乡情); there is no category
+    // or genre named 民族音乐 for shows. The tag text follows the
+    // approved R7-5 example (喜欢民族音乐 — 民族音乐 is attested as a
+    // seed resource tag); the SIGNAL uses the verified genre value.
+    // mode "auto" = evaluated by evaluateAutoTags() into user_tags
+    // (source 'auto'); it is never a computed tag (see computeTags).
+    id: "folk",
+    name: "喜欢民族音乐",
+    enabled: true,
+    mode: "auto",
+    signal: { kind: "view_genre", genre: "民族歌舞", threshold: 3 },
   },
 ];
 
@@ -106,10 +126,55 @@ const NUMERIC_FIELDS = [
 // Port of the tagRules checks in guiyan-demo/server/index.mjs
 // PATCH /api/settings (1246-1309). Throws a 400 assert on the first
 // invalid rule, so the caller never stores a half-validated set.
+// Auto-tag signal kinds (R7-5) — every kind counts REAL stored rows,
+// never a guess:
+// - view_genre: view events whose resource meta.genre === signal.genre
+// - view_category: view events whose resource category === signal.category
+// - click_category: click events (detail `resource:{id}`) of that category
+// - order_category: PAID orders of that category
+// - favorite_category: favorites of that category
+// threshold is a count of rows/events (1–100).
+export const AUTO_SIGNAL_KINDS = [
+  "view_genre",
+  "view_category",
+  "click_category",
+  "order_category",
+  "favorite_category",
+];
+
+// Mirror of seed.mjs `categories` (importing it here would be circular:
+// seed.mjs imports defaultTagRules from this file). An auto rule may only
+// name a category that exists in the code — never an invented one.
+const KNOWN_CATEGORIES = [
+  "show",
+  "venue",
+  "artist",
+  "equipment",
+  "copyright",
+  "heritage",
+  "creative",
+  "digital",
+  "tourism",
+  "service",
+  "show-license",
+];
+
+function validateAutoSignal(signal) {
+  assert(signal && typeof signal === "object", "自动标签规则需要 signal");
+  assert(AUTO_SIGNAL_KINDS.includes(signal.kind), "不支持的自动标签信号");
+  int(signal.threshold, "触发次数", 1, 100);
+  if (signal.kind === "view_genre") text(signal.genre, "剧种", 40);
+  else {
+    text(signal.category, "资源分类", 40);
+    assert(KNOWN_CATEGORIES.includes(signal.category), "资源分类不存在");
+  }
+}
+
 export function validateTagRules(rules) {
   assert(Array.isArray(rules) && rules.length <= 20, "最多配置20条标签规则");
   const ids = new Set();
   const names = new Set();
+  const out = [];
   for (const r of rules) {
     assert(r && typeof r === "object", "标签规则格式错误");
     text(r.id, "规则编号", 60);
@@ -120,9 +185,22 @@ export function validateTagRules(rules) {
     );
     ids.add(r.id);
     names.add(r.name);
+    assert(typeof r.enabled === "boolean", "规则须标明是否启用");
+    // R7-5: mode 'manual' (default — the Wave 3 computed rules) or
+    // 'auto' (stored tags via evaluateAutoTags). An absent mode means
+    // manual, so pre-R7-5 stored rule sets still validate.
+    const mode = r.mode === undefined ? "manual" : r.mode;
+    assert(mode === "manual" || mode === "auto", "规则模式须为 manual 或 auto");
+    if (mode === "auto") {
+      validateAutoSignal(r.signal);
+      // An auto rule is driven by its signal, not by conditions —
+      // carrying both would be ambiguous, so conditions are refused.
+      assert(r.conditions === undefined, "自动标签规则使用 signal，不用 conditions");
+      out.push({ ...r, mode });
+      continue;
+    }
     assert(
-      typeof r.enabled === "boolean" &&
-        ["all", "any"].includes(r.match) &&
+      ["all", "any"].includes(r.match) &&
         Array.isArray(r.conditions) &&
         r.conditions.length >= 1 &&
         r.conditions.length <= 6,
@@ -141,8 +219,9 @@ export function validateTagRules(rules) {
         text(c.value, "匹配值", 40);
       }
     }
+    out.push({ ...r, mode });
   }
-  return rules;
+  return out;
 }
 
 // Read the stored tagRules; missing row or broken JSON falls back to the
@@ -229,8 +308,11 @@ function topOf(counts, prefer) {
 // insights.mjs profileRows(): 新用户 / 体验用户 + 高频消费 / 已付费 /
 // 待培育 + the user's preference category name (or 综合兴趣).
 export function computeTags(metrics, rules, categories) {
+  // R7-5: computed tags come from MANUAL rules only. Auto rules have
+  // no conditions (ruleMatches would crash on them) and their tags are
+  // stored rows merged in profileRows(), never computed here.
   const matched = rules
-    .filter((r) => r.enabled && ruleMatches(metrics, r))
+    .filter((r) => r.enabled && r.mode !== "auto" && ruleMatches(metrics, r))
     .map((r) => r.name);
   const paid = metrics.paid_count;
   return [
@@ -280,6 +362,7 @@ export async function profileRows(ctx) {
     "SELECT user_id,detail FROM events WHERE type='view'",
   );
   const rules = await loadTagRules(ctx);
+  const storedTags = await loadStoredUserTags(ctx);
   // Full resource rows: the portrait needs category + city + name +
   // meta.genre/meta.team, not just the id/category the tags need.
   const resources = await all("SELECT id,category,city,name,meta FROM resources");
@@ -338,7 +421,15 @@ export async function profileRows(ctx) {
         ),
       ],
     };
-    const tags = computeTags(metrics, rules, categories);
+    // Stored tags (R7-5 user_tags: auto grants + manual rows) join the
+    // computed manual-rule tags, so GET /api/admin/users, the portrait
+    // and the analysis userSummary all see the same tags.
+    const tags = [
+      ...new Set([
+        ...computeTags(metrics, rules, categories),
+        ...(storedTags.get(u.id) || []),
+      ]),
+    ];
     // --- Portrait, grouped into the 5 甲方 dimensions (2026-11-12
     // update; the old flat fields are gone, no parallel shape) --------
     // Interactions feeding 观演偏好/活跃城市: paid orders + views +
@@ -444,6 +535,123 @@ export async function profileRows(ctx) {
       suggestion: suggestionFor(tags),
     };
   });
+}
+
+// Stored tags (R7-5 user_tags): auto tags written by evaluateAutoTags
+// plus any manual rows. Read once per profileRows() call so GET
+// /api/admin/users, the portrait and the analysis userSummary all see
+// the same tags. A missing table (a DB set up before R7-5 —
+// schema.mjs CREATE TABLE IF NOT EXISTS runs at boot, so this is only
+// a belt-and-braces fallback) reads as no stored tags, never a 500.
+async function loadStoredUserTags(ctx) {
+  try {
+    const rows = await ctx.all("SELECT user_id, tag FROM user_tags");
+    const byUser = new Map();
+    for (const r of rows) {
+      if (!byUser.has(r.user_id)) byUser.set(r.user_id, []);
+      byUser.get(r.user_id).push(r.tag);
+    }
+    return byUser;
+  } catch {
+    return new Map();
+  }
+}
+
+// --- R7-5: stored auto-tags -------------------------------------------
+// An auto rule (mode 'auto') is evaluated against REAL stored rows and,
+// when its signal threshold is met, writes one user_tags row
+// (source 'auto', ON CONFLICT DO NOTHING — re-evaluation never
+// duplicates). Manual rows (source 'manual') are never written,
+// changed or deleted here; disabling an auto rule stops future grants
+// but does not remove tags already granted (an admin removes a wrong
+// tag by deleting the row — no endpoint in this wave).
+// Evaluation is synchronous at the write that creates the signal —
+// view (POST /api/resources/:id/view and POST /api/events), favorite
+// add, order pay/complete — never a cron or worker (R5 policy).
+// Rules only: no model, and a rule-granted tag is a rule label, never
+// presented as AI output (Q3 simulation boundary).
+export async function evaluateAutoTags(ctx, userId) {
+  if (!userId) return [];
+  const rules = (await loadTagRules(ctx)).filter(
+    (r) => r.mode === "auto" && r.enabled,
+  );
+  if (!rules.length) return [];
+  const resources = await ctx.all("SELECT id, category, meta FROM resources");
+  const byId = new Map(
+    resources.map((r) => [r.id, { ...r, meta: parseMeta(r) }]),
+  );
+  const views = await ctx.all(
+    "SELECT detail FROM events WHERE type='view' AND user_id=?",
+    userId,
+  );
+  const clicks = await ctx.all(
+    "SELECT detail FROM events WHERE type='click' AND user_id=?",
+    userId,
+  );
+  const favorites = await ctx.all(
+    "SELECT resource_id FROM favorites WHERE user_id=?",
+    userId,
+  );
+  const paidOrders = await ctx.all(
+    `SELECT resource_id FROM orders WHERE user_id=? AND status IN (${PAID_STATUSES.map((s) => `'${s}'`).join(",")})`,
+    userId,
+  );
+  // Counters per signal kind. View events carry a bare resource id in
+  // detail; click events carry `resource:{id}` (show:/ticket_type:
+  // clicks have no resource and never count here).
+  const genreViews = new Map();
+  const catViews = new Map();
+  const catClicks = new Map();
+  const catFavs = new Map();
+  const catOrders = new Map();
+  const bump = (m, k) => m.set(k, (m.get(k) || 0) + 1);
+  for (const e of views) {
+    const r = byId.get(Number(e.detail));
+    if (!r) continue;
+    bump(catViews, r.category);
+    if (r.meta.genre) bump(genreViews, r.meta.genre);
+  }
+  for (const e of clicks) {
+    const m = /^resource:(\d+)$/.exec(String(e.detail || ""));
+    const r = m && byId.get(Number(m[1]));
+    if (!r) continue;
+    bump(catClicks, r.category);
+  }
+  for (const f of favorites) {
+    const r = byId.get(Number(f.resource_id));
+    if (r) bump(catFavs, r.category);
+  }
+  for (const o of paidOrders) {
+    const r = byId.get(Number(o.resource_id));
+    if (r) bump(catOrders, r.category);
+  }
+  const granted = [];
+  for (const rule of rules) {
+    const s = rule.signal || {};
+    const count =
+      s.kind === "view_genre"
+        ? genreViews.get(s.genre) || 0
+        : s.kind === "view_category"
+          ? catViews.get(s.category) || 0
+          : s.kind === "click_category"
+            ? catClicks.get(s.category) || 0
+            : s.kind === "order_category"
+              ? catOrders.get(s.category) || 0
+              : s.kind === "favorite_category"
+                ? catFavs.get(s.category) || 0
+                : 0;
+    if (typeof s.threshold !== "number" || count < s.threshold) continue;
+    // 4 columns, 4 placeholders (count them on every new INSERT).
+    await ctx.run(
+      "INSERT INTO user_tags(user_id,tag,source,created_at) VALUES(?,?,?,?) ON CONFLICT (user_id,tag,source) DO NOTHING",
+      userId,
+      rule.name,
+      "auto",
+      time(),
+    );
+    granted.push(rule.name);
+  }
+  return granted;
 }
 
 // Port of insights.mjs recommendations(): per-category signals from the

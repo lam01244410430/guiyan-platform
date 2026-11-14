@@ -10,9 +10,9 @@
 #   docker compose -p guiyan-p8-smoke up -d --build
 #   ./scripts/smoke-docker.sh [project]   # default project: guiyan-p8-smoke
 #
-# The script checks the 3 containers are healthy, runs the 63 checks in the
+# The script checks the 3 containers are healthy, runs the 64 checks in the
 # plan Appendix A against the stack, prints PASS/FAIL per check and exits
-# non-zero if any check fails. Check 65 tears the stack down (down -v) and
+# non-zero if any check fails. Check 66 tears the stack down (down -v) and
 # verifies no project containers/volumes remain. All curl calls are direct
 # (no background processes left behind). Target is a disposable stack with a
 # fresh DB — never run it against the live Vercel/Neon deployment.
@@ -428,11 +428,20 @@ if [ "$CODE" = "200" ] && has '刘三姐' && has 'held_at'; then ok "63 GET /api
 CODE="$(get "/api/assistant?q=%E6%88%91%E7%9A%84%E8%AE%A2%E5%8D%95" "$DEMO_TOKEN")"
 if [ "$CODE" = "200" ] && has '"kind":"myOrders"' && has 'GY2026'; then ok "64 GET /api/assistant?q=我的订单 as demo 200, kind myOrders + real order code"; else bad "64 GET /api/assistant?q=我的订单 as demo (code=$CODE, body=$(cat "$TMP/body"))"; fi
 
-# 65. teardown — down -v, then 0 project containers and 0 project volumes.
+# 65. auto tags — 200, tag-rules include the auto folk rule and the
+# ?tag= filter answers 200 with an empty list on a fresh DB (R7-5; no
+# view has been recorded yet, so nobody holds the tag — the grant
+# itself is asserted by tests/r7-auto-tags.test.mjs)
+CODE="$(get /api/admin/tag-rules "$ADMIN_TOKEN")"
+RULES_OK=0; [ "$CODE" = "200" ] && has '"id":"folk"' && has '"mode":"auto"' && RULES_OK=1
+CODE="$(get "/api/admin/users?tag=%E5%96%9C%E6%AC%A2%E6%B0%91%E6%97%8F%E9%9F%B3%E4%B9%90" "$ADMIN_TOKEN")"
+if [ "$RULES_OK" = "1" ] && [ "$CODE" = "200" ] && [ "$(jlen "['users']")" = "0" ]; then ok "65 tag-rules hold the folk auto rule + GET /api/admin/users?tag=喜欢民族音乐 200, empty list"; else bad "65 auto tags (rules_ok=$RULES_OK, users_code=$CODE, users=$(jlen "['users']"))"; fi
+
+# 66. teardown — down -v, then 0 project containers and 0 project volumes.
 docker compose -p "$PROJECT" down -v >/dev/null 2>&1
 LEFT_C="$(docker ps --format '{{.Names}}' | grep -c "$PROJECT" || true)"
 LEFT_V="$(docker volume ls --format '{{.Name}}' | grep -c "^${PROJECT}_" || true)"
-if [ "$LEFT_C" = "0" ] && [ "$LEFT_V" = "0" ]; then ok "65 down -v: 0 project containers, 0 project volumes"; else bad "65 down -v (containers left=$LEFT_C, volumes left=$LEFT_V)"; fi
+if [ "$LEFT_C" = "0" ] && [ "$LEFT_V" = "0" ]; then ok "66 down -v: 0 project containers, 0 project volumes"; else bad "66 down -v (containers left=$LEFT_C, volumes left=$LEFT_V)"; fi
 
-echo "== smoke-docker: PASS $PASS / FAIL $FAIL (64 checks) =="
+echo "== smoke-docker: PASS $PASS / FAIL $FAIL (65 checks) =="
 [ "$FAIL" = "0" ]

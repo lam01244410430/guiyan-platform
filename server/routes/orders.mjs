@@ -19,6 +19,7 @@ import {
 } from "./stored-value.mjs";
 import { addFinanceLedger } from "./alerts-ledger.mjs";
 import { issueTicketsForOrder } from "./tickets.mjs";
+import { evaluateAutoTags } from "../lib/profiles.mjs";
 
 // R3-1 + R3-2 + R3-3 pricing, in one place so the pre-check and the
 // in-transaction re-price agree exactly: the flash sale applies
@@ -867,6 +868,9 @@ export async function transitionOrder(ctx) {
             afterTier,
           },
         );
+        // R7-5: a paid order is a tagging signal — same synchronous
+        // evaluation as the auto-coupons above (no worker, no cron).
+        await evaluateAutoTags({ get, all, run }, o.user_id);
       }
     });
     // A status change moves revenue between buckets (paid/completed) and

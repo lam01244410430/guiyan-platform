@@ -1,4 +1,5 @@
 import { assert, int, resourceRow } from "../lib/http.mjs";
+import { evaluateAutoTags } from "../lib/profiles.mjs";
 
 export async function listFavorites(ctx) {
   const { p, req, send, needUser, all, resourceSelect } = ctx;
@@ -36,7 +37,12 @@ export async function toggleFavorite(ctx) {
         u.id,
         rid,
       );
-    else await run("INSERT INTO favorites VALUES(?,?)", u.id, rid);
+    else {
+      await run("INSERT INTO favorites VALUES(?,?)", u.id, rid);
+      // R7-5: a new favorite is a tagging signal — evaluate now (an
+      // unfavorite removes no tag; tags are never deleted by evaluation).
+      await evaluateAutoTags(ctx, u.id);
+    }
     send({ ok: true, favorite: !exists });
     return true;
   }

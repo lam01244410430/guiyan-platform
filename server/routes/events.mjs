@@ -29,6 +29,7 @@
 // ISO created_at), day -> `2026-11-14`. `key` is the event detail
 // verbatim (e.g. `resource:12`, or the search query itself).
 import { assert, int, time } from "../lib/http.mjs";
+import { evaluateAutoTags } from "../lib/profiles.mjs";
 
 export const EVENT_TYPES = ["view", "click", "search", "dwell"];
 const MAX_DETAIL_CHARS = 500;
@@ -107,6 +108,10 @@ export async function recordEvent(ctx) {
     durationMs,
     time(),
   );
+  // R7-5: same auto-tag evaluation as the view endpoint, for the
+  // view/click events written here (search/dwell never tag).
+  if (session?.id && (b.type === "view" || b.type === "click"))
+    await evaluateAutoTags(ctx, session.id);
   send({ ok: true, id: Number(result.lastInsertRowid) });
   return true;
 }

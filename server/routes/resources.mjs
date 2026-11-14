@@ -1,4 +1,5 @@
 import { assert, date, resourceRow } from "../lib/http.mjs";
+import { evaluateAutoTags } from "../lib/profiles.mjs";
 import { performancesForResource } from "./shows.mjs";
 import { CACHE_KEYS, CACHE_TTLS } from "../lib/cache.mjs";
 
@@ -279,6 +280,10 @@ export async function viewResource(ctx) {
       String(id),
       time(),
     );
+    // R7-5: evaluate stored auto-tags on every view write (no cron /
+    // worker — the R5 policy). Anonymous views (user_id NULL) have no
+    // user to tag.
+    if (session?.id) await evaluateAutoTags(ctx, session.id);
     send({ ok: true });
     return true;
   }

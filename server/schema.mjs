@@ -8,6 +8,7 @@ CREATE TABLE IF NOT EXISTS users(id INTEGER PRIMARY KEY, username TEXT UNIQUE NO
     CREATE TABLE IF NOT EXISTS messages(id INTEGER PRIMARY KEY, user_id INTEGER REFERENCES users(id), sender_id INTEGER REFERENCES users(id), title TEXT NOT NULL, content TEXT NOT NULL, is_read INTEGER DEFAULT 0, type TEXT DEFAULT 'general', created_at TEXT NOT NULL);
     CREATE TABLE IF NOT EXISTS favorites(user_id INTEGER REFERENCES users(id), resource_id INTEGER REFERENCES resources(id), PRIMARY KEY(user_id,resource_id));
     CREATE TABLE IF NOT EXISTS events(id INTEGER PRIMARY KEY, user_id INTEGER REFERENCES users(id), type TEXT NOT NULL, detail TEXT NOT NULL, created_at TEXT NOT NULL);
+    CREATE TABLE IF NOT EXISTS user_tags(id INTEGER PRIMARY KEY, user_id INTEGER REFERENCES users(id), tag TEXT NOT NULL, source TEXT NOT NULL DEFAULT 'auto', created_at TEXT NOT NULL, UNIQUE(user_id, tag, source));
     CREATE TABLE IF NOT EXISTS audit_logs(id INTEGER PRIMARY KEY, user_id INTEGER REFERENCES users(id), action TEXT NOT NULL, detail TEXT NOT NULL, created_at TEXT NOT NULL);
     CREATE TABLE IF NOT EXISTS settings(key TEXT PRIMARY KEY, value TEXT NOT NULL);
     CREATE TABLE IF NOT EXISTS verification_codes(id INTEGER PRIMARY KEY, user_id INTEGER REFERENCES users(id), channel TEXT NOT NULL, target TEXT NOT NULL, code TEXT NOT NULL, expires_at TEXT NOT NULL, attempts INTEGER NOT NULL DEFAULT 0, used_at TEXT, verified_at TEXT, created_at TEXT NOT NULL);

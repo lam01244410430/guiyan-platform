@@ -679,7 +679,9 @@ export async function openPostgresStore(
             // same way — the R3-5 lesson).
             // R6-1: licenses joins them too (the licence create
             // needs its id the same way — the R3-5 lesson).
-            /^\s*INSERT\s+INTO\s+(users|resources|orders|demands|comments|messages|events|audit_logs|shops|shows|performances|ticket_types|pickup_points|ticket_templates|venues|seat_templates|seats|member_tiers|coupons|flash_sales|coupon_rules|coupon_gifts|sms_tasks|stored_value_accounts|stored_value_ledger|stored_value_plans|tickets|verify_logs|print_logs|event_aggregates|analysis_snapshots|alert_rules|finance_ledger|licenses)\b/i.test(
+            // R7-5: user_tags joins them too (the auto-tag insert
+            // needs its id the same way — the R3-5 lesson).
+            /^\s*INSERT\s+INTO\s+(users|resources|orders|demands|comments|messages|events|audit_logs|shops|shows|performances|ticket_types|pickup_points|ticket_templates|venues|seat_templates|seats|member_tiers|coupons|flash_sales|coupon_rules|coupon_gifts|sms_tasks|stored_value_accounts|stored_value_ledger|stored_value_plans|tickets|verify_logs|print_logs|event_aggregates|analysis_snapshots|alert_rules|finance_ledger|licenses|user_tags)\b/i.test(
               sql,
             );
           const result = await execute(
