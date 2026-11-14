@@ -168,7 +168,7 @@ export async function getAvailability(ctx) {
     const mode =
       r.category === "venue"
         ? "rental"
-        : r.category === "service"
+        : r.category === "service" || r.category === "creative"
           ? "none"
           : ["show", "heritage", "tourism", "digital", "artist", "equipment"].includes(
                 r.category,

@@ -343,12 +343,12 @@ test("non-admin tier create -> 403; scheduled performance tiers -> 404; i18n 372
   // A scheduled performance's tiers are not public yet.
   assert.equal((await listTiers(perf3)).status, 404);
   assert.equal((await listTiers(99999)).status, 404);
-  // i18n: 5 tier keys + 3 pickup keys + 1 venue key + 2 seat keys on both sides (333 -> 339, 137 -> 143); R3-1 adds 5 member-tier keys (339 -> 344, 143 -> 148); R3-2 adds 3 coupon keys (344 -> 347, 148 -> 151); R3-3 adds 3 flash-sale keys (347 -> 350, 151 -> 154); R3-4 adds 3 gift keys (350 -> 353, 154 -> 157); R3-5 adds 1 socMaoyan key H5-only (353 -> 354); R3-6 adds 6 stored-value keys (354 -> 360, 157 -> 163); R4-1 adds 6 ticket keys H5 (360 -> 366), 5 mini (163 -> 168); R4-2 adds 1 print key (366 -> 367, 168 -> 169); R4-3 adds 7 batch keys mini-only (169 -> 176); R4-4 adds 5 partial-refund/pickup keys (367 -> 372, 176 -> 181); R6-1 adds 12 license keys (372 -> 384, 181 -> 193). R6-2 adds 13 library keys (384 -> 397, 193 -> 206).
+  // i18n: 5 tier keys + 3 pickup keys + 1 venue key + 2 seat keys on both sides (333 -> 339, 137 -> 143); R3-1 adds 5 member-tier keys (339 -> 344, 143 -> 148); R3-2 adds 3 coupon keys (344 -> 347, 148 -> 151); R3-3 adds 3 flash-sale keys (347 -> 350, 151 -> 154); R3-4 adds 3 gift keys (350 -> 353, 154 -> 157); R3-5 adds 1 socMaoyan key H5-only (353 -> 354); R3-6 adds 6 stored-value keys (354 -> 360, 157 -> 163); R4-1 adds 6 ticket keys H5 (360 -> 366), 5 mini (163 -> 168); R4-2 adds 1 print key (366 -> 367, 168 -> 169); R4-3 adds 7 batch keys mini-only (169 -> 176); R4-4 adds 5 partial-refund/pickup keys (367 -> 372, 176 -> 181); R6-1 adds 12 license keys (372 -> 384, 181 -> 193). R6-2 adds 13 library keys (384 -> 397, 193 -> 206). R6-3 adds 2 creative keys H5 (397 -> 399), 1 mini (206 -> 207).
   const data = await import(
     path.resolve(repoDir, "web", "assets", "js", "data.js")
   );
   const counts = data.LANGS.map((l) => Object.keys(data.I18N[l]).length);
-  assert.deepEqual(counts, [397, 397, 397]);
+  assert.deepEqual(counts, [399, 399, 399]);
   for (const k of ["tierTitle", "tierEmpty", "tierSoldOut", "tierLeft", "tierPick", "pickupTitle", "pickupEmpty", "pickupPick"]) {
     for (const l of data.LANGS)
       assert.ok(k in data.I18N[l], `${k} missing in H5 ${l}`);
@@ -368,7 +368,7 @@ test("non-admin tier create -> 403; scheduled performance tiers -> 404; i18n 372
     ].map((m) => m[1]);
   }
   for (const lang of ["zh", "vi", "en"]) {
-    assert.equal(blocks[lang].length, 206, `${lang} key count`);
+    assert.equal(blocks[lang].length, 207, `${lang} key count`);
     for (const k of ["tierTitle", "tierEmpty", "tierSoldOut", "tierLeft", "tierPick"])
       assert.ok(blocks[lang].includes(k), `${k} missing in mini ${lang}`);
   }

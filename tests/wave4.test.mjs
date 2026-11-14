@@ -236,7 +236,9 @@ test("wave4 #12: unpublished resource is 404 for non-admin, 200 for admin", asyn
     assert.equal(user.status, 404, JSON.stringify(user.json));
     const admin = await req(`/api/resources/${item.id}/availability?date=${D1}`, { token: await adminLogin() });
     assert.equal(admin.status, 200, JSON.stringify(admin.json));
-    assert.equal(admin.json.mode, "global");
+    // R6-3: creative goods moved from mode `global` to `none` (no use
+    // date) — the 404/200 behaviour this test checks is unchanged.
+    assert.equal(admin.json.mode, "none");
   } finally {
     await pool.query("UPDATE resources SET status='published' WHERE id=$1", [item.id]);
     await pool.end();

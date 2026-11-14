@@ -1,5 +1,5 @@
 import { randomBytes } from "node:crypto";
-import { assert, text, int, date, bookingType } from "../lib/http.mjs";
+import { assert, text, int, date, today, bookingType } from "../lib/http.mjs";
 import { ORDER_STATUS_ZH } from "../lib/status-labels.mjs";
 import { enrichOrder } from "./pickup.mjs";
 import { discountForOrder, evaluateTier, resolveTier, MAIN_SHOP_ID } from "./member-tiers.mjs";
@@ -137,7 +137,17 @@ export async function createOrder(ctx) {
       );
       d = String(perf.start_at).slice(0, 10);
     } else {
-      d = date(b.booking_date);
+      // R6-3: creative goods have no use date — an omitted
+      // booking_date is the purchase day (the demo baseline
+      // `today`); every other resource still requires an explicit
+      // valid date. Validated before any write, as before.
+      d =
+        (b.booking_date === undefined ||
+          b.booking_date === null ||
+          b.booking_date === "") &&
+        r.category === "creative"
+          ? today
+          : date(b.booking_date);
     }
     // R2-3: a tier order names a pickup point when (and only when) the
     // performance's show has configured one. Required when the show

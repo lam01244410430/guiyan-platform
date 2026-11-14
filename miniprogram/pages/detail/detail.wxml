@@ -12,7 +12,7 @@
       <view class="btn ghost small favbtn" bindtap="toggleFav"><image class="fav-ic" src="{{fav ? '/assets/icon-heart-filled.svg' : '/assets/icon-heart.svg'}}" /><text>{{fav ? L.favOn : L.favOff}}</text></view>
     </view>
     <picker mode="date" value="{{date}}" bindchange="onDate">
-      <view class="picker">{{L.dateLabel}}：{{date || L.datePh}} <text class="arrow">▾</text></view>
+      <view class="picker">{{res.catId==='creative' ? L.creativeDateLabel : L.dateLabel}}：{{date || L.datePh}} <text class="arrow">▾</text></view>
     </picker>
     <view style="display:flex;justify-content:space-between;align-items:center;margin-top:24rpx">
       <view>{{L.qtyLabel}}</view>

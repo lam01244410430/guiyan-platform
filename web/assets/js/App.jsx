@@ -1167,7 +1167,7 @@ export default function App() {
                   {t("flow").map((s, x) => (<span key={x} className={x === 0 ? "on" : undefined}>{s}</span>))}
                 </div>
                 <div className="bookrow">
-                  <label>{t("dateLabel")}<input type="date" id="bkDate" value={bkDate} min="2026-11-11" onChange={(e) => setBkDate(e.target.value)} /></label>
+                  <label>{cur[1] === "creative" ? t("creativeDateLabel") : t("dateLabel")}<input type="date" id="bkDate" value={bkDate} min="2026-11-11" onChange={(e) => setBkDate(e.target.value)} /></label>
                   <label>{fmt(t("qtyLabel"), { u: unitName(cur[4]) })}
                     <select id="bkQty" value={bkQty} onChange={(e) => setBkQty(+e.target.value)}>
                       {[1, 2, 3, 4, 5, 10, 20].map((n) => (<option key={n} value={n}>{n}</option>))}
@@ -1179,7 +1179,9 @@ export default function App() {
                     {avail.mode === "rental"
                       ? (avail.available ? t("availFree") : t("availBooked"))
                       : avail.mode === "none"
-                        ? t("availService")
+                        ? (cur[1] === "creative"
+                          ? t("availCreative")
+                          : t("availService"))
                         : fmt(t("availLeft"), { a: avail.available, c: avail.capacity })}
                   </div>
                 )}

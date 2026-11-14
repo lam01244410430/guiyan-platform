@@ -85,7 +85,7 @@ Page({
   },
   applyLang: function () {
     var lang = i18n.getLang();
-    var keys = ['brandTag', 'dateLabel', 'qtyLabel', 'totalLabel', 'bookNow',
+    var keys = ['brandTag', 'dateLabel', 'creativeDateLabel', 'qtyLabel', 'totalLabel', 'bookNow',
       'favOn', 'favOff', 'flow', 'viewsMeta', 'priceMeta', 'orderCreated',
       'actConfirm', 'actCancel', 'actPay', 'actComplete', 'actRefund',
       'doneNote', 'statusToast', 'stPending', 'stConfirmed', 'stPaid',
@@ -113,7 +113,7 @@ Page({
     if (licMeta.ip_region) licRows.push({ k: L.licRegion, v: licMeta.ip_region });
     this.setData({ L: L, lang: lang, langIdx: i18n.langIndex(),
       langName: i18n.LANGS[i18n.langIndex()].label,
-      res: { name: r.name, cat: data.catName(r.cat, lang),
+      res: { name: r.name, cat: data.catName(r.cat, lang), catId: r.cat,
         city: data.cityName(r.city, lang), price: data.money(r.price),
         unit: data.unitName(r.unit, lang), views: r.views,
         desc: data.descOf(r, lang) },
