@@ -57,6 +57,14 @@
       </view>
     </block>
   </block>
+  <!-- R6-4: price (yuan) + rating filter bar -->
+  <view class="filterrow">
+    <input class="field" style="flex:1;min-width:0;margin-top:0" placeholder="{{L.priceMinPh}}" value="{{priceMin}}" bindinput="onPriceMin" type="digit" />
+    <input class="field" style="flex:1;min-width:0;margin-top:0" placeholder="{{L.priceMaxPh}}" value="{{priceMax}}" bindinput="onPriceMax" type="digit" />
+    <picker mode="selector" range="{{ratingNames}}" value="{{ratingIdx}}" bindchange="onRating" wx:if="{{hasRatings}}">
+      <view class="picker">{{ratingNames[ratingIdx]}} <text class="arrow">▾</text></view>
+    </picker>
+  </view>
   <view class="note">{{resultLine}}</view>
   <block wx:if="{{list.length===0}}">
     <view class="empty">{{L.emptyRes}}</view>

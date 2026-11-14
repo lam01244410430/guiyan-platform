@@ -35,6 +35,7 @@
               <view class="price">{{item.price}}<text class="unit">/ {{item.unit}}</text></view>
               <view class="views">{{item.city}} · {{item.views}} {{L.viewsUnit}}</view>
             </view>
+            <view class="note" wx:if="{{item.reasons}}">{{item.reasons}}</view>
           </view>
         </block>
       </view>

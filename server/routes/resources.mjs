@@ -38,6 +38,33 @@ export async function listResources(ctx) {
     const q = url.searchParams.get("q");
     const role = url.searchParams.get("role");
     const sort = url.searchParams.get("sort") || "hot";
+    // R6-4: price range (yuan, converted to cents), rating floor
+    // (approved-only rating from resourceSelect) and region (alias
+    // for city; the old param keeps working).
+    const region = url.searchParams.get("region");
+    const numParam = (value, label) => {
+      if (value === null || value === "") return null;
+      const n = Number(value);
+      assert(Number.isFinite(n) && n >= 0, label + "必须为不小于 0 的数字");
+      return n;
+    };
+    const minPriceYuan = numParam(url.searchParams.get("min_price"), "最低价");
+    const maxPriceYuan = numParam(url.searchParams.get("max_price"), "最高价");
+    const minRatingNum = numParam(url.searchParams.get("min_rating"), "最低评分");
+    assert(minRatingNum === null || minRatingNum <= 5, "最低评分不能超过 5 分");
+    assert(
+      minPriceYuan === null ||
+        maxPriceYuan === null ||
+        minPriceYuan <= maxPriceYuan,
+      "最低价不能高于最高价",
+    );
+    const cityVal = city && city !== "all" ? city : null;
+    const regionVal = region && region !== "all" ? region : null;
+    assert(
+      !cityVal || !regionVal || cityVal === regionVal,
+      "城市与地区参数不一致",
+    );
+    const effCity = cityVal || regionVal;
     assert(
       ["hot", "price_asc", "price_desc", "newest"].includes(sort),
       "无效排序方式",
@@ -47,7 +74,16 @@ export async function listResources(ctx) {
     // combination, and filtered queries stay live Postgres reads.
     // R6-2: ?role= is a filter too — a role-filtered list must never
     // be served from the unfiltered cache key.
-    const cacheable = !category && !city && !q && !role && sort === "hot";
+    const cacheable =
+      !category &&
+      !city &&
+      !region &&
+      !q &&
+      !role &&
+      minPriceYuan === null &&
+      maxPriceYuan === null &&
+      minRatingNum === null &&
+      sort === "hot";
     if (cacheable && cache?.enabled) {
       const hit = await cache.get(CACHE_KEYS.resourcesList);
       if (hit) {
@@ -68,9 +104,26 @@ export async function listResources(ctx) {
       where.push("r.category=?");
       params.push(categoryId);
     }
-    if (city && city !== "all") {
+    if (effCity) {
       where.push("r.city=?");
-      params.push(city);
+      params.push(effCity);
+    }
+    if (minPriceYuan !== null) {
+      where.push("r.price>=?");
+      params.push(Math.round(minPriceYuan * 100));
+    }
+    if (maxPriceYuan !== null) {
+      where.push("r.price<=?");
+      params.push(Math.round(maxPriceYuan * 100));
+    }
+    if (minRatingNum !== null && minRatingNum > 0) {
+      // Same approved-only rating as resourceSelect: a resource with
+      // no approved review rates 0, so it never matches an active
+      // rating filter (Wave 4 #14 Q8, same rule as the client).
+      where.push(
+        "COALESCE((SELECT AVG(rating) FROM comments c WHERE c.resource_id=r.id AND c.status='approved'),0)>=?",
+      );
+      params.push(minRatingNum);
     }
     if (role) {
       // R6-2 — talent library: match meta.role exactly. Resources

@@ -212,6 +212,7 @@ section{padding:76px 0}
 .matchlist{display:flex;flex-wrap:wrap;gap:8px}
 .matchlist button{background:var(--surface);border:1px solid var(--line2);border-radius:99px;padding:7px 14px;font-size:13px;font-weight:600;color:var(--ink)}
 .matchlist button:hover{border-color:var(--red);color:var(--red)}
+.matchlist .match-reasons{display:block;font-size:12px;color:var(--ink3);font-weight:400}
 
 /* AI */
 .ai-grid{display:grid;grid-template-columns:1fr 1.2fr;gap:18px;align-items:stretch}

@@ -10,7 +10,7 @@ import {
   catName, catZh, catBoth, cityName, unitName, li, state as store,
 } from "./data.js";
 import {
-  APIRES, APIID2IDX, apiGet, apiPost, currentUser, getToken, setToken,
+  APIRES, APIID2IDX, APIDEMANDS, apiGet, apiPost, currentUser, getToken, setToken,
   clearToken, restoreUser, isApiAvailable, mergeCategories, mergeResources,
   mergeDemands, mapApiOrder, STATUS,
 } from "./apiClient.js";
@@ -603,13 +603,16 @@ export default function App() {
   }
   /* Wave 4 #14 — search via matchesSearch (search.js, port of zhou
      src/search.js): alias groups + lexicon splitting, every token must
-     match; tags come from APIRES (the RES tuple has none). Price compares
-     r[3] (yuan); min > max counts as no price filter (Q8). Rating reads
-     APIRES[idx].rating; review_count === 0 never matches while a rating
-     filter is active (Q8). */
+     match; tags come from APIRES (the RES tuple has none). R6-4: the
+     price (r[3], yuan) / rating / region filters live inside
+     matchesSearch now, with exactly the server's rules — min > max
+     counts as no price filter (Q8); rating reads APIRES[idx].rating
+     and review_count === 0 never matches while a rating filter is
+     active (Q8); region is the city alias (store.city). Client
+     filtering only applies to the already-loaded list, never replaces
+     the server query. */
   function filtered() {
     const pMin = parseFloat(store.priceMin), pMax = parseFloat(store.priceMax);
-    const priceOff = !Number.isNaN(pMin) && !Number.isNaN(pMax) && pMin > pMax;
     const list = RES.map(function (r, i) { return { r, i }; }).filter(function (o) {
       const r = o.r;
       if (store.cat !== "all" && r[1] !== store.cat) return false;
@@ -620,17 +623,12 @@ export default function App() {
         const api = APIRES[o.i];
         if (api && api.meta && api.meta.role !== store.role) return false;
       }
-      if (store.city !== "all" && r[2] !== store.city) return false;
-      if (store.q && !matchesSearch({ name: r[0], description: desc(r, lang), city: r[2], category: catZh(r[1]), tags: APIRES[o.i] ? APIRES[o.i].tags : [] }, store.q)) return false;
-      if (!priceOff) {
-        if (!Number.isNaN(pMin) && r[3] < pMin) return false;
-        if (!Number.isNaN(pMax) && r[3] > pMax) return false;
-      }
-      if (store.minRating > 0) {
-        const api = APIRES[o.i];
-        if (!api || !api.review_count || !(api.rating >= store.minRating)) return false;
-      }
-      return true;
+      const api = APIRES[o.i];
+      return matchesSearch(
+        { name: r[0], description: desc(r, lang), city: r[2], category: catZh(r[1]), tags: api ? api.tags : [], price: r[3], rating: api ? api.rating : undefined, reviewCount: api ? api.review_count : undefined },
+        store.q,
+        { minPrice: pMin, maxPrice: pMax, minRating: store.minRating, region: store.city },
+      );
     });
     if (store.pref) { list.sort(function (a, b) { return (b.r[1] === store.pref) - (a.r[1] === store.pref) || b.r[5] - a.r[5]; }); }
     else if (store.sort === "asc") list.sort(function (a, b) { return a.r[3] - b.r[3]; });
@@ -654,15 +652,55 @@ export default function App() {
       recordEvent("click", "resource:" + rid);
     }
   }
+  /* R6-4 — match reasons, in display order (same city / same category /
+     within budget). The local fallback filters by category + budget and
+     sorts same-city first, so same-city only applies when the cities
+     match; the server requires all three. */
+  function matchReasons(o, d) {
+    return ["same_city", "same_category", "within_budget"].filter(function (k) {
+      return k !== "same_city" || o.r[2] === d[3];
+    });
+  }
+  function reasonLabel(k) {
+    return t({ same_city: "matchReasonCity", same_category: "matchReasonCat", within_budget: "matchReasonBudget" }[k] || "matchReasonCat");
+  }
   function selectDemand(i) {
     setDemSel(i);
     const d = DEMANDS[i];
-    const m = RES.map(function (r, idx) { return { r, i: idx }; }).filter(function (o) { return o.r[1] === d[1] && o.r[3] <= d[2]; })
-      .sort(function (a, b) { return (b.r[2] === d[3]) - (a.r[2] === d[3]) || b.r[5] - a.r[5]; }).slice(0, 5);
-    setMatch({
+    const local = RES.map(function (r, idx) { return { r, i: idx }; }).filter(function (o) { return o.r[1] === d[1] && o.r[3] <= d[2]; })
+      .sort(function (a, b) { return (b.r[2] === d[3]) - (a.r[2] === d[3]) || b.r[5] - a.r[5]; }).slice(0, 5)
+      .map(function (o) { return { r: o.r, i: o.i, reasons: matchReasons(o, d) }; });
+    const localMatch = {
       title: fmt(t("matchTitle"), { t: d[0][li()] }),
-      note: fmt(t("matchNote"), { c: catName(d[1]), b: money(d[2]), city: cityName(d[3]), n: m.length }),
-      list: m,
+      note: fmt(t("matchNote"), { c: catName(d[1]), b: money(d[2]), city: cityName(d[3]), n: local.length }),
+      list: local,
+    };
+    // R6-4: logged in + live API + a known API demand id -> the server
+    // match (same city + same category + within budget, rating desc).
+    // Anything else (anonymous, offline, a just-posted local demand, a
+    // failed fetch) falls back to the local rule above — the box never
+    // stays empty because the server could not be reached.
+    const apiId = APIDEMANDS[d[0][0]];
+    if (apiId == null || !getToken() || !isApiAvailable()) { setMatch(localMatch); return; }
+    setMatch({ title: localMatch.title, note: t("matchLoading"), list: [] });
+    apiGet("/api/demands/" + apiId + "/matches").then(function (data) {
+      const rows = (data && data.matches) || [];
+      mergeResources({ resources: rows });
+      const list = rows.map(function (m) {
+        const idx = APIID2IDX[m.id];
+        return { r: RES[idx], i: idx, reasons: m.reasons || [] };
+      }).filter(function (o) { return o.i != null && o.r; });
+      setMatch({
+        title: localMatch.title,
+        note: fmt(t("matchNoteServer"), { c: catName(d[1]), b: money(d[2]), city: cityName(d[3]), n: list.length }),
+        list: list,
+      });
+    }).catch(function (err) {
+      if (err && err.status === 400) {
+        setMatch({ title: localMatch.title, note: t("matchRejected"), list: [] });
+        return;
+      }
+      setMatch(localMatch);
     });
   }
 
@@ -1008,6 +1046,9 @@ export default function App() {
               {match && (match.list.length ? match.list.map((o) => (
                 <button key={o.i} type="button" data-m={o.i} onClick={() => openDetail(o.i)}>
                   {o.r[0]} · {cityName(o.r[2])} · {money(o.r[3])}
+                  {o.reasons && o.reasons.length ? (
+                    <span className="match-reasons">{o.reasons.map(reasonLabel).join(" · ")}</span>
+                  ) : null}
                 </button>
               )) : t("matchNone"))}
             </div>

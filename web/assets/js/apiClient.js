@@ -18,6 +18,7 @@ let apiUser = null;
 
 export const APIRES = {};    /* RES index -> {id, stock, capacity, rating, review_count, status, tags} */
 export const APIID2IDX = {}; /* API resource id -> RES index */
+export const APIDEMANDS = {}; /* R6-4: DEMANDS zh title -> API demand id */
 export const APICAT = {};    /* API category Chinese name -> CATS id */
 
 export function apiBase() {
@@ -163,6 +164,9 @@ export function mergeDemands(data) {
     const catId = apiCatId(a.category);
     let idx = -1;
     for (let i = 0; i < DEMANDS.length; i++) { if (DEMANDS[i][0][0] === a.title) { idx = i; break; } }
+    /* R6-4: keep the API id (keyed by zh title, like the merge
+       itself) so the demand detail can call GET /api/demands/:id/matches. */
+    if (a.id != null) APIDEMANDS[a.title] = a.id;
     if (idx < 0) {
       const dsc = a.description || a.title;
       DEMANDS.push([[a.title, a.title, a.title], catId, budgetYuan, a.city || "南宁", [dsc, dsc, dsc]]);

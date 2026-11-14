@@ -28,7 +28,10 @@ Page({
     var lang = i18n.getLang();
     var keys = ['brandTag', 'demTitle', 'demSub', 'demNote', 'budget',
       'matchTitle', 'matchNote', 'matchNone', 'viewsUnit', 'matchCount', 'postDemand',
-      'cityLabel', 'confirmBtn', 'allCities'];
+      'cityLabel', 'confirmBtn', 'allCities',
+      // R6-4: server-match note + reasons + loading/rejected states.
+      'matchReasonCity', 'matchReasonCat', 'matchReasonBudget',
+      'matchNoteServer', 'matchRejected', 'matchLoading'];
     var L = {};
     keys.forEach(function (k) { L[k] = i18n.t(k, lang); });
     wx.setNavigationBarTitle({ title: L.demTitle });
@@ -81,6 +84,36 @@ Page({
     });
     return list;
   },
+  // R6-4: match reasons for one resource (same city only when the
+  // cities match; category + budget always hold for a local match).
+  _reasonsFor: function (r, d, lang) {
+    var out = [];
+    if (r.city === d.city) out.push(i18n.t('matchReasonCity', lang));
+    out.push(i18n.t('matchReasonCat', lang));
+    out.push(i18n.t('matchReasonBudget', lang));
+    return out.join(' · ');
+  },
+  _reasonLabel: function (k, lang) {
+    if (k === 'same_city') return i18n.t('matchReasonCity', lang);
+    if (k === 'within_budget') return i18n.t('matchReasonBudget', lang);
+    return i18n.t('matchReasonCat', lang);
+  },
+  // Local match rendering (offline / anonymous / server unreachable).
+  _setLocalMatches: function (d, title, lang, i) {
+    var self = this;
+    var list = this._match(d).map(function (o) {
+      return { idx: o.i, name: o.r.name, cat: data.catName(o.r.cat, lang),
+        city: data.cityName(o.r.city, lang), price: data.money(o.r.price),
+        unit: data.unitName(o.r.unit, lang), views: o.r.views,
+        reasons: self._reasonsFor(o.r, d, lang) };
+    });
+    var note = list.length === 0
+      ? i18n.t('matchNone', lang)
+      : i18n.fmt(i18n.t('matchNote', lang), {
+          c: data.catName(d.cat, lang), b: data.money(d.budget),
+          city: data.cityName(d.city, lang), n: list.length });
+    this.setData({ open: i, matches: list, matchTitle: title, matchNote: note });
+  },
   toggle: function (e) {
     var i = e.currentTarget.dataset.i;
     var lang = i18n.getLang();
@@ -89,19 +122,45 @@ Page({
       return;
     }
     var d = this.data.allDemands[i];
-    var list = this._match(d).map(function (o) {
-      return { idx: o.i, name: o.r.name, cat: data.catName(o.r.cat, lang),
-        city: data.cityName(o.r.city, lang), price: data.money(o.r.price),
-        unit: data.unitName(o.r.unit, lang), views: o.r.views };
-    });
-    var note = list.length === 0
-      ? i18n.t('matchNone', lang)
-      : i18n.fmt(i18n.t('matchNote', lang), {
-          c: data.catName(d.cat, lang), b: data.money(d.budget),
-          city: data.cityName(d.city, lang), n: list.length });
-    this.setData({ open: i, matches: list,
-      matchTitle: i18n.fmt(i18n.t('matchTitle', lang), { t: d.title[lang] || d.title.zh }),
-      matchNote: note });
+    var title = i18n.fmt(i18n.t('matchTitle', lang), { t: d.title[lang] || d.title.zh });
+    // R6-4: logged in + a known API demand id -> the server match
+    // (same city + same category + within budget, rating desc).
+    // Anything else falls back to the local rule — the box never stays
+    // empty because the server could not be reached.
+    if (d.apiId != null && api.getToken && api.getToken()) {
+      var self = this;
+      this.setData({ open: i, matches: [], matchTitle: title,
+        matchNote: i18n.t('matchLoading', lang) });
+      api.get('/api/demands/' + d.apiId + '/matches', {}, true).then(function (res) {
+        var rows = (res && res.matches) || [];
+        api.mergeResources(rows);
+        var cat = api.getCatalog();
+        var list = rows.map(function (m) {
+          var idx = -1;
+          for (var k = 0; k < cat.length; k++) { if (cat[k].apiId === m.id) { idx = k; break; } }
+          if (idx < 0) return null;
+          var r = cat[idx];
+          return { idx: idx, name: r.name, cat: data.catName(r.cat, lang),
+            city: data.cityName(r.city, lang), price: data.money(r.price),
+            unit: data.unitName(r.unit, lang), views: r.views,
+            reasons: (m.reasons || []).map(function (k) { return self._reasonLabel(k, lang); }).join(' · ') };
+        }).filter(function (x) { return !!x; });
+        var note = list.length === 0
+          ? i18n.t('matchNone', lang)
+          : i18n.fmt(i18n.t('matchNoteServer', lang), {
+              c: data.catName(d.cat, lang), b: data.money(d.budget),
+              city: data.cityName(d.city, lang), n: list.length });
+        self.setData({ matches: list, matchNote: note });
+      }, function (err) {
+        if (err && err.status === 400) {
+          self.setData({ matches: [], matchNote: i18n.t('matchRejected', lang) });
+          return;
+        }
+        self._setLocalMatches(d, title, lang, i);
+      });
+      return;
+    }
+    this._setLocalMatches(d, title, lang, i);
   },
   goDetail: function (e) {
     wx.navigateTo({ url: '/pages/detail/detail?idx=' + e.currentTarget.dataset.idx });

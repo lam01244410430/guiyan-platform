@@ -34,7 +34,7 @@ import { login, logout, register, changePassword } from "./routes/auth.mjs";
 import { wechatMini } from "./routes/oauth.mjs";
 import { patchProfile, uploadAvatar, sendOtp, verifyOtp, patchEmail, patchPhone, patchSocial } from "./routes/account.mjs";
 import { listOrders, createOrder, getOrder, transitionOrder, getOrderContract } from "./routes/orders.mjs";
-import { listDemands, createDemand } from "./routes/demands.mjs";
+import { listDemands, createDemand, getDemandMatches } from "./routes/demands.mjs";
 import { listMessages, markMessageRead, markAllMessagesRead } from "./routes/messages.mjs";
 import { listFavorites, toggleFavorite, deleteFavorite } from "./routes/favorites.mjs";
 import { ANSWERS, assistant } from "./routes/assistant.mjs";
@@ -223,6 +223,7 @@ export async function createApp({ database }) {
       if (await markAllMessagesRead(ctx)) return;
       if (await listDemands(ctx)) return;
       if (await createDemand(ctx)) return;
+      if (await getDemandMatches(ctx)) return;
       if (await listFavorites(ctx)) return;
       if (await toggleFavorite(ctx)) return;
       if (await deleteFavorite(ctx)) return;

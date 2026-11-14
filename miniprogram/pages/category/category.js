@@ -15,7 +15,12 @@ Page({
     list: [], resultLine: '',
     licKindSel: 'all', licStatusSel: 'all',
     licKindIds: ['all', 'buy', 'sell'], licStatusIds: ['all', 'pending', 'active', 'expired'],
-    licKindNames: [], licStatusNames: [], licKindIdx: 0, licStatusIdx: 0, licenses: []
+    licKindNames: [], licStatusNames: [], licKindIdx: 0, licStatusIdx: 0, licenses: [],
+    // R6-4: price (yuan) + rating filter bar. The rating picker only
+    // shows once the merged catalog has a real approved rating
+    // (offline local data has none — same rule as the H5).
+    priceMin: '', priceMax: '', ratingSel: 0, ratingIdx: 0,
+    ratingNames: [], ratingIds: [0, 4, 4.5], hasRatings: false,
   },
   onLoad: function () { this.applyLang(); },
   onShow: function () {
@@ -47,6 +52,8 @@ Page({
       // R6-2 library entries + talent role filter.
       'libVenue', 'libEquipment', 'libTalent', 'talentRole',
       'roleActor', 'roleDirector', 'roleWriter',
+      // R6-4: price/rating filter bar.
+      'priceMinPh', 'priceMaxPh', 'ratingAll', 'rating4', 'rating45'];
     var L = {};
     keys.forEach(function (k) { L[k] = i18n.t(k, lang); });
     var roles = [
@@ -68,6 +75,8 @@ Page({
       licKindNames: [L.allChip, L.licBuy, L.licSell],
       licStatusNames: [L.allChip, L.licPending, L.licActive, L.licExpired],
       roles: roles,
+      ratingNames: [L.ratingAll, L.rating4, L.rating45],
+      ratingIdx: this.data.ratingIds.indexOf(Number(this.data.ratingSel) || 0),
       cityIdx: cityIds.indexOf(this.data.citySel),
       sortIdx: this.data.sortIds.indexOf(this.data.sortSel) });
     this.refresh();
@@ -88,12 +97,25 @@ Page({
     // unmerged artist is one the server did not return for this role.
     var catalog = api.getCatalog();
     var anyMeta = catalog.some(function (r) { return r.meta; });
+    // R6-4: price (yuan) + rating filters, same rules as the server:
+    // min > max counts as no price filter; a rating filter needs a real
+    // approved rating (review_count 0 never matches while one is active).
+    var pMin = parseFloat(this.data.priceMin), pMax = parseFloat(this.data.priceMax);
+    var priceOff = !isNaN(pMin) && !isNaN(pMax) && pMin > pMax;
+    var ratingSel = Number(this.data.ratingSel) || 0;
     var list = catalog.map(function (r, i) { return { r: r, i: i }; })
       .filter(function (o) {
         if (catSel && catSel !== 'all' && o.r.cat !== catSel) return false;
         if (catSel === 'artist' && roleSel && anyMeta
           && (!o.r.meta || o.r.meta.role !== roleSel)) return false;
         if (citySel && citySel !== 'all' && o.r.city !== citySel) return false;
+        if (!priceOff) {
+          if (!isNaN(pMin) && o.r.price < pMin) return false;
+          if (!isNaN(pMax) && o.r.price > pMax) return false;
+        }
+        if (ratingSel > 0) {
+          if (!o.r.review_count || !(o.r.rating >= ratingSel)) return false;
+        }
         if (!kw) return true;
         var hay = (o.r.name + ' ' + o.r.city + ' ' + o.r.desc.zh + ' '
           + o.r.desc.vi + ' ' + o.r.desc.en).toLowerCase();
@@ -116,7 +138,8 @@ Page({
   refresh: function () {
     var view = this.buildView();
     var hasMeta = api.getCatalog().some(function (r) { return r.meta; });
-    this.setData({ list: view, resultLine: this.resultLineFor(view.length), hasMeta: hasMeta });
+    var hasRatings = api.getCatalog().some(function (r) { return r.review_count > 0; });
+    this.setData({ list: view, resultLine: this.resultLineFor(view.length), hasMeta: hasMeta, hasRatings: hasRatings });
     this.refreshOnline();
     this.refreshLicenses();
   },
@@ -135,6 +158,15 @@ Page({
       if (self.data.catSel === 'artist' && self.data.roleSel) params.role = self.data.roleSel;
       if (self.data.citySel !== 'all') params.city = self.data.citySel;
       if (self.data.kw) params.q = self.data.kw;
+      // R6-4: same filters to the server (min > max sends neither —
+      // the server would 400, the client treats it as no filter).
+      var pMin = parseFloat(self.data.priceMin), pMax = parseFloat(self.data.priceMax);
+      if (!isNaN(pMin) && !isNaN(pMax) && pMin > pMax) { /* no price params */ }
+      else {
+        if (!isNaN(pMin)) params.min_price = self.data.priceMin;
+        if (!isNaN(pMax)) params.max_price = self.data.priceMax;
+      }
+      if (Number(self.data.ratingSel) > 0) params.min_rating = self.data.ratingSel;
       params.sort = self.data.sortSel === 'asc' ? 'price_asc'
         : self.data.sortSel === 'desc' ? 'price_desc' : 'hot';
       api.loadResources(params).then(function () {
@@ -191,6 +223,13 @@ Page({
   onSort: function (e) {
     var id = this.data.sortIds[e.detail.value];
     this.setData({ sortSel: id, sortIdx: e.detail.value });
+    this.refresh();
+  },
+  onPriceMin: function (e) { this.setData({ priceMin: e.detail.value }); this.refresh(); },
+  onPriceMax: function (e) { this.setData({ priceMax: e.detail.value }); this.refresh(); },
+  onRating: function (e) {
+    var id = this.data.ratingIds[e.detail.value];
+    this.setData({ ratingSel: id, ratingIdx: e.detail.value });
     this.refresh();
   },
   goDetail: function (e) {
