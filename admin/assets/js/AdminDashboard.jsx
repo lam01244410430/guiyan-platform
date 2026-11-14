@@ -234,6 +234,7 @@ export default function AdminDashboard() {
   const [seriesData, setSeriesData] = useState(null);
   const [analysis, setAnalysis] = useState(null);
   const [analysisStale, setAnalysisStale] = useState(false);
+  const [analysisBusy, setAnalysisBusy] = useState(false);
   const [alerts, setAlerts] = useState([]);
   const [threshold, setThreshold] = useState(5);
   // R5-1 数据运营: the stored aggregates for the chosen period +
@@ -675,6 +676,24 @@ export default function AdminDashboard() {
   }
   function downloadContract() {
     if (contract) downloadText(contract.content, contract.code + "-模拟协议.txt");
+  }
+
+  // R5-4: recompute the analysis for the current period and store
+  // it as the period's snapshot (manual trigger only — there is no
+  // cron/worker this wave), then reload the live view. Idempotent:
+  // running it twice stores the same numbers again.
+  function doRefreshAnalysis() {
+    if (analysisBusy) return;
+    setAnalysisBusy(true);
+    apiPost("/api/admin/analysis/refresh", { period }).then(function () {
+      setAnalysisBusy(false);
+      toast("已刷新快照");
+      setAnalysisStale(true);
+    }).catch(function (e) {
+      setAnalysisBusy(false);
+      if (e && e.status === 403) toast("无权刷新快照");
+      else toast((e && e.message) || "刷新快照失败");
+    });
   }
 
   // Wave 5 #23 — download the report text exactly as shown on screen
@@ -3615,7 +3634,10 @@ export default function AdminDashboard() {
           </section>
 
           <section className={"view" + (view === "analysis" ? " on" : "")} id="view-analysis">
-            <p className="cache-note">数据最多每 60 秒更新一次（服务端缓存）。</p>
+            <p className="cache-note">数据最多每 60 秒更新一次（服务端缓存）。
+              <button type="button" className="btn-export" disabled={analysisBusy} onClick={doRefreshAnalysis}>{analysisBusy ? "刷新中…" : "刷新快照"}</button>
+              {analysis && analysis.source === "snapshot" && analysis.computed_at ? <span>快照时间 {String(analysis.computed_at).slice(0, 16)}</span> : null}
+            </p>
             {analysis ? (
               <>
                 <h2 className="report-title">{reportTitle}</h2>
@@ -3684,6 +3706,91 @@ export default function AdminDashboard() {
                   <ul className="insights">
                     {analysis.insights.map((s, i) => <li key={i}>{s}</li>)}
                   </ul>
+                </div>
+                {/* R5-4 数据汇聚 + 智能分析: per-show table, promos,
+                    members and rule-text recommendations, all from
+                    real R2–R4 data. The recommendations are fixed
+                    rule text, NOT AI (the AI half stays in R7). */}
+                <div className="sec">
+                  <h2>演出分析</h2>
+                  {(analysis.shows || []).length ? (
+                    <div className="tbl-wrap">
+                      <table>
+                        <thead><tr><th scope="col">演出</th><th scope="col" className="num">场次</th><th scope="col" className="num">订单</th><th scope="col" className="num">收入</th><th scope="col" className="num">上座率</th></tr></thead>
+                        <tbody>
+                          {(analysis.shows || []).map((s) => (
+                            <tr key={s.show_id}>
+                              <td>{s.title}</td><td className="num">{s.performances}</td><td className="num">{s.orders}</td>
+                              <td className="num">{fmtMoney(s.revenue_cents)}</td><td className="num">{s.occupancy === null ? "暂无座位样本" : s.occupancy + "%"}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  ) : <div className="empty">暂无演出</div>}
+                  <p className="def-note">订单与收入只计有效已支付订单；上座率为已售座位 / 全部座位，无座位数据的演出显示“暂无座位样本”。</p>
+                </div>
+                <div className="sec">
+                  <h2>促销效果</h2>
+                  {analysis.promos ? (
+                    <>
+                      <p>优惠券核销 {analysis.promos.total_redemptions} 次，共减免 {fmtMoney(analysis.promos.total_discount_cents)}；用券订单 {analysis.promos.orders_with_coupon} 笔，不用券订单 {analysis.promos.orders_without_coupon} 笔。</p>
+                      {(analysis.promos.coupons || []).length ? (
+                        <div className="tbl-wrap">
+                          <table>
+                            <thead><tr><th scope="col">优惠券</th><th scope="col" className="num">核销数</th><th scope="col" className="num">总折扣</th></tr></thead>
+                            <tbody>
+                              {(analysis.promos.coupons || []).map((c) => (
+                                <tr key={c.coupon_id}><td>{c.code}</td><td className="num">{c.redemptions}</td><td className="num">{fmtMoney(c.total_discount_cents)}</td></tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      ) : <div className="empty">暂无优惠券核销</div>}
+                      {(analysis.promos.flash_sales || []).length ? (
+                        <div className="tbl-wrap">
+                          <table>
+                            <thead><tr><th scope="col">限时抢购</th><th scope="col" className="num">已售</th><th scope="col" className="num">收入</th><th scope="col" className="num">总折扣</th></tr></thead>
+                            <tbody>
+                              {(analysis.promos.flash_sales || []).map((f) => (
+                                <tr key={f.flash_sale_id}><td>{f.name}</td><td className="num">{f.sold}</td><td className="num">{fmtMoney(f.revenue_cents)}</td><td className="num">{fmtMoney(f.total_discount_cents)}</td></tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      ) : <div className="empty">暂无限时抢购</div>}
+                    </>
+                  ) : <div className="empty">暂无促销数据</div>}
+                </div>
+                <div className="sec">
+                  <h2>会员结构</h2>
+                  {analysis.members ? (
+                    <>
+                      <p>会员总数 {analysis.members.total_users} 人（主店等级，按实际消费实时划分）。</p>
+                      {(analysis.members.tiers || []).length ? (
+                        <div className="tbl-wrap">
+                          <table>
+                            <thead><tr><th scope="col">等级</th><th scope="col" className="num">人数</th><th scope="col" className="num">流失人数</th><th scope="col" className="num">流失率</th></tr></thead>
+                            <tbody>
+                              {(analysis.members.tiers || []).map((t) => (
+                                <tr key={t.name}><td>{t.name}</td><td className="num">{t.users}</td><td className="num">{t.churned_users}</td><td className="num">{t.churn_rate}%</td></tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      ) : <div className="empty">暂无会员等级</div>}
+                      <p className="def-note">消费分档：{(analysis.members.buckets || []).map((b) => `${b.label} ${b.users} 人`).join(" · ")}</p>
+                    </>
+                  ) : <div className="empty">暂无会员数据</div>}
+                </div>
+                <div className="sec">
+                  <h2>智能建议</h2>
+                  <p className="def-note">规则建议（按上座率、流失率、收入等固定阈值生成），非 AI 生成；AI 建议见后续版本。</p>
+                  {(analysis.recommendations || []).length ? (
+                    <ul className="insights">
+                      {(analysis.recommendations || []).map((r, i) => <li key={i}>{r.text}</li>)}
+                    </ul>
+                  ) : <div className="empty">暂无建议</div>}
                 </div>
                 <div className="sec">
                   <h2>运营助手</h2>

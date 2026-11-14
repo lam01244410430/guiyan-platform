@@ -26,6 +26,7 @@
 import { assert, int, text, bookingType, resourceRow} from "../lib/http.mjs";
 import { profileRows } from "../lib/profiles.mjs";
 import { CACHE_KEYS, CACHE_TTLS } from "../lib/cache.mjs";
+import { resolveTier, MAIN_SHOP_ID } from "./member-tiers.mjs";
 
 const PERIODS = ["day", "week", "month", "quarter"];
 const PAID_STATUSES = ["paid", "completed", "disputed", "refund_requested"];
@@ -181,6 +182,14 @@ const venueRows = await all("SELECT * FROM venues ORDER BY id ASC");
 const shows = await all("SELECT * FROM shows");
 const performances = await all("SELECT * FROM performances");
 const seats = await all("SELECT * FROM seats");
+// R5-4: the promo + member inputs the analysis aggregates. Coupon
+// redemptions are the redemption truth (a cancelled order's
+// redemption row is released, see routes/orders.mjs); orders carry
+// the coupon/flash snapshots (coupon_id, coupon_cents,
+// flash_sale_id, flash_cents) written at creation.
+const coupons = await all("SELECT * FROM coupons");
+const redemptions = await all("SELECT * FROM coupon_redemptions");
+const flashSales = await all("SELECT * FROM flash_sales");
 const thresholdRow = await get(
 "SELECT value FROM settings WHERE key='alertThreshold'",
 );
@@ -190,7 +199,7 @@ threshold = JSON.parse(thresholdRow?.value?? "5");
 } catch {
 threshold = 5;
 }
-return { today, orders, resources, users, favorites, threshold, venueRows, shows, performances, seats };
+return { today, orders, resources, users, favorites, threshold, venueRows, shows, performances, seats, coupons, redemptions, flashSales };
 }
 
 function computeAlerts({ today, orders, resources, threshold}, events) {
@@ -268,8 +277,8 @@ return alerts;
 // cache, no send here. Operator calls go direct (no cache) — admin-only,
 // low frequency — and the cached wrapper below stays the HTTP path.
 export async function buildAnalysis(ctx, period) {
-const { all } = ctx;
-const { today, orders, resources, threshold, venueRows, shows, performances, seats } =
+const { all, get } = ctx;
+const { today, orders, resources, users, threshold, venueRows, shows, performances, seats, coupons, redemptions, flashSales } =
 await loadAnalysisData(ctx);
 const resourcesById = new Map(resources.map((r) => [r.id, r]));
 const paid = orders.filter((o) => PAID_STATUSES.includes(o.status));
@@ -400,6 +409,201 @@ recommendations,
 });
 
 const byMonth = new Map();
+
+// R5-4 — data aggregation + smart analysis (xlsx rows 59, 61).
+// Three new sections, all computed from real R2–R4 data; nothing
+// here is a model and nothing may be presented as AI (row 61: the
+// AI-suggestion half stays in R7).
+//
+// (a) shows: one row per show. The FK path is verified in code,
+// never guessed: orders.performance_id -> performances.show_id is
+// the primary link (orders.mjs writes performance_id for
+// performance orders); old-flow orders have performance_id NULL
+// and link through orders.resource_id = shows.resource_id
+// instead. The two branches are disjoint, so no order is counted
+// twice. orders / revenue_cents count PAID_STATUSES orders only
+// (the same `paid` scope as the rest of this analysis); occupancy
+// is sold seats / all seats of the show's performances, null when
+// the show has no seats at all (same honesty rule as venue
+// seatOccupancy below).
+const seatsByPerf = new Map();
+for (const s of seats) {
+const list = seatsByPerf.get(s.performance_id) || [];
+list.push(s);
+seatsByPerf.set(s.performance_id, list);
+}
+const showRows = shows.map((s) => {
+const showPerfs = performances.filter((pf) => pf.show_id === s.id);
+const showPerfIds = new Set(showPerfs.map((pf) => pf.id));
+const showOrders = paid.filter(
+(o) =>
+(showPerfIds.has(o.performance_id) ||
+((o.performance_id === null || o.performance_id === undefined) &&
+o.resource_id === s.resource_id)),
+);
+const showSeats = showPerfs.flatMap((pf) => seatsByPerf.get(pf.id) || []);
+const soldSeats = showSeats.filter((x) => x.status === "sold").length;
+return {
+show_id: s.id,
+title: s.title,
+performances: showPerfs.length,
+orders: showOrders.length,
+revenue_cents: sum(showOrders, "amount"),
+occupancy: showSeats.length
+? Math.round((soldSeats / showSeats.length) * 1000) / 10
+: null,
+};
+});
+
+// (b) promos: coupon effectiveness from the real
+// coupon_redemptions table (redemption count + total discount per
+// coupon) plus paid orders with a coupon vs without; flash-sale
+// effectiveness from orders.flash_sale_id (sold count + revenue +
+// total discount per sale).
+const redemptionsByCoupon = new Map();
+for (const r of redemptions) {
+const list = redemptionsByCoupon.get(r.coupon_id) || [];
+list.push(r);
+redemptionsByCoupon.set(r.coupon_id, list);
+}
+const couponRows = coupons.map((c) => {
+const list = redemptionsByCoupon.get(c.id) || [];
+return {
+coupon_id: c.id,
+code: c.code,
+redemptions: list.length,
+total_discount_cents: sum(list, "amount_cents"),
+};
+});
+const ordersWithCoupon = paid.filter(
+(o) => o.coupon_id !== null && o.coupon_id !== undefined,
+).length;
+const promos = {
+coupons: couponRows,
+total_redemptions: sum(couponRows, "redemptions"),
+total_discount_cents: sum(couponRows, "total_discount_cents"),
+orders_with_coupon: ordersWithCoupon,
+orders_without_coupon: paid.length - ordersWithCoupon,
+flash_sales: flashSales.map((f) => {
+const rows = paid.filter((o) => o.flash_sale_id === f.id);
+return {
+flash_sale_id: f.id,
+name: f.name,
+sold: rows.length,
+revenue_cents: sum(rows, "amount"),
+total_discount_cents: sum(rows, "flash_cents"),
+};
+}),
+};
+
+// (c) members: tier distribution + spending buckets for the MAIN
+// shop (shop 1 — the only shop with a stored tier column; the live
+// resolution below is the R5-2 / member-tiers.mjs definition, so
+// this section and member-insights can never disagree). One
+// resolveTier call per non-admin user also yields that user's
+// spending, which feeds both the tier count and the bucket count.
+// Churn (no paid order in the last 90 days, same default as the
+// member-insight rules) is read off the in-memory paid orders —
+// no extra query per user.
+const CHURN_DAYS = 90;
+const SPENDING_BUCKETS = [
+{ label: "未消费", min_cents: 0, max_cents: 0 },
+{ label: "100元以下", min_cents: 1, max_cents: 9999 },
+{ label: "100–1000元", min_cents: 10000, max_cents: 99999 },
+{ label: "1000–5000元", min_cents: 100000, max_cents: 499999 },
+{ label: "5000元以上", min_cents: 500000, max_cents: null },
+];
+const lastPaidByUser = new Map();
+for (const o of paid) {
+const prev = lastPaidByUser.get(o.user_id);
+if (!prev || o.created_at > prev) lastPaidByUser.set(o.user_id, o.created_at);
+}
+const churnCutoff = Date.now() - CHURN_DAYS * 86400000;
+const tierCounts = new Map();
+const bucketCounts = SPENDING_BUCKETS.map((b) => ({ ...b, users: 0 }));
+for (const u of users) {
+const resolved = await resolveTier(get, all, u.id, MAIN_SHOP_ID);
+const tierName = resolved.tier ? resolved.tier.name : "未定级";
+const entry = tierCounts.get(tierName) || {
+tier_id: resolved.tier ? resolved.tier.id : null,
+name: tierName,
+users: 0,
+churned_users: 0,
+};
+entry.users += 1;
+const last = lastPaidByUser.get(u.id);
+if (!last || new Date(last).valueOf() < churnCutoff)
+entry.churned_users += 1;
+tierCounts.set(tierName, entry);
+const bucket = bucketCounts.find(
+(b) =>
+resolved.spending_cents >= b.min_cents &&
+(b.max_cents === null || resolved.spending_cents <= b.max_cents),
+);
+if (bucket) bucket.users += 1;
+}
+const tierRows = [...tierCounts.values()].map((t) => ({
+...t,
+churn_rate: t.users
+? Math.round((t.churned_users / t.users) * 1000) / 10
+: 0,
+}));
+const members = {
+total_users: users.length,
+tiers: tierRows,
+buckets: bucketCounts.map((b) => ({
+label: b.label,
+min_cents: b.min_cents,
+max_cents: b.max_cents,
+users: b.users,
+})),
+};
+
+// Rule-text recommendations ONLY (fixed thresholds over the real
+// sections above — no model, no prediction, never "AI"):
+// - a show with seats and occupancy below 50% -> 考虑限时抢购
+//   (lowest occupancy first, at most 3);
+// - a tier whose churn rate is at least 50% (and at least one
+//   churned member) -> 召回该等级用户;
+// - the highest-revenue show -> 加大推广.
+const recommendations = [];
+for (const s of showRows
+.filter((x) => x.occupancy !== null && x.occupancy < 50)
+.sort((a, b) => a.occupancy - b.occupancy)
+.slice(0, 3)) {
+recommendations.push({
+type: "flash_sale",
+show_id: s.show_id,
+title: s.title,
+occupancy: s.occupancy,
+text: `“${s.title}”上座率仅${s.occupancy}%，考虑限时抢购。`,
+});
+}
+for (const t of tierRows.filter(
+(t) => t.users > 0 && t.churned_users >= 1 && t.churn_rate >= 50,
+)) {
+recommendations.push({
+type: "callback",
+tier_id: t.tier_id,
+tier: t.name,
+churned_users: t.churned_users,
+churn_rate: t.churn_rate,
+text: `“${t.name}”等级${t.churned_users}人超90天未购（流失率${t.churn_rate}%），召回该等级用户。`,
+});
+}
+const topShow = [...showRows].sort(
+(a, b) => b.revenue_cents - a.revenue_cents || b.orders - a.orders,
+)[0];
+if (topShow && topShow.revenue_cents > 0) {
+recommendations.push({
+type: "promote",
+show_id: topShow.show_id,
+title: topShow.title,
+revenue_cents: topShow.revenue_cents,
+text: `“${topShow.title}”收入最高（${(topShow.revenue_cents / 100).toFixed(2)}元），加大推广。`,
+});
+}
+
 for (const o of paid) {
 const k = dayOfBeijing(o.created_at).slice(0, 7);
 byMonth.set(k, (byMonth.get(k) || 0) + o.amount);
@@ -481,6 +685,10 @@ alerts,
 insights,
 venues,
 cold,
+shows: showRows,
+promos,
+members,
+recommendations,
 report,
 sources: SOURCES,
 userSummary: {
@@ -503,11 +711,32 @@ return payload;
 }
 
 // HTTP wrapper: admin check + 60 s cache around buildAnalysis().
+// ?source=snapshot returns the stored snapshot for the period
+// (payload + computed_at); the default live source recomputes (or
+// serves the cache). A period with no snapshot yet is a 404, not a
+// silent live fallback — the caller asked for stored data.
 export async function adminAnalysis(ctx) {
-const { req, p, send, session, cache, res} = ctx;
+const { req, p, send, session, cache, res, get } = ctx;
 if (p!== "/api/admin/analysis" || req.method!== "GET") return false;
 requireAdmin(session);
 const period = requirePeriod(ctx);
+const source = ctx.url.searchParams.get("source") || "live";
+assert(source === "live" || source === "snapshot", "数据来源错误（live 或 snapshot）");
+if (source === "snapshot") {
+const row = await get(
+"SELECT * FROM analysis_snapshots WHERE period=?",
+period,
+);
+assert(row, "暂无该周期快照，请先刷新", 404);
+let stored;
+try {
+stored = JSON.parse(row.payload);
+} catch {
+assert(false, "快照数据损坏", 500);
+}
+send({ ...stored, source: "snapshot", computed_at: row.created_at });
+return true;
+}
 if (cache?.enabled) {
 const hit = await cache.get(CACHE_KEYS.adminAnalysis(period));
 if (hit) {
@@ -517,11 +746,45 @@ return true;
 }
 }
 const payload = await buildAnalysis(ctx, period);
+const out = { ...payload, source: "live" };
 if (cache?.enabled) {
 res.setHeader("X-Cache", "MISS");
-await cache.set(CACHE_KEYS.adminAnalysis(period), payload, CACHE_TTLS.adminAnalysis);
+await cache.set(CACHE_KEYS.adminAnalysis(period), out, CACHE_TTLS.adminAnalysis);
 }
-send(payload);
+send(out);
+return true;
+}
+
+// POST /api/admin/analysis/refresh (R5-4) — recompute buildAnalysis
+// for the requested period (body or ?period=, default day) and
+// upsert it as that period's snapshot in analysis_snapshots. Admin
+// only: anonymous -> 401, non-admin -> 403 (member-insights / BI
+// pattern, not the bare-403 requireAdmin of the GET above). A POST,
+// so it runs in a write transaction and can audit; the GET stays
+// read-only. The live cache is busted so the next live read cannot
+// serve numbers older than the refresh.
+export async function refreshAnalysis(ctx) {
+const { req, p, send, session, run, audit, time, b } = ctx;
+if (p!== "/api/admin/analysis/refresh" || req.method!== "POST") return false;
+assert(session, "请先登录", 401);
+assert(session?.role === "admin", "无权访问管理后台", 403);
+const rawPeriod =
+(b && typeof b.period === "string" && b.period) ||
+ctx.url.searchParams.get("period") ||
+"day";
+assert(PERIODS.includes(rawPeriod), "无效统计周期");
+const period = rawPeriod;
+const payload = await buildAnalysis(ctx, period);
+const computedAt = time();
+await run(
+"INSERT INTO analysis_snapshots(period,payload,created_at) VALUES(?,?,?) ON CONFLICT (period) DO UPDATE SET payload=excluded.payload, created_at=excluded.created_at",
+period,
+JSON.stringify(payload),
+computedAt,
+);
+await audit(session, "刷新经营分析", `period=${period}`);
+if (ctx.cache) await ctx.cache.bustAnalysis();
+send({ ok: true, period, computed_at: computedAt });
 return true;
 }
 

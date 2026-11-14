@@ -10,9 +10,9 @@
 #   docker compose -p guiyan-p8-smoke up -d --build
 #   ./scripts/smoke-docker.sh [project]   # default project: guiyan-p8-smoke
 #
-# The script checks the 3 containers are healthy, runs the 52 checks in the
+# The script checks the 3 containers are healthy, runs the 53 checks in the
 # plan Appendix A against the stack, prints PASS/FAIL per check and exits
-# non-zero if any check fails. Check 53 tears the stack down (down -v) and
+# non-zero if any check fails. Check 54 tears the stack down (down -v) and
 # verifies no project containers/volumes remain. All curl calls are direct
 # (no background processes left behind). Target is a disposable stack with a
 # fresh DB — never run it against the live Vercel/Neon deployment.
@@ -347,11 +347,17 @@ if [ "$CODE" = "200" ] && has '"users"' && has '"suggestions"'; then ok "51 GET 
 CODE="$(get "/api/admin/bi" "$ADMIN_TOKEN")"
 if [ "$CODE" = "200" ] && has '"kpis"' && has '"top_shows"' && has '"series"'; then ok "52 GET /api/admin/bi as admin 200, kpis + top_shows + series"; else bad "52 GET /api/admin/bi as admin (code=$CODE, body=$(cat "$TMP/body"))"; fi
 
-# 53. teardown — down -v, then 0 project containers and 0 project volumes.
+# 53. analysis refresh — 200 as admin, snapshot upserted (R5-4;
+# the numbers themselves are asserted by tests/r5-analysis.test.mjs
+# — only the route + shape are checked here, like check 51)
+CODE="$(post "/api/admin/analysis/refresh" '{"period":"day"}' "$ADMIN_TOKEN")"
+if [ "$CODE" = "200" ] && has '"ok":true' && has '"period":"day"'; then ok "53 POST /api/admin/analysis/refresh as admin 200, snapshot ok"; else bad "53 POST /api/admin/analysis/refresh as admin (code=$CODE, body=$(cat "$TMP/body"))"; fi
+
+# 54. teardown — down -v, then 0 project containers and 0 project volumes.
 docker compose -p "$PROJECT" down -v >/dev/null 2>&1
 LEFT_C="$(docker ps --format '{{.Names}}' | grep -c "$PROJECT" || true)"
 LEFT_V="$(docker volume ls --format '{{.Name}}' | grep -c "^${PROJECT}_" || true)"
-if [ "$LEFT_C" = "0" ] && [ "$LEFT_V" = "0" ]; then ok "53 down -v: 0 project containers, 0 project volumes"; else bad "53 down -v (containers left=$LEFT_C, volumes left=$LEFT_V)"; fi
+if [ "$LEFT_C" = "0" ] && [ "$LEFT_V" = "0" ]; then ok "54 down -v: 0 project containers, 0 project volumes"; else bad "54 down -v (containers left=$LEFT_C, volumes left=$LEFT_V)"; fi
 
-echo "== smoke-docker: PASS $PASS / FAIL $FAIL (52 checks) =="
+echo "== smoke-docker: PASS $PASS / FAIL $FAIL (53 checks) =="
 [ "$FAIL" = "0" ]

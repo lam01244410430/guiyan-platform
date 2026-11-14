@@ -433,7 +433,9 @@ export async function openPostgresStore(
             // needs its id the same way).
             // R5-1: event_aggregates joins them too (the aggregate
             // insert needs its id the same way).
-            /^\s*INSERT\s+INTO\s+(users|resources|orders|demands|comments|messages|events|audit_logs|shops|shows|performances|ticket_types|pickup_points|ticket_templates|venues|seat_templates|seats|member_tiers|coupons|flash_sales|coupon_rules|coupon_gifts|sms_tasks|stored_value_accounts|stored_value_ledger|stored_value_plans|tickets|verify_logs|print_logs|event_aggregates)\b/i.test(
+            // R5-4: analysis_snapshots joins them too (the refresh
+            // upsert needs its id the same way).
+            /^\s*INSERT\s+INTO\s+(users|resources|orders|demands|comments|messages|events|audit_logs|shops|shows|performances|ticket_types|pickup_points|ticket_templates|venues|seat_templates|seats|member_tiers|coupons|flash_sales|coupon_rules|coupon_gifts|sms_tasks|stored_value_accounts|stored_value_ledger|stored_value_plans|tickets|verify_logs|print_logs|event_aggregates|analysis_snapshots)\b/i.test(
               sql,
             );
           const result = await execute(

@@ -42,7 +42,7 @@ import { getProfile, getRecommendations } from "./routes/profile.mjs";
 import { aiCopy } from "./routes/ai-copy.mjs";
 import { storageHealth, storageUpload, storageUrl, storageDelete } from "./routes/storage.mjs";
 import { adminStats, adminOrders, adminUsers, adminDemands } from "./routes/admin.mjs";
-import { adminStatsSeries, adminAnalysis, adminAlerts, adminOrdersCsv, adminReviewDemand, adminAuditLogs } from "./routes/admin-insights.mjs";
+import { adminStatsSeries, adminAnalysis, refreshAnalysis, adminAlerts, adminOrdersCsv, adminReviewDemand, adminAuditLogs } from "./routes/admin-insights.mjs";
 import { adminTagRules } from "./routes/tag-rules.mjs";
 import { createAdminResource, editAdminResource, listAdminResources, syncAdminResource } from "./routes/admin-resources.mjs";
 import { listAdminShops, createAdminShop, patchAdminShop, getShopTheme, patchShopTheme } from "./routes/shops.mjs";
@@ -235,6 +235,7 @@ export async function createApp({ database }) {
       if (await adminDemands(ctx)) return;
       if (await adminStatsSeries(ctx)) return;
       if (await adminAnalysis(ctx)) return;
+      if (await refreshAnalysis(ctx)) return;
       if (await adminAlerts(ctx)) return;
       if (await adminOrdersCsv(ctx)) return;
       if (await adminReviewDemand(ctx)) return;
