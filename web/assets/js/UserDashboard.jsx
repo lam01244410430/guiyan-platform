@@ -15,6 +15,7 @@ import { Header, LoginDialog, RegisterDialog, Toast } from "./chrome.jsx";
 import AiChat from "./AiChat.jsx";
 import SortButton from "./SortButton.jsx";
 import { sortRows, cycleDirection } from "./sortUtils.js";
+import { useTheme } from "./useTheme.mjs";
 import { decideGateOpen, loadAllTabs, loadTabOrders, loadTabFavs, loadTabDemands, loadTabInfo, loadTabInbox } from "./usrTabLoad.mjs";
 
 /* Account tabs (step 1: the five tabs with content; password / email /
@@ -30,6 +31,7 @@ const ACCT_TABS = [
   ["favs", "usrFavs"],
   ["demands", "usrDemands"],
   ["inbox", "inboxTitle"],
+  ["settings", "tabSettings"],
 ];
 const ACCT_TAB_IDS = ACCT_TABS.map(([id]) => id);
 /* Orders table: filter tabs in status order + "all" first. */
@@ -152,6 +154,9 @@ export default function UserDashboard() {
   const [tabErr, setTabErr] = useState({ orders: false, favs: false, demands: false, info: false, inbox: false });
   // Account tabs: which tab is shown (default "info", or ?tab= when valid).
   const [acctTab, setAcctTab] = useState(readTabFromUrl);
+  /* Theme toggle + account settings: same state as the header toggle —
+     useTheme() subscribes, so a change in either place re-renders both. */
+  const { choice: themeChoice, setTheme } = useTheme();
   // Orders table (Shopee-format, client-side only): status filter, search
   // box, and sort (order number / amount / booking date, admin pattern).
   const [ordFilter, setOrdFilter] = useState("all");
@@ -1065,6 +1070,76 @@ export default function UserDashboard() {
                   </div>
                 </section>
               )}
+
+              {/* Settings tab: appearance (theme) + language, then grouped
+                 links to the existing account sections — profile, security,
+                 social. No new features: only the existing sections plus
+                 the new appearance section, arranged like a standard
+                 marketplace account page. Client-side only, no loader. */}
+              {acctTab === "settings" && (<>
+                <section className="db-sec">
+                  <h3>{t("setAppearance")}</h3>
+                  <div className="db-profile">
+                    <div className="row">
+                      <span className="k">{t("setTheme")}</span>
+                      <span className="v">
+                        <span className="theme-seg" role="group" aria-label={t("setTheme")}>
+                          {[["light", "themeLight"], ["dark", "themeDark"], ["system", "themeSystem"]].map(([v, key]) => (
+                            <button key={v} type="button" aria-pressed={themeChoice === v}
+                              className={themeChoice === v ? "on" : ""} onClick={() => setTheme(v)}>
+                              {t(key)}
+                            </button>
+                          ))}
+                        </span>
+                        <div className="set-note">{t("themeNote")}</div>
+                      </span>
+                    </div>
+                    <div className="row">
+                      <span className="k">{t("setLanguage")}</span>
+                      <span className="v">
+                        <select value={lang} onChange={(e) => changeLang(e.target.value)} aria-label={t("setLanguage")}>
+                          <option value="zh">中文</option>
+                          <option value="vi">Tiếng Việt</option>
+                          <option value="en">English</option>
+                        </select>
+                      </span>
+                    </div>
+                  </div>
+                </section>
+
+                <section className="db-sec">
+                  <h3>{t("setProfile")}</h3>
+                  <div className="db-profile">
+                    <button type="button" className="set-link" onClick={() => switchTab("info")}>
+                      <span>{t("tabInfo")}</span><span className="chev">›</span>
+                    </button>
+                  </div>
+                </section>
+
+                <section className="db-sec">
+                  <h3>{t("setSecurity")}</h3>
+                  <div className="db-profile">
+                    <button type="button" className="set-link" onClick={() => switchTab("password")}>
+                      <span>{t("tabPassword")}</span><span className="chev">›</span>
+                    </button>
+                    <button type="button" className="set-link" onClick={() => switchTab("email")}>
+                      <span>{t("tabEmail")}</span><span className="chev">›</span>
+                    </button>
+                    <button type="button" className="set-link" onClick={() => switchTab("phone")}>
+                      <span>{t("tabPhone")}</span><span className="chev">›</span>
+                    </button>
+                  </div>
+                </section>
+
+                <section className="db-sec">
+                  <h3>{t("setSocial")}</h3>
+                  <div className="db-profile">
+                    <button type="button" className="set-link" onClick={() => switchTab("social")}>
+                      <span>{t("tabSocial")}</span><span className="chev">›</span>
+                    </button>
+                  </div>
+                </section>
+              </>)}
             </div>
           )}
         </div>

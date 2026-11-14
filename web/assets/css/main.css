@@ -3,22 +3,38 @@
   --bg:#f7f3ec; --bg2:#efe8db; --surface:#fffdf8; --surface2:#f3ecdf;
   --ink:#1c1710; --ink2:#5d5344; --ink3:#8a7d68;
   --line:#ddd2bf; --line2:#cbbd9f;
-  --red:#b03a1e; --red-deep:#8c2b12; --red-soft:#f6e3d8;
+  --red:#b03a1e; --red-deep:#8c2b12; --red-soft:#f6e3d8; --red-solid:#b03a1e;
   --gold:#a97e1c; --gold-soft:#f1e5c3;
-  --jade:#0d6e5f; --jade-soft:#dcefe9;
+  --jade:#0d6e5f; --jade-soft:#dcefe9; --jade-solid:#0d6e5f;
   --night:#12100d; --night2:#1d1a15; --cream:#f5eedd; --cream2:#cbbfa5;
   --shadow:0 18px 44px rgba(60,40,10,.14);
   --r-lg:20px; --r-md:14px; --r-sm:9px;
   color-scheme:light;
 }
+/* Manual theme override: [data-theme] wins over the system setting.
+   --red-solid / --jade-solid are the solid fills behind white text
+   (buttons, pills): in dark mode the text red/jade are too light for
+   white text, so the fills use darker values (measured ≥4.5:1).
+   The same dark tokens also apply under the media query below when no
+   explicit choice is stored (choice "system") — keep both blocks in sync. */
+:root[data-theme="dark"]{
+  --bg:#100e0b; --bg2:#171410; --surface:#1c1915; --surface2:#242019;
+  --ink:#f2ead8; --ink2:#c6bba2; --ink3:#94876e;
+  --line:#7a6f5c; --line2:#857a66;
+  --red:#e0683f; --red-deep:#8c2b12; --red-soft:#2e1a10; --red-solid:#c24e27;
+  --gold:#d3a83e; --gold-soft:#332a12;
+  --jade:#3cbfa8; --jade-soft:#12332d; --jade-solid:#0d6e5f;
+  --shadow:0 18px 44px rgba(0,0,0,.5);
+  color-scheme:dark;
+}
 @media (prefers-color-scheme:dark){
-  :root{
+  :root:not([data-theme]){
     --bg:#100e0b; --bg2:#171410; --surface:#1c1915; --surface2:#242019;
     --ink:#f2ead8; --ink2:#c6bba2; --ink3:#94876e;
-    --line:#37312a; --line2:#4a4234;
-    --red:#e0683f; --red-deep:#c24e27; --red-soft:#3a2115;
+    --line:#7a6f5c; --line2:#857a66;
+    --red:#e0683f; --red-deep:#8c2b12; --red-soft:#2e1a10; --red-solid:#c24e27;
     --gold:#d3a83e; --gold-soft:#332a12;
-    --jade:#3cbfa8; --jade-soft:#12332d;
+    --jade:#3cbfa8; --jade-soft:#12332d; --jade-solid:#0d6e5f;
     --shadow:0 18px 44px rgba(0,0,0,.5);
     color-scheme:dark;
   }
@@ -32,7 +48,7 @@ input,select{font:inherit}
 a{color:var(--red)}
 .zh{font-family:"Noto Serif SC",serif}
 .wrap{max-width:1240px;margin:0 auto;padding:0 20px}
-::selection{background:var(--red);color:#fff}
+::selection{background:var(--red-solid);color:#fff}
 
 /* ---------- top bar ---------- */
 .topbar{position:sticky;top:0;z-index:60;background:color-mix(in srgb,var(--bg) 88%,transparent);backdrop-filter:blur(14px);border-bottom:1px solid var(--line)}
@@ -51,18 +67,24 @@ a{color:var(--red)}
 .langsel select{appearance:none;-webkit-appearance:none;border:0;background:transparent;color:var(--ink);font-size:13px;font-weight:700;line-height:1.2;padding:8px 18px 8px 0;outline:none;cursor:pointer;max-width:132px}
 .langsel::after{content:"";position:absolute;right:13px;top:50%;width:7px;height:7px;border-right:1.8px solid var(--ink2);border-bottom:1.8px solid var(--ink2);transform:translateY(-70%) rotate(45deg);pointer-events:none}
 .langsel:focus-within{border-color:var(--red);box-shadow:0 0 0 3px var(--red-soft)}
+/* Theme toggle (header, compact): same pill height as .langsel, sun/moon
+   vector icon only, pressed state = dark. Mirrors the settings control. */
+.themebtn{flex:none;width:38px;height:38px;display:inline-grid;place-items:center;background:var(--surface);border:1px solid var(--line2);border-radius:99px;color:var(--ink2);cursor:pointer}
+.themebtn:hover{border-color:var(--red);color:var(--ink)}
+.themebtn:focus-visible{outline:2px solid var(--red);outline-offset:2px}
+.themebtn svg{display:block}
 .wxbtn{display:inline-flex;align-items:center;gap:7px;background:#07c160;color:#fff;border:0;border-radius:99px;padding:9px 15px;font-weight:700;font-size:13.5px;white-space:nowrap;text-decoration:none}
 .wxbtn:hover{background:#06ad56}
 .cartbtn{display:inline-flex;align-items:center;gap:8px;background:var(--ink);color:var(--bg);border:0;border-radius:99px;padding:9px 16px;font-weight:700;font-size:13.5px;white-space:nowrap}
-.cartbtn b{background:var(--red);color:#fff;border-radius:99px;min-width:21px;height:21px;display:inline-grid;place-items:center;font-size:12px;padding:0 5px}
+.cartbtn b{background:var(--red-solid);color:#fff;border-radius:99px;min-width:21px;height:21px;display:inline-grid;place-items:center;font-size:12px;padding:0 5px}
 
 /* ---------- signed-in user menu ("Hi + name") ---------- */
 .user-menu{position:relative;flex:none}
 .user-chip{display:inline-flex;align-items:center;gap:8px;background:var(--ink);color:var(--bg);border:0;border-radius:99px;padding:5px 13px 5px 5px;font-family:inherit;font-weight:700;font-size:13.5px;white-space:nowrap;cursor:pointer}
-.user-chip .avatar{width:28px;height:28px;flex:none;border-radius:50%;background:var(--red);color:#fff;display:inline-grid;place-items:center;font-size:13px;font-weight:800}
+.user-chip .avatar{width:28px;height:28px;flex:none;border-radius:50%;background:var(--red-solid);color:#fff;display:inline-grid;place-items:center;font-size:13px;font-weight:800}
 .user-chip .chev{flex:none;transition:transform .18s}
 .user-chip .avatar img{width:100%;height:100%;object-fit:cover;border-radius:50%;display:block}
-.avatar-lg{width:72px;height:72px;flex:none;border-radius:50%;background:var(--red);color:#fff;display:inline-grid;place-items:center;font-size:28px;font-weight:800;overflow:hidden}
+.avatar-lg{width:72px;height:72px;flex:none;border-radius:50%;background:var(--red-solid);color:#fff;display:inline-grid;place-items:center;font-size:28px;font-weight:800;overflow:hidden}
 .avatar-lg img{width:100%;height:100%;object-fit:cover;display:block}
 .user-menu.open .user-chip .chev{transform:rotate(180deg)}
 .user-drop{position:absolute;right:0;top:calc(100% + 8px);min-width:208px;background:var(--surface);border:1px solid var(--line);border-radius:var(--r-md);box-shadow:var(--shadow);padding:6px;display:none;z-index:70}
@@ -168,7 +190,7 @@ section{padding:76px 0}
 .card:hover .ph img{transform:scale(1.05)}
 .card .ph .city{position:absolute;left:10px;bottom:10px;background:rgba(12,10,7,.78);color:#f5eedd;font-size:11.5px;font-weight:700;border-radius:99px;padding:3px 10px;backdrop-filter:blur(4px)}
 .card .ph .fav{position:absolute;top:10px;right:10px;width:34px;height:34px;border-radius:99px;border:0;background:rgba(255,253,248,.92);display:grid;place-items:center;color:#8c2b12}
-.card .ph .fav.on{background:var(--red);color:#fff}
+.card .ph .fav.on{background:var(--red-solid);color:#fff}
 .card .bd{padding:15px 16px 16px;display:flex;flex-direction:column;gap:6px;flex:1}
 .card h3{font-family:"Noto Serif SC",serif;font-size:16.5px;font-weight:700;line-height:1.35;margin:0}
 .card .catline{font-size:11.5px;font-weight:700;letter-spacing:.1em;color:var(--gold);text-transform:uppercase}
@@ -180,7 +202,7 @@ section{padding:76px 0}
 .more-row{display:flex;justify-content:center;margin-top:28px}
 .btn{display:inline-flex;align-items:center;gap:8px;border-radius:99px;padding:12px 26px;font-weight:700;font-size:14px;border:1px solid var(--ink);background:transparent;color:var(--ink)}
 .btn:hover{background:var(--ink);color:var(--bg)}
-.btn.red{background:var(--red);border-color:var(--red);color:#fff}
+.btn.red{background:var(--red-solid);border-color:var(--red-solid);color:#fff}
 .btn.red:hover{background:var(--red-deep)}
 .btn.ghost{border-color:var(--line2)}
 .empty{grid-column:1/-1;text-align:center;padding:52px 20px;color:var(--ink2);background:var(--surface);border:1px dashed var(--line2);border-radius:var(--r-lg)}
@@ -229,7 +251,7 @@ section{padding:76px 0}
 .ai-copy li svg{flex:none;margin-top:3px;color:var(--jade)}
 .pref-tags{display:flex;flex-wrap:wrap;gap:8px;margin-top:6px}
 .pref-tags button{background:var(--surface2);border:1px solid var(--line2);color:var(--ink);border-radius:99px;padding:6px 14px;font-size:13px;font-weight:600}
-.pref-tags button.on{background:var(--red);border-color:var(--red);color:#fff}
+.pref-tags button.on{background:var(--red-solid);border-color:var(--red-solid);color:#fff}
 .chat{background:var(--night);border-radius:24px;padding:22px;color:var(--cream);display:flex;flex-direction:column;min-height:420px}
 .chat-head{display:flex;align-items:center;gap:10px;padding-bottom:14px;border-bottom:1px solid rgba(245,238,221,.16)}
 .chat-head .dot{width:9px;height:9px;border-radius:99px;background:#3cbfa8;box-shadow:0 0 0 4px rgba(60,191,168,.18)}
@@ -238,7 +260,7 @@ section{padding:76px 0}
 .chat-log{flex:1;display:flex;flex-direction:column;gap:12px;padding:18px 2px;overflow-y:auto;max-height:380px}
 .msg{max-width:86%;padding:11px 15px;border-radius:16px;font-size:14px;line-height:1.6;white-space:pre-line}
 .msg.bot{background:#262219;border:1px solid rgba(245,238,221,.12);border-bottom-left-radius:5px;align-self:flex-start}
-.msg.me{background:var(--red);color:#fff;border-bottom-right-radius:5px;align-self:flex-end}
+.msg.me{background:var(--red-solid);color:#fff;border-bottom-right-radius:5px;align-self:flex-end}
 .chat-quick{display:flex;flex-wrap:wrap;gap:8px;padding-top:6px}
 .chat-quick button{background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.24);color:#fff;border-radius:99px;padding:7px 14px;font-size:12.5px;font-weight:600}
 .chat-quick button:hover{background:rgba(255,255,255,.18)}
@@ -247,7 +269,7 @@ section{padding:76px 0}
 .chat-form button{background:var(--gold);border:0;color:#191204;font-weight:800;border-radius:12px;padding:11px 18px}
 
 /* floating AI chat (AiChat.jsx) */
-.ai-fab{position:fixed;right:20px;bottom:20px;width:56px;height:56px;border-radius:99px;background:var(--red);color:#fff;border:0;box-shadow:var(--shadow);display:flex;align-items:center;justify-content:center;z-index:100}
+.ai-fab{position:fixed;right:20px;bottom:20px;width:56px;height:56px;border-radius:99px;background:var(--red-solid);color:#fff;border:0;box-shadow:var(--shadow);display:flex;align-items:center;justify-content:center;z-index:100}
 .ai-fab:hover{filter:brightness(.92)}
 .ai-fab:focus-visible{outline:2px solid var(--gold);outline-offset:2px}
 .ai-fab svg{display:block}
@@ -260,7 +282,7 @@ section{padding:76px 0}
 .ai-log{flex:1;overflow-y:auto;padding:14px;display:flex;flex-direction:column;gap:10px}
 .ai-msg{max-width:86%;padding:11px 15px;border-radius:16px;font-size:14px;line-height:1.6;white-space:pre-wrap}
 .ai-msg.bot{background:var(--surface2);border:1px solid var(--line);border-bottom-left-radius:5px;align-self:flex-start}
-.ai-msg.me{background:var(--red);color:#fff;border-bottom-right-radius:5px;align-self:flex-end}
+.ai-msg.me{background:var(--red-solid);color:#fff;border-bottom-right-radius:5px;align-self:flex-end}
 .ai-thinking{opacity:.75;animation:ai-pulse 1.2s ease-in-out infinite}
 @keyframes ai-pulse{0%,100%{opacity:.75}50%{opacity:.45}}
 .ai-chips{display:flex;flex-wrap:wrap;gap:8px;padding:12px 14px 0}
@@ -269,7 +291,7 @@ section{padding:76px 0}
 .ai-form{display:flex;gap:8px;padding:12px 14px;border-top:1px solid var(--line)}
 .ai-form input{flex:1;min-width:0;background:var(--surface);border:1px solid var(--line);border-radius:12px;color:var(--ink);padding:11px 14px;outline:none}
 .ai-form input:focus{border-color:var(--red)}
-.ai-form button{background:var(--red);border:0;color:#fff;font-weight:800;border-radius:12px;padding:11px 18px}
+.ai-form button{background:var(--red-solid);border:0;color:#fff;font-weight:800;border-radius:12px;padding:11px 18px}
 .ai-form button:disabled{opacity:.55}
 /* R7-2 voice input: mic button in the chat form (red while listening). */
 .ai-mic{flex:none;width:40px;height:40px;border-radius:12px;border:1px solid var(--line);background:var(--surface);color:var(--ink);display:flex;align-items:center;justify-content:center;cursor:pointer}
@@ -325,7 +347,7 @@ footer ul{list-style:none;margin:0;padding:0;display:grid;gap:6px}
 .flowline span{font-size:11.5px;font-weight:700;padding:5px 11px;border:1px solid var(--line2);color:var(--ink3);background:var(--surface)}
 .flowline span:first-child{border-radius:99px 0 0 99px}
 .flowline span:last-child{border-radius:0 99px 99px 0}
-.flowline span.on{background:var(--jade);border-color:var(--jade);color:#fff}
+.flowline span.on{background:var(--jade-solid);border-color:var(--jade-solid);color:#fff}
 .drawer{position:fixed;top:0;right:0;bottom:0;width:min(430px,94vw);background:var(--surface);z-index:95;box-shadow:-20px 0 50px rgba(0,0,0,.3);display:none;flex-direction:column}
 .drawer.open{display:flex;animation:slidein .28s ease}
 @keyframes slidein{from{transform:translateX(40px);opacity:.3}to{transform:none;opacity:1}}
@@ -340,14 +362,15 @@ footer ul{list-style:none;margin:0;padding:0;display:grid;gap:6px}
 .pill{font-size:11.5px;font-weight:800;padding:3px 10px;border-radius:99px}
 .pill.pending{background:var(--gold-soft);color:var(--gold)}
 .pill.confirmed{background:#dbe7f7;color:#20518f}
-@media(prefers-color-scheme:dark){.pill.confirmed{background:#1d2f47;color:#8db8ec}}
+@media(prefers-color-scheme:dark){:root:not([data-theme]) .pill.confirmed{background:#1d2f47;color:#8db8ec}}
+:root[data-theme="dark"] .pill.confirmed{background:#1d2f47;color:#8db8ec}
 .pill.paid{background:var(--jade-soft);color:var(--jade)}
-.pill.completed{background:var(--jade);color:#fff}
+.pill.completed{background:var(--jade-solid);color:#fff}
 .pill.cancelled,.pill.refunded{background:var(--red-soft);color:var(--red)}
 .pill.refund_requested{background:var(--gold-soft);color:var(--gold)}
 .pill.disputed{background:var(--red-soft);color:var(--red)}
 .order .mini{border:1px solid var(--line2);background:transparent;border-radius:99px;padding:6px 13px;font-size:12.5px;font-weight:700;color:var(--ink)}
-.order .mini.red{background:var(--red);border-color:var(--red);color:#fff}
+.order .mini.red{background:var(--red-solid);border-color:var(--red-solid);color:#fff}
 .drawer .emptybox{text-align:center;color:var(--ink2);padding:44px 10px;font-size:14px}
 .toast{position:fixed;left:50%;bottom:26px;transform:translate(-50%,80px);background:var(--ink);color:var(--bg);padding:13px 22px;border-radius:99px;font-size:14px;font-weight:600;z-index:120;transition:transform .3s ease;box-shadow:var(--shadow);max-width:92vw;text-align:center}
 .toast.show{transform:translate(-50%,0)}
@@ -391,6 +414,19 @@ footer ul{list-style:none;margin:0;padding:0;display:grid;gap:6px}
 .acct-tab{border:1px solid var(--line2);background:var(--surface);color:var(--ink2);border-radius:99px;padding:8px 16px;font-size:13.5px;font-weight:700;cursor:pointer}
 .acct-tab.on{background:var(--ink);color:var(--bg);border-color:var(--ink)}
 .acct-tab .pill{margin-left:6px}
+/* Settings tab: theme segmented control (3 options, one pressed) + link
+   rows that jump to the existing account tabs. Same tokens/radii as the
+   rest of the account page; no new colours. */
+.theme-seg{display:inline-flex;gap:4px;background:var(--surface2);border:1px solid var(--line);border-radius:99px;padding:4px}
+.theme-seg button{border:0;background:transparent;color:var(--ink2);border-radius:99px;padding:8px 18px;font-size:13.5px;font-weight:700;cursor:pointer;white-space:nowrap}
+.theme-seg button:hover{color:var(--ink)}
+.theme-seg button.on{background:var(--ink);color:var(--bg)}
+.theme-seg button:focus-visible{outline:2px solid var(--red);outline-offset:2px}
+.set-link{display:flex;align-items:center;justify-content:space-between;gap:12px;width:100%;padding:13px 2px;background:transparent;border:0;border-bottom:1px solid var(--line);color:var(--ink);font-size:14px;font-weight:700;text-align:left;cursor:pointer}
+.set-link:last-child{border-bottom:0}
+.set-link:hover{color:var(--red)}
+.set-link .chev{flex:none;color:var(--ink3);font-size:16px}
+.set-note{margin:2px 0 0;color:var(--ink2);font-size:13px;font-weight:400}
 .acct-note{color:var(--ink2);font-size:13px;margin:-10px 0 14px}
 /* Orders table (Shopee-format): resource cell + sortable headers. */
 .ord-res{display:flex;gap:10px;align-items:center}
@@ -410,7 +446,7 @@ th .sort-btn:focus-visible{outline:2px solid var(--red);outline-offset:1px}
 .db-empty{text-align:center;color:var(--ink2);padding:36px 10px;font-size:14px}
 .db-actions{display:flex;gap:8px;flex-wrap:wrap}
 .db-actions .mini{border:1px solid var(--line2);background:transparent;border-radius:99px;padding:6px 13px;font-size:12.5px;font-weight:700;color:var(--ink);cursor:pointer}
-.db-actions .mini.red{background:var(--red);border-color:var(--red);color:#fff}
+.db-actions .mini.red{background:var(--red-solid);border-color:var(--red-solid);color:#fff}
 .db-list{display:grid;gap:12px}
 
 /* Wave 4 #12: availability row + booked-date chips + seat-map 示意 (detail overlay). */
@@ -439,7 +475,7 @@ th .sort-btn:focus-visible{outline:2px solid var(--red);outline-offset:1px}
 .cal-wd{font-size:12px;font-weight:700;color:var(--ink3);padding:4px 0}
 .cal-day{display:flex;align-items:center;justify-content:center;height:32px;border-radius:9px;font-size:13px;font-weight:600;color:var(--ink2);background:var(--surface2)}
 .cal-day.blank{background:transparent}
-.cal-day.occ{background:var(--red-soft);color:var(--red-deep);border:1px solid var(--red)}
+.cal-day.occ{background:var(--red-soft);color:var(--red);border:1px solid var(--red)}
 .cal-legend{margin:8px 0 0;font-size:12.5px;color:var(--ink2)}
 .cal-legend .cal-day{display:inline-flex;width:18px;height:18px;font-size:10px;vertical-align:-4px}
 .cal-legend .cal-day.occ{background:var(--red-soft)}

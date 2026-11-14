@@ -19,7 +19,7 @@
 // shop, shop coupon wins on the same code, duplicate platform code
 // 409, shop-scoped admin cannot create one); subsidy grant (balance +
 // bonus ledger row, cross-shop 403, validation 400/404); plan admin
-// CRUD + cross-shop 403; i18n key counts (H5 455 + 82 th/ms/id, miniprogram 269 + 82,
+// CRUD + cross-shop 403; i18n key counts (H5 467 + 82 th/ms/id, miniprogram 269 + 82,
 // equal sets).
 import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
@@ -498,7 +498,7 @@ test("subsidy grant: balance + bonus ledger row; cross-shop 403; validation 400/
   assert.equal(ownShop.data.account.balance_cents, 100);
 });
 
-test("plan admin CRUD + cross-shop 403; i18n 455+82/269+82", async () => {
+test("plan admin CRUD + cross-shop 403; i18n 467+82/269+82", async () => {
   const created = await req("/api/admin/stored-value-plans", {
     method: "POST", token: adminToken,
     body: { amount_cents: 30000, bonus_cents: 2000 },
@@ -532,12 +532,12 @@ test("plan admin CRUD + cross-shop 403; i18n 455+82/269+82", async () => {
   assert.equal(ownPlan.status, 200, JSON.stringify(ownPlan.data));
   assert.equal(ownPlan.data.stored_value_plan.shop_id, shopBId);
 
-  // i18n: 6 new stored-value keys on both sides (354 -> 360, 157 -> 163); R4-1 adds 6 ticket keys H5 (360 -> 366), 5 mini (163 -> 168); R4-2 adds 1 print key (366 -> 367, 168 -> 169); R4-3 adds 7 batch keys mini-only (169 -> 176); R4-4 adds 5 partial-refund/pickup keys (367 -> 372, 176 -> 181); R6-1 adds 12 license keys (372 -> 384, 181 -> 193). R6-2 adds 13 library keys (384 -> 397, 193 -> 206). R6-3 adds 2 creative keys H5 (397 -> 399), 1 mini (206 -> 207). R6-4 adds 6 match keys (399 -> 405) + 5 filter-bar keys mini-only (207 -> 218). R6-5 adds 13 comment/message-type keys (405 -> 418, 218 -> 231). R6-6 adds 5 escrow keys (418 -> 423, 231 -> 236). R7-8 adds an 82-key th/ms/id core set on both sides (80 keys + quicks + flow); zh/vi/en stay 423/236 at R7-8; R7-2 adds 4 voice keys H5 (423 -> 427), 5 mini (236 -> 241); R7-6 adds 20 context/itinerary keys (427 -> 447, 241 -> 261); R7-7 adds 7 voice-order keys (447 -> 454, 261 -> 268); R7-3 adds 1 knowledge-graph key (454 -> 455, 268 -> 269).
+  // i18n: 6 new stored-value keys on both sides (354 -> 360, 157 -> 163); R4-1 adds 6 ticket keys H5 (360 -> 366), 5 mini (163 -> 168); R4-2 adds 1 print key (366 -> 367, 168 -> 169); R4-3 adds 7 batch keys mini-only (169 -> 176); R4-4 adds 5 partial-refund/pickup keys (367 -> 372, 176 -> 181); R6-1 adds 12 license keys (372 -> 384, 181 -> 193). R6-2 adds 13 library keys (384 -> 397, 193 -> 206). R6-3 adds 2 creative keys H5 (397 -> 399), 1 mini (206 -> 207). R6-4 adds 6 match keys (399 -> 405) + 5 filter-bar keys mini-only (207 -> 218). R6-5 adds 13 comment/message-type keys (405 -> 418, 218 -> 231). R6-6 adds 5 escrow keys (418 -> 423, 231 -> 236). R7-8 adds an 82-key th/ms/id core set on both sides (80 keys + quicks + flow); zh/vi/en stay 423/236 at R7-8; R7-2 adds 4 voice keys H5 (423 -> 427), 5 mini (236 -> 241); R7-6 adds 20 context/itinerary keys (427 -> 447, 241 -> 261); R7-7 adds 7 voice-order keys (447 -> 454, 261 -> 268); R7-3 adds 1 knowledge-graph key (454 -> 455, 268 -> 269). Theme toggle adds 12 theme/settings keys H5-only (455 -> 467, mini stays 269).
   const data = await import(
     path.resolve(repoDir, "web", "assets", "js", "data.js")
   );
   const counts = data.LANGS.map((l) => Object.keys(data.I18N[l]).length);
-  assert.deepEqual(counts, [455, 455, 455, 82, 82, 82]);
+  assert.deepEqual(counts, [467, 467, 467, 82, 82, 82]);
   for (const l of ["zh", "vi", "en"])
     for (const k of ["storedValueTitle", "storedValueBalance", "storedValueTopup", "storedValuePlan", "storedValueEmpty", "storedValueUsed"])
       assert.ok(k in data.I18N[l], `${k} missing in H5 ${l}`);

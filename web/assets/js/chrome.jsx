@@ -5,6 +5,7 @@
    Registration dialog added in phase 3 (POST /api/auth/register). */
 import { useEffect, useRef, useState } from "react";
 import { t, fmt } from "./data.js";
+import { useTheme } from "./useTheme.mjs";
 
 /* R7-7 elderly-friendly: large-text mode. The toggle lives in the
    header; the state is stored locally (localStorage key
@@ -56,6 +57,24 @@ function CartIcon() {
   );
 }
 
+/* Theme toggle icons (vector, stroke 2 like the other header icons).
+   Moon = switch to dark, sun = switch to light. */
+function MoonIcon() {
+  return (
+    <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M20 13.5A8.5 8.5 0 0 1 10.5 4 8.5 8.5 0 1 0 20 13.5z" />
+    </svg>
+  );
+}
+
+function SunIcon() {
+  return (
+    <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true">
+      <circle cx="12" cy="12" r="4.2" /><path d="M12 2.5v2.4M12 19.1v2.4M2.5 12h2.4M19.1 12h2.4M5 5l1.7 1.7M17.3 17.3L19 19M19 5l-1.7 1.7M6.7 17.3L5 19" />
+    </svg>
+  );
+}
+
 /* props:
    variant "index" | "user" — nav hrefs, brand href, WeChat + cart buttons
    (index only) differ; everything else is identical.
@@ -67,6 +86,9 @@ export function Header(props) {
   const { variant, user, lang } = props;
   const menuRef = useRef(null);
   const [largeText, setLargeTextState] = useState(() => isLargeText());
+  /* Theme toggle (header, compact): same state as the settings control —
+     useTheme() subscribes, so a change in either place re-renders both. */
+  const { effective: themeEffective, toggleTheme } = useTheme();
 
   /* Close the user menu on an outside click (same as the old listener). */
   useEffect(() => {
@@ -111,6 +133,11 @@ export function Header(props) {
         <button className="largetextbtn" type="button" aria-pressed={largeText ? "true" : "false"} title={t("largeText")}
           onClick={() => { const next = !largeText; setLargeTextState(next); applyLargeText(next); }}>
           <span>{t("largeText")}</span>
+        </button>
+        <button className="themebtn" id="themeBtn" type="button" onClick={toggleTheme}
+          aria-label={t("themeToggle")} title={t("themeToggle")}
+          aria-pressed={themeEffective === "dark" ? "true" : "false"}>
+          {themeEffective === "dark" ? <SunIcon /> : <MoonIcon />}
         </button>
         {variant === "index" && (
           <a className="wxbtn" href="#wechat"><WxIcon /><span>{t("navWechat")}</span></a>

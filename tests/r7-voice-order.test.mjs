@@ -17,14 +17,14 @@
 // only the placeholder differs; an unknown dialect -> 400; (7) the
 // large-text flag does not affect ordering logic, and the toggle exists
 // (H5 localStorage key + mini-program storage key + i18n key);
-// (8) i18n counts H5 455 / miniprogram 269 with the 7 new keys present
+// (8) i18n counts H5 467 / miniprogram 269 with the 7 new keys present
 // on both sides.
 //
 // Dates use the server UTC calendar day: "今晚" is tonight,
 // 2026-11-14 (the day this wave runs). The two test shows are created
 // in the before hook and exist only in this disposable DB.
 //
-// i18n key counts (H5 455, miniprogram 269, equal sets) are asserted by
+// i18n key counts (H5 467, miniprogram 269, equal sets) are asserted by
 // the 22+ count files — this file asserts the behaviour plus the 7 new
 // keys' presence. The 7 new keys are presence-checked here, not just
 // counted: voiceTitle, voicePh, voiceDraft, voiceDialect,
@@ -437,12 +437,12 @@ test("r7-voice-order: large-text flag does not affect ordering logic", async () 
   assert.ok(meJs.includes("largeText"));
 });
 
-test("r7-voice-order i18n: H5 455 keys/language in zh/vi/en + 82 in th/ms/id, miniprogram 269 + 82, equal sets", async () => {
+test("r7-voice-order i18n: H5 467 keys/language in zh/vi/en + 82 in th/ms/id, miniprogram 269 + 82, equal sets", async () => {
   const data = await import(
     path.resolve(repoDir, "web", "assets", "js", "data.js")
   );
   const counts = data.LANGS.map((l) => Object.keys(data.I18N[l]).length);
-  assert.deepEqual(counts, [455, 455, 455, 82, 82, 82]);
+  assert.deepEqual(counts, [467, 467, 467, 82, 82, 82]);
   for (const k of [
     "voiceTitle",
     "voicePh",

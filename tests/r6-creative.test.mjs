@@ -14,7 +14,7 @@
 // `none` with available null; buy creative goods -> pending order,
 // amount = price x qty, stock drops by 1, cancel restores it; buy
 // without booking_date -> booking_date is the purchase day
-// (2026-11-09); stock 0 -> 409 库存不足; i18n key counts (H5 455 + 82 th/ms/id,
+// (2026-11-09); stock 0 -> 409 库存不足; i18n key counts (H5 467 + 82 th/ms/id,
 // miniprogram 269 + 82, equal sets) + the two new creative keys.
 import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
@@ -218,14 +218,14 @@ test("stock 0 creative goods -> 409, same out-of-stock rule", async () => {
   assert.equal((await getResource(emptyId)).stock, 0);
 });
 
-test("i18n 455+82/269+82; creative keys present on both sides", async () => {
+test("i18n 467+82/269+82; creative keys present on both sides", async () => {
   // R6-3 adds 2 H5 keys (availCreative, creativeDateLabel) and 1
   // mini key (creativeDateLabel): 372 -> 374, 181 -> 182.
   const data = await import(
     path.resolve(repoDir, "web", "assets", "js", "data.js")
   );
   const counts = data.LANGS.map((l) => Object.keys(data.I18N[l]).length);
-  assert.deepEqual(counts, [455, 455, 455, 82, 82, 82]);
+  assert.deepEqual(counts, [467, 467, 467, 82, 82, 82]);
   for (const k of ["availCreative", "creativeDateLabel"]) {
     for (const l of ["zh", "vi", "en"])
       assert.ok(k in data.I18N[l], `${k} missing in H5 ${l}`);

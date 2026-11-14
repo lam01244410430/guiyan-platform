@@ -6,6 +6,11 @@
 <meta name="color-scheme" content="light dark" />
 <link rel="icon" href="data:," />
 <title>我的账户 · 桂演 Guiyan</title>
+<!-- Manual theme bootstrap: apply the stored choice (default light) as
+  data-theme BEFORE first paint, so the page never flashes the wrong
+  theme. Choice "system" (or none stored) leaves the attribute unset and
+  the CSS media-query fallback decides. Mirrors theme.mjs. -->
+<script>try{var __t=localStorage.getItem("guiyan-theme");if(__t==="dark"){document.documentElement.setAttribute("data-theme","dark")}else if(__t==="system"){/* follow system via CSS */}else{document.documentElement.setAttribute("data-theme","light")}}catch(e){}</script>
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@600;700;900&family=Noto+Sans+SC:wght@400;500;700&family=Be+Vietnam+Pro:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
