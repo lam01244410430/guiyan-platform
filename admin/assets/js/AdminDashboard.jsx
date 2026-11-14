@@ -19,6 +19,7 @@ import TrendChart from "./TrendChart.jsx";
 import SearchBox from "./SearchBox.jsx";
 import SortButton from "./SortButton.jsx";
 import { cycleDirection, sortRows } from "./sortUtils.js";
+import { lowStockResourceIds, orderMarkLevel, resourceMarkLevel } from "./bellUtils.js";
 import Sidebar from "./Sidebar.jsx";
 import AppHeader from "./AppHeader.jsx";
 import AppFooter from "./AppFooter.jsx";
@@ -102,16 +103,21 @@ function pendingPartialInfo(o) {
    同意退款 / 拒绝退款; disputed shows 驳回申诉 / 调解完成并结算. Buttons
    follow the demands-review pattern (reviewBusyId, disabled while
    processing). The reason + platform decision render under the row, port
-   of zhou Transactions.jsx:248-252. */
-function OrderRow({ o, onContract, onReview, onEscrow, reviewBusyId }) {
+   of zhou Transactions.jsx:248-252.
+   Inline warning mark (admin redesign Item 2): disputed orders get a
+   red `!`, refund_requested a yellow `!` (orderMarkLevel, from the
+   order's own status — no alert object carries an order id). Clicking
+   the mark goes to the alerts view (onViewAlerts). */
+function OrderRow({ o, onContract, onReview, onEscrow, reviewBusyId, onViewAlerts }) {
   const busy = reviewBusyId === o.id;
   const pending = pendingPartialInfo(o);
+  const mark = orderMarkLevel(o);
   return (
     <>
       <tr>
         <td className="code">{o.code}</td><td>{o.user_name || ""}</td><td>{o.resource_name || ""}</td>
         <td className="num">{fmtMoney(o.amount)}</td><td>{o.booking_date || ""}</td>
-        <td><span className={"pill " + o.status}>{STATUS[o.status] || o.status}</span></td>
+        <td><span className={"pill " + o.status}>{STATUS[o.status] || o.status}</span>{mark ? (<button type="button" className={"inline-mark " + mark} title={o.status === "disputed" ? "纠纷待处理，点击前往预警中心" : "售后待处理，点击前往预警中心"} aria-label="查看预警中心" onClick={onViewAlerts}>!</button>) : null}</td>
         <td>{o.escrow || ""}</td>
         <td><button type="button" className="btn-view" onClick={() => onContract(o)}>协议 / 权益</button></td>
         <td>
@@ -201,6 +207,9 @@ export default function AdminDashboard() {
     return () => window.removeEventListener("keydown", onKey);
   }, [drawerOpen]);
   const [whoName, setWhoName] = useState("管理员");
+  // Admin redesign Item 2: the signed-in account id, for the bell's
+  // per-account localStorage read state (guiyan-bell-read-<userId>).
+  const [myId, setMyId] = useState(null);
   const [forbidden, setForbidden] = useState(false);
   const [toastMsg, setToastMsg] = useState("");
   const toastTimer = useRef(null);
@@ -703,6 +712,12 @@ export default function AdminDashboard() {
     const u = currentUser();
     if (!getToken() || !u) { location.href = "/admin/index.html"; return; }
     setWhoName(u.name || u.username || "管理员");
+    setMyId(u.id ?? null);
+    // Admin redesign Item 2: the header bell shows on EVERY view, so
+    // alerts + audit load on mount — not only when the alerts view
+    // opens (previously lazy). The alerts-view effect below keeps its
+    // guard so opening that view does not refetch.
+    loadAlerts(); loadAudit(); loadedRef.current.alerts = true;
     Promise.all([
       apiGet("/api/admin/stats"), apiGet("/api/admin/orders"), apiGet("/api/admin/users"),
       apiGet("/api/admin/resources"), apiGet("/api/admin/demands"),
@@ -2559,6 +2574,10 @@ export default function AdminDashboard() {
     return has(l.user_name) || has(l.action) || has(l.detail)
       || has(String(l.created_at || "").slice(0, 16));
   }) : auditLogs;
+  // Admin redesign Item 2: resource ids behind auto low_stock alerts
+  // (parsed from `auto:low_stock:{shop}:{resource_id}`) — drives the
+  // inline `!` marks on resource rows.
+  const lowStockIds = lowStockResourceIds(alerts);
   // Sort (sortable columns 2026-11-11): derived in render, never stored
   // order. Pipeline per table: source -> search filter (+ status chip
   // for orders) -> sort (copy) -> slice. Unsorted = original (API) order.
@@ -2646,6 +2665,10 @@ export default function AdminDashboard() {
             title={<h1><span id="pageTitle">{titles[view][0]}</span><span className="sub" id="pageSub">{view === "users" ? "共 " + filteredUsers.length + " 人" : view === "orders" ? "共 " + filteredOrders.length + " 单 · 可处理售后" : view === "resources" ? "共 " + filteredResources.length + " 项" : view === "demands" ? "共 " + filteredDemands.length + " 条" : titles[view][1]}</span></h1>}
             badge="管理操作 · 审计留痕"
             whoName={whoName}
+            alerts={alerts}
+            auditLogs={auditLogs}
+            userId={myId}
+            onViewAlerts={() => changeView("alerts")}
             onLogout={doLogout}
             drawerOpen={drawerOpen}
             onToggleDrawer={() => setDrawerOpen(!drawerOpen)}
@@ -2718,7 +2741,7 @@ export default function AdminDashboard() {
               <table>
                 <thead><tr><th scope="col" aria-sort={ariaSort("orders", "code")}>订单号<SortButton label="订单号" sortKey="code" tableId="orders" sort={sorts.orders} onToggle={toggleSort} /></th><th scope="col">用户</th><th scope="col">资源</th><th scope="col" className="num" aria-sort={ariaSort("orders", "amount")}>金额<SortButton label="金额" sortKey="amount" tableId="orders" sort={sorts.orders} onToggle={toggleSort} /></th><th scope="col" aria-sort={ariaSort("orders", "booking_date")}>预订日期<SortButton label="预订日期" sortKey="booking_date" tableId="orders" sort={sorts.orders} onToggle={toggleSort} /></th><th scope="col">状态</th><th scope="col">托管</th><th scope="col">协议</th><th scope="col">售后</th></tr></thead>
                 <tbody id="ordersBody">
-                  {filteredOrders.length ? sortedOrders.map((o) => <OrderRow key={o.code} o={o} onContract={openContract} onReview={doReviewOrder} onEscrow={doEscrowOrder} reviewBusyId={reviewBusyId} />)
+                  {filteredOrders.length ? sortedOrders.map((o) => <OrderRow key={o.code} o={o} onContract={openContract} onReview={doReviewOrder} onEscrow={doEscrowOrder} reviewBusyId={reviewBusyId} onViewAlerts={() => changeView("alerts")} />)
                     : (q ? searchEmpty(9) : <tr><td colSpan="9"><div className="empty">暂无订单</div></td></tr>)}
                 </tbody>
               </table>
@@ -2883,7 +2906,7 @@ export default function AdminDashboard() {
                     ? (filteredResources.length ? sortedResources.map((r) => (
                       <Fragment key={r.id}>
                         <tr>
-                          <td>{r.name}</td><td>{catZh(r.category)}</td><td>{r.city}</td><td>{shopName(r.shop_id)}</td>
+                          <td>{r.name}{resourceMarkLevel(r, lowStockIds, threshold) ? (<button type="button" className={"inline-mark " + resourceMarkLevel(r, lowStockIds, threshold)} title="库存不足，点击前往预警中心" aria-label="查看预警中心" onClick={() => changeView("alerts")}>!</button>) : null}</td><td>{catZh(r.category)}</td><td>{r.city}</td><td>{shopName(r.shop_id)}</td>
                           <td className="num">{fmtMoney(r.price)}</td><td className="num">{r.stock}</td>
                           <td>{r.status === "published" ? "上架" : "下架"}</td>
                           <td>
