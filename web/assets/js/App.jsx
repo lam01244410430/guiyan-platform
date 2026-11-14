@@ -39,13 +39,103 @@ const META_LABELS = {
   shipping: "metaShipping", delivery: "metaShipping", playback: "metaPlayback",
   includes: "metaIncludes", partner: "metaPartner", kind: "metaKind",
   channels: "metaChannels", serviceNote: "metaServiceNote",
+  /* R6-2 library: daily rent (equipment), appearance fee + role
+     (talent). Rendered only when the API meta actually carries them. */
+  daily_rent_cents: "dailyRent", talent_fee_cents: "talentFee",
+  role: "talentRole",
 };
 function metaValue(key, v) {
   /* deposit is stored in cents on the server; the UI shows yuan (label
      already carries the 模拟 marker). Arrays render as a short list. */
   if (key === "deposit") return money((typeof v === "number" ? v : 0) / 100);
+  /* R6-2: the library money fields are cents too — daily rent and
+     appearance fee show in yuan. The role value is stored in Chinese;
+     render it through the i18n role keys so vi/en see their own word. */
+  if (key === "daily_rent_cents" || key === "talent_fee_cents")
+    return money((typeof v === "number" ? v : 0) / 100);
+  if (key === "role") {
+    if (v === "演员") return t("roleActor");
+    if (v === "导演") return t("roleDirector");
+    if (v === "编剧") return t("roleWriter");
+    return String(v);
+  }
   if (Array.isArray(v)) return v.join("、");
   return String(v);
+}
+
+/* R6-2 — venue free-day calendar (read-only): one month grid for the
+   venue linked to the open venue resource. Days with a performance
+   are marked occupied (red chip + show titles); the other days are
+   free. Month navigation re-fetches
+   GET /api/venues/available?venue_id=&month=. Weekday/month names
+   come from Intl in the current language, so no extra i18n keys are
+   needed. Navigation stops at the demo-baseline month 2026-11 (the
+   server rejects earlier months). A failed fetch just leaves the
+   occupied marks empty — the calendar never blocks the detail view
+   and never shows an error. */
+function VenueCalendar({ venueId }) {
+  const now = new Date();
+  const [month, setMonth] = useState(now.getFullYear() + "-" + String(now.getMonth() + 1).padStart(2, "0"));
+  const [occupied, setOccupied] = useState(null);
+  useEffect(() => {
+    let alive = true;
+    setOccupied(null);
+    apiGet("/api/venues/available?venue_id=" + venueId + "&month=" + month)
+      .then(function (d) { if (alive) setOccupied(d.occupied || []); })
+      .catch(function () { if (alive) setOccupied([]); });
+    return () => { alive = false; };
+  }, [venueId, month]);
+  const locale = ["zh-CN", "vi-VN", "en-US"][li()];
+  const [y, m] = month.split("-").map(Number);
+  const daysInMonth = new Date(y, m, 0).getDate();
+  const firstDow = new Date(y, m - 1, 1).getDay();
+  const byDate = {};
+  (occupied || []).forEach(function (o) { byDate[o.date] = o.performances || []; });
+  const weekdays = [0, 1, 2, 3, 4, 5, 6].map(function (d) {
+    return new Intl.DateTimeFormat(locale, { weekday: "short" }).format(new Date(2026, 10, 1 + d));
+  });
+  const monthLabel = new Intl.DateTimeFormat(locale, { year: "numeric", month: "long" }).format(new Date(y, m - 1, 1));
+  function shift(delta) {
+    const d = new Date(y, m - 1 + delta, 1);
+    const next = d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0");
+    if (next < "2026-11") return;
+    setMonth(next);
+  }
+  const cells = [];
+  for (let i = 0; i < firstDow; i++) cells.push(null);
+  for (let d = 1; d <= daysInMonth; d++) cells.push(d);
+  const occupiedList = (occupied || []).slice().sort(function (a, b) { return a.date < b.date ? -1 : 1; });
+  return (
+    <div className="venuecal">
+      <h4>{t("venueCalendar")}</h4>
+      <div className="cal-nav">
+        <button type="button" className="btn ghost" onClick={() => shift(-1)} disabled={month <= "2026-11"} aria-label="Previous month">‹</button>
+        <b>{monthLabel}</b>
+        <button type="button" className="btn ghost" onClick={() => shift(1)} aria-label="Next month">›</button>
+      </div>
+      <div className="cal-grid" role="grid" aria-label={t("venueCalendar")}>
+        {weekdays.map(function (w, i) { return (<span key={i} className="cal-wd">{w}</span>); })}
+        {cells.map(function (d, i) {
+          if (d === null) return (<span key={"b" + i} className="cal-day blank" />);
+          const key = month + "-" + String(d).padStart(2, "0");
+          const perfs = byDate[key];
+          const occ = perfs && perfs.length > 0;
+          return (
+            <span key={key} className={"cal-day" + (occ ? " occ" : "")}
+              title={occ ? perfs.map(function (p) { return p.show_title; }).join("、") : t("venueFree")}>
+              {d}
+            </span>
+          );
+        })}
+      </div>
+      <p className="cal-legend"><span className="cal-day occ">●</span> {t("venueOccupied")} · <span className="cal-day">○</span> {t("venueFree")}</p>
+      {occupiedList.length > 0 && (
+        <div className="availdates"><span>{t("venueOccupiedDays")}：</span>{occupiedList.map(function (o) {
+          return (<span key={o.date} className="datechip">{o.date} {o.performances.map(function (p) { return p.show_title; }).join("、")}</span>);
+        })}</div>
+      )}
+    </div>
+  );
 }
 
 /* Wave 4 #15 — lighting demo, port of zhou EquipmentPreview
@@ -500,13 +590,15 @@ export default function App() {
   }
 
   /* ---- catalog ---- */
-  function setCat(c) { store.cat = c; store.shown = 12; rerender(); }
+  /* R6-2: switching category clears the talent role filter. */
+  function setCat(c) { store.cat = c; store.role = null; store.shown = 12; rerender(); }
+  function setRole(r) { store.role = r; store.shown = 12; rerender(); }
   function gotoCat(c) {
     setCat(c);
     document.getElementById("catalog").scrollIntoView({ behavior: "smooth" });
   }
   function doSearch(q) {
-    store.q = q; store.cat = "all"; store.shown = 12; setHeroQ(q); rerender();
+    store.q = q; store.cat = "all"; store.role = null; store.shown = 12; setHeroQ(q); rerender();
     document.getElementById("catalog").scrollIntoView({ behavior: "smooth" });
   }
   /* Wave 4 #14 — search via matchesSearch (search.js, port of zhou
@@ -521,6 +613,13 @@ export default function App() {
     const list = RES.map(function (r, i) { return { r, i }; }).filter(function (o) {
       const r = o.r;
       if (store.cat !== "all" && r[1] !== store.cat) return false;
+      /* R6-2 — talent library: when a role is picked, keep only
+         artists whose API meta carries that role. Items with no API
+         meta (offline fallback) cannot be judged, so they stay. */
+      if (store.cat === "artist" && store.role) {
+        const api = APIRES[o.i];
+        if (api && api.meta && api.meta.role !== store.role) return false;
+      }
       if (store.city !== "all" && r[2] !== store.city) return false;
       if (store.q && !matchesSearch({ name: r[0], description: desc(r, lang), city: r[2], category: catZh(r[1]), tags: APIRES[o.i] ? APIRES[o.i].tags : [] }, store.q)) return false;
       if (!priceOff) {
@@ -734,6 +833,24 @@ export default function App() {
               <button key={c[0]} type="button" className={"chip" + (store.cat === c[0] ? " on" : "")} data-c={c[0]} onClick={() => setCat(c[0])}>{catBoth(c[0])}</button>
             ))}
           </div>
+          {/* R6-2 — library entries: venue / equipment / talent jump
+              straight into their category. */}
+          <div className="filters" id="libFilters">
+            <button type="button" className={"chip" + (store.cat === "venue" ? " on" : "")} data-c="venue" onClick={() => setCat("venue")}>{t("libVenue")}</button>
+            <button type="button" className={"chip" + (store.cat === "equipment" ? " on" : "")} data-c="equipment" onClick={() => setCat("equipment")}>{t("libEquipment")}</button>
+            <button type="button" className={"chip" + (store.cat === "artist" ? " on" : "")} data-c="artist" onClick={() => setCat("artist")}>{t("libTalent")}</button>
+          </div>
+          {/* R6-2 — talent role filter: only for the artist category,
+              only on the live catalog (the offline fallback has no
+              role data to filter by). */}
+          {store.cat === "artist" && hasApiRatings && (
+            <div className="filters" id="roleFilters">
+              <button type="button" className={"chip" + (!store.role ? " on" : "")} onClick={() => setRole(null)}>{t("allChip")}</button>
+              {[["演员", "roleActor"], ["导演", "roleDirector"], ["编剧", "roleWriter"]].map(function ([role, key]) {
+                return (<button key={role} type="button" className={"chip" + (store.role === role ? " on" : "")} onClick={() => setRole(role)}>{t(key)}</button>);
+              })}
+            </div>
+          )}
           <div className="filters">
             <input className="q" id="q" type="search" value={store.q} onChange={(e) => { store.q = e.target.value; store.shown = 12; rerender(); }} placeholder={t("searchPh")} aria-label="Search" />
             <select id="citySel" aria-label="City" value={store.city} onChange={(e) => { store.city = e.target.value; store.shown = 12; rerender(); }}>
@@ -1187,6 +1304,11 @@ export default function App() {
                     </div>
                     <p className="seatnote">{t("seatNote")}</p>
                   </div>
+                )}
+                {/* R6-2 — venue free-day calendar (read-only): only when
+                    the resource is staged in a real venue row. */}
+                {cur[1] === "venue" && APIRES[detailIdx] && APIRES[detailIdx].venue && (
+                  <VenueCalendar venueId={APIRES[detailIdx].venue.id} />
                 )}
               </div>
             </>

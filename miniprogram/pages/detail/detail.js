@@ -6,6 +6,16 @@ var api = require('../../utils/api.js');
 var STATUS_KEY = { pending: 'stPending', confirmed: 'stConfirmed', paid: 'stPaid',
   completed: 'stCompleted', cancelled: 'stCancelled', refunded: 'stRefunded',
   refund_requested: 'stRefundRequested', disputed: 'stDisputed' };
+// R6-2: venue free-day calendar (read-only). Weekday/month names are
+// fixed per-language arrays (the mini-program JS runtime has no
+// reliable Intl). Navigation stops at the demo-baseline month 2026-11.
+var CAL_WEEKDAYS = {
+  zh: ['日', '一', '二', '三', '四', '五', '六'],
+  vi: ['CN', 'T2', 'T3', 'T4', 'T5', 'T6', 'T7'],
+  en: ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
+};
+var CAL_MONTHS_EN = ['January', 'February', 'March', 'April', 'May', 'June',
+  'July', 'August', 'September', 'October', 'November', 'December'];
 var STATUS_STEP = { pending: 0, confirmed: 1, paid: 2, completed: 3, cancelled: -1, refunded: -1 };
 // Local action -> API endpoint + resulting local status.
 var ACT_API = { confirm: 'confirm', pay: 'pay', complete: 'complete',
@@ -21,7 +31,9 @@ Page({
     pickupPoints: null, pickupSel: null, // R2-3: pickup points of the selected performance's show (null = not loaded); the chosen point id
     seats: null, seatSel: [], seatZones: [], seatSelectedText: '', // R2-5: seats of the selected performance (null = not loaded); the chosen seat ids + the grouped grid
     couponCode: '', // R3-2: coupon code typed on this page (optional, sent with the order)
-    flashLeft: '' // R3-3: live flash-sale countdown text for the selected tier ('' = no live sale)
+    flashLeft: '', // R3-3: live flash-sale countdown text for the selected tier ('' = no live sale)
+    // R6-2: venue free-day calendar (null = not loaded / not a venue).
+    calMonth: '', calDays: null, calWeekdays: [], calLabel: '', calOccupied: []
   },
   onLoad: function (options) {
     var idx = parseInt(options.idx || '0', 10);
@@ -83,6 +95,8 @@ Page({
       'tierTitle', 'tierEmpty', 'tierSoldOut', 'tierLeft', 'tierPick',
       'pickupTitle', 'pickupEmpty', 'pickupPick',
       'venueTitle', 'seatPick', 'seatSelected',
+      // R6-2: venue free-day calendar.
+      'venueCalendar', 'venueFree', 'venueOccupied', 'venueOccupiedDays',
       'couponCode', 'couponCodePh', 'couponSaved',
       'flashSale', 'flashSaleLeft', 'flashSaleSaved',
       'licInfo', 'licHolder', 'licType', 'licRegion'];
@@ -113,6 +127,9 @@ Page({
     this.refreshSeats();
     this.refreshTotal();
     this.refreshOrder();
+    // R6-2: a language switch re-renders the calendar labels from
+    // the cached month data (no refetch).
+    this.renderCalendar();
   },
   // Online: refresh the catalog from the server, then re-render.
   loadOnline: function () {
@@ -125,8 +142,69 @@ Page({
         self._loadingOnline = false;
         self.applyLang();
         self.loadPerformances();
+        self.loadCalendar();
       }, function () { self._loadingOnline = false; });
     }, function () { self._loadingOnline = false; });
+  },
+  // R6-2: venue free-day calendar (read-only, best-effort like
+  // loadPerformances): only for venue-category resources staged in
+  // a real venue row. A failed fetch just leaves the calendar
+  // hidden; the month grid is rebuilt by renderCalendar below.
+  loadCalendar: function () {
+    var self = this;
+    var r = api.resourceByIdx(this.data.idx);
+    if (!r || r.cat !== 'venue') return;
+    var venueId = r.venue_id != null ? r.venue_id
+      : (r.venue && r.venue.id != null ? r.venue.id : null);
+    if (venueId == null || !api.getBase()) return;
+    if (!this.data.calMonth) {
+      var now = new Date();
+      this.setData({ calMonth: now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0') });
+    }
+    var month = this.data.calMonth;
+    api.get('/api/venues/available?venue_id=' + venueId + '&month=' + month, {}, false).then(function (d) {
+      var byDate = {};
+      (d.occupied || []).forEach(function (o) { byDate[o.date] = o.performances || []; });
+      self._calByDate = byDate;
+      self.renderCalendar();
+    }, function () {});
+  },
+  renderCalendar: function () {
+    if (!this.data.calMonth || !this._calByDate) return;
+    var self = this;
+    var lang = i18n.getLang();
+    var parts = this.data.calMonth.split('-');
+    var y = parseInt(parts[0], 10), m = parseInt(parts[1], 10);
+    var days = new Date(y, m, 0).getDate();
+    var first = new Date(y, m - 1, 1).getDay();
+    var cells = [];
+    for (var i = 0; i < first; i++) cells.push(null);
+    for (var d = 1; d <= days; d++) {
+      var key = this.data.calMonth + '-' + String(d).padStart(2, '0');
+      var perfs = this._calByDate[key];
+      cells.push({ d: d, occ: !!(perfs && perfs.length),
+        titles: perfs ? perfs.map(function (p) { return p.show_title; }).join('、') : '' });
+    }
+    var label = lang === 'zh' ? y + '年' + m + '月'
+      : lang === 'vi' ? 'Tháng ' + m + '/' + y
+      : CAL_MONTHS_EN[m - 1] + ' ' + y;
+    var occList = Object.keys(this._calByDate).sort().map(function (date) {
+      return { date: date,
+        titles: self._calByDate[date].map(function (p) { return p.show_title; }).join('、') };
+    });
+    this.setData({ calDays: cells, calWeekdays: CAL_WEEKDAYS[lang] || CAL_WEEKDAYS.zh,
+      calLabel: label, calOccupied: occList });
+  },
+  onCalPrev: function () { this.shiftCalMonth(-1); },
+  onCalNext: function () { this.shiftCalMonth(1); },
+  shiftCalMonth: function (delta) {
+    if (!this.data.calMonth) return;
+    var parts = this.data.calMonth.split('-');
+    var d = new Date(parseInt(parts[0], 10), parseInt(parts[1], 10) - 1 + delta, 1);
+    var next = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0');
+    if (next < '2026-11') return;
+    this.setData({ calMonth: next });
+    this.loadCalendar();
   },
   // R2-1: on-sale performances for a show resource (read-only,
   // best-effort like the theme fetch on the home page): a failed

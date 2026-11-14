@@ -11,7 +11,7 @@
 // shop, cross-shop -> 403; the platform admin (shop_id NULL) works in
 // any shop. Validate first, write after, never throw after a write in
 // the same request (OTP lesson).
-import { assert, text, int, time } from "../lib/http.mjs";
+import { assert, text, int, date, time } from "../lib/http.mjs";
 
 const MAIN_SHOP_ID = 1;
 
@@ -143,6 +143,128 @@ export async function getVenue(ctx) {
   if (!m || req.method !== "GET") return false;
   const v = await getVenueOr404(get, Number(m[1]));
   send({ venue: await venueWithTemplates(get, all, v) });
+  return true;
+}
+
+function beijingToday() {
+  return new Date(Date.now() + 8 * 60 * 60 * 1000).toISOString().slice(0, 10);
+}
+
+// R6-2 — venue availability library (rows 64–66). A venue is free
+// on a date when no performance plays there that day. The link is
+// performances -> shows -> resources.venue_id (performances.show_id,
+// shows.resource_id, resources.venue_id — verified in code, not
+// guessed). A performance occupies its venue while its status is
+// scheduled or on_sale; a cancelled performance frees the day again.
+// Orders on a venue-category resource do NOT occupy the venue here —
+// only performances do, per the design. Public, read-only (GETs run
+// in REPEATABLE READ READ ONLY by the dispatcher).
+//
+// Day mode: GET /api/venues/available?date=YYYY-MM-DD[&shop=N] ->
+// {date, free: [venue], occupied: [venue + performances]}. The date
+// defaults to today (Beijing) when omitted, and follows the same
+// demo-baseline rule as resource availability (no earlier than
+// 2026-11-09).
+// Month mode (the venue-detail free-day calendar): GET
+// /api/venues/available?venue_id=N&month=YYYY-MM -> {venue, month,
+// occupied: [{date, performances}]} — one entry per occupied date in
+// the month; the other days of the month are free.
+async function performancesOn(all, venueId, day) {
+  return all(
+    `SELECT pf.start_at AS start_at, pf.status AS status,
+            s.id AS show_id, s.title AS show_title
+     FROM performances pf
+     JOIN shows s ON s.id = pf.show_id
+     JOIN resources r ON r.id = s.resource_id
+     WHERE r.venue_id=? AND substr(pf.start_at,1,10)=?
+       AND pf.status IN ('scheduled','on_sale')
+     ORDER BY pf.start_at ASC, pf.id ASC`,
+    venueId,
+    day,
+  );
+}
+
+export async function getVenueAvailability(ctx) {
+  const { req, p, send, url, get, all } = ctx;
+  if (p !== "/api/venues/available" || req.method !== "GET") return false;
+  const month = url.searchParams.get("month");
+  if (month !== null && month !== "") {
+    // Month mode: one venue's occupied dates in the month.
+    const venueId = int(
+      Number(url.searchParams.get("venue_id")),
+      "场馆",
+      1,
+    );
+    assert(
+      /^\d{4}-(0[1-9]|1[0-2])$/.test(month) && month >= "2026-11",
+      "月份须为 YYYY-MM，且不能早于演示基准月",
+    );
+    const venue = await getVenueOr404(get, venueId);
+    const rows = await all(
+      `SELECT substr(pf.start_at,1,10) AS day, pf.start_at AS start_at,
+              pf.status AS status, s.id AS show_id, s.title AS show_title
+       FROM performances pf
+       JOIN shows s ON s.id = pf.show_id
+       JOIN resources r ON r.id = s.resource_id
+       WHERE r.venue_id=? AND substr(pf.start_at,1,7)=?
+         AND pf.status IN ('scheduled','on_sale')
+       ORDER BY day ASC, pf.start_at ASC, pf.id ASC`,
+      venueId,
+      month,
+    );
+    const byDay = new Map();
+    for (const r of rows) {
+      if (!byDay.has(r.day)) byDay.set(r.day, []);
+      byDay.get(r.day).push({
+        show_id: r.show_id,
+        show_title: r.show_title,
+        start_at: r.start_at,
+        status: r.status,
+      });
+    }
+    send({
+      venue: venueRow({ ...venue, has_seats: false }),
+      month,
+      occupied: [...byDay.entries()].map(([day, performances]) => ({
+        date: day,
+        performances,
+      })),
+    });
+    return true;
+  }
+  // Day mode: free venues and occupied venues as separate lists.
+  const rawDate = url.searchParams.get("date");
+  const d = rawDate ? date(rawDate) : beijingToday();
+  const shop = url.searchParams.get("shop");
+  const where = [];
+  const params = [];
+  if (shop !== null && shop !== "") {
+    where.push("v.shop_id=?");
+    params.push(int(Number(shop), "店铺", 1));
+  }
+  const venues = await all(
+    `SELECT v.*, EXISTS(SELECT 1 FROM seat_templates t WHERE t.venue_id=v.id) AS has_seats FROM venues v${where.length ? " WHERE " + where.join(" AND ") : ""} ORDER BY v.id ASC`,
+    ...params,
+  );
+  const free = [];
+  const occupied = [];
+  for (const v of venues) {
+    const perfs = await performancesOn(all, v.id, d);
+    if (perfs.length === 0) {
+      free.push(venueRow(v));
+    } else {
+      occupied.push({
+        ...venueRow(v),
+        performances: perfs.map((r) => ({
+          show_id: r.show_id,
+          show_title: r.show_title,
+          start_at: r.start_at,
+          status: r.status,
+        })),
+      });
+    }
+  }
+  send({ date: d, free, occupied });
   return true;
 }
 

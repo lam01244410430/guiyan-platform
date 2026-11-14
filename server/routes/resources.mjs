@@ -2,6 +2,11 @@ import { assert, date, resourceRow } from "../lib/http.mjs";
 import { performancesForResource } from "./shows.mjs";
 import { CACHE_KEYS, CACHE_TTLS } from "../lib/cache.mjs";
 
+// R6-2 — talent library: the roles a talent resource can carry in
+// meta.role. The list page filters by role (?role=); anything else
+// is a 400, like an unknown category.
+const TALENT_ROLES = ["演员", "导演", "编剧"];
+
 // R2-4: attach the linked venue ({id, name, address} or null) to
 // resource rows. One query for the whole list, never one per row;
 // the venue object is what the H5/mini-program detail views render
@@ -31,6 +36,7 @@ export async function listResources(ctx) {
     const category = url.searchParams.get("category");
     const city = url.searchParams.get("city");
     const q = url.searchParams.get("q");
+    const role = url.searchParams.get("role");
     const sort = url.searchParams.get("sort") || "hot";
     assert(
       ["hot", "price_asc", "price_desc", "newest"].includes(sort),
@@ -39,7 +45,9 @@ export async function listResources(ctx) {
     // Cache only the unfiltered default list (sort=hot, no filters):
     // the single key guiyan:resources:list cannot encode every filter
     // combination, and filtered queries stay live Postgres reads.
-    const cacheable = !category && !city && !q && sort === "hot";
+    // R6-2: ?role= is a filter too — a role-filtered list must never
+    // be served from the unfiltered cache key.
+    const cacheable = !category && !city && !q && !role && sort === "hot";
     if (cacheable && cache?.enabled) {
       const hit = await cache.get(CACHE_KEYS.resourcesList);
       if (hit) {
@@ -63,6 +71,13 @@ export async function listResources(ctx) {
     if (city && city !== "all") {
       where.push("r.city=?");
       params.push(city);
+    }
+    if (role) {
+      // R6-2 — talent library: match meta.role exactly. Resources
+      // with no role simply do not match a role filter.
+      assert(TALENT_ROLES.includes(role), "无效人才角色");
+      where.push("r.meta::jsonb->>'role'=?");
+      params.push(role);
     }
     if (q) {
       where.push("(r.name ILIKE ? OR r.description ILIKE ? OR r.city ILIKE ?)");
@@ -146,12 +161,16 @@ export async function getAvailability(ctx) {
     );
     const raw = url.searchParams.get("date");
     const d = raw ? date(raw) : beijingToday();
+    // R6-2: equipment rents per unit per day, so it reads the
+    // date-mode stock (stock minus the quantity already booked that
+    // day) instead of the old rental 0/1. Venue resources stay
+    // rental (one whole-venue booking per day, no stock).
     const mode =
-      r.category === "venue" || r.category === "equipment"
+      r.category === "venue"
         ? "rental"
         : r.category === "service"
           ? "none"
-          : ["show", "heritage", "tourism", "digital", "artist"].includes(
+          : ["show", "heritage", "tourism", "digital", "artist", "equipment"].includes(
                 r.category,
               )
             ? "date"

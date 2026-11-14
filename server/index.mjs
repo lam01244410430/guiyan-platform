@@ -49,7 +49,7 @@ import { listAdminShops, createAdminShop, patchAdminShop, getShopTheme, patchSho
 import { createShow, listShows, getShow, listAdminShows, reviewShow, createPerformance, patchPerformance } from "./routes/shows.mjs";
 import { createTicketType, listTicketTypes, patchTicketType } from "./routes/ticket-types.mjs";
 import { createPickupPoint, listPickupPoints, deletePickupPoint, listTemplates, createTemplate, patchTemplate, getShopTemplate } from "./routes/pickup.mjs";
-import { listVenues, getVenue, createVenue, patchVenue, listSeatTemplates, createSeatTemplate, patchSeatTemplate } from "./routes/venues.mjs";
+import { listVenues, getVenue, getVenueAvailability, createVenue, patchVenue, listSeatTemplates, createSeatTemplate, patchSeatTemplate } from "./routes/venues.mjs";
 import { generateSeats, listSeats, selectSeats } from "./routes/seats.mjs";
 import { patchAdminProfile, patchAdminUserStatus, adminChangePassword } from "./routes/admin-account.mjs";
 import { listShopTiers, listAdminTiers, createMemberTier, patchMemberTier, getAccountTier } from "./routes/member-tiers.mjs";
@@ -274,6 +274,7 @@ export async function createApp({ database }) {
       if (await getShopTemplate(ctx)) return;
       if (await listVenues(ctx)) return;
       if (await getVenue(ctx)) return;
+      if (await getVenueAvailability(ctx)) return;
       if (await createVenue(ctx)) return;
       if (await patchVenue(ctx)) return;
       if (await listSeatTemplates(ctx)) return;

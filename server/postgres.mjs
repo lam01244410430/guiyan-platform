@@ -355,6 +355,38 @@ export async function openPostgresStore(
           );
         }
       }
+      // R6-2 library backfill (2026-11-14): seeded equipment and
+      // artist resources carry their money field in meta, so the
+      // library UI and the order flow read one value. Equipment:
+      // meta.daily_rent_cents = price (the listed per-day rent);
+      // artist: meta.talent_fee_cents = price (the listed per-show
+      // fee). Only rows missing the key are touched, so an admin's
+      // own values survive reboots; meta.role is NOT backfilled —
+      // no seeded name states a role, and roles must never be
+      // invented. Runs on every setup.
+      {
+        const libRows = await client.query(
+          "SELECT id, category, price, meta FROM resources WHERE category IN ('equipment','artist')",
+        );
+        for (const r of libRows.rows) {
+          let meta = {};
+          try {
+            meta = JSON.parse(r.meta || "{}") || {};
+          } catch {
+            meta = {};
+          }
+          const key =
+            r.category === "equipment"
+              ? "daily_rent_cents"
+              : "talent_fee_cents";
+          if (meta[key] !== undefined) continue;
+          meta[key] = r.price;
+          await client.query("UPDATE resources SET meta=$1 WHERE id=$2", [
+            JSON.stringify(meta),
+            r.id,
+          ]);
+        }
+      }
       // R4-1 ticket backfill (2026-11-14): paid / completed /
       // disputed / refund_requested orders with zero tickets get
       // `quantity` tickets (seat_id NULL — seeded orders are

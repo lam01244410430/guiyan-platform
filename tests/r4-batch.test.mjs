@@ -293,16 +293,16 @@ test("non-admin batch -> 403, no verify_logs rows written", async () => {
   assert.equal(await totalLogCount(), beforeTotal);
 });
 
-test("i18n 384/193: 7 new batch keys mini-only, equal sets", async () => {
+test("i18n 397/206: 7 new batch keys mini-only, equal sets", async () => {
   // R4-3 adds 7 batch/queue/scan keys on the mini-program only
   // (169 -> 176); H5 stayed 367 then — the admin batch UI labels are
   // hardcoded Chinese per the admin rule. R4-4 moves both sides to
-  // 384/193 (5 partial-refund/pickup keys); R6-1 adds 12 license keys (372 -> 384, 181 -> 193).
+  // 397/206 (5 partial-refund/pickup keys); R6-1 adds 12 license keys (372 -> 384, 181 -> 193). R6-2 adds 13 library keys (384 -> 397, 193 -> 206).
   const data = await import(
     path.resolve(repoDir, "web", "assets", "js", "data.js")
   );
   const counts = data.LANGS.map((l) => Object.keys(data.I18N[l]).length);
-  assert.deepEqual(counts, [384, 384, 384]);
+  assert.deepEqual(counts, [397, 397, 397]);
   const text = fs.readFileSync(
     path.resolve(repoDir, "miniprogram", "utils", "i18n.js"),
     "utf8",
@@ -318,7 +318,7 @@ test("i18n 384/193: 7 new batch keys mini-only, equal sets", async () => {
     ].map((m) => m[1]);
   }
   for (const lang of ["zh", "vi", "en"]) {
-    assert.equal(blocks[lang].length, 193, `${lang} key count`);
+    assert.equal(blocks[lang].length, 206, `${lang} key count`);
     for (const k of ["verifyBatchTitle", "verifyScan", "verifyBatchPaste", "verifyBatchSync", "verifyQueueTitle", "verifyQueueEmpty", "verifyAdminOnly"])
       assert.ok(blocks[lang].includes(k), `${k} missing in mini ${lang}`);
   }

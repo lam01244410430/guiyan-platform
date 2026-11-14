@@ -64,6 +64,23 @@ async function computePricing(get, all, userId, shopId, unitPriceCents, qty, fla
   };
 }
 
+// R6-2: an equipment resource rents at its daily rent
+// (meta.daily_rent_cents, integer cents) when one is set; the listed
+// price is the fallback (seeded equipment is backfilled in
+// postgres.mjs so the two agree). meta is raw TEXT on the row here,
+// so parse defensively — a malformed value falls back to the price,
+// never throws.
+function dailyRentCents(r) {
+  if (r.category !== "equipment") return null;
+  try {
+    const m = JSON.parse(r.meta || "{}") || {};
+    const v = m.daily_rent_cents;
+    return Number.isSafeInteger(v) && v > 0 ? v : null;
+  } catch {
+    return null;
+  }
+}
+
 export async function listOrders(ctx) {
   const { p, req, send, needUser, orderRows } = ctx;
   if (p === "/api/orders" && req.method === "GET") {
@@ -162,7 +179,9 @@ export async function createOrder(ctx) {
       typeof b.coupon_code === "string" && b.coupon_code.trim() !== ""
         ? normalizeCouponCode(b.coupon_code)
         : null;
-    const unitPrice = hasPerf ? tier.price_cents : r.price;
+    const unitPrice = hasPerf
+      ? tier.price_cents
+      : (dailyRentCents(r) ?? r.price);
     const flashSale = hasPerf
       ? await resolveFlashSale(get, all, perf.id)
       : null;

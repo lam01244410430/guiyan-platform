@@ -8,7 +8,7 @@
 // the public list + cannot create performances; create performance on a
 // pending show -> 400; on-sale performance appears in availability;
 // cross-shop performance edit -> 403; validation (non-show resource,
-// past start_at); i18n key counts (H5 384, miniprogram 193, equal sets).
+// past start_at); i18n key counts (H5 397, miniprogram 206, equal sets).
 import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
@@ -303,12 +303,12 @@ test("cross-shop performance edit -> 403; own-shop edit -> 200; cancel works", a
   assert.equal((await patchPerf(adminToken, perfId, { status: "on_sale" })).status, 400);
 });
 
-test("r2-shows i18n: H5 384 keys/language, miniprogram 193, equal sets", async () => {
+test("r2-shows i18n: H5 397 keys/language, miniprogram 206, equal sets", async () => {
   const data = await import(
     path.resolve(repoDir, "web", "assets", "js", "data.js")
   );
   const counts = data.LANGS.map((l) => Object.keys(data.I18N[l]).length);
-  assert.deepEqual(counts, [384, 384, 384]);
+  assert.deepEqual(counts, [397, 397, 397]);
   for (const k of ["perfTitle", "perfEmpty", "perfOnSale"]) {
     for (const l of data.LANGS)
       assert.ok(k in data.I18N[l], `${k} missing in H5 ${l}`);
@@ -328,7 +328,7 @@ test("r2-shows i18n: H5 384 keys/language, miniprogram 193, equal sets", async (
     ].map((m) => m[1]);
   }
   for (const lang of ["zh", "vi", "en"]) {
-    assert.equal(blocks[lang].length, 193, `${lang} key count`);
+    assert.equal(blocks[lang].length, 206, `${lang} key count`);
     for (const k of ["perfTitle", "perfEmpty", "perfOnSale"])
       assert.ok(blocks[lang].includes(k), `${k} missing in mini ${lang}`);
   }

@@ -49,6 +49,33 @@
     </view>
   </block>
 
+  <!-- R6-2: venue free-day calendar (read-only): occupied days are
+       marked; the other days of the month are free. -->
+  <block wx:if="{{calDays}}">
+    <view class="card">
+      <view class="sec-title serif" style="font-size:32rpx">{{L.venueCalendar}}</view>
+      <view style="display:flex;justify-content:space-between;align-items:center;margin-top:16rpx">
+        <view class="btn ghost small" bindtap="onCalPrev">‹</view>
+        <view style="font-weight:700">{{calLabel}}</view>
+        <view class="btn ghost small" bindtap="onCalNext">›</view>
+      </view>
+      <view style="display:flex;flex-wrap:wrap;margin-top:16rpx">
+        <block wx:for="{{calWeekdays}}" wx:key="*this"><view style="width:14.28%;text-align:center;font-size:24rpx;color:#999">{{item}}</view></block>
+        <block wx:for="{{calDays}}">
+          <view wx:if="{{item}}" style="width:14.28%;text-align:center;font-size:28rpx;line-height:64rpx;border-radius:12rpx;background:{{item.occ ? '#f6e3d8' : '#f3ecdf'}};color:{{item.occ ? '#8c2b12' : '#1a1a1a'}}">{{item.d}}</view>
+          <view wx:else style="width:14.28%;height:64rpx"></view>
+        </block>
+      </view>
+      <view class="note" style="margin-top:12rpx">● {{L.venueOccupied}} · ○ {{L.venueFree}}</view>
+      <block wx:if="{{calOccupied.length}}">
+        <view class="note" style="margin-top:8rpx">{{L.venueOccupiedDays}}：</view>
+        <block wx:for="{{calOccupied}}" wx:key="date">
+          <view class="note">{{item.date}} {{item.titles}}</view>
+        </block>
+      </block>
+    </view>
+  </block>
+
   <!-- R2-1: on-sale performances of the resource's approved shows.
        R2-2: tap a performance, then a ticket type — the total and the
        order follow the tier price. -->

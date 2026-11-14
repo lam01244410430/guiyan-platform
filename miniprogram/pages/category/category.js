@@ -7,6 +7,10 @@ Page({
   data: {
     L: {}, langIdx: 1, langName: 'Tiếng Việt', langs: ['中文', 'Tiếng Việt', 'English'],
     kw: '', catSel: 'all', citySel: 'all', sortSel: 'hot',
+    // R6-2: talent role filter ('' = all roles) + whether any catalog
+    // item carries API meta yet (the role row only shows once meta is
+    // known — the offline fallback has no role data to filter by).
+    roleSel: '', roles: [], hasMeta: false,
     cityNames: [], cityIds: [], sortNames: [], sortIds: ['hot', 'asc', 'desc', 'name'],
     list: [], resultLine: '',
     licKindSel: 'all', licStatusSel: 'all',
@@ -39,9 +43,17 @@ Page({
       'sortLabel', 'cityLabel', 'sortHot', 'sortAsc', 'sortDesc', 'sortName',
       'results', 'emptyRes', 'viewsUnit', 'favAdd', 'favRemove', 'catTitle',
       'licLibrary', 'licKind', 'licBuy', 'licSell', 'licStatus', 'licPending',
-      'licActive', 'licExpired', 'licHolder', 'licType', 'licRegion', 'licInfo'];
+      'licActive', 'licExpired', 'licHolder', 'licType', 'licRegion', 'licInfo',
+      // R6-2 library entries + talent role filter.
+      'libVenue', 'libEquipment', 'libTalent', 'talentRole',
+      'roleActor', 'roleDirector', 'roleWriter',
     var L = {};
     keys.forEach(function (k) { L[k] = i18n.t(k, lang); });
+    var roles = [
+      { id: '演员', name: L.roleActor },
+      { id: '导演', name: L.roleDirector },
+      { id: '编剧', name: L.roleWriter }
+    ];
     wx.setNavigationBarTitle({ title: L.catTitle });
     var cityIds = ['all'];
     var cityNames = [L.allCities];
@@ -55,6 +67,7 @@ Page({
       sortNames: [L.sortHot, L.sortAsc, L.sortDesc, L.sortName],
       licKindNames: [L.allChip, L.licBuy, L.licSell],
       licStatusNames: [L.allChip, L.licPending, L.licActive, L.licExpired],
+      roles: roles,
       cityIdx: cityIds.indexOf(this.data.citySel),
       sortIdx: this.data.sortIds.indexOf(this.data.sortSel) });
     this.refresh();
@@ -67,9 +80,19 @@ Page({
     var catSel = this.data.catSel;
     var citySel = this.data.citySel;
     var sortSel = this.data.sortSel;
-    var list = api.getCatalog().map(function (r, i) { return { r: r, i: i }; })
+    var roleSel = this.data.roleSel;
+    // R6-2 — talent role filter: when a role is picked and the merged
+    // catalog carries API meta, keep only artists whose meta.role
+    // matches. Items with no meta stay only while no meta is known at
+    // all (offline fallback) — once the server has answered, an
+    // unmerged artist is one the server did not return for this role.
+    var catalog = api.getCatalog();
+    var anyMeta = catalog.some(function (r) { return r.meta; });
+    var list = catalog.map(function (r, i) { return { r: r, i: i }; })
       .filter(function (o) {
         if (catSel && catSel !== 'all' && o.r.cat !== catSel) return false;
+        if (catSel === 'artist' && roleSel && anyMeta
+          && (!o.r.meta || o.r.meta.role !== roleSel)) return false;
         if (citySel && citySel !== 'all' && o.r.city !== citySel) return false;
         if (!kw) return true;
         var hay = (o.r.name + ' ' + o.r.city + ' ' + o.r.desc.zh + ' '
@@ -92,7 +115,8 @@ Page({
   },
   refresh: function () {
     var view = this.buildView();
-    this.setData({ list: view, resultLine: this.resultLineFor(view.length) });
+    var hasMeta = api.getCatalog().some(function (r) { return r.meta; });
+    this.setData({ list: view, resultLine: this.resultLineFor(view.length), hasMeta: hasMeta });
     this.refreshOnline();
     this.refreshLicenses();
   },
@@ -106,6 +130,9 @@ Page({
       if (!ok) { self._loadingOnline = false; return; }
       var params = {};
       if (self.data.catSel !== 'all') params.category = data.catName(self.data.catSel, 'zh');
+      // R6-2: the server filters talents by role too — the merged
+      // catalog then carries only the matching artists' meta.
+      if (self.data.catSel === 'artist' && self.data.roleSel) params.role = self.data.roleSel;
       if (self.data.citySel !== 'all') params.city = self.data.citySel;
       if (self.data.kw) params.q = self.data.kw;
       params.sort = self.data.sortSel === 'asc' ? 'price_asc'
@@ -152,7 +179,10 @@ Page({
     this.refreshLicenses();
   },
   onKw: function (e) { this.setData({ kw: e.detail.value }); this.refresh(); },
-  onCat: function (e) { this.setData({ catSel: e.currentTarget.dataset.cat }); this.refresh(); },
+  // R6-2: switching category clears the talent role filter; the
+  // library chips reuse the same handler (data-cat).
+  onCat: function (e) { this.setData({ catSel: e.currentTarget.dataset.cat, roleSel: '' }); this.refresh(); },
+  onRole: function (e) { this.setData({ roleSel: e.currentTarget.dataset.role }); this.refresh(); },
   onCity: function (e) {
     var id = this.data.cityIds[e.detail.value];
     this.setData({ citySel: id, cityIdx: e.detail.value });

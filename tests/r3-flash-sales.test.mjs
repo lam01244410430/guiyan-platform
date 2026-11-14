@@ -15,7 +15,7 @@
 // -> original price (200, never 409), cancel frees the quota; an
 // order created inside the window keeps its snapshot price when paid
 // after the window ends; old-flow orders never get a flash price;
-// i18n key counts (H5 384, miniprogram 193, equal sets).
+// i18n key counts (H5 397, miniprogram 206, equal sets).
 import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
@@ -625,7 +625,7 @@ test("cross-shop: create/patch in shop 1 -> 403; shop-B performance in shop 1 ->
   assert.equal(ob2.data.flash_cents, 5600);
 });
 
-test("old-flow order never gets a flash price; i18n 384/193", async () => {
+test("old-flow order never gets a flash price; i18n 397/206", async () => {
   // A live sale on a performance does not touch the plain old-flow
   // order on the same shop.
   const { perfId } = await makePerf();
@@ -642,12 +642,12 @@ test("old-flow order never gets a flash price; i18n 384/193", async () => {
   assert.equal(o.data.flash_sale_id, null);
   assert.equal(o.data.flash_cents, 0);
 
-  // i18n: 3 new flash-sale keys on both sides (347 -> 350, 151 -> 154); R3-4 adds 3 gift keys (350 -> 353, 154 -> 157); R3-5 adds 1 socMaoyan key H5-only (353 -> 354); R3-6 adds 6 stored-value keys (354 -> 360, 157 -> 163); R4-1 adds 6 ticket keys H5 (360 -> 366), 5 mini (163 -> 168); R4-2 adds 1 print key (366 -> 367, 168 -> 169); R4-3 adds 7 batch keys mini-only (169 -> 176); R4-4 adds 5 partial-refund/pickup keys (367 -> 372, 176 -> 181); R6-1 adds 12 license keys (372 -> 384, 181 -> 193).
+  // i18n: 3 new flash-sale keys on both sides (347 -> 350, 151 -> 154); R3-4 adds 3 gift keys (350 -> 353, 154 -> 157); R3-5 adds 1 socMaoyan key H5-only (353 -> 354); R3-6 adds 6 stored-value keys (354 -> 360, 157 -> 163); R4-1 adds 6 ticket keys H5 (360 -> 366), 5 mini (163 -> 168); R4-2 adds 1 print key (366 -> 367, 168 -> 169); R4-3 adds 7 batch keys mini-only (169 -> 176); R4-4 adds 5 partial-refund/pickup keys (367 -> 372, 176 -> 181); R6-1 adds 12 license keys (372 -> 384, 181 -> 193). R6-2 adds 13 library keys (384 -> 397, 193 -> 206).
   const data = await import(
     path.resolve(repoDir, "web", "assets", "js", "data.js")
   );
   const counts = data.LANGS.map((l) => Object.keys(data.I18N[l]).length);
-  assert.deepEqual(counts, [384, 384, 384]);
+  assert.deepEqual(counts, [397, 397, 397]);
   for (const k of ["flashSale", "flashSaleLeft", "flashSaleSaved"]) {
     for (const l of data.LANGS)
       assert.ok(k in data.I18N[l], `${k} missing in H5 ${l}`);
@@ -667,7 +667,7 @@ test("old-flow order never gets a flash price; i18n 384/193", async () => {
     ].map((m) => m[1]);
   }
   for (const lang of ["zh", "vi", "en"]) {
-    assert.equal(blocks[lang].length, 193, `${lang} key count`);
+    assert.equal(blocks[lang].length, 206, `${lang} key count`);
     for (const k of ["flashSale", "flashSaleLeft", "flashSaleSaved"])
       assert.ok(blocks[lang].includes(k), `${k} missing in mini ${lang}`);
   }

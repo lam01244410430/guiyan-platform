@@ -41,6 +41,11 @@ const resourceRow = (r) => ({
   tags: JSON.parse(r.tags),
   meta: JSON.parse(r.meta),
 });
-const bookingType = (r) => ["venue", "equipment"].includes(r.category);
+// R6-2: only venue resources rent by the day as a whole (one order
+// per day, no stock). Equipment left this set: it rents by the day
+// too, but per unit — date-mode stock governs (see resources.mjs),
+// so an equipment order deducts stock and a cancel/refund restores
+// it, exactly like the other date-mode categories.
+const bookingType = (r) => ["venue"].includes(r.category);
 
 export { assert, text, int, date, time, yuan, today, safeUser, resourceRow, bookingType };

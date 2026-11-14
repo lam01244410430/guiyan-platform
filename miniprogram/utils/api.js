@@ -184,11 +184,20 @@ function catIdFromName(name) {
 function toLocalResource(apiR, local) {
   var zhDesc = apiR.description || apiR.name;
   var desc = local ? local.desc : { zh: zhDesc, vi: zhDesc, en: zhDesc };
+  // R6-2: an equipment resource rents at its daily rent
+  // (meta.daily_rent_cents) when one is set — the list price, the
+  // detail total and the server-side order amount then agree. The
+  // listed price is the fallback (seeded equipment is backfilled so
+  // the two agree).
+  var rentCents = apiR.category === 'equipment' && apiR.meta
+    && Number.isSafeInteger(apiR.meta.daily_rent_cents)
+    && apiR.meta.daily_rent_cents > 0 ? apiR.meta.daily_rent_cents : null;
   return {
     name: apiR.name,
     cat: catIdFromName(apiR.category),
     city: apiR.city || (local ? local.city : '全区'),
-    price: typeof apiR.price === 'number' ? apiR.price / 100 : (local ? local.price : 0),
+    price: rentCents != null ? rentCents / 100
+      : (typeof apiR.price === 'number' ? apiR.price / 100 : (local ? local.price : 0)),
     unit: apiR.unit || (local ? local.unit : '张'),
     views: typeof apiR.views === 'number' ? apiR.views : (local ? local.views : 0),
     desc: desc, // local trilingual desc kept when matched; Chinese-only otherwise
@@ -197,10 +206,14 @@ function toLocalResource(apiR, local) {
     image: apiR.image, capacity: apiR.capacity, status: apiR.status,
     // R2-4: linked venue ({id, name, address} or null).
     venue: apiR.venue || null,
-    tags: apiR.tags || [],
+    // R6-2: the venue id (for the free-day calendar) and the raw meta
+    // (role / daily rent / talent fee for the library filters).
+    venue_id: apiR.venue_id != null ? apiR.venue_id
+      : (apiR.venue && apiR.venue.id != null ? apiR.venue.id : null),
     // R6-1: copyright facts (copyright_holder / license_type /
     // ip_region) ride along so the detail page can show them.
-    meta: apiR.meta || {}
+    meta: apiR.meta || null,
+    tags: apiR.tags || []
   };
 }
 

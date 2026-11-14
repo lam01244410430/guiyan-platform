@@ -10,9 +10,9 @@
 #   docker compose -p guiyan-p8-smoke up -d --build
 #   ./scripts/smoke-docker.sh [project]   # default project: guiyan-p8-smoke
 #
-# The script checks the 3 containers are healthy, runs the 54 checks in the
+# The script checks the 3 containers are healthy, runs the 55 checks in the
 # plan Appendix A against the stack, prints PASS/FAIL per check and exits
-# non-zero if any check fails. Check 56 tears the stack down (down -v) and
+# non-zero if any check fails. Check 57 tears the stack down (down -v) and
 # verifies no project containers/volumes remain. All curl calls are direct
 # (no background processes left behind). Target is a disposable stack with a
 # fresh DB — never run it against the live Vercel/Neon deployment.
@@ -365,11 +365,19 @@ if [ "$CODE" = "200" ] && has '"ledger"'; then ok "54 GET /api/admin/finance-led
 CODE="$(get /api/licenses)"
 if [ "$CODE" = "200" ] && [ "$(jlen "['licenses']")" = "0" ]; then ok "55 GET /api/licenses 200, empty list"; else bad "55 GET /api/licenses (code=$CODE, licenses=$(jlen "['licenses']"))"; fi
 
-# 56. teardown — down -v, then 0 project containers and 0 project volumes.
+# 56. venue availability — 200, free list on a far-future date (R6-2;
+# no performance exists on 2030-01-01, so the 6 seeded venues are all
+# free and occupied is empty — only the route + shape are checked
+# here, like check 51; the day/month semantics are asserted by
+# tests/r6-venues-library.test.mjs)
+CODE="$(get "/api/venues/available?date=2030-01-01")"
+if [ "$CODE" = "200" ] && has '"free"' && has '"occupied"' && [ "$(jlen "['free']")" = "6" ]; then ok "56 GET /api/venues/available?date=2030-01-01 200, 6 free venues"; else bad "56 GET /api/venues/available?date=2030-01-01 (code=$CODE, free=$(jlen "['free']"))"; fi
+
+# 57. teardown — down -v, then 0 project containers and 0 project volumes.
 docker compose -p "$PROJECT" down -v >/dev/null 2>&1
 LEFT_C="$(docker ps --format '{{.Names}}' | grep -c "$PROJECT" || true)"
 LEFT_V="$(docker volume ls --format '{{.Name}}' | grep -c "^${PROJECT}_" || true)"
-if [ "$LEFT_C" = "0" ] && [ "$LEFT_V" = "0" ]; then ok "56 down -v: 0 project containers, 0 project volumes"; else bad "56 down -v (containers left=$LEFT_C, volumes left=$LEFT_V)"; fi
+if [ "$LEFT_C" = "0" ] && [ "$LEFT_V" = "0" ]; then ok "57 down -v: 0 project containers, 0 project volumes"; else bad "57 down -v (containers left=$LEFT_C, volumes left=$LEFT_V)"; fi
 
-echo "== smoke-docker: PASS $PASS / FAIL $FAIL (55 checks) =="
+echo "== smoke-docker: PASS $PASS / FAIL $FAIL (56 checks) =="
 [ "$FAIL" = "0" ]

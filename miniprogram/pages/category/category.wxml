@@ -11,6 +11,19 @@
       <view class="chip {{catSel===item.id?'on':''}}" bindtap="onCat" data-cat="{{item.id}}">{{item.name}}</view>
     </block>
   </view>
+  <!-- R6-2: library entries (venue / equipment / talent) + talent role
+       filter (artist only, once the live catalog has meta to filter). -->
+  <view class="chiprow">
+    <view class="chip {{catSel==='venue'?'on':''}}" bindtap="onCat" data-cat="venue">{{L.libVenue}}</view>
+    <view class="chip {{catSel==='equipment'?'on':''}}" bindtap="onCat" data-cat="equipment">{{L.libEquipment}}</view>
+    <view class="chip {{catSel==='artist'?'on':''}}" bindtap="onCat" data-cat="artist">{{L.libTalent}}</view>
+  </view>
+  <view class="chiprow" wx:if="{{catSel==='artist' && hasMeta}}">
+    <view class="chip {{roleSel===''?'on':''}}" bindtap="onRole" data-role="">{{L.allChip}}</view>
+    <block wx:for="{{roles}}" wx:key="id">
+      <view class="chip {{roleSel===item.id?'on':''}}" bindtap="onRole" data-role="{{item.id}}">{{item.name}}</view>
+    </block>
+  </view>
   <view class="filterrow">
   <picker mode="selector" range="{{cityNames}}" value="{{cityIdx}}" bindchange="onCity">
     <view class="picker">{{L.cityLabel}}：{{cityNames[cityIdx]}} <text class="arrow">▾</text></view>

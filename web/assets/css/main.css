@@ -417,6 +417,21 @@ th .sort-btn:focus-visible{outline:2px solid var(--red);outline-offset:1px}
 .seatgrid{display:grid;gap:3px}
 .seatgrid i{width:8px;height:8px;border-radius:50%;background:var(--gold);opacity:.75}
 .seatnote{margin:8px 0 0;font-size:12.5px;color:var(--ink2)}
+/* R6-2: venue free-day calendar (read-only). Occupied days are a
+   cinnabar chip; free days are plain. */
+.venuecal{margin-top:18px}
+.venuecal h4{font-family:"Noto Serif SC",serif;font-size:16px;font-weight:900;margin:0 0 10px}
+.cal-nav{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px}
+.cal-nav b{font-size:14px}
+.cal-nav .btn{padding:4px 12px}
+.cal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:4px;text-align:center}
+.cal-wd{font-size:12px;font-weight:700;color:var(--ink3);padding:4px 0}
+.cal-day{display:flex;align-items:center;justify-content:center;height:32px;border-radius:9px;font-size:13px;font-weight:600;color:var(--ink2);background:var(--surface2)}
+.cal-day.blank{background:transparent}
+.cal-day.occ{background:var(--red-soft);color:var(--red-deep);border:1px solid var(--red)}
+.cal-legend{margin:8px 0 0;font-size:12.5px;color:var(--ink2)}
+.cal-legend .cal-day{display:inline-flex;width:18px;height:18px;font-size:10px;vertical-align:-4px}
+.cal-legend .cal-day.occ{background:var(--red-soft)}
 /* R2-5: clickable seat picker for a performance with seats. */
 .seatpick{margin-top:12px}
 .seatpick h5{font-size:13.5px;font-weight:800;margin:0 0 4px}

@@ -18,8 +18,8 @@
 // owner + admin 200, another user 403; admin list filters
 // (?status= / ?code=); backfill: every paid/completed/disputed/
 // refund_requested order holds exactly `quantity` tickets,
-// cancelled orders hold none; i18n key counts (H5 384,
-// miniprogram 193, equal sets).
+// cancelled orders hold none; i18n key counts (H5 397,
+// miniprogram 206, equal sets).
 import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
@@ -344,7 +344,7 @@ test("anonymous verify -> 401; anonymous admin-tickets -> 403", async () => {
   assert.equal((await req("/api/admin/tickets")).status, 403);
 });
 
-test("backfilled seeded paid orders have tickets; admin list + filters; i18n 384/193", async () => {
+test("backfilled seeded paid orders have tickets; admin list + filters; i18n 397/206", async () => {
   // Every paid/completed/disputed/refund_requested order holds
   // exactly `quantity` tickets (backfill on setup + pay issuance);
   // cancelled orders hold none.
@@ -380,12 +380,12 @@ test("backfilled seeded paid orders have tickets; admin list + filters; i18n 384
   assert.equal(byOrder.status, 200, JSON.stringify(byOrder.data));
   assert.equal(byOrder.data.tickets.length, 2);
 
-  // i18n: 6 new ticket keys on both sides (360 -> 366, 163 -> 168); R4-2 adds 1 print key (366 -> 367, 168 -> 169); R4-3 adds 7 batch keys mini-only (169 -> 176); R4-4 adds 5 partial-refund/pickup keys (367 -> 372, 176 -> 181); R6-1 adds 12 license keys (372 -> 384, 181 -> 193).
+  // i18n: 6 new ticket keys on both sides (360 -> 366, 163 -> 168); R4-2 adds 1 print key (366 -> 367, 168 -> 169); R4-3 adds 7 batch keys mini-only (169 -> 176); R4-4 adds 5 partial-refund/pickup keys (367 -> 372, 176 -> 181); R6-1 adds 12 license keys (372 -> 384, 181 -> 193). R6-2 adds 13 library keys (384 -> 397, 193 -> 206).
   const data = await import(
     path.resolve(repoDir, "web", "assets", "js", "data.js")
   );
   const counts = data.LANGS.map((l) => Object.keys(data.I18N[l]).length);
-  assert.deepEqual(counts, [384, 384, 384]);
+  assert.deepEqual(counts, [397, 397, 397]);
   for (const l of data.LANGS)
     for (const k of ["ticketTitle", "ticketCode", "ticketEmpty", "ticketIssued", "ticketUsed", "ticketVoid"])
       assert.ok(k in data.I18N[l], `${k} missing in H5 ${l}`);
@@ -404,7 +404,7 @@ test("backfilled seeded paid orders have tickets; admin list + filters; i18n 384
     ].map((m) => m[1]);
   }
   for (const lang of ["zh", "vi", "en"]) {
-    assert.equal(blocks[lang].length, 193, `${lang} key count`);
+    assert.equal(blocks[lang].length, 206, `${lang} key count`);
     for (const k of ["ticketTitle", "ticketCode", "ticketEmpty", "ticketIssued", "ticketUsed", "ticketVoid"])
       assert.ok(blocks[lang].includes(k), `${k} missing in mini ${lang}`);
   }

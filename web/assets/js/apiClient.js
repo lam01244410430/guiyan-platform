@@ -124,7 +124,19 @@ export function mergeResources(data) {
     if (!a || !a.name) return;
     let idx = -1;
     for (let i = 0; i < RES.length; i++) { if (RES[i][0] === a.name) { idx = i; break; } }
-    const priceYuan = (typeof a.price === "number") ? a.price / 100 : (idx >= 0 ? RES[idx][3] : 0);
+    /* R6-2: an equipment resource rents at its daily rent
+       (meta.daily_rent_cents) when one is set — the catalog price,
+       the detail total and the server-side order amount then agree.
+       The listed price is the fallback (seeded equipment is
+       backfilled so the two agree). */
+    const rentCents = a.category === "equipment" && a.meta
+      && Number.isSafeInteger(a.meta.daily_rent_cents)
+      && a.meta.daily_rent_cents > 0
+      ? a.meta.daily_rent_cents
+      : null;
+    const priceYuan = rentCents != null
+      ? rentCents / 100
+      : (typeof a.price === "number") ? a.price / 100 : (idx >= 0 ? RES[idx][3] : 0);
     if (idx < 0) {
       const dsc = a.description || a.name;
       RES.push([a.name, apiCatId(a.category), a.city || "南宁", priceYuan, a.unit || "张", (typeof a.views === "number" ? a.views : 0), [dsc, dsc, dsc]]);

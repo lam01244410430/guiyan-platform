@@ -360,6 +360,14 @@ export default function AdminDashboard() {
   const [venues, setVenues] = useState([]);
   const [venueForm, setVenueForm] = useState(null);
   const [venueBusyId, setVenueBusyId] = useState(null);
+  // R6-2: venue availability lookup — the date + the picked venue
+  // ("" = all venues) + the last result (null = no lookup run yet).
+  const [availDate, setAvailDate] = useState(function () {
+    return new Date(Date.now() + 8 * 60 * 60 * 1000).toISOString().slice(0, 10);
+  });
+  const [availVenueId, setAvailVenueId] = useState("");
+  const [availResult, setAvailResult] = useState(null);
+  const [availBusy, setAvailBusy] = useState(false);
   const [tplVenueId, setTplVenueId] = useState(null);
   const [templatesByVenue, setTemplatesByVenue] = useState({});
   const [tplForm, setTplForm] = useState(null);
@@ -988,6 +996,35 @@ export default function AdminDashboard() {
     apiGet("/api/venues").then(function (d) {
       setVenues(d.venues || []);
     }).catch(loadFail);
+  }
+  // R6-2: venue availability lookup — GET /api/venues/available?date=.
+  // Read-only; a failed fetch toasts and leaves the last result alone.
+  // venueId is passed explicitly (not read from state) so the per-row
+  // 查空闲 button works in the same tick as setAvailVenueId.
+  function lookupAvailability(venueId, date) {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date || "")) { toast("请选择有效日期"); return; }
+    setAvailBusy(true);
+    apiGet("/api/venues/available?date=" + date).then(function (r) {
+      setAvailResult({ date: r.date, venueId: venueId || null, free: r.free || [], occupied: r.occupied || [] });
+    }).catch(function () { toast("查询失败，请重试"); }).finally(function () { setAvailBusy(false); });
+  }
+  // R6-2: one-line summary of the last lookup — a picked venue's own
+  // status, or the free / occupied counts for the whole day.
+  function availSummaryText(r) {
+    if (!r) return null;
+    if (r.venueId) {
+      const occ = r.occupied.find(function (v) { return v.id === r.venueId; });
+      const picked = occ || r.free.find(function (v) { return v.id === r.venueId; });
+      if (!picked) return r.date + " · 该场馆不在本店列表中";
+      return r.date + " · " + picked.name + (occ
+        ? "已占用（" + occ.performances.map(function (p) { return p.show_title; }).join("、") + "）"
+        : "空闲");
+    }
+    const occText = r.occupied.map(function (v) {
+      return v.name + "：" + v.performances.map(function (p) { return p.show_title; }).join("、");
+    }).join("；");
+    return r.date + " · 空闲 " + r.free.length + " 个场馆"
+      + (r.occupied.length ? " · 已占用 " + r.occupied.length + " 个（" + occText + "）" : " · 全部空闲");
   }
   function openVenueForm(v) {
     setVenueForm(v ? {
@@ -3130,6 +3167,18 @@ export default function AdminDashboard() {
               <button type="button" className="btn-export" onClick={() => openVenueForm(null)}>添加场馆</button>
             </div>
             <div className="note">场馆须归属本店；资源表单可把资源挂到同店场馆，顾客详情页显示场馆名与地址。未配置座位模板的场馆显示“未配置座位模板”，其场次暂不可选座。</div>
+            {/* R6-2: venue availability lookup — pick a date (and
+                optionally one venue) and see which venues are free
+                that day. Read-only; occupied venues list their shows. */}
+            <div className="search-row">
+              <label>查空闲日期 <input type="date" value={availDate} onChange={(e) => setAvailDate(e.target.value)} /></label>
+              <label>场馆 <select value={availVenueId} onChange={(e) => setAvailVenueId(e.target.value)}>
+                <option value="">全部场馆</option>
+                {venues.map((v) => (<option key={v.id} value={String(v.id)}>{v.name}</option>))}
+              </select></label>
+              <button type="button" className="btn-export" disabled={availBusy} onClick={() => lookupAvailability(availVenueId ? Number(availVenueId) : null, availDate)}>{availBusy ? "查询中…" : "查空闲"}</button>
+            </div>
+            {availResult ? (<div className="note">{availSummaryText(availResult)}</div>) : null}
             {venueForm ? (
               <fieldset className="tag-rule">
                 <legend>{venueForm.id === null ? "添加场馆" : "编辑场馆：" + venueForm.name}</legend>
@@ -3163,6 +3212,7 @@ export default function AdminDashboard() {
                             <span className="row-actions">
                               <button type="button" className="btn-view" disabled={venueBusyId !== null} onClick={() => openVenueForm(v)}>编辑</button>
                               <button type="button" className="btn-view" onClick={() => toggleTplManager(v)}>{tplVenueId === v.id ? "收起座位模板" : "座位模板"}</button>
+                              <button type="button" className="btn-view" disabled={availBusy} onClick={() => { setAvailVenueId(String(v.id)); lookupAvailability(v.id, availDate); }}>查空闲</button>
                             </span>
                           </td>
                         </tr>
