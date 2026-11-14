@@ -62,6 +62,7 @@ import { verifyTicket, verifyBatch, listOrderTickets, listAdminTickets, printTic
 import { recordEvent, aggregateEvents, listEventAggregates } from "./routes/events.mjs";
 import { listMemberInsights, getMemberInsightRules, patchMemberInsightRules } from "./routes/member-insights.mjs";
 import { getBi, exportBi } from "./routes/bi.mjs";
+import { listAlertRules, createAlertRule, patchAlertRule, listFinanceLedger, reconcileFinanceLedger, getResourceStats } from "./routes/alerts-ledger.mjs";
 
 // A stored-value CSV export (?format=csv on the own-account or the
 // admin endpoint) audits "导出储值流水" — one INSERT — so it needs a
@@ -70,7 +71,10 @@ function csvExportPath(url) {
   return (
     url.searchParams.get("format") === "csv" &&
     (url.pathname === "/api/account/stored-value" ||
-      /^\/api\/admin\/stored-value\/\d+$/.test(url.pathname))
+      /^\/api\/admin\/stored-value\/\d+$/.test(url.pathname) ||
+      // R5-5: the finance-ledger CSV export audits "导出财务账本"
+      // (one INSERT), like the stored-value CSV above.
+      url.pathname === "/api/admin/finance-ledger")
   );
 }
 
@@ -326,6 +330,12 @@ export async function createApp({ database }) {
       if (await patchMemberInsightRules(ctx)) return;
       if (await getBi(ctx)) return;
       if (await exportBi(ctx)) return;
+      if (await listAlertRules(ctx)) return;
+      if (await createAlertRule(ctx)) return;
+      if (await patchAlertRule(ctx)) return;
+      if (await listFinanceLedger(ctx)) return;
+      if (await reconcileFinanceLedger(ctx)) return;
+      if (await getResourceStats(ctx)) return;
 
       send({ error: "接口不存在" }, 404);
     } catch (e) {

@@ -98,6 +98,7 @@ const VIEWS = [
   { id: "events", label: "数据运营", iconName: "ui:chart-line", group: "premium" },
   { id: "memberinsights", label: "会员数据", iconName: "ui:crown", group: "premium" },
   { id: "bi", label: "数据大屏", iconName: "ui:chart-line", group: "premium" },
+  { id: "financeledger", label: "财务账本", iconName: "ui:scroll-text", group: "premium" },
 ];
 const FILTERS = [
   ["all", "全部"], ["pending", "待确认"], ["confirmed", "已确认"], ["paid", "已支付"],
@@ -261,6 +262,21 @@ export default function AdminDashboard() {
   const [biData, setBiData] = useState(null);
   const [biBusy, setBiBusy] = useState(false);
   const [biFullscreen, setBiFullscreen] = useState(false);
+  // R5-5 财务账本: the ledger page + kind/reconciled filters, the
+  // id of the row being reconciled, and the alert rules + the
+  // create-rule form (config fields follow the chosen kind).
+  const [financeLedger, setFinanceLedger] = useState([]);
+  const [ledgerKind, setLedgerKind] = useState("");
+  const [ledgerReconciled, setLedgerReconciled] = useState("");
+  const [ledgerBusyId, setLedgerBusyId] = useState(null);
+  const [alertRules, setAlertRules] = useState([]);
+  const [ruleForm, setRuleForm] = useState({ kind: "sales_drop", shop_id: "", drop_pct: "50", window_days: "7", fail_count: "10", window_minutes: "60", stock_lt: "10" });
+  const [ruleBusy, setRuleBusy] = useState(false);
+  // R5-5 resource stats: per-resource stats loaded on demand (one
+  // row at a time — the resources table does not fire N requests on
+  // load), keyed by resource id.
+  const [resStats, setResStats] = useState({});
+  const [resStatsBusyId, setResStatsBusyId] = useState(null);
   const [auditLogs, setAuditLogs] = useState([]);
   const [csvBusy, setCsvBusy] = useState(false);
   // Wave 3 #9 tag rules (lazy-loaded like the premium views) + the users
@@ -546,6 +562,109 @@ export default function AdminDashboard() {
     try { window.print(); } catch (e) { toast("当前浏览器不支持打印"); }
   }
 
+  // R5-5: load the alert rules (the alerts view shows them under
+  // the alert list; auto alerts themselves are computed on read and
+  // are part of GET /api/admin/alerts).
+  function loadAlertRules() {
+    apiGet("/api/admin/alert-rules").then(function (d) {
+      setAlertRules(d.rules || []);
+    }).catch(loadFail);
+  }
+  // R5-5: create a rule from the form (config fields follow the
+  // chosen kind; empty shop = platform-level for the platform
+  // admin, forced to the admin's own shop for a shop admin).
+  function doCreateRule() {
+    if (ruleBusy) return;
+    const kind = ruleForm.kind;
+    const config = {};
+    function readNum(key, lo, hi, label) {
+      const v = Number(ruleForm[key]);
+      if (!Number.isInteger(v) || v < lo || v > hi) { toast(label + "须为 " + lo + "–" + hi + " 的整数"); return false; }
+      config[key] = v;
+      return true;
+    }
+    if (kind === "sales_drop") {
+      if (!readNum("drop_pct", 1, 100, "跌幅百分比")) return;
+      if (!readNum("window_days", 1, 90, "窗口天数")) return;
+    } else if (kind === "scan_abuse") {
+      if (!readNum("fail_count", 1, 1000, "失败次数")) return;
+      if (!readNum("window_minutes", 1, 1440, "窗口分钟")) return;
+    } else if (!readNum("stock_lt", 0, 100000, "库存阈值")) return;
+    const shopId = ruleForm.shop_id.trim() === "" ? null : Number(ruleForm.shop_id);
+    if (shopId !== null && (!Number.isInteger(shopId) || shopId < 1)) { toast("店铺编号错误"); return; }
+    setRuleBusy(true);
+    apiPost("/api/admin/alert-rules", { kind, shop_id: shopId, config }).then(function () {
+      setRuleBusy(false);
+      toast("已新增预警规则");
+      loadAlertRules(); loadAlerts(); loadAudit();
+    }).catch(function (e) {
+      setRuleBusy(false);
+      toast((e && e.data && e.data.error) || "新增失败");
+    });
+  }
+  // R5-5: enable/disable a rule. Disabling is how an auto alert is
+  // dismissed (auto alerts are computed on read, never stored).
+  function doToggleRule(rule) {
+    if (ruleBusy) return;
+    setRuleBusy(true);
+    apiPatch("/api/admin/alert-rules/" + rule.id, { status: rule.status === "active" ? "disabled" : "active" }).then(function () {
+      setRuleBusy(false);
+      toast(rule.status === "active" ? "已停用规则，自动预警随之消失" : "已启用规则");
+      loadAlertRules(); loadAlerts(); loadAudit();
+    }).catch(function (e) {
+      setRuleBusy(false);
+      toast((e && e.data && e.data.error) || "操作失败");
+    });
+  }
+  // R5-5: load the finance ledger page for the current filters.
+  function loadFinanceLedger() {
+    const qs = "/api/admin/finance-ledger?limit=200"
+      + (ledgerKind ? "&kind=" + encodeURIComponent(ledgerKind) : "")
+      + (ledgerReconciled !== "" ? "&reconciled=" + encodeURIComponent(ledgerReconciled) : "");
+    apiGet(qs).then(function (d) {
+      setFinanceLedger(d.ledger || []);
+    }).catch(loadFail);
+  }
+  // R5-5: mark one ledger row reconciled, then reload the table.
+  function doReconcileLedger(id) {
+    if (ledgerBusyId !== null) return;
+    setLedgerBusyId(id);
+    apiPost("/api/admin/finance-ledger/" + id + "/reconcile", {}).then(function () {
+      setLedgerBusyId(null);
+      toast("已对账");
+      loadFinanceLedger(); loadAudit();
+    }).catch(function (e) {
+      setLedgerBusyId(null);
+      toast((e && e.data && e.data.error) || "对账失败");
+    });
+  }
+  // R5-5: export the filtered ledger as BOM CSV (same download
+  // helper as the orders CSV).
+  function doExportLedger() {
+    const qs = "/api/admin/finance-ledger?format=csv"
+      + (ledgerKind ? "&kind=" + encodeURIComponent(ledgerKind) : "")
+      + (ledgerReconciled !== "" ? "&reconciled=" + encodeURIComponent(ledgerReconciled) : "");
+    apiDownloadCsv(qs, "guiyan-finance-ledger.csv").then(function () {
+      toast("已导出财务账本 CSV");
+      loadAudit();
+    }).catch(function (e) {
+      toast((e && e.data && e.data.error) || "导出失败");
+    });
+  }
+  // R5-5: load one resource's stats on demand (views/event_views/
+  // clicks/orders/revenue/tickets/verify) and show them under the row.
+  function loadResStats(id) {
+    if (resStatsBusyId !== null) return;
+    setResStatsBusyId(id);
+    apiGet("/api/admin/resources/" + id + "/stats").then(function (d) {
+      setResStats(function (m) { return { ...m, [id]: d }; });
+      setResStatsBusyId(null);
+    }).catch(function (e) {
+      setResStatsBusyId(null);
+      toast((e && e.data && e.data.error) || "加载统计失败");
+    });
+  }
+
   useEffect(() => {
     const u = currentUser();
     if (!getToken() || !u) { location.href = "/admin/index.html"; return; }
@@ -611,7 +730,7 @@ export default function AdminDashboard() {
     }
     if (view === "alerts" && !loadedRef.current.alerts) {
       loadedRef.current.alerts = true;
-      loadAlerts(); loadAudit();
+      loadAlerts(); loadAudit(); loadAlertRules();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [view, period, analysisStale]);
@@ -638,6 +757,13 @@ export default function AdminDashboard() {
     else if (biFullscreen) setBiFullscreen(false);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [view]);
+
+  // R5-5 财务账本: load the ledger when the view opens and
+  // whenever its kind/reconciled filter changes.
+  useEffect(() => {
+    if (view === "financeledger") loadFinanceLedger();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [view, ledgerKind, ledgerReconciled]);
   useEffect(() => {
     if (!biFullscreen) return;
     function onKey(e) { if (e.key === "Escape") setBiFullscreen(false); }
@@ -2130,6 +2256,7 @@ export default function AdminDashboard() {
     events: ["数据运营", "埋点聚合 · 按小时/天查看"],
     memberinsights: ["会员数据", "会员消费 · 流失与可升级 · 经营建议（规则建议，非 AI）"],
     bi: ["数据大屏", "关键指标 · 近 30 天趋势 · 热门演出 / 场馆"],
+    financeledger: ["财务账本", "订单收入 · 退款 · 储值 · 手工对账"],
   };
   const by = (stats && stats.orders_by_status) || {};
   // R1-1: the signed-in admin's scope (the sessionStorage user carries
@@ -2553,7 +2680,7 @@ export default function AdminDashboard() {
             ) : null}
             <div className="tbl-wrap">
               <table>
-                <thead><tr><th scope="col" aria-sort={ariaSort("resources", "name")}>名称<SortButton label="名称" sortKey="name" tableId="resources" sort={sorts.resources} onToggle={toggleSort} /></th><th scope="col">分类</th><th scope="col">城市</th><th scope="col">店铺</th><th scope="col" className="num" aria-sort={ariaSort("resources", "price")}>价格<SortButton label="价格" sortKey="price" tableId="resources" sort={sorts.resources} onToggle={toggleSort} /></th><th scope="col" className="num" aria-sort={ariaSort("resources", "stock")}>库存<SortButton label="库存" sortKey="stock" tableId="resources" sort={sorts.resources} onToggle={toggleSort} /></th><th scope="col">状态</th><th scope="col">操作</th></tr></thead>
+                <thead><tr><th scope="col" aria-sort={ariaSort("resources", "name")}>名称<SortButton label="名称" sortKey="name" tableId="resources" sort={sorts.resources} onToggle={toggleSort} /></th><th scope="col">分类</th><th scope="col">城市</th><th scope="col">店铺</th><th scope="col" className="num" aria-sort={ariaSort("resources", "price")}>价格<SortButton label="价格" sortKey="price" tableId="resources" sort={sorts.resources} onToggle={toggleSort} /></th><th scope="col" className="num" aria-sort={ariaSort("resources", "stock")}>库存<SortButton label="库存" sortKey="stock" tableId="resources" sort={sorts.resources} onToggle={toggleSort} /></th><th scope="col">状态</th><th scope="col">统计</th><th scope="col">操作</th></tr></thead>
                 <tbody id="resBody">
                   {resources.length
                     ? (filteredResources.length ? sortedResources.map((r) => (
@@ -2562,6 +2689,9 @@ export default function AdminDashboard() {
                           <td>{r.name}</td><td>{catZh(r.category)}</td><td>{r.city}</td><td>{shopName(r.shop_id)}</td>
                           <td className="num">{fmtMoney(r.price)}</td><td className="num">{r.stock}</td>
                           <td>{r.status === "published" ? "上架" : "下架"}</td>
+                          <td>
+                            <button type="button" className="btn-view" disabled={resStatsBusyId !== null} onClick={() => loadResStats(r.id)}>{resStatsBusyId === r.id ? "加载中…" : "统计"}</button>
+                          </td>
                           <td>
                             <span className="row-actions">
                               <button type="button" className="btn-view" disabled={resBusyId !== null} onClick={() => openResForm(r)}>编辑</button>
@@ -2572,9 +2702,20 @@ export default function AdminDashboard() {
                             </span>
                           </td>
                         </tr>
+                        {/* R5-5 resource stats (loaded on demand):
+                            views is the resources.views counter,
+                            event_views is the events `view` audit
+                            trail — the two are never conflated. */}
+                        {resStats[r.id] ? (
+                          <tr>
+                            <td colSpan="9">
+                              <span>浏览 {resStats[r.id].views}（事件 {resStats[r.id].event_views}）· 点击 {resStats[r.id].clicks} · 订单 {resStats[r.id].orders} · 收入 {fmtMoney(resStats[r.id].revenue_cents)} · 已售票 {resStats[r.id].tickets_sold} · 已核销 {resStats[r.id].verify_count}</span>
+                            </td>
+                          </tr>
+                        ) : null}
                         {r.meta && (r.meta.lastSync || r.meta.syncResult) ? (
                           <tr>
-                            <td colSpan="8">
+                            <td colSpan="9">
                               {r.meta.lastSync ? (<span>最近模拟同步：{String(r.meta.lastSync).slice(0, 19).replace("T", " ")}</span>) : null}
                               {r.meta.lastSync && r.meta.syncResult ? "　" : null}
                               {r.meta.syncResult ? (<span>渠道同步结果：{r.meta.syncResult}</span>) : null}
@@ -2582,8 +2723,8 @@ export default function AdminDashboard() {
                           </tr>
                         ) : null}
                       </Fragment>
-                    )) : searchEmpty(8))
-                    : <tr><td colSpan="8"><div className="empty">暂无资源</div></td></tr>}
+                    )) : searchEmpty(9))
+                    : <tr><td colSpan="9"><div className="empty">暂无资源</div></td></tr>}
                 </tbody>
               </table>
             </div>
@@ -3846,7 +3987,7 @@ export default function AdminDashboard() {
           </section>
 
           <section className={"view" + (view === "alerts" ? " on" : "")} id="view-alerts">
-            <div className="note">以下预警中，库存/预约/售后为真实数据规则触发；标注（模拟事件）的是模拟演练事件，不代表真实故障。</div>
+            <div className="note">以下预警中，库存/预约/售后为真实数据规则触发；标注（模拟事件）的是模拟演练事件，不代表真实故障。标注“自动”的预警由预警规则读时现算、不入库；停用规则或修好底层问题即可消警。</div>
             <p>库存预警阈值：{threshold}</p>
             <div className="sec">
               <h2>触发模拟预警</h2>
@@ -3870,9 +4011,10 @@ export default function AdminDashboard() {
                 ? (filteredAlerts.length ? filteredAlerts.map((a) => (
                   <div key={a.id || a.title} className={"alert " + a.severity}>
                     <span className={"pill " + (a.severity === "warning" ? "pending" : "confirmed")}>{a.severity === "warning" ? "预警" : "提示"}</span>
+                    {a.auto ? <span className="pill confirmed">自动 · {{ sales_drop: "销量下滑", scan_abuse: "核销异常", low_stock: "库存不足" }[a.rule_kind] || a.rule_kind}</span> : null}
                     <b>{a.title}</b>
                     <p>{a.detail}</p>
-                    {a.id ? <button type="button" className="btn-resolve" onClick={() => doResolveAlert(a.id)}>处理模拟预警</button> : null}
+                    {!a.auto && a.id ? <button type="button" className="btn-resolve" onClick={() => doResolveAlert(a.id)}>处理模拟预警</button> : null}
                   </div>
                 )) : (
                   <div className="empty">没有找到匹配的结果<br />
@@ -3880,6 +4022,50 @@ export default function AdminDashboard() {
                   </div>
                 ))
                 : <div className="empty">暂无预警</div>}
+            </div>
+            {/* R5-5 预警规则: auto alerts are computed on read from
+                these rules (never stored); disabling a rule dismisses
+                its auto alerts. Platform-level rules (empty shop)
+                apply to all shops. */}
+            <div className="sec">
+              <h2>预警规则</h2>
+              <fieldset className="tag-rule">
+                <legend>新增预警规则</legend>
+                <label>类型 <select value={ruleForm.kind} onChange={(e) => setRuleForm(function (f) { return { ...f, kind: e.target.value }; })}>
+                  <option value="sales_drop">销量下滑</option>
+                  <option value="scan_abuse">核销异常</option>
+                  <option value="low_stock">库存不足</option>
+                </select></label>
+                <label>店铺编号（空 = 平台级） <input type="number" min={1} value={ruleForm.shop_id} onChange={(e) => setRuleForm(function (f) { return { ...f, shop_id: e.target.value }; })} /></label>
+                {ruleForm.kind === "sales_drop" ? (<>
+                  <label>跌幅百分比（%） <input type="number" min={1} max={100} value={ruleForm.drop_pct} onChange={(e) => setRuleForm(function (f) { return { ...f, drop_pct: e.target.value }; })} /></label>
+                  <label>窗口天数 <input type="number" min={1} max={90} value={ruleForm.window_days} onChange={(e) => setRuleForm(function (f) { return { ...f, window_days: e.target.value }; })} /></label>
+                </>) : ruleForm.kind === "scan_abuse" ? (<>
+                  <label>失败次数 <input type="number" min={1} max={1000} value={ruleForm.fail_count} onChange={(e) => setRuleForm(function (f) { return { ...f, fail_count: e.target.value }; })} /></label>
+                  <label>窗口分钟 <input type="number" min={1} max={1440} value={ruleForm.window_minutes} onChange={(e) => setRuleForm(function (f) { return { ...f, window_minutes: e.target.value }; })} /></label>
+                </>) : (
+                  <label>库存阈值 <input type="number" min={0} max={100000} value={ruleForm.stock_lt} onChange={(e) => setRuleForm(function (f) { return { ...f, stock_lt: e.target.value }; })} /></label>
+                )}
+                <div>
+                  <button type="button" className="btn-export" disabled={ruleBusy} onClick={doCreateRule}>{ruleBusy ? "保存中…" : "新增规则"}</button>
+                </div>
+              </fieldset>
+              <div className="tbl-wrap">
+                <table>
+                  <thead><tr><th scope="col">类型</th><th scope="col">店铺</th><th scope="col">配置</th><th scope="col">状态</th><th scope="col">操作</th></tr></thead>
+                  <tbody>
+                    {alertRules.length ? alertRules.map((r) => (
+                      <tr key={r.id}>
+                        <td>{r.kind_label || r.kind}</td>
+                        <td>{r.shop_id === null || r.shop_id === undefined ? "平台级" : r.shop_id + "号店"}</td>
+                        <td>{JSON.stringify(r.config)}</td>
+                        <td>{r.status === "active" ? "启用" : "停用"}</td>
+                        <td><button type="button" className="btn-view" disabled={ruleBusy} onClick={() => doToggleRule(r)}>{ruleBusy ? "处理中…" : (r.status === "active" ? "停用" : "启用")}</button></td>
+                      </tr>
+                    )) : <tr><td colSpan="5"><div className="empty">暂无预警规则</div></td></tr>}
+                  </tbody>
+                </table>
+              </div>
             </div>
             <div className="sec">
               <h2>操作审计</h2>
@@ -4068,6 +4254,60 @@ export default function AdminDashboard() {
                 ) : <div className="empty">暂无已付场馆收入</div>}
               </>
             ) : <div className="empty">加载中…</div>}
+          </section>
+
+          {/* R5-5 财务账本: order_income / refund_out / topup_in /
+              card_refund rows, written in the same transaction as
+              the money movement (pay / approveRefund / topup). The
+              ledger-vs-orders invariant is income + refunds ==
+              SUM(amount) over paid/completed orders (refund rows are
+              negative; card_refund is positive — money back onto the
+              card, same direction as the stored_value_ledger refund
+              row). Reconcile is manual (one row at a time); the CSV
+              export carries the BOM like the orders CSV. */}
+          <section className={"view" + (view === "financeledger" ? " on" : "")} id="view-financeledger">
+            <div className="note">账本与订单同事务记账：支付记订单收入、批准退款记退款支出（退回文惠卡的部分另记一行正数）、充值记储值充值。收入合计 + 退款合计 = 仍为已支付/已完成订单的金额合计。</div>
+            <div className="search-row">
+              <select className="tag-filter" aria-label="按类型筛选" value={ledgerKind} onChange={(e) => setLedgerKind(e.target.value)}>
+                <option value="">全部类型</option>
+                <option value="order_income">订单收入</option>
+                <option value="refund_out">退款支出</option>
+                <option value="topup_in">储值充值</option>
+                <option value="card_refund">退回文惠卡</option>
+              </select>
+              <select className="tag-filter" aria-label="按对账状态筛选" value={ledgerReconciled} onChange={(e) => setLedgerReconciled(e.target.value)}>
+                <option value="">全部对账状态</option>
+                <option value="0">未对账</option>
+                <option value="1">已对账</option>
+              </select>
+              <button type="button" className="btn-export" onClick={doExportLedger}>导出 CSV</button>
+              <button type="button" className="btn-export" onClick={loadFinanceLedger}>刷新</button>
+            </div>
+            <div className="tbl-wrap">
+              <table>
+                <thead><tr><th scope="col">流水号</th><th scope="col">时间</th><th scope="col">类型</th><th scope="col" className="num">金额</th><th scope="col">订单号</th><th scope="col">备注</th><th scope="col">对账</th><th scope="col">操作</th></tr></thead>
+                <tbody>
+                  {financeLedger.length
+                    ? financeLedger.map((l) => (
+                      <tr key={l.id}>
+                        <td>{l.id}</td>
+                        <td>{String(l.created_at || "").slice(0, 16)}</td>
+                        <td>{l.kind_label || l.kind}</td>
+                        <td className="num">{fmtMoney(l.amount_cents)}</td>
+                        <td>{l.order_code || "—"}</td>
+                        <td>{l.note || ""}</td>
+                        <td>{l.reconciled ? "已对账" : "未对账"}</td>
+                        <td>
+                          {l.reconciled ? "—" : (
+                            <button type="button" className="btn-view" disabled={ledgerBusyId !== null} onClick={() => doReconcileLedger(l.id)}>{ledgerBusyId === l.id ? "处理中…" : "对账"}</button>
+                          )}
+                        </td>
+                      </tr>
+                    ))
+                    : <tr><td colSpan="8"><div className="empty">暂无账本记录</div></td></tr>}
+                </tbody>
+              </table>
+            </div>
           </section>
         </main>
       </div>

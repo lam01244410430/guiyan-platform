@@ -27,6 +27,7 @@ import { assert, int, text, bookingType, resourceRow} from "../lib/http.mjs";
 import { profileRows } from "../lib/profiles.mjs";
 import { CACHE_KEYS, CACHE_TTLS } from "../lib/cache.mjs";
 import { resolveTier, MAIN_SHOP_ID } from "./member-tiers.mjs";
+import { computeAutoAlerts, activeAlertRules } from "./alerts-ledger.mjs";
 
 const PERIODS = ["day", "week", "month", "quarter"];
 const PAID_STATUSES = ["paid", "completed", "disputed", "refund_requested"];
@@ -798,8 +799,17 @@ await loadAnalysisData(ctx);
 const events = await all(
 "SELECT * FROM events WHERE type LIKE 'alert.%' ORDER BY id DESC LIMIT 5",
 );
+// R5-5: the manual alerts above PLUS live-computed auto alerts
+// (computed on read, never stored — see alerts-ledger.mjs).
+const auto = await computeAutoAlerts(
+ctx,
+await activeAlertRules(ctx, session),
+);
 send({
-alerts: computeAlerts({ today, orders, resources, threshold}, events),
+alerts: [
+...computeAlerts({ today, orders, resources, threshold}, events),
+...auto,
+],
 threshold,
 });
 return true;

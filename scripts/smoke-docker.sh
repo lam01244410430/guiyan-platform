@@ -353,11 +353,18 @@ if [ "$CODE" = "200" ] && has '"kpis"' && has '"top_shows"' && has '"series"'; t
 CODE="$(post "/api/admin/analysis/refresh" '{"period":"day"}' "$ADMIN_TOKEN")"
 if [ "$CODE" = "200" ] && has '"ok":true' && has '"period":"day"'; then ok "53 POST /api/admin/analysis/refresh as admin 200, snapshot ok"; else bad "53 POST /api/admin/analysis/refresh as admin (code=$CODE, body=$(cat "$TMP/body"))"; fi
 
-# 54. teardown — down -v, then 0 project containers and 0 project volumes.
+# 54. finance ledger — 200 as admin, list shape (R5-5; the
+# ledger totals themselves are asserted by
+# tests/r5-alerts-ledger.test.mjs — only the route + shape are
+# checked here, like check 51)
+CODE="$(get "/api/admin/finance-ledger" "$ADMIN_TOKEN")"
+if [ "$CODE" = "200" ] && has '"ledger"'; then ok "54 GET /api/admin/finance-ledger as admin 200, ledger list"; else bad "54 GET /api/admin/finance-ledger as admin (code=$CODE, body=$(cat "$TMP/body"))"; fi
+
+# 55. teardown — down -v, then 0 project containers and 0 project volumes.
 docker compose -p "$PROJECT" down -v >/dev/null 2>&1
 LEFT_C="$(docker ps --format '{{.Names}}' | grep -c "$PROJECT" || true)"
 LEFT_V="$(docker volume ls --format '{{.Name}}' | grep -c "^${PROJECT}_" || true)"
-if [ "$LEFT_C" = "0" ] && [ "$LEFT_V" = "0" ]; then ok "54 down -v: 0 project containers, 0 project volumes"; else bad "54 down -v (containers left=$LEFT_C, volumes left=$LEFT_V)"; fi
+if [ "$LEFT_C" = "0" ] && [ "$LEFT_V" = "0" ]; then ok "55 down -v: 0 project containers, 0 project volumes"; else bad "55 down -v (containers left=$LEFT_C, volumes left=$LEFT_V)"; fi
 
-echo "== smoke-docker: PASS $PASS / FAIL $FAIL (53 checks) =="
+echo "== smoke-docker: PASS $PASS / FAIL $FAIL (54 checks) =="
 [ "$FAIL" = "0" ]

@@ -42,6 +42,7 @@
 //   hold), so check-then-write is race-safe.
 import { assert, text, int, time } from "../lib/http.mjs";
 import { MAIN_SHOP_ID } from "./member-tiers.mjs";
+import { addFinanceLedger } from "./alerts-ledger.mjs";
 
 // Per-account balance cap, integer cents (¥5000).
 export const BALANCE_CAP_CENTS = 500000;
@@ -142,9 +143,11 @@ export async function getOrCreateAccount(get, run, userId, shopId, now) {
   );
 }
 
-// One ledger row, inside the caller's transaction.
+// One ledger row, inside the caller's transaction. Returns the
+// run() result so callers can link the finance_ledger row to it
+// (R5-5: note `svl:{id}`).
 async function addLedger(run, accountId, kind, amountCents, orderId, note, now) {
-  await run(
+  return run(
     "INSERT INTO stored_value_ledger(account_id,kind,amount_cents,order_id,note,created_at) VALUES(?,?,?,?,?,?)",
     accountId,
     kind,
@@ -186,7 +189,18 @@ export async function creditAccount(get, run, userId, shopId, amountCents, note,
       accountId,
     );
   }
-  await addLedger(run, accountId, "bonus", amountCents, null, note, now);
+  // R5-5 finance ledger (same transaction): an admin bonus grant
+  // is a topup_in row (+amount, note `svl:{id}` — the same shape as
+  // the topup path below, so the backfill dedupe covers both).
+  const granted = await addLedger(run, accountId, "bonus", amountCents, null, note, now);
+  await addFinanceLedger(run, {
+    shopId,
+    kind: "topup_in",
+    amountCents,
+    orderId: null,
+    note: `svl:${granted.lastInsertRowid}`,
+    now,
+  });
   return {
     account: await get(
       "SELECT * FROM stored_value_accounts WHERE id=?",
@@ -494,9 +508,30 @@ export async function topup(ctx) {
         accountId,
       );
     }
-    await addLedger(run, accountId, "topup", plan.amount_cents, null, "储值充值", now);
-    if (plan.bonus_cents > 0)
-      await addLedger(run, accountId, "bonus", plan.bonus_cents, null, "充值赠送", now);
+    // R5-5 finance ledger (same transaction): topup_in (+amount)
+    // + topup_in (+bonus, omitted when 0) — one row per
+    // stored_value_ledger row, note `svl:{id}` so the backfill
+    // dedupe (postgres.mjs) recognises them on re-run.
+    const topupRow = await addLedger(run, accountId, "topup", plan.amount_cents, null, "储值充值", now);
+    await addFinanceLedger(run, {
+      shopId: plan.shop_id,
+      kind: "topup_in",
+      amountCents: plan.amount_cents,
+      orderId: null,
+      note: `svl:${topupRow.lastInsertRowid}`,
+      now,
+    });
+    if (plan.bonus_cents > 0) {
+      const bonusRow = await addLedger(run, accountId, "bonus", plan.bonus_cents, null, "充值赠送", now);
+      await addFinanceLedger(run, {
+        shopId: plan.shop_id,
+        kind: "topup_in",
+        amountCents: plan.bonus_cents,
+        orderId: null,
+        note: `svl:${bonusRow.lastInsertRowid}`,
+        now,
+      });
+    }
     return {
       account: await get(
         "SELECT * FROM stored_value_accounts WHERE id=?",

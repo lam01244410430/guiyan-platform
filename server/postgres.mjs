@@ -375,6 +375,39 @@ export async function openPostgresStore(
             new Date().toISOString(),
           );
       }
+      // R5-5 finance_ledger backfill (2026-11-14): existing money
+      // movements get their ledger rows once, never twice. Paid /
+      // completed orders get order_income (+amount); refunded orders
+      // get refund_out (-amount — a full refund closes the counters,
+      // so refunded_cents == amount); stored-value topup/bonus rows
+      // get topup_in (+amount, note `svl:{id}` so a re-run can tell
+      // them apart — order_id is NULL for top-ups, so (order_id,
+      // kind) cannot dedupe them). Disputed / refund_requested
+      // orders get nothing here: their pay already wrote
+      // order_income live, and their refund_out comes with the
+      // approval. Runs on every setup; only rows with no ledger
+      // row yet are touched.
+      await client.query(
+        `INSERT INTO finance_ledger(shop_id,kind,amount_cents,order_id,note,created_at)
+         SELECT r.shop_id,'order_income',o.amount,o.id,'',o.created_at
+         FROM orders o JOIN resources r ON r.id=o.resource_id
+         WHERE o.status IN ('paid','completed')
+         AND NOT EXISTS (SELECT 1 FROM finance_ledger f WHERE f.order_id=o.id AND f.kind='order_income')`,
+      );
+      await client.query(
+        `INSERT INTO finance_ledger(shop_id,kind,amount_cents,order_id,note,created_at)
+         SELECT r.shop_id,'refund_out',-o.amount,o.id,'',o.created_at
+         FROM orders o JOIN resources r ON r.id=o.resource_id
+         WHERE o.status='refunded'
+         AND NOT EXISTS (SELECT 1 FROM finance_ledger f WHERE f.order_id=o.id AND f.kind='refund_out')`,
+      );
+      await client.query(
+        `INSERT INTO finance_ledger(shop_id,kind,amount_cents,order_id,note,created_at)
+         SELECT a.shop_id,'topup_in',l.amount_cents,NULL,'svl:'||l.id,l.created_at
+         FROM stored_value_ledger l JOIN stored_value_accounts a ON a.id=l.account_id
+         WHERE l.kind IN ('topup','bonus')
+         AND NOT EXISTS (SELECT 1 FROM finance_ledger f WHERE f.kind='topup_in' AND f.note='svl:'||l.id)`,
+      );
       // Wave 3 #9: backfill the tagRules settings key for databases that
       // were seeded before it existed (incl. live Neon). Guard-key
       // INSERT, same idempotent pattern as enrichCatalog above: existing
@@ -435,7 +468,10 @@ export async function openPostgresStore(
             // insert needs its id the same way).
             // R5-4: analysis_snapshots joins them too (the refresh
             // upsert needs its id the same way).
-            /^\s*INSERT\s+INTO\s+(users|resources|orders|demands|comments|messages|events|audit_logs|shops|shows|performances|ticket_types|pickup_points|ticket_templates|venues|seat_templates|seats|member_tiers|coupons|flash_sales|coupon_rules|coupon_gifts|sms_tasks|stored_value_accounts|stored_value_ledger|stored_value_plans|tickets|verify_logs|print_logs|event_aggregates|analysis_snapshots)\b/i.test(
+            // R5-5: alert_rules + finance_ledger join them too (the
+            // rule create + every ledger write needs its id the
+            // same way — the R3-5 lesson).
+            /^\s*INSERT\s+INTO\s+(users|resources|orders|demands|comments|messages|events|audit_logs|shops|shows|performances|ticket_types|pickup_points|ticket_templates|venues|seat_templates|seats|member_tiers|coupons|flash_sales|coupon_rules|coupon_gifts|sms_tasks|stored_value_accounts|stored_value_ledger|stored_value_plans|tickets|verify_logs|print_logs|event_aggregates|analysis_snapshots|alert_rules|finance_ledger)\b/i.test(
               sql,
             );
           const result = await execute(

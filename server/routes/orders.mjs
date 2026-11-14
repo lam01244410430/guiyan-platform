@@ -17,6 +17,7 @@ import {
   applyStoredValueAtPay,
   refundStoredValue,
 } from "./stored-value.mjs";
+import { addFinanceLedger } from "./alerts-ledger.mjs";
 import { issueTicketsForOrder } from "./tickets.mjs";
 
 // R3-1 + R3-2 + R3-3 pricing, in one place so the pre-check and the
@@ -550,6 +551,17 @@ export async function transitionOrder(ctx) {
           o.amount,
           time(),
         );
+      // R5-5 finance ledger (same transaction as the status
+      // change): a pay books order_income (+full amount — the card
+      // split is a payment method, not a second income).
+      if (action === "pay")
+        await addFinanceLedger(run, {
+          shopId: orderShopId,
+          kind: "order_income",
+          amountCents: o.amount,
+          orderId: o.id,
+          now: time(),
+        });
       // R4-4: approveRefund — partial when a pending request exists
       // (void exactly the stored ids, release their seats, refund
       // perTicket x k with the card share first, refund_quantity /
@@ -629,6 +641,29 @@ export async function transitionOrder(ctx) {
           );
         }
       }
+      // R5-5 finance ledger (same transaction): an approved refund
+      // books refund_out (-refunded amount) + card_refund (+the
+      // card-returned share — POSITIVE, the same direction as the
+      // stored_value_ledger `refund` row — only when > 0). Both the
+      // full and the partial path land here (refundCents /
+      // refundStored are set by either branch above).
+      if (action === "approveRefund" && refundCents > 0) {
+        await addFinanceLedger(run, {
+          shopId: orderShopId,
+          kind: "refund_out",
+          amountCents: -refundCents,
+          orderId: o.id,
+          now: time(),
+        });
+        if (refundStored > 0)
+          await addFinanceLedger(run, {
+            shopId: orderShopId,
+            kind: "card_refund",
+            amountCents: refundStored,
+            orderId: o.id,
+            now: time(),
+          });
+      }
       // R4-4: the refund request itself — automatic partial (all k
       // selected tickets unprinted): apply in this same request
       // (void the k tickets, release their sold seats, refund the
@@ -671,6 +706,23 @@ export async function transitionOrder(ctx) {
           refundCents,
           o.id,
         );
+        // R5-5 finance ledger: money actually left in this
+        // automatic partial refund — same two rows as approveRefund.
+        await addFinanceLedger(run, {
+          shopId: orderShopId,
+          kind: "refund_out",
+          amountCents: -refundCents,
+          orderId: o.id,
+          now: time(),
+        });
+        if (refundStored > 0)
+          await addFinanceLedger(run, {
+            shopId: orderShopId,
+            kind: "card_refund",
+            amountCents: refundStored,
+            orderId: o.id,
+            now: time(),
+          });
       } else if (action === "refund" && partial && !partial.auto) {
         await run(
           "UPDATE orders SET pending_refund_tickets=? WHERE id=?",
