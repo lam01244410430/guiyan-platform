@@ -1,4 +1,4 @@
-<view class="wrap">
+<view class="wrap {{largeText ? 'large-text' : ''}}">
 <topbar bind:langchange="onLangChange" />
   <view class="hero">
     <view class="kicker">{{res.cat}} · {{res.city}}</view>
@@ -28,6 +28,21 @@
     <!-- R3-2: optional coupon code, sent with the order. -->
     <input value="{{couponCode}}" maxlength="20" placeholder="{{L.couponCodePh}}" bindinput="onCouponInput" style="margin-top:24rpx;font-size:28rpx;border:2rpx solid #e5ddd0;border-radius:8rpx;padding:16rpx" />
     <view class="btn" bindtap="book">{{L.bookNow}}</view>
+    <!-- R7-7: voice ticket purchase — typed text (no recognition on the
+         mini-program) is parsed server-side into a PENDING draft order;
+         payment still needs manual confirm -> pay on the order. Dialect
+         is a frame only (see the note). -->
+    <view style="margin-top:24rpx">
+      <view class="sec-title serif" style="font-size:32rpx">{{L.voiceTitle}}</view>
+      <view class="note">{{L.voiceSteps}}</view>
+      <picker mode="selector" range="{{dialectNames}}" value="{{voiceDialectIdx}}" bindchange="onVoiceDialect">
+        <view class="picker">{{L.voiceDialect}}：{{dialectNames[voiceDialectIdx]}} <text class="arrow">▾</text></view>
+      </picker>
+      <input class="field" value="{{voiceText}}" placeholder="{{L.voicePh}}" bindinput="onVoiceText" />
+      <view class="btn" bindtap="submitVoice">{{L.voiceTitle}}</view>
+      <view class="note" wx:if="{{voiceResult}}">{{voiceResult}}</view>
+      <view class="note">{{L.voiceDialectNote}}</view>
+    </view>
     </view>
 
   <!-- R2-4: linked venue name/address when the resource is staged in one. -->

@@ -14,7 +14,7 @@ import {
   clearToken, restoreUser, isApiAvailable, mergeCategories, mergeResources,
   mergeDemands, mapApiOrder, STATUS,
 } from "./apiClient.js";
-import { Header, LoginDialog, RegisterDialog, Toast } from "./chrome.jsx";
+import { Header, LoginDialog, RegisterDialog, Toast, isLargeText } from "./chrome.jsx";
 import { matchesSearch } from "./search.js";
 import AiChat from "./AiChat.jsx";
 import heroImg from "../img/hero.webp";
@@ -213,6 +213,10 @@ export default function App() {
   const [bkQty, setBkQty] = useState(1);
   const [bkDate, setBkDate] = useState("2026-12-05");
   const [couponCode, setCouponCode] = useState(""); /* R3-2: coupon code typed in the detail modal (optional, sent with the order) */
+  const [voiceText, setVoiceText] = useState(""); /* R7-7: voice-order command typed (or pasted from the R7-2 transcript) */
+  const [voiceDialect, setVoiceDialect] = useState("putonghua"); /* R7-7: dialect frame — placeholder only */
+  const [voiceDialects, setVoiceDialects] = useState(null); /* R7-7: dialect list from GET /api/voice/dialects, null = putonghua-only fallback */
+  const [voiceMsg, setVoiceMsg] = useState(""); /* R7-7: voice-order result line */
   const [flashLeft, setFlashLeft] = useState(null); /* R3-3: seconds left on the selected tier's live flash sale (null = none), ticked once a second while the detail modal is open */
   const [perfSel, setPerfSel] = useState(null); /* R2-2: selected performance id (null = resource-price flow) */
   const [tierSel, setTierSel] = useState(null); /* R2-2: selected ticket_type id within perfSel */
@@ -343,6 +347,15 @@ export default function App() {
     return function () { alive = false; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [store.cat, licKind, licStatus]);
+
+  /* R7-7: dialect list for the voice-order bar (frame only — the
+     choice only changes the placeholder; see voice-order.mjs). */
+  useEffect(() => {
+    if (detailIdx == null || voiceDialects) return;
+    apiGet("/api/voice/dialects").then(function (d) {
+      if (d && Array.isArray(d.dialects)) setVoiceDialects(d.dialects);
+    }).catch(function () { /* keep the putonghua-only fallback */ });
+  }, [detailIdx]); // eslint-disable-line react-hooks/exhaustive-deps
 
   /* R6-5: comments for the open detail. Public list shows approved
      rows; a logged-in caller additionally sees their own
@@ -554,6 +567,26 @@ export default function App() {
       // booking the buyer tried to discount.
       else if (e && e.status === 400 && coupon) { toast((e && e.data && e.data.error) || t("loadErr")); }
       else localBook();
+    });
+  }
+
+  /* R7-7: voice ticket purchase — the typed text (or the R7-2
+     transcript) goes to POST /api/voice-order; the server parses it
+     and creates a PENDING draft order only. Payment still needs the
+     manual confirm -> pay steps on the order itself (My Tickets). */
+  function submitVoiceOrder() {
+    const text = voiceText.trim();
+    if (!text) { toast(t("voicePh")); return; }
+    if (!isApiAvailable() || !getToken()) { setLoginOpen(true); return; }
+    apiPost("/api/voice-order", { text, dialect: voiceDialect, large_text: isLargeText() }).then(function (d) {
+      if (d && d.ok) {
+        setVoiceMsg(t("voiceDraft") + " · " + d.order.code);
+        setVoiceText("");
+        refreshOrdersApi();
+      } else { toast(t("loadErr")); }
+    }).catch(function (e) {
+      if (e && e.status === 401) { clearToken(); setUser(null); setLoginOpen(true); return; }
+      toast((e && e.data && e.data.error) || t("loadErr"));
     });
   }
 
@@ -1408,6 +1441,25 @@ export default function App() {
                 {/* R3-2: optional coupon code, sent with the order. */}
                 <div className="bookrow">
                   <label>{t("couponCode")}<input type="text" value={couponCode} maxLength={20} placeholder={t("couponCodePh")} onChange={(e) => setCouponCode(e.target.value)} /></label>
+                </div>
+                {/* R7-7: voice ticket purchase — typed text (or the R7-2
+                    transcript) is parsed server-side into a pending draft
+                    order; payment still needs manual confirm -> pay.
+                    Dialect is a frame only (see voiceDialectNote). */}
+                <div className="bookrow voice-order">
+                  <h4>{t("voiceTitle")}</h4>
+                  <p className="perf-empty">{t("voiceSteps")}</p>
+                  <label>{t("voiceDialect")}
+                    <select value={voiceDialect} onChange={(e) => setVoiceDialect(e.target.value)}>
+                      {(voiceDialects || [{ code: "putonghua", name: "普通话" }]).map((d) => (
+                        <option key={d.code} value={d.code}>{d.name}</option>
+                      ))}
+                    </select>
+                  </label>
+                  <label><input type="text" value={voiceText} maxLength={500} placeholder={t("voicePh")} onChange={(e) => setVoiceText(e.target.value)} /></label>
+                  <button type="button" className="btn" onClick={submitVoiceOrder}>{t("voiceTitle")}</button>
+                  {voiceMsg && (<p className="perf-empty">{voiceMsg}</p>)}
+                  <p className="perf-empty">{t("voiceDialectNote")}</p>
                 </div>
                 <div className="totalrow"><span>{t("totalLabel")}</span><b id="bkTotal">{money((selTier ? (selTier.flash_sale ? selTier.flash_sale.sale_price_cents : selTier.price_cents) / 100 : cur[3]) * bkQty)}</b></div>
                 <div className="acts">

@@ -317,7 +317,7 @@ test("itinerary for a show with no template -> null; unknown -> 404", async () =
   assert.equal((await req("/api/resources/999999/itinerary")).status, 404);
 });
 
-test("r7-context i18n: H5 448 keys/language, miniprogram 262, equal sets", async () => {
+test("r7-context i18n: H5 455 keys/language, miniprogram 269, equal sets", async () => {
   const NEW_KEYS = [
     "ctxTitle", "ctxTime", "ctxCity", "ctxCityPh", "ctxCompanion",
     "ctxApply", "ctxAny", "ctxMorning", "ctxAfternoon", "ctxEvening",
@@ -329,7 +329,7 @@ test("r7-context i18n: H5 448 keys/language, miniprogram 262, equal sets", async
     path.resolve(repoDir, "web", "assets", "js", "data.js")
   );
   const counts = data.LANGS.map((l) => Object.keys(data.I18N[l]).length);
-  assert.deepEqual(counts, [448, 448, 448]);
+  assert.deepEqual(counts, [455, 455, 455]);
   for (const k of NEW_KEYS) {
     for (const l of data.LANGS)
       assert.ok(k in data.I18N[l], `${k} missing in H5 ${l}`);
@@ -349,7 +349,7 @@ test("r7-context i18n: H5 448 keys/language, miniprogram 262, equal sets", async
     ].map((m) => m[1]);
   }
   for (const lang of ["zh", "vi", "en"]) {
-    assert.equal(blocks[lang].length, 262, `${lang} key count`);
+    assert.equal(blocks[lang].length, 269, `${lang} key count`);
     for (const k of NEW_KEYS)
       assert.ok(blocks[lang].includes(k), `${k} missing in mini ${lang}`);
   }

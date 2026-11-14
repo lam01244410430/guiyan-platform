@@ -86,3 +86,13 @@ page { background: #F7F4EE; color: #1E2A26; font-family: "Noto Sans SC", "PingFa
 .me-avatar-ph { background: #EAF2EE; color: #0B3D36; font-size: 48rpx; display: flex; align-items: center; justify-content: center; }
 .merow { display: flex; align-items: center; justify-content: space-between; background: #FFFFFF; border-radius: 16rpx; padding: 24rpx 28rpx; margin-top: 16rpx; font-size: 28rpx; min-height: 88rpx; box-sizing: border-box; }
 .merow .sub { font-size: 25rpx; color: #5D5344; }
+
+/* R7-7 elderly-friendly: large-text mode. Pages add the large-text
+   class to their root view when app.globalData.largeText is on (stored
+   in wx storage guiyan-large-text, default off). Larger type only. */
+.large-text { font-size: 34rpx; }
+.large-text .btn { font-size: 34rpx; min-height: 100rpx; }
+.large-text .rescard .name { font-size: 38rpx; }
+.large-text .note { font-size: 28rpx; }
+.large-text .price { font-size: 40rpx; }
+.large-text .sec-title { font-size: 42rpx; }

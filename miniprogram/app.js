@@ -16,9 +16,18 @@ App({
       if (saved === 'zh' || saved === 'vi' || saved === 'en') lang = saved;
     } catch (e) {}
     this.globalData.lang = lang;
+    // R7-7 elderly-friendly: large-text mode + dialect frame, both
+    // stored locally (default off / putonghua). Pages re-read them on
+    // every show; the dialect only changes placeholder text.
+    var largeText = false;
+    try { largeText = wx.getStorageSync('guiyan-large-text') === '1'; } catch (e) {}
+    this.globalData.largeText = largeText;
+    var dialect = 'putonghua';
+    try { var savedDialect = wx.getStorageSync('guiyan-dialect'); if (savedDialect) dialect = savedDialect; } catch (e) {}
+    this.globalData.dialect = dialect;
     var user = api.getStoredUser();
     if (user) this.globalData.user = user;
     if (api.getBase()) api.checkHealth();
   },
-  globalData: { lang: 'zh', apiBase: 'https://guiyan-platform.vercel.app', apiAvailable: false, user: null }
+  globalData: { lang: 'zh', apiBase: 'https://guiyan-platform.vercel.app', apiAvailable: false, user: null, largeText: false, dialect: 'putonghua' }
 });

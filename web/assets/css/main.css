@@ -473,3 +473,15 @@ th .sort-btn:focus-visible{outline:2px solid var(--red);outline-offset:1px}
 .digital-preview .progress{height:8px;border-radius:99px;background:var(--surface2);overflow:hidden}
 .digital-preview .progress i{display:block;height:100%;background:var(--gold);transition:width .5s linear}
 .contract-text{white-space:pre-wrap;word-break:break-word;font:inherit;font-size:13.5px;line-height:1.8;margin:0 0 16px}
+
+/* R7-7 elderly-friendly: large-text mode. Applied as html.large-text
+   by the header toggle (chrome.jsx); the choice is stored locally
+   (localStorage guiyan-large-text, default off). Larger type only —
+   the purchase flow stays the same 3 steps (pick show → confirm →
+   payment confirmation). */
+.largetextbtn{display:inline-flex;align-items:center;gap:7px;background:transparent;color:var(--ink);border:1px solid var(--line);border-radius:99px;padding:8px 13px;font-weight:700;font-size:13px;white-space:nowrap;cursor:pointer}
+.largetextbtn[aria-pressed="true"]{background:var(--ink);color:var(--bg)}
+html.large-text body{font-size:18px}
+html.large-text .topbar-in,html.large-text .mainnav a,html.large-text .langsel select{font-size:16px}
+html.large-text .btn,html.large-text button{font-size:17px}
+html.large-text input,html.large-text select,html.large-text textarea{font-size:17px}

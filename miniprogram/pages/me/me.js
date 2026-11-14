@@ -27,7 +27,8 @@ Page({
     storedValueLedgerLines: [],
     showLink: false, linkUser: '', linkPass: '',
     showEdit: false, editName: '', editCity: '', editAge: '', editGenderIdx: 0,
-    genderNames: [], showAbout: false
+    genderNames: [], showAbout: false,
+    largeText: false, dialectIdx: 0, dialectNames: ['普通话', '粤语', '广西白话', '桂柳话'], dialectCodes: ['putonghua', 'yue', 'guangxi', 'guiliu']
   },
   onLoad: function () { this.applyLang(); this.syncAuth(); },
   onShow: function () {
@@ -38,10 +39,32 @@ Page({
     }
     if (this.data.langIdx !== i18n.langIndex()) this.applyLang();
     else this.syncAuth();
+    // R7-7: large-text mode + dialect are stored locally; re-read on
+    // every show so a change on another page applies here.
+    var largeText = false;
+    try { largeText = wx.getStorageSync('guiyan-large-text') === '1'; } catch (e) {}
+    var dialectIdx = 0;
+    try { var d = wx.getStorageSync('guiyan-dialect'); var i = this.data.dialectCodes.indexOf(d); if (i >= 0) dialectIdx = i; } catch (e) {}
+    this.setData({ largeText: largeText, dialectIdx: dialectIdx });
   },
   onLangChange: function (e) {
     i18n.setLang(i18n.LANGS[e.detail.value].code);
     this.applyLang();
+  },
+  // R7-7: large-text toggle (local storage only) + dialect picker
+  // (frame only — the choice only changes placeholder text).
+  toggleLargeText: function (e) {
+    var on = !!(e.detail && e.detail.value);
+    try { if (on) wx.setStorageSync('guiyan-large-text', '1'); else wx.removeStorageSync('guiyan-large-text'); } catch (err) {}
+    getApp().globalData.largeText = on;
+    this.setData({ largeText: on });
+  },
+  onDialectChange: function (e) {
+    var idx = Number(e.detail.value) || 0;
+    var codes = this.data.dialectCodes;
+    try { wx.setStorageSync('guiyan-dialect', codes[idx]); } catch (err) {}
+    getApp().globalData.dialect = codes[idx];
+    this.setData({ dialectIdx: idx });
   },
   applyLang: function () {
     var lang = i18n.getLang();
@@ -58,7 +81,8 @@ Page({
       'giftCouponTitle', 'giftCouponEmpty', 'giftCouponUsed',
       'storedValueTitle', 'storedValueBalance', 'storedValueTopup',
       'storedValuePlan', 'storedValueEmpty', 'storedValueUsed',
-      'verifyBatchTitle'];
+      'verifyBatchTitle',
+      'largeText', 'voiceDialect', 'voiceDialectNote'];
     var L = {};
     keys.forEach(function (k) { L[k] = i18n.t(k, lang); });
     wx.setNavigationBarTitle({ title: L.meTitle });

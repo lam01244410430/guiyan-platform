@@ -1,4 +1,4 @@
-<view class="wrap">
+<view class="wrap {{largeText ? 'large-text' : ''}}">
 <topbar bind:langchange="onLangChange" />
   <view class="card">
     <view style="display:flex;align-items:center">
@@ -67,6 +67,11 @@
     <picker mode="selector" range="{{langs}}" value="{{langIdx}}" bindchange="onLangChange">
       <view class="merow"><view>{{L.langLabel}}</view><view class="sub">{{langName}}</view></view>
     </picker>
+    <view class="merow"><view>{{L.largeText}}</view><switch checked="{{largeText}}" bindchange="toggleLargeText" /></view>
+    <picker mode="selector" range="{{dialectNames}}" value="{{dialectIdx}}" bindchange="onDialectChange">
+      <view class="merow"><view>{{L.voiceDialect}}</view><view class="sub">{{dialectNames[dialectIdx]}}</view></view>
+    </picker>
+    <view class="note">{{L.voiceDialectNote}}</view>
     <view class="merow" bindtap="toggleAbout"><view>{{L.aboutRow}}</view><text class="arrow">›</text></view>
     <view class="note" wx:if="{{showAbout}}">{{L.aboutText}}</view>
     <view wx:if="{{loggedUser}}" class="btn ghost" bindtap="doLogout">{{L.logoutBtn}}</view>

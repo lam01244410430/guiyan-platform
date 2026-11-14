@@ -1,4 +1,4 @@
-<view class="wrap">
+<view class="wrap {{largeText ? 'large-text' : ''}}">
 <topbar bind:langchange="onLangChange" />
   <view class="shop-banner" wx:if="{{shopBanner}}">{{shopBanner}}</view>
   <view class="hero">

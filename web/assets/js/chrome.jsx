@@ -6,6 +6,24 @@
 import { useEffect, useRef, useState } from "react";
 import { t, fmt } from "./data.js";
 
+/* R7-7 elderly-friendly: large-text mode. The toggle lives in the
+   header; the state is stored locally (localStorage key
+   `guiyan-large-text`, "1" = on, default off) and applied as the
+   `large-text` class on <html> (see web/assets/css/main.css). It is a
+   display preference only and never affects ordering logic. */
+export function isLargeText() {
+  try { return localStorage.getItem("guiyan-large-text") === "1"; } catch { return false; }
+}
+export function applyLargeText(on) {
+  try {
+    if (on) localStorage.setItem("guiyan-large-text", "1");
+    else localStorage.removeItem("guiyan-large-text");
+  } catch { /* storage unavailable — the class still applies for this page */ }
+  if (typeof document !== "undefined")
+    document.documentElement.classList.toggle("large-text", !!on);
+}
+try { if (isLargeText() && typeof document !== "undefined") document.documentElement.classList.add("large-text"); } catch { /* no DOM/storage — default off */ }
+
 export function GlobeIcon() {
   return (
     <svg className="globe" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round">
@@ -48,6 +66,7 @@ function CartIcon() {
 export function Header(props) {
   const { variant, user, lang } = props;
   const menuRef = useRef(null);
+  const [largeText, setLargeTextState] = useState(() => isLargeText());
 
   /* Close the user menu on an outside click (same as the old listener). */
   useEffect(() => {
@@ -86,6 +105,10 @@ export function Header(props) {
             <option value="en">English</option>
           </select>
         </label>
+        <button className="largetextbtn" type="button" aria-pressed={largeText ? "true" : "false"} title={t("largeText")}
+          onClick={() => { const next = !largeText; setLargeTextState(next); applyLargeText(next); }}>
+          <span>{t("largeText")}</span>
+        </button>
         {variant === "index" && (
           <a className="wxbtn" href="#wechat"><WxIcon /><span>{t("navWechat")}</span></a>
         )}

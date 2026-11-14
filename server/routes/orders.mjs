@@ -289,7 +289,7 @@ export async function createOrder(ctx) {
         txPricing.final_amount,
         d,
         "pending",
-        ["H5", "电脑网页", "微信小程序"].includes(b.channel)
+        ["H5", "电脑网页", "微信小程序", "语音购票"].includes(b.channel)
           ? b.channel
           : "H5",
         String(b.note || "").slice(0, 1000),

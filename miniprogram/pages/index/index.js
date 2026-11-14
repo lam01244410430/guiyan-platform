@@ -8,11 +8,15 @@ var api = require('../../utils/api.js');
 Page({
   data: {
     L: {}, langIdx: 0, langName: '中文', langs: ['中文', 'Tiếng Việt', 'English'],
-    kw: '', featured: [], cats: [], heroLead: '', shopBanner: '', shopPrimary: ''
+    kw: '', featured: [], cats: [], heroLead: '', shopBanner: '', shopPrimary: '', largeText: false
   },
   onLoad: function () { this.applyLang(); this.loadOnline(); },
   onShow: function () {
     if (this.data.langIdx !== i18n.langIndex()) this.applyLang();
+    // R7-7: large-text mode is stored locally; re-read on every show.
+    var largeText = false;
+    try { largeText = wx.getStorageSync('guiyan-large-text') === '1'; } catch (e) {}
+    this.setData({ largeText: largeText });
     this.loadOnline();
   },
   onLangChange: function (e) {

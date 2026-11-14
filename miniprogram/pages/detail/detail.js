@@ -25,7 +25,7 @@ var ACT_STATUS = { confirm: 'confirmed', pay: 'paid', complete: 'completed',
 
 Page({
   data: {
-    L: {}, langIdx: 1, langName: 'Tiếng Việt', langs: ['中文', 'Tiếng Việt', 'English'],
+    L: {}, langIdx: 1, langName: 'Tiếng Việt', langs: ['中文', 'Tiếng Việt', 'English', 'ภาษาไทย', 'Bahasa Melayu', 'Bahasa Indonesia'],
     idx: 0, res: null, date: '', qty: 1, total: '', fav: false,
     order: null, flowSteps: [], perfs: null, perfSel: null, tierSel: null,
     pickupPoints: null, pickupSel: null, // R2-3: pickup points of the selected performance's show (null = not loaded); the chosen point id
@@ -37,7 +37,10 @@ Page({
     comments: [], // R6-5: approved comments (+ the caller's own pending/rejected)
     cmtRating: 5, // R6-5: rating picked in the comment form
     cmtText: '', // R6-5: comment text being typed
-    itinerary: null // R7-6: hand-entered itinerary template for this show (null = none)
+    itinerary: null, // R7-6: hand-entered itinerary template for this show (null = none)
+    kgRelated: [], // R7-3: knowledge-graph neighbours for this show ([] = none)
+    kgText: '', // R7-3: neighbours rendered as one line (name + kind label, joined with 、)
+    largeText: false, voiceText: '', voiceResult: '', voiceDialectIdx: 0, dialectCodes: ['putonghua', 'yue', 'guangxi', 'guiliu'], dialectNames: ['普通话', '粤语', '广西白话', '桂柳话']
   },
   onLoad: function (options) {
     var idx = parseInt(options.idx || '0', 10);
@@ -69,6 +72,9 @@ Page({
     // R7-6: itinerary template for this show (hand-entered places
     // only; null when none was entered). Same best-effort pattern.
     this.loadItinerary();
+    // R7-3: knowledge-graph neighbours for this show (related
+    // recommendations). Same best-effort pattern.
+    this.loadKgRelated();
   },
   loadComments: function () {
     var self = this;
@@ -85,6 +91,27 @@ Page({
     api.get('/api/resources/' + apiId + '/itinerary', {}, true).then(function (d) {
       self.setData({ itinerary: (d && d.itinerary) || null });
     }, function () { self.setData({ itinerary: null }); });
+  },
+  // R7-3: neighbours from GET /api/kg/related/:id, rendered as one
+  // line: each name + its kind label (genre nodes carry no label —
+  // the name is the genre), joined with 、. A failed fetch just
+  // leaves the section hidden, offline keeps the local behaviour.
+  loadKgRelated: function () {
+    var self = this;
+    var apiId = this._detailApiId;
+    if (apiId == null || !api.getBase()) return;
+    api.get('/api/kg/related/' + apiId, {}, true).then(function (d) {
+      self.setKgRelated((d && d.related) || []);
+    }, function () { self.setKgRelated([]); });
+  },
+  setKgRelated: function (related) {
+    var lang = i18n.getLang();
+    var text = (related || []).map(function (n) {
+      if (n.kind === 'genre') return n.name;
+      var cat = n.kind === 'ip' ? 'copyright' : n.kind;
+      return n.name + '（' + data.catName(cat, lang) + '）';
+    }).join('、');
+    this.setData({ kgRelated: related || [], kgText: text });
   },
   onCmtRatingDown: function () {
     this.setData({ cmtRating: Math.max(1, this.data.cmtRating - 1) });
@@ -112,6 +139,13 @@ Page({
   onShow: function () {
     if (this.data.langIdx !== i18n.langIndex()) this.applyLang();
     else this.refreshOrder();
+    // R7-7: large-text mode + dialect are stored locally; re-read on
+    // every show so a change on the 我 tab applies here.
+    var largeText = false;
+    try { largeText = wx.getStorageSync('guiyan-large-text') === '1'; } catch (e) {}
+    var dialectIdx = 0;
+    try { var d = wx.getStorageSync('guiyan-dialect'); var i = this.data.dialectCodes.indexOf(d); if (i >= 0) dialectIdx = i; } catch (e) {}
+    this.setData({ largeText: largeText, voiceDialectIdx: dialectIdx });
     // R3-3: restart the flash-sale countdown while this page is shown.
     this.startFlashTimer();
   },
@@ -134,6 +168,30 @@ Page({
     i18n.setLang(i18n.LANGS[e.detail.value].code);
     this.applyLang();
   },
+  onVoiceText: function (e) { this.setData({ voiceText: e.detail.value }); },
+  onVoiceDialect: function (e) {
+    var idx = Number(e.detail.value) || 0;
+    var codes = this.data.dialectCodes;
+    try { wx.setStorageSync('guiyan-dialect', codes[idx]); } catch (err) {}
+    this.setData({ voiceDialectIdx: idx });
+  },
+  // R7-7: voice ticket purchase — typed text (no recognition on the
+  // mini-program, see R7-2) goes to POST /api/voice-order; the server
+  // creates a PENDING draft order only. Payment still needs the manual
+  // confirm -> pay steps on the order.
+  submitVoice: function () {
+    var self = this;
+    var text = (this.data.voiceText || '').trim();
+    if (!text) { this.setData({ voiceResult: this.data.L.voicePh || '' }); return; }
+    if (!api.getToken()) { wx.showToast({ title: '请先登录', icon: 'none', duration: 2000 }); return; }
+    var dialect = this.data.dialectCodes[this.data.voiceDialectIdx] || 'putonghua';
+    api.post('/api/voice-order', { text: text, dialect: dialect, large_text: !!this.data.largeText }, true).then(function (d) {
+      var msg = (self.data.L.voiceDraft || '') + ' · ' + (d.order ? d.order.code : '');
+      self.setData({ voiceResult: msg, voiceText: '' });
+    }, function (err) {
+      self.setData({ voiceResult: (err && err.message) || '提交失败' });
+    });
+  },
   applyLang: function () {
     var lang = i18n.getLang();
     var keys = ['brandTag', 'dateLabel', 'creativeDateLabel', 'qtyLabel', 'totalLabel', 'bookNow',
@@ -155,7 +213,11 @@ Page({
       'commentSubmit', 'commentPending', 'commentPosted',
       'commentReplyLabel', 'commentRejected',
       // R7-6: itinerary suggestion block.
-      'itinTitle', 'itinEat', 'itinParking', 'itinSleep', 'itinNote'];
+      'itinTitle', 'itinEat', 'itinParking', 'itinSleep', 'itinNote',
+      // R7-3: knowledge-graph neighbours block.
+      'kgRelated',
+      // R7-7: voice-order block.
+      'voiceTitle', 'voicePh', 'voiceDraft', 'voiceDialect', 'voiceDialectNote', 'largeText', 'voiceSteps'];
     var L = {};
     keys.forEach(function (k) { L[k] = i18n.t(k, lang); });
     var r = api.resourceByIdx(this.data.idx) || data.RES[0];
@@ -187,6 +249,9 @@ Page({
     // R6-2: a language switch re-renders the calendar labels from
     // the cached month data (no refetch).
     this.renderCalendar();
+    // R7-3: a language switch re-labels the cached graph neighbours
+    // (no refetch).
+    if (this.data.kgRelated.length) this.setKgRelated(this.data.kgRelated);
   },
   // Online: refresh the catalog from the server, then re-render.
   loadOnline: function () {

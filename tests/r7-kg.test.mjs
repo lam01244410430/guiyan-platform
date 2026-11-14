@@ -27,7 +27,7 @@
 // + the 7 edges with their sources — scoped to the seeded names, so
 // earlier files' leftover resources (which get their own nodes on the
 // next boot) cannot move the counts; (7) a draft resource's graph ->
-// 404; (8) i18n counts H5 448 / miniprogram 262 with the kgRelated
+// 404; (8) i18n counts H5 455 / miniprogram 269 with the kgRelated
 // key present in zh/vi/en on both sides (th/ms/id stay 82).
 //
 // Fixture notes: resource ids are looked up by name (never
@@ -261,13 +261,13 @@ test("a draft resource's graph -> 404, and the fixture is deleted again", async 
   }
 });
 
-test("r7-kg i18n: H5 448 keys/language, miniprogram 262, equal sets", async () => {
+test("r7-kg i18n: H5 455 keys/language, miniprogram 269, equal sets", async () => {
   // i18n: R7-3 adds 1 knowledge-graph key (427 -> 428, 241 -> 242).
   const data = await import(
     path.resolve(repoDir, "web", "assets", "js", "data.js")
   );
   const counts = data.LANGS.map((l) => Object.keys(data.I18N[l]).length);
-  assert.deepEqual(counts, [448, 448, 448]);
+  assert.deepEqual(counts, [455, 455, 455]);
   for (const k of ["kgRelated"]) {
     for (const l of ["zh", "vi", "en"])
       assert.ok(k in data.I18N[l], `${k} missing in H5 ${l}`);
@@ -287,7 +287,7 @@ test("r7-kg i18n: H5 448 keys/language, miniprogram 262, equal sets", async () =
     ].map((m) => m[1]);
   }
   for (const lang of ["zh", "vi", "en"]) {
-    assert.equal(blocks[lang].length, 262, `${lang} key count`);
+    assert.equal(blocks[lang].length, 269, `${lang} key count`);
     for (const k of ["kgRelated"])
       assert.ok(blocks[lang].includes(k), `${k} missing in mini ${lang}`);
   }

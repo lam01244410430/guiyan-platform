@@ -10,9 +10,9 @@
 #   docker compose -p guiyan-p8-smoke up -d --build
 #   ./scripts/smoke-docker.sh [project]   # default project: guiyan-p8-smoke
 #
-# The script checks the 3 containers are healthy, runs the 65 checks in the
+# The script checks the 3 containers are healthy, runs the 66 checks in the
 # plan Appendix A against the stack, prints PASS/FAIL per check and exits
-# non-zero if any check fails. Check 67 tears the stack down (down -v) and
+# non-zero if any check fails. Check 68 tears the stack down (down -v) and
 # verifies no project containers/volumes remain. All curl calls are direct
 # (no background processes left behind). Target is a disposable stack with a
 # fresh DB — never run it against the live Vercel/Neon deployment.
@@ -443,11 +443,22 @@ if [ "$RULES_OK" = "1" ] && [ "$CODE" = "200" ] && [ "$(jlen "['users']")" = "0"
 CODE="$(get "/api/resources/2/itinerary")"
 if [ "$CODE" = "200" ] && has '中山路夜市' && has '"parking"' && has '"sleep"' && ! has 'http'; then ok "66 GET /api/resources/2/itinerary 200, template with eat/parking/sleep, no merchant links"; else bad "66 GET /api/resources/2/itinerary (code=$CODE, body=$(cat "$TMP/body"))"; fi
 
-# 67. teardown — down -v, then 0 project containers and 0 project volumes.
+# 67. voice-order dialects + parse rejection — 200 with 4 dialects, all
+# recognition false; a gibberish voice order as demo -> 400, no order
+# (R7-7; checks 61/62/64/65/66 belong to R7-1/2/4/5/6 and land in the
+# merged script — 63 is R7-3, NOT in this merge; the numbers are per
+# the R7 plan)
+CODE="$(get /api/voice/dialects)"
+N="$(jlen "['dialects']")"
+HASREC="$(has '"recognition":false' && echo yes || echo no)"
+CODE2="$(post /api/voice-order '{"text":"你好"}' "$DEMO_TOKEN")"
+if [ "$CODE" = "200" ] && [ "$N" = "4" ] && [ "$HASREC" = "yes" ] && [ "$CODE2" = "400" ]; then ok "67 GET /api/voice/dialects 200, 4 dialects, recognition false + voice-order gibberish 400"; else bad "67 voice dialects/order (dialects code=$CODE count=$N rec=$HASREC, voice code=$CODE2)"; fi
+
+# 68. teardown — down -v, then 0 project containers and 0 project volumes.
 docker compose -p "$PROJECT" down -v >/dev/null 2>&1
 LEFT_C="$(docker ps --format '{{.Names}}' | grep -c "$PROJECT" || true)"
 LEFT_V="$(docker volume ls --format '{{.Name}}' | grep -c "^${PROJECT}_" || true)"
-if [ "$LEFT_C" = "0" ] && [ "$LEFT_V" = "0" ]; then ok "67 down -v: 0 project containers, 0 project volumes"; else bad "67 down -v (containers left=$LEFT_C, volumes left=$LEFT_V)"; fi
+if [ "$LEFT_C" = "0" ] && [ "$LEFT_V" = "0" ]; then ok "68 down -v: 0 project containers, 0 project volumes"; else bad "68 down -v (containers left=$LEFT_C, volumes left=$LEFT_V)"; fi
 
-echo "== smoke-docker: PASS $PASS / FAIL $FAIL (66 checks) =="
+echo "== smoke-docker: PASS $PASS / FAIL $FAIL (67 checks) =="
 [ "$FAIL" = "0" ]

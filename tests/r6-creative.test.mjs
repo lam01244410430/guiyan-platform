@@ -15,7 +15,7 @@
 // amount = price x qty, stock drops by 1, cancel restores it; buy
 // without booking_date -> booking_date is the purchase day
 // (2026-11-09); stock 0 -> 409 库存不足; i18n key counts (H5 423,
-// miniprogram 262, equal sets) + the two new creative keys.
+// miniprogram 269, equal sets) + the two new creative keys.
 import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
@@ -218,14 +218,14 @@ test("stock 0 creative goods -> 409, same out-of-stock rule", async () => {
   assert.equal((await getResource(emptyId)).stock, 0);
 });
 
-test("i18n 448/262; creative keys present on both sides", async () => {
+test("i18n 455/269; creative keys present on both sides", async () => {
   // R6-3 adds 2 H5 keys (availCreative, creativeDateLabel) and 1
   // mini key (creativeDateLabel): 372 -> 374, 181 -> 182.
   const data = await import(
     path.resolve(repoDir, "web", "assets", "js", "data.js")
   );
   const counts = data.LANGS.map((l) => Object.keys(data.I18N[l]).length);
-  assert.deepEqual(counts, [448, 448, 448]);
+  assert.deepEqual(counts, [455, 455, 455]);
   for (const k of ["availCreative", "creativeDateLabel"]) {
     for (const l of data.LANGS)
       assert.ok(k in data.I18N[l], `${k} missing in H5 ${l}`);
@@ -245,7 +245,7 @@ test("i18n 448/262; creative keys present on both sides", async () => {
     ].map((m) => m[1]);
   }
   for (const lang of ["zh", "vi", "en"]) {
-    assert.equal(blocks[lang].length, 262, `${lang} key count`);
+    assert.equal(blocks[lang].length, 269, `${lang} key count`);
     assert.ok(
       blocks[lang].includes("creativeDateLabel"),
       `creativeDateLabel missing in mini ${lang}`,
