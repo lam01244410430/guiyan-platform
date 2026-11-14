@@ -82,6 +82,7 @@ const VIEWS = [
   { id: "account", label: "账号", iconName: "ui:user", group: "main" },
   { id: "tagrules", label: "标签规则", iconName: "ui:tags", group: "main" },
   { id: "aicopy", label: "文案生成", iconName: "ui:pen", group: "main" },
+  { id: "ipconfig", label: "IP 配置", iconName: "ui:pen", group: "main" },
   { id: "resources", label: "资源", iconName: "ui:layers", group: "main" },
   { id: "licenses", label: "版权登记", iconName: "ui:scroll-text", group: "main" },
   { id: "shows", label: "演出", iconName: "ui:ticket", group: "main" },
@@ -273,6 +274,13 @@ export default function AdminDashboard() {
   const [insightRules, setInsightRules] = useState(null);
   const [insightRuleForm, setInsightRuleForm] = useState({ churnDays: "90", upgradeGapPct: "20", callbackDays: "90" });
   const [insightBusy, setInsightBusy] = useState(false);
+  // R7-1 IP 配置: 文小惠 config frame — name/avatar/greeting, all
+  // empty (= unset) until an admin sets them; the form holds strings,
+  // the server validates (name ≤20, greeting ≤200, avatar https://
+  // or site-relative) and GET /api/ip stays {} while unset.
+  const [ipConfig, setIpConfig] = useState(null);
+  const [ipForm, setIpForm] = useState({ ip_name: "", ip_avatar_url: "", ip_greeting: "" });
+  const [ipBusy, setIpBusy] = useState(false);
   // R5-3 数据大屏: the BI payload (KPIs + top shows/venues +
   // 30-day series), the export in-flight flag, and the fullscreen
   // toggle (CSS class on the section; Esc closes it — see the
@@ -566,6 +574,44 @@ export default function AdminDashboard() {
       else toast((e && e.message) || "保存失败");
     });
   }
+
+  // R7-1: load the IP config when the view opens (public GET — the
+  // admin bundle reuses it so the form shows the stored values).
+  function loadIpConfig() {
+    apiGet("/api/ip").then(function (d) {
+      setIpConfig(d || {});
+      setIpForm({
+        ip_name: (d && d.ip_name) || "",
+        ip_avatar_url: (d && d.ip_avatar_url) || "",
+        ip_greeting: (d && d.ip_greeting) || "",
+      });
+    }).catch(loadFail);
+  }
+  // R7-1: save the IP form (client-side length checks mirror the
+  // server: name ≤20, greeting ≤200, avatar https:// or site-
+  // relative; empty clears a field).
+  function saveIpConfig() {
+    if (ipBusy) return;
+    if ([...ipForm.ip_name].length > 20) { toast("IP 名称不能超过20字"); return; }
+    if ([...ipForm.ip_greeting].length > 200) { toast("问候语不能超过200字"); return; }
+    const avatar = ipForm.ip_avatar_url.trim();
+    if (avatar !== "" && !/^https:\/\/\S+$/.test(avatar) && !/^\/[^/\s]\S*$/.test(avatar)) { toast("头像链接须为 https:// 开头或站内路径"); return; }
+    setIpBusy(true);
+    apiPatch("/api/admin/ip", { ip_name: ipForm.ip_name.trim(), ip_avatar_url: avatar, ip_greeting: ipForm.ip_greeting.trim() }).then(function (d) {
+      setIpBusy(false);
+      setIpConfig(d || {});
+      toast("IP 配置已保存");
+    }).catch(function (e) {
+      setIpBusy(false);
+      if (e && e.status === 403) toast("无权修改 IP 配置");
+      else toast((e && e.message) || "保存失败");
+    });
+  }
+  // R7-1 IP 配置: load the stored config when the view opens.
+  useEffect(() => {
+    if (view === "ipconfig") loadIpConfig();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [view]);
 
   // R5-3: load the BI payload when the view opens.
   function loadBi() {
@@ -2446,6 +2492,7 @@ export default function AdminDashboard() {
     users: ["全部用户", "共 " + users.length + " 人"],
     tagrules: ["标签规则", "自动标签规则 · 保存后立即重算"],
     aicopy: ["文案生成", "本地模板 · 未接入大模型"],
+    ipconfig: ["IP 配置", "文小惠形象配置 · 未设置时聊天保持原样"],
     resources: ["资源总览", "共 " + resources.length + " 项"],
     licenses: ["版权登记", "共 " + licenses.length + " 条授权 · 按店铺管理"],
     shows: ["演出管理", "共 " + shows.length + " 场演出 · 通过审核后可售票"],
@@ -3970,6 +4017,30 @@ export default function AdminDashboard() {
                 <p className="def-note">注意事项：{(copyResult.notes || []).join("；")}</p>
               </>
             ) : null}
+          </section>
+
+          {/* R7-1 IP 配置: 文小惠 config frame — name / avatar URL /
+              greeting. All three default to empty (= unset): with no
+              文小惠 design from Lam/Group, GET /api/ip returns {} and
+              AiChat keeps its current button, title and greeting
+              byte-identical. Setting a value here is what makes AiChat
+              use it; clearing a field (empty) unsets it again. */}
+          <section className={"view" + (view === "ipconfig" ? " on" : "")} id="view-ipconfig">
+            <div className="note">文小惠形象配置（设计未到，仅留配置入口）：名称、头像链接、问候语均可留空——留空即未设置，聊天保持原样，不编造任何形象、名字或问候语。头像须为 https:// 链接或站内路径（如 /uploads/ip.png）。</div>
+            {ipConfig === null ? <div className="empty">加载中…</div> : (
+              <>
+                <div className="search-row">
+                  <label>IP 名称（≤20字） <input type="text" maxLength={20} value={ipForm.ip_name} onChange={(e) => setIpForm(function (f) { return { ...f, ip_name: e.target.value }; })} /></label>
+                  <label>头像链接 <input type="text" maxLength={500} placeholder="https://… 或 /uploads/…" value={ipForm.ip_avatar_url} onChange={(e) => setIpForm(function (f) { return { ...f, ip_avatar_url: e.target.value }; })} /></label>
+                </div>
+                <div className="search-row">
+                  <label>问候语（≤200字） <input type="text" maxLength={200} value={ipForm.ip_greeting} onChange={(e) => setIpForm(function (f) { return { ...f, ip_greeting: e.target.value }; })} /></label>
+                  <button type="button" className="btn-export" disabled={ipBusy} onClick={saveIpConfig}>{ipBusy ? "保存中…" : "保存 IP 配置"}</button>
+                </div>
+                {ipForm.ip_avatar_url.trim() ? (<div className="note">头像预览：<img src={ipForm.ip_avatar_url.trim()} alt="IP 头像预览" style={{ width: 40, height: 40, borderRadius: "50%", objectFit: "cover", verticalAlign: "middle" }} /></div>) : null}
+                <div className="note">当前配置：{ipConfig.ip_name ? "名称“" + ipConfig.ip_name + "”" : "名称未设置"} · {ipConfig.ip_avatar_url ? "头像已设置" : "头像未设置"} · {ipConfig.ip_greeting ? "问候语已设置" : "问候语未设置"}</div>
+              </>
+            )}
           </section>
 
           <section className={"view" + (view === "demands" ? " on" : "")} id="view-demands">

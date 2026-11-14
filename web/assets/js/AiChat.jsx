@@ -73,11 +73,26 @@ function renderRich(text) {
   return nodes;
 }
 
+/* R7-1 文小惠 IP config (no design has arrived): AiChat fetches
+   GET /api/ip once on mount and uses the set name/avatar/greeting
+   ONLY when set — name replaces the panel title, avatar replaces
+   the 桂演 mark, greeting replaces the default first bubble. While
+   unset (or while the fetch is still in flight / failed) every
+   default stays byte-identical: nothing is invented. */
 export default function AiChat({ lang }) {
   const [open, setOpen] = useState(false);
   const [msgs, setMsgs] = useState([]);
   const [input, setInput] = useState("");
   const [busy, setBusy] = useState(false);
+  // R7-1: the IP config (null = not loaded yet; {} = unset).
+  const [ipConfig, setIpConfig] = useState(null);
+  useEffect(() => {
+    let cancelled = false;
+    apiGet("/api/ip")
+      .then((d) => { if (!cancelled) setIpConfig(d || {}); })
+      .catch(() => { if (!cancelled) setIpConfig({}); });
+    return () => { cancelled = true; };
+  }, []);
   const logRef = useRef(null);
   const inputRef = useRef(null);
   const fabRef = useRef(null);
@@ -187,14 +202,14 @@ export default function AiChat({ lang }) {
       {open && (
         <div className="ai-panel" id="ai-chat-panel" role="dialog" aria-label={t("aiChatTitle")}>
           <div className="ai-panel-head">
-            <span className="ai-mark">桂演</span>
-            <b>{t("aiChatTitle")}</b>
+            <span className="ai-mark">{ipConfig && ipConfig.ip_avatar_url ? <img src={ipConfig.ip_avatar_url} alt="" style={{ width: 28, height: 28, borderRadius: "50%", objectFit: "cover", display: "block" }} /> : "桂演"}</span>
+            <b>{(ipConfig && ipConfig.ip_name) || t("aiChatTitle")}</b>
             <button type="button" className="ai-close" aria-label={t("aiChatClose")} onClick={close}>✕</button>
           </div>
           <p className="ai-note">{t("aiChatNote")}</p>
           <div className="ai-log" ref={logRef}>
             {msgs.length === 0 && (
-              <div className="ai-msg bot">{t("aiChatGreeting")}</div>
+              <div className="ai-msg bot">{(ipConfig && ipConfig.ip_greeting) || t("aiChatGreeting")}</div>
             )}
             {msgs.map((m, i) => (
               <div key={i} className={"ai-msg " + (m.me ? "me" : "bot")}>

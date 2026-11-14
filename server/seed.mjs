@@ -696,6 +696,12 @@ function seed(db, passwords) {
     tagRules: defaultTagRules,
     // R5-2: default member-insight rules (same seed + backfill pair).
     memberInsightRules: DEFAULT_MEMBER_INSIGHT_RULES,
+    // R7-1: 文小惠 IP config frame — empty = unset (no design has
+    // arrived from Lam/Group; GET /api/ip returns {} until an admin
+    // sets these — never invented values).
+    ip_name: "",
+    ip_avatar_url: "",
+    ip_greeting: "",
   }))
     db.prepare("INSERT INTO settings VALUES(?,?)").run(k, JSON.stringify(v));
   db.prepare(

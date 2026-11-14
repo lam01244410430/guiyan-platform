@@ -62,6 +62,7 @@ import { listShopPlans, listAdminPlans, createPlan, patchPlan, topup, getAccount
 import { verifyTicket, verifyBatch, listOrderTickets, listAdminTickets, printTickets, listPrintLogs } from "./routes/tickets.mjs";
 import { recordEvent, aggregateEvents, listEventAggregates } from "./routes/events.mjs";
 import { listMemberInsights, getMemberInsightRules, patchMemberInsightRules } from "./routes/member-insights.mjs";
+import { getIp, patchIp } from "./routes/ip.mjs";
 import { getBi, exportBi } from "./routes/bi.mjs";
 import { listAlertRules, createAlertRule, patchAlertRule, listFinanceLedger, reconcileFinanceLedger, getResourceStats } from "./routes/alerts-ledger.mjs";
 import { createAdminLicense, listLicenses } from "./routes/licenses.mjs";
@@ -338,6 +339,8 @@ export async function createApp({ database }) {
       if (await listMemberInsights(ctx)) return;
       if (await getMemberInsightRules(ctx)) return;
       if (await patchMemberInsightRules(ctx)) return;
+      if (await getIp(ctx)) return;
+      if (await patchIp(ctx)) return;
       if (await getBi(ctx)) return;
       if (await exportBi(ctx)) return;
       if (await listAlertRules(ctx)) return;

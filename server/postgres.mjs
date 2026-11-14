@@ -464,6 +464,16 @@ export async function openPostgresStore(
         "INSERT INTO settings(key,value) VALUES('memberInsightRules',$1) ON CONFLICT (key) DO NOTHING",
         [JSON.stringify(DEFAULT_MEMBER_INSIGHT_RULES)],
       );
+      // R7-1: backfill the 文小惠 IP config keys the same way —
+      // empty = unset; an admin's set values are never overwritten.
+      // Values are JSON-encoded (JSON.stringify("") on seed), read
+      // by loadIpConfig with a raw-string fallback.
+      for (const key of ["ip_name", "ip_avatar_url", "ip_greeting"]) {
+        await client.query(
+          "INSERT INTO settings(key,value) VALUES($1,$2) ON CONFLICT (key) DO NOTHING",
+          [key, JSON.stringify("")],
+        );
+      }
       await client.query("COMMIT");
     } catch (error) {
       await client.query("ROLLBACK");
