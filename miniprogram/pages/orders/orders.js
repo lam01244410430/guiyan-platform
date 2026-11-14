@@ -13,7 +13,7 @@ var ACT_STATUS = { confirm: 'confirmed', pay: 'paid', complete: 'completed',
 
 Page({
   data: {
-    L: {}, langIdx: 1, langName: 'Tiếng Việt', langs: ['中文', 'Tiếng Việt', 'English'],
+    L: {}, langIdx: 1, langName: 'Tiếng Việt', langs: ['中文', 'Tiếng Việt', 'English', 'ภาษาไทย', 'Bahasa Melayu', 'Bahasa Indonesia'],
     orders: [], favs: []
   },
   onLoad: function () { this.applyLang(); },

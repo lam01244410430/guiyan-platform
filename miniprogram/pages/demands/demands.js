@@ -4,7 +4,7 @@ var api = require('../../utils/api.js');
 
 Page({
   data: {
-    L: {}, langIdx: 1, langName: 'Tiếng Việt', langs: ['中文', 'Tiếng Việt', 'English'],
+    L: {}, langIdx: 1, langName: 'Tiếng Việt', langs: ['中文', 'Tiếng Việt', 'English', 'ภาษาไทย', 'Bahasa Melayu', 'Bahasa Indonesia'],
     demands: [], allDemands: [], open: -1, matches: [], matchTitle: '', matchNote: '',
     cityNames: [], cityIds: [], cats: [],
     showPost: false, postTitle: '', postBudget: '', postDesc: '',

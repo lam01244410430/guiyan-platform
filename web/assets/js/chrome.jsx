@@ -103,6 +103,9 @@ export function Header(props) {
             <option value="zh">中文</option>
             <option value="vi">Tiếng Việt</option>
             <option value="en">English</option>
+            <option value="th">ภาษาไทย</option>
+            <option value="ms">Bahasa Melayu</option>
+            <option value="id">Bahasa Indonesia</option>
           </select>
         </label>
         <button className="largetextbtn" type="button" aria-pressed={largeText ? "true" : "false"} title={t("largeText")}

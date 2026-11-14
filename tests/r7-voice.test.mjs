@@ -163,14 +163,14 @@ test("r7-voice: GET /api/assistant?q= empty -> 400", async () => {
   assert.equal(r.status, 400, JSON.stringify(r.json));
 });
 
-test("r7-voice i18n: H5 455 keys/language, miniprogram 269, voice keys present", async () => {
+test("r7-voice i18n: H5 455 keys/language in zh/vi/en + 82 in th/ms/id, miniprogram 269 + 82, voice keys present", async () => {
   const data = await import(
     path.resolve(repoDir, "web", "assets", "js", "data.js")
   );
   const counts = data.LANGS.map((l) => Object.keys(data.I18N[l]).length);
-  assert.deepEqual(counts, [455, 455, 455]);
+  assert.deepEqual(counts, [455, 455, 455, 82, 82, 82]);
   for (const k of ["voiceMic", "voiceListening", "voiceUnsupported", "voiceFailed"]) {
-    for (const l of data.LANGS)
+    for (const l of ["zh", "vi", "en"]) // full languages only: th/ms/id carry the 82-key core set (R7-8), these keys fall back to zh there
       assert.ok(k in data.I18N[l], `${k} missing in H5 ${l}`);
   }
   const text = fs.readFileSync(

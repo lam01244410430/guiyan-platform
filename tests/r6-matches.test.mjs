@@ -13,7 +13,7 @@
 // server (yuan -> cents), bad values -> 400; (7) ?region= is a city
 // alias, conflict -> 400; (8) ?min_rating= uses the approved-only
 // rating; (9) matchesSearch client filters agree with the server rules.
-// i18n key counts (H5 455, miniprogram 269) are asserted here too:
+// i18n key counts (H5 455 + 82 th/ms/id, miniprogram 269 + 82 th/ms/id) are asserted here too:
 // 6 new match keys on both sides (372 + 6 = 378, 181 + 11 = 192 — the
 // mini side also gains the 5 price/rating filter-bar keys).
 import { test, before, after } from "node:test";
@@ -228,7 +228,7 @@ test("r6-4 search: rating floor uses the approved-only rating", async () => {
   assert.equal(zero.data.resources.length, all.data.resources.length);
 });
 
-test("r6-4 search.js: client filters agree with the server rules; i18n 455/269", async () => {
+test("r6-4 search.js: client filters agree with the server rules; i18n 455+82/269+82", async () => {
   const res = (name, price, rating, reviewCount, city) => ({
     name, description: "民歌", city, category: "演出剧目", tags: [],
     price, rating, reviewCount,
@@ -253,14 +253,14 @@ test("r6-4 search.js: client filters agree with the server rules; i18n 455/269",
   assert.equal(matchesSearch(inRange, "民歌", { minPrice: 100, maxPrice: 300 }), true);
   assert.equal(matchesSearch(inRange, "民歌", { minPrice: 300 }), false);
 
-  // i18n: H5 455 keys/language, miniprogram 269, equal sets per side.
+  // i18n: H5 455 keys/language in zh/vi/en + 82 in th/ms/id, miniprogram 269 + 82, equal sets per side.
   const data = await import(
     path.resolve(repoDir, "web", "assets", "js", "data.js")
   );
   const counts = data.LANGS.map((l) => Object.keys(data.I18N[l]).length);
-  assert.deepEqual(counts, [455, 455, 455]);
+  assert.deepEqual(counts, [455, 455, 455, 82, 82, 82]);
   for (const k of ["matchReasonCity", "matchReasonCat", "matchReasonBudget", "matchNoteServer", "matchRejected", "matchLoading"])
-    for (const l of data.LANGS)
+    for (const l of ["zh", "vi", "en"])
       assert.ok(k in data.I18N[l], `${k} missing in H5 ${l}`);
   const text = fs.readFileSync(
     path.resolve(repoDir, "miniprogram", "utils", "i18n.js"),

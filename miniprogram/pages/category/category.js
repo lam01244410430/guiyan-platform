@@ -5,7 +5,7 @@ var api = require('../../utils/api.js');
 
 Page({
   data: {
-    L: {}, langIdx: 1, langName: 'Tiếng Việt', langs: ['中文', 'Tiếng Việt', 'English'],
+    L: {}, langIdx: 1, langName: 'Tiếng Việt', langs: ['中文', 'Tiếng Việt', 'English', 'ภาษาไทย', 'Bahasa Melayu', 'Bahasa Indonesia'],
     kw: '', catSel: 'all', citySel: 'all', sortSel: 'hot',
     // R6-2: talent role filter ('' = all roles) + whether any catalog
     // item carries API meta yet (the role row only shows once meta is

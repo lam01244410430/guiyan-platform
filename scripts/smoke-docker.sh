@@ -12,7 +12,7 @@
 #
 # The script checks the 3 containers are healthy, runs the 66 checks in the
 # plan Appendix A against the stack, prints PASS/FAIL per check and exits
-# non-zero if any check fails. Check 68 tears the stack down (down -v) and
+# non-zero if any check fails. Check 69 tears the stack down (down -v) and
 # verifies no project containers/volumes remain. All curl calls are direct
 # (no background processes left behind). Target is a disposable stack with a
 # fresh DB — never run it against the live Vercel/Neon deployment.
@@ -423,7 +423,7 @@ if [ "$CODE" = "200" ] && has '刘三姐' && has 'held_at'; then ok "63 GET /api
 # 64. assistant R7-4 — 200 as demo, my-orders kind with a real order
 # code (seeded demo orders all start with GY2026; the answer text
 # carries the code). Number 62 belongs to sibling R7-2 and lands in
-# the merge; 63 is R7-3 (NOT in this merge); 45 is a pre-existing gap,
+# the merge; 63 is R7-3 and lands here; 45 is a pre-existing gap,
 # not renumbered here.
 CODE="$(get "/api/assistant?q=%E6%88%91%E7%9A%84%E8%AE%A2%E5%8D%95" "$DEMO_TOKEN")"
 if [ "$CODE" = "200" ] && has '"kind":"myOrders"' && has 'GY2026'; then ok "64 GET /api/assistant?q=我的订单 as demo 200, kind myOrders + real order code"; else bad "64 GET /api/assistant?q=我的订单 as demo (code=$CODE, body=$(cat "$TMP/body"))"; fi
@@ -445,20 +445,24 @@ if [ "$CODE" = "200" ] && has '中山路夜市' && has '"parking"' && has '"slee
 
 # 67. voice-order dialects + parse rejection — 200 with 4 dialects, all
 # recognition false; a gibberish voice order as demo -> 400, no order
-# (R7-7; checks 61/62/64/65/66 belong to R7-1/2/4/5/6 and land in the
-# merged script — 63 is R7-3, NOT in this merge; the numbers are per
-# the R7 plan)
+# (R7-7; checks 61/62/63/64/65/66 belong to R7-1/2/3/4/5/6 and land in the
+# merged script; the numbers are per the R7 plan)
 CODE="$(get /api/voice/dialects)"
 N="$(jlen "['dialects']")"
 HASREC="$(has '"recognition":false' && echo yes || echo no)"
 CODE2="$(post /api/voice-order '{"text":"你好"}' "$DEMO_TOKEN")"
 if [ "$CODE" = "200" ] && [ "$N" = "4" ] && [ "$HASREC" = "yes" ] && [ "$CODE2" = "400" ]; then ok "67 GET /api/voice/dialects 200, 4 dialects, recognition false + voice-order gibberish 400"; else bad "67 voice dialects/order (dialects code=$CODE count=$N rec=$HASREC, voice code=$CODE2)"; fi
 
-# 68. teardown — down -v, then 0 project containers and 0 project volumes.
+# 68. ai-copy genre template — 200 as demo, genre 戏曲 for a 京剧 prompt
+# (R7-8; template only, mock: true, no model call)
+CODE="$(post /api/ai/copy '{"prompt":"为《京剧》写一段推送"}' "$DEMO_TOKEN")"
+if [ "$CODE" = "200" ] && has '"genre":"戏曲"' && has '"mock":true'; then ok "68 POST /api/ai/copy 京剧 prompt 200, genre 戏曲, mock"; else bad "68 POST /api/ai/copy genre (code=$CODE, body=$(cat "$TMP/body"))"; fi
+
+# 69. teardown — down -v, then 0 project containers and 0 project volumes.
 docker compose -p "$PROJECT" down -v >/dev/null 2>&1
 LEFT_C="$(docker ps --format '{{.Names}}' | grep -c "$PROJECT" || true)"
 LEFT_V="$(docker volume ls --format '{{.Name}}' | grep -c "^${PROJECT}_" || true)"
-if [ "$LEFT_C" = "0" ] && [ "$LEFT_V" = "0" ]; then ok "68 down -v: 0 project containers, 0 project volumes"; else bad "68 down -v (containers left=$LEFT_C, volumes left=$LEFT_V)"; fi
+if [ "$LEFT_C" = "0" ] && [ "$LEFT_V" = "0" ]; then ok "69 down -v: 0 project containers, 0 project volumes"; else bad "61 down -v (containers left=$LEFT_C, volumes left=$LEFT_V)"; fi
 
-echo "== smoke-docker: PASS $PASS / FAIL $FAIL (67 checks) =="
+echo "== smoke-docker: PASS $PASS / FAIL $FAIL (68 checks) =="
 [ "$FAIL" = "0" ]

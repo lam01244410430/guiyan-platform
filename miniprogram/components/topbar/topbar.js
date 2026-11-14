@@ -6,7 +6,7 @@ var i18n = require('../../utils/i18n.js');
 // receives {value: index} exactly like the old picker did).
 Component({
   options: { styleIsolation: 'shared' },
-  data: { brandTag: '', langIdx: 0, langName: '中文', langs: ['中文', 'Tiếng Việt', 'English'] },
+  data: { brandTag: '', langIdx: 0, langName: '中文', langs: ['中文', 'Tiếng Việt', 'English', 'ภาษาไทย', 'Bahasa Melayu', 'Bahasa Indonesia'] },
   lifetimes: {
     attached: function () { this.refresh(); }
   },

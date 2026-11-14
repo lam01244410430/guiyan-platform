@@ -10,7 +10,7 @@
 // no one-per-day block); talents filter by meta.role; cross-shop
 // venue patch -> 403; invalid date/month -> 400, unknown venue month
 // -> 404; month mode lists the occupied date; i18n key counts (H5
-// 423, miniprogram 269, equal sets).
+// 455 + 82 th/ms/id, miniprogram 269 + 82, equal sets).
 import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
@@ -319,14 +319,14 @@ test("month mode lists the occupied date for one venue", async () => {
   assert.deepEqual(empty.data.occupied, []);
 });
 
-test("r6-venues-library i18n: H5 455 keys/language, miniprogram 269, equal sets", async () => {
+test("r6-venues-library i18n: H5 455 keys/language in zh/vi/en + 82 in th/ms/id, miniprogram 269 + 82, equal sets", async () => {
   const data = await import(
     path.resolve(repoDir, "web", "assets", "js", "data.js")
   );
   const counts = data.LANGS.map((l) => Object.keys(data.I18N[l]).length);
-  assert.deepEqual(counts, [455, 455, 455]);
+  assert.deepEqual(counts, [455, 455, 455, 82, 82, 82]);
   for (const k of ["libVenue", "libEquipment", "libTalent", "talentRole", "roleActor", "roleDirector", "roleWriter", "dailyRent", "talentFee", "venueFree", "venueOccupied", "venueCalendar", "venueOccupiedDays"]) {
-    for (const l of data.LANGS)
+    for (const l of ["zh", "vi", "en"])
       assert.ok(k in data.I18N[l], `${k} missing in H5 ${l}`);
   }
   const text = fs.readFileSync(

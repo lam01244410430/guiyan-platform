@@ -734,7 +734,9 @@ export async function openPostgresStore(
             // needs its id the same way — the R3-5 lesson).
             // R7-6: itineraries joins them too (the seed insert needs
             // its id the same way — the R3-5 lesson).
-            /^\s*INSERT\s+INTO\s+(users|resources|orders|demands|comments|messages|events|audit_logs|shops|shows|performances|ticket_types|pickup_points|ticket_templates|venues|seat_templates|seats|member_tiers|coupons|flash_sales|coupon_rules|coupon_gifts|sms_tasks|stored_value_accounts|stored_value_ledger|stored_value_plans|tickets|verify_logs|print_logs|event_aggregates|analysis_snapshots|alert_rules|finance_ledger|licenses|user_tags|itineraries)\b/i.test(
+            // R7-3: kg_nodes + kg_edges join them too (the graph seed
+            // insert needs its id the same way — the R3-5 lesson).
+            /^\s*INSERT\s+INTO\s+(users|resources|orders|demands|comments|messages|events|audit_logs|shops|shows|performances|ticket_types|pickup_points|ticket_templates|venues|seat_templates|seats|member_tiers|coupons|flash_sales|coupon_rules|coupon_gifts|sms_tasks|stored_value_accounts|stored_value_ledger|stored_value_plans|tickets|verify_logs|print_logs|event_aggregates|analysis_snapshots|alert_rules|finance_ledger|licenses|user_tags|itineraries|kg_nodes|kg_edges)\b/i.test(
               sql,
             );
           const result = await execute(

@@ -261,13 +261,13 @@ test("a draft resource's graph -> 404, and the fixture is deleted again", async 
   }
 });
 
-test("r7-kg i18n: H5 455 keys/language, miniprogram 269, equal sets", async () => {
-  // i18n: R7-3 adds 1 knowledge-graph key (427 -> 428, 241 -> 242).
+test("r7-kg i18n: H5 455 keys/language in zh/vi/en + 82 in th/ms/id, miniprogram 269 + 82, equal sets", async () => {
+  // i18n: R7-3 adds 1 knowledge-graph key (454 -> 455, 268 -> 269).
   const data = await import(
     path.resolve(repoDir, "web", "assets", "js", "data.js")
   );
   const counts = data.LANGS.map((l) => Object.keys(data.I18N[l]).length);
-  assert.deepEqual(counts, [455, 455, 455]);
+  assert.deepEqual(counts, [455, 455, 455, 82, 82, 82]);
   for (const k of ["kgRelated"]) {
     for (const l of ["zh", "vi", "en"])
       assert.ok(k in data.I18N[l], `${k} missing in H5 ${l}`);

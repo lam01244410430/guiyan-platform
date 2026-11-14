@@ -7,7 +7,7 @@ var api = require('../../utils/api.js');
 // no online/offline line (internal detail, not user content).
 Page({
   data: {
-    L: {}, langIdx: 0, langName: '中文', langs: ['中文', 'Tiếng Việt', 'English'],
+    L: {}, langIdx: 0, langName: '中文', langs: ['中文', 'Tiếng Việt', 'English', 'ภาษาไทย', 'Bahasa Melayu', 'Bahasa Indonesia'],
     kw: '', featured: [], cats: [], heroLead: '', shopBanner: '', shopPrimary: '', largeText: false
   },
   onLoad: function () { this.applyLang(); this.loadOnline(); },

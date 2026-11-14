@@ -32,7 +32,7 @@ function saveQueue(q) {
 
 Page({
   data: {
-    L: {}, langIdx: 0, langName: '中文', langs: ['中文', 'Tiếng Việt', 'English'],
+    L: {}, langIdx: 0, langName: '中文', langs: ['中文', 'Tiếng Việt', 'English', 'ภาษาไทย', 'Bahasa Melayu', 'Bahasa Indonesia'],
     isAdmin: false, code: '', results: [], queue: [], busy: false, syncing: false
   },
   onLoad: function () {

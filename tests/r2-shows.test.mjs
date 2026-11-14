@@ -8,7 +8,7 @@
 // the public list + cannot create performances; create performance on a
 // pending show -> 400; on-sale performance appears in availability;
 // cross-shop performance edit -> 403; validation (non-show resource,
-// past start_at); i18n key counts (H5 455, miniprogram 269, equal sets).
+// past start_at); i18n key counts (H5 455 + 82 th/ms/id, miniprogram 269 + 82, equal sets).
 import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
@@ -303,14 +303,14 @@ test("cross-shop performance edit -> 403; own-shop edit -> 200; cancel works", a
   assert.equal((await patchPerf(adminToken, perfId, { status: "on_sale" })).status, 400);
 });
 
-test("r2-shows i18n: H5 455 keys/language, miniprogram 269, equal sets", async () => {
+test("r2-shows i18n: H5 455 keys/language in zh/vi/en + 82 in th/ms/id, miniprogram 269 + 82, equal sets", async () => {
   const data = await import(
     path.resolve(repoDir, "web", "assets", "js", "data.js")
   );
   const counts = data.LANGS.map((l) => Object.keys(data.I18N[l]).length);
-  assert.deepEqual(counts, [455, 455, 455]);
+  assert.deepEqual(counts, [455, 455, 455, 82, 82, 82]);
   for (const k of ["perfTitle", "perfEmpty", "perfOnSale"]) {
-    for (const l of data.LANGS)
+    for (const l of ["zh", "vi", "en"])
       assert.ok(k in data.I18N[l], `${k} missing in H5 ${l}`);
   }
   const text = fs.readFileSync(

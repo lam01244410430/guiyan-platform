@@ -19,7 +19,7 @@ function loadWxProfile() {
 
 Page({
   data: {
-    L: {}, langIdx: 0, langName: '中文', langs: ['中文', 'Tiếng Việt', 'English'],
+    L: {}, langIdx: 0, langName: '中文', langs: ['中文', 'Tiếng Việt', 'English', 'ภาษาไทย', 'Bahasa Melayu', 'Bahasa Indonesia'],
     loggedUser: '', displayName: '', avatarChar: '桂', linkStatus: '',
     wxAvatar: '', wxNick: '', profile: {}, genderText: '', memberTier: null,
     tierLine: '', tierNextLine: '', giftCoupons: null, giftCouponLines: [],

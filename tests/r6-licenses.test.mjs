@@ -10,7 +10,7 @@
 // and anonymous POST -> 403); (6) anonymous reads the public list
 // 200; (7) validation: bad kind/status/dates -> 400, unknown resource
 // -> 404; (8) the new `show-license` category is recognised on both
-// sides (id + Chinese name) + i18n counts (H5 455, miniprogram 269).
+// sides (id + Chinese name) + i18n counts (H5 455 + 82 th/ms/id, miniprogram 269 + 82).
 //
 // Test usernames are hyphen-free ([A-Za-z0-9_] only). All assertions
 // filter by this file's own resources / licences — other test files
@@ -315,7 +315,7 @@ test("validation: bad kind/status/dates -> 400, unknown resource -> 404", async 
   assert.equal((await createLicense(adminToken, { ...base, resource_id: 999999 })).status, 404);
 });
 
-test("show-license category recognised (id + Chinese name) + i18n 455/269", async () => {
+test("show-license category recognised (id + Chinese name) + i18n 455+82/269+82", async () => {
   const cats = await req("/api/categories");
   assert.equal(cats.status, 200, JSON.stringify(cats.data));
   assert.equal(cats.data.categories.length, 11);
@@ -343,9 +343,9 @@ test("show-license category recognised (id + Chinese name) + i18n 455/269", asyn
   // i18n: 12 new licence keys on both sides (372 -> 384, 181 -> 193).
   const data = await import(path.resolve(repoDir, "web", "assets", "js", "data.js"));
   const counts = data.LANGS.map((l) => Object.keys(data.I18N[l]).length);
-  assert.deepEqual(counts, [455, 455, 455]);
+  assert.deepEqual(counts, [455, 455, 455, 82, 82, 82]);
   for (const k of ["licLibrary", "licKind", "licBuy", "licSell", "licStatus", "licPending", "licActive", "licExpired", "licHolder", "licType", "licRegion", "licInfo"]) {
-    for (const l of data.LANGS)
+    for (const l of ["zh", "vi", "en"])
       assert.ok(k in data.I18N[l], `${k} missing in H5 ${l}`);
   }
   const text = fs.readFileSync(path.resolve(repoDir, "miniprogram", "utils", "i18n.js"), "utf8");

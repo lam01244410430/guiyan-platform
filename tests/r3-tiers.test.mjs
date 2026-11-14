@@ -380,14 +380,14 @@ test("validation: discount_pct > 100 / negative threshold -> 400; unknown tier P
   assert.equal(restored.status, 200, JSON.stringify(restored.data));
 });
 
-test("r3-tiers i18n: H5 455 keys/language, miniprogram 269, equal sets", async () => {
+test("r3-tiers i18n: H5 455 keys/language in zh/vi/en + 82 in th/ms/id, miniprogram 269 + 82, equal sets", async () => {
   const data = await import(
     path.resolve(repoDir, "web", "assets", "js", "data.js")
   );
   const counts = data.LANGS.map((l) => Object.keys(data.I18N[l]).length);
-  assert.deepEqual(counts, [455, 455, 455]);
+  assert.deepEqual(counts, [455, 455, 455, 82, 82, 82]);
   for (const k of ["memberTierTitle", "memberTierCurrent", "memberTierNext", "memberTierSpendMore", "memberTierDiscount"]) {
-    for (const l of data.LANGS)
+    for (const l of ["zh", "vi", "en"])
       assert.ok(k in data.I18N[l], `${k} missing in H5 ${l}`);
   }
   const text = fs.readFileSync(

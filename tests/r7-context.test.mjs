@@ -15,7 +15,7 @@
 // (6) the 刘三姐 itinerary template has eat/parking/sleep sections,
 // names the verified place 中山路夜市, and contains no merchant link
 // or phone number; (7) a show with no template -> itinerary null,
-// unknown resource -> 404; (8) i18n counts H5 443 / miniprogram 256
+// unknown resource -> 404; (8) i18n counts H5 455 / miniprogram 269
 // with the 20 new keys present in zh/vi/en on both sides.
 //
 // Fixture notes: the evening performance is created by this file on
@@ -317,7 +317,7 @@ test("itinerary for a show with no template -> null; unknown -> 404", async () =
   assert.equal((await req("/api/resources/999999/itinerary")).status, 404);
 });
 
-test("r7-context i18n: H5 455 keys/language, miniprogram 269, equal sets", async () => {
+test("r7-context i18n: H5 455 keys/language in zh/vi/en + 82 in th/ms/id, miniprogram 269 + 82, equal sets", async () => {
   const NEW_KEYS = [
     "ctxTitle", "ctxTime", "ctxCity", "ctxCityPh", "ctxCompanion",
     "ctxApply", "ctxAny", "ctxMorning", "ctxAfternoon", "ctxEvening",
@@ -329,9 +329,9 @@ test("r7-context i18n: H5 455 keys/language, miniprogram 269, equal sets", async
     path.resolve(repoDir, "web", "assets", "js", "data.js")
   );
   const counts = data.LANGS.map((l) => Object.keys(data.I18N[l]).length);
-  assert.deepEqual(counts, [455, 455, 455]);
+  assert.deepEqual(counts, [455, 455, 455, 82, 82, 82]);
   for (const k of NEW_KEYS) {
-    for (const l of data.LANGS)
+    for (const l of ["zh", "vi", "en"]) // full languages only: th/ms/id carry the 82-key core set (R7-8), these keys fall back to zh there
       assert.ok(k in data.I18N[l], `${k} missing in H5 ${l}`);
   }
   const text = fs.readFileSync(
