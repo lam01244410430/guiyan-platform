@@ -8,6 +8,7 @@
 
 import { randomBytes, scryptSync } from "node:crypto";
 import { defaultTagRules } from "./lib/profiles.mjs";
+import { DEFAULT_MEMBER_INSIGHT_RULES } from "./routes/member-insights.mjs";
 
 export const categories = [
   ["show", "演出剧目"],
@@ -692,6 +693,8 @@ function seed(db, passwords) {
     // them from the seed; existing ones get them from the postgres.mjs
     // boot backfill — both write the same JSON from lib/profiles.mjs.
     tagRules: defaultTagRules,
+    // R5-2: default member-insight rules (same seed + backfill pair).
+    memberInsightRules: DEFAULT_MEMBER_INSIGHT_RULES,
   }))
     db.prepare("INSERT INTO settings VALUES(?,?)").run(k, JSON.stringify(v));
   db.prepare(

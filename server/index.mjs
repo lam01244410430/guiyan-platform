@@ -60,6 +60,7 @@ import { listAdminSmsTasks, getAdminSmsTask, createSmsTask, patchSmsTask } from 
 import { listShopPlans, listAdminPlans, createPlan, patchPlan, topup, getAccountStoredValue, getAdminStoredValue, grantStoredValue } from "./routes/stored-value.mjs";
 import { verifyTicket, verifyBatch, listOrderTickets, listAdminTickets, printTickets, listPrintLogs } from "./routes/tickets.mjs";
 import { recordEvent, aggregateEvents, listEventAggregates } from "./routes/events.mjs";
+import { listMemberInsights, getMemberInsightRules, patchMemberInsightRules } from "./routes/member-insights.mjs";
 
 // A stored-value CSV export (?format=csv on the own-account or the
 // admin endpoint) audits "导出储值流水" — one INSERT — so it needs a
@@ -313,6 +314,9 @@ export async function createApp({ database }) {
       if (await grantStoredValue(ctx)) return;
       if (await aggregateEvents(ctx)) return;
       if (await listEventAggregates(ctx)) return;
+      if (await listMemberInsights(ctx)) return;
+      if (await getMemberInsightRules(ctx)) return;
+      if (await patchMemberInsightRules(ctx)) return;
 
       send({ error: "接口不存在" }, 404);
     } catch (e) {

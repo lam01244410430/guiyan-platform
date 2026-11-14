@@ -96,6 +96,7 @@ const VIEWS = [
   { id: "analysis", label: "经营分析", iconName: "ui:scroll-text", group: "premium" },
   { id: "alerts", label: "预警中心", iconName: "ui:triangle-alert", group: "premium" },
   { id: "events", label: "数据运营", iconName: "ui:chart-line", group: "premium" },
+  { id: "memberinsights", label: "会员数据", iconName: "ui:crown", group: "premium" },
 ];
 const FILTERS = [
   ["all", "全部"], ["pending", "待确认"], ["confirmed", "已确认"], ["paid", "已支付"],
@@ -243,6 +244,14 @@ export default function AdminDashboard() {
   const [eventDate, setEventDate] = useState("");
   const [eventType, setEventType] = useState("");
   const [eventBusy, setEventBusy] = useState(false);
+  // R5-2 会员数据: the per-shop member rows + rule suggestions for
+  // the chosen shop, the stored insight rules, and the rules form
+  // (strings in the inputs, validated as integers on save).
+  const [memberInsights, setMemberInsights] = useState(null);
+  const [insightShop, setInsightShop] = useState("1");
+  const [insightRules, setInsightRules] = useState(null);
+  const [insightRuleForm, setInsightRuleForm] = useState({ churnDays: "90", upgradeGapPct: "20", callbackDays: "90" });
+  const [insightBusy, setInsightBusy] = useState(false);
   const [auditLogs, setAuditLogs] = useState([]);
   const [csvBusy, setCsvBusy] = useState(false);
   // Wave 3 #9 tag rules (lazy-loaded like the premium views) + the users
@@ -459,6 +468,47 @@ export default function AdminDashboard() {
     });
   }
 
+  // R5-2: load the member rows + suggestions for the chosen shop
+  // and the stored insight rules (the server forces a shop-scoped
+  // admin to their own shop whatever ?shop= says).
+  function loadMemberInsights() {
+    apiGet("/api/admin/member-insights?shop=" + encodeURIComponent(insightShop)).then(function (d) {
+      setMemberInsights(d);
+    }).catch(loadFail);
+    apiGet("/api/admin/member-insight-rules").then(function (d) {
+      setInsightRules(d.rules || null);
+      if (d.rules) setInsightRuleForm({
+        churnDays: String(d.rules.churnDays),
+        upgradeGapPct: String(d.rules.upgradeGapPct),
+        callbackDays: String(d.rules.callbackDays),
+      });
+    }).catch(loadFail);
+  }
+  // R5-2: save the rules form (validated client-side first; the
+  // server re-validates: unknown keys -> 400, ranges 1–365 / 0–100
+  // / 1–365), then reload the member rows — the churn list follows
+  // the new rules immediately.
+  function saveInsightRules() {
+    if (insightBusy) return;
+    const churnDays = Number(insightRuleForm.churnDays);
+    const upgradeGapPct = Number(insightRuleForm.upgradeGapPct);
+    const callbackDays = Number(insightRuleForm.callbackDays);
+    if (!Number.isInteger(churnDays) || churnDays < 1 || churnDays > 365) { toast("流失天数须为 1–365 的整数"); return; }
+    if (!Number.isInteger(upgradeGapPct) || upgradeGapPct < 0 || upgradeGapPct > 100) { toast("可升级差距百分比须为 0–100 的整数"); return; }
+    if (!Number.isInteger(callbackDays) || callbackDays < 1 || callbackDays > 365) { toast("回访天数须为 1–365 的整数"); return; }
+    setInsightBusy(true);
+    apiPatch("/api/admin/member-insight-rules", { churnDays, upgradeGapPct, callbackDays }).then(function (d) {
+      setInsightBusy(false);
+      setInsightRules(d.rules || null);
+      toast("规则已保存");
+      loadMemberInsights();
+    }).catch(function (e) {
+      setInsightBusy(false);
+      if (e && e.status === 403) toast("无权修改规则");
+      else toast((e && e.message) || "保存失败");
+    });
+  }
+
   useEffect(() => {
     const u = currentUser();
     if (!getToken() || !u) { location.href = "/admin/index.html"; return; }
@@ -535,6 +585,13 @@ export default function AdminDashboard() {
     if (view === "events") loadEventAggregates();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [view, eventPeriod, eventDate, eventType]);
+
+  // R5-2 会员数据: load the member rows + rules when the view opens
+  // and whenever the shop filter changes.
+  useEffect(() => {
+    if (view === "memberinsights") loadMemberInsights();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [view, insightShop]);
 
   function doLogout() {
     apiPost("/api/auth/logout", {}).catch(function () {});
@@ -2001,6 +2058,7 @@ export default function AdminDashboard() {
     analysis: ["经营分析", "模拟经营分析报告"],
     alerts: ["预警中心", "库存与模拟预警 · 操作留痕"],
     events: ["数据运营", "埋点聚合 · 按小时/天查看"],
+    memberinsights: ["会员数据", "会员消费 · 流失与可升级 · 经营建议（规则建议，非 AI）"],
   };
   const by = (stats && stats.orders_by_status) || {};
   // R1-1: the signed-in admin's scope (the sessionStorage user carries
@@ -3722,6 +3780,65 @@ export default function AdminDashboard() {
                       </tr>
                     ))
                     : <tr><td colSpan="5"><div className="empty">暂无聚合数据（先点“重新聚合”从事件汇总）</div></td></tr>}
+                </tbody>
+              </table>
+            </div>
+          </section>
+
+          {/* R5-2 会员数据: per-shop member rows (spending = R3-1
+              PAID_STATUSES sum, tier resolved live) with churn /
+              upgrade-candidate markers, the rule-text operating
+              suggestions, and the rules editor. The suggestions are
+              RULES, not AI — row 54's AI-personalized half stays in
+              R7, and this view never claims otherwise. */}
+          <section className={"view" + (view === "memberinsights" ? " on" : "")} id="view-memberinsights">
+            <div className="note">会员消费与经营建议（规则建议，非 AI）。流失 = 超过流失天数无已付订单（从未购买也算流失，但无消费的不进回访建议）；可升级 = 距下一等级门槛在差距百分比以内；推广演出 = 近 30 天本店收入最高的演出。</div>
+            <div className="search-row">
+              {isPlatformAdmin ? (
+                <label>店铺 <select value={insightShop} onChange={(e) => setInsightShop(e.target.value)}>
+                  {shops.map((s) => (<option key={s.id} value={String(s.id)}>{s.name}</option>))}
+                </select></label>
+              ) : (<span>本店铺</span>)}
+              <label>流失天数 <input type="number" min={1} max={365} value={insightRuleForm.churnDays} onChange={(e) => setInsightRuleForm(function (f) { return { ...f, churnDays: e.target.value }; })} /></label>
+              <label>可升级差距（%） <input type="number" min={0} max={100} value={insightRuleForm.upgradeGapPct} onChange={(e) => setInsightRuleForm(function (f) { return { ...f, upgradeGapPct: e.target.value }; })} /></label>
+              <label>回访天数 <input type="number" min={1} max={365} value={insightRuleForm.callbackDays} onChange={(e) => setInsightRuleForm(function (f) { return { ...f, callbackDays: e.target.value }; })} /></label>
+              <button type="button" className="btn-export" disabled={insightBusy} onClick={saveInsightRules}>{insightBusy ? "保存中…" : "保存规则"}</button>
+            </div>
+            {insightRules ? (<div className="note">当前规则：流失天数 {insightRules.churnDays} 天 · 可升级差距 {insightRules.upgradeGapPct}% · 回访天数 {insightRules.callbackDays} 天</div>) : null}
+            <div className="tbl-wrap">
+              <table>
+                <thead><tr><th scope="col">经营建议</th><th scope="col">对象</th><th scope="col">建议内容</th></tr></thead>
+                <tbody>
+                  {memberInsights && memberInsights.suggestions.length
+                    ? memberInsights.suggestions.map((s, i) => (
+                      <tr key={s.type + "-" + (s.user_id || s.show_id || i)}>
+                        <td>{{ upgrade: "可升级", callback: "回访", push_show: "推广演出" }[s.type] || s.type}</td>
+                        <td>{s.name || s.title || "—"}</td>
+                        <td>{s.text}</td>
+                      </tr>
+                    ))
+                    : <tr><td colSpan="3"><div className="empty">暂无经营建议</div></td></tr>}
+                </tbody>
+              </table>
+            </div>
+            <div className="tbl-wrap">
+              <table>
+                <thead><tr><th scope="col">会员</th><th scope="col" className="num">累计消费</th><th scope="col">等级</th><th scope="col">最近已付订单</th><th scope="col">流失</th><th scope="col">可升级</th><th scope="col">下一等级</th><th scope="col" className="num">还差</th></tr></thead>
+                <tbody>
+                  {memberInsights && memberInsights.users.length
+                    ? memberInsights.users.map((u) => (
+                      <tr key={u.user_id}>
+                        <td>{u.name}</td>
+                        <td className="num">{fmtMoney(u.spending_cents)}</td>
+                        <td>{u.tier || "—"}</td>
+                        <td>{u.last_order_at ? u.last_order_at.slice(0, 10) : "—"}</td>
+                        <td>{u.churn ? "流失" : "—"}</td>
+                        <td>{u.upgrade_candidate ? "可升级" : "—"}</td>
+                        <td>{u.next_tier || "—"}</td>
+                        <td className="num">{u.next_tier ? fmtMoney(u.remaining_cents) : "—"}</td>
+                      </tr>
+                    ))
+                    : <tr><td colSpan="8"><div className="empty">暂无会员数据</div></td></tr>}
                 </tbody>
               </table>
             </div>

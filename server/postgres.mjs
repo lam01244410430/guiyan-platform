@@ -12,6 +12,7 @@ import { seedStatements } from "./seed.mjs";
 import { enrichCatalog } from "./catalog-content.mjs";
 import { defaultTagRules } from "./lib/profiles.mjs";
 import { DEFAULT_TIERS } from "./routes/member-tiers.mjs";
+import { DEFAULT_MEMBER_INSIGHT_RULES } from "./routes/member-insights.mjs";
 import { DEFAULT_PLANS } from "./routes/stored-value.mjs";
 import { issueTicketsForOrder } from "./routes/tickets.mjs";
 
@@ -381,6 +382,13 @@ export async function openPostgresStore(
       await client.query(
         "INSERT INTO settings(key,value) VALUES('tagRules',$1) ON CONFLICT (key) DO NOTHING",
         [JSON.stringify(defaultTagRules)],
+      );
+      // R5-2: backfill the memberInsightRules settings key the same
+      // way — existing rules are never overwritten, so an admin's
+      // edits survive reboots.
+      await client.query(
+        "INSERT INTO settings(key,value) VALUES('memberInsightRules',$1) ON CONFLICT (key) DO NOTHING",
+        [JSON.stringify(DEFAULT_MEMBER_INSIGHT_RULES)],
       );
       await client.query("COMMIT");
     } catch (error) {
