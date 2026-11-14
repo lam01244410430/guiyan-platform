@@ -85,7 +85,7 @@ export function Header(props) {
 
   return (
     <header className="topbar">
-      <div className="wrap topbar-in">
+      <div className="topbar-in">
         <a className="brand" href={variant === "index" ? "#top" : "index.html"}>
           <span className="zh">桂演</span><small>{t("brandTag")}</small>
         </a>

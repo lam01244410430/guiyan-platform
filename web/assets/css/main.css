@@ -36,11 +36,14 @@ a{color:var(--red)}
 
 /* ---------- top bar ---------- */
 .topbar{position:sticky;top:0;z-index:60;background:color-mix(in srgb,var(--bg) 88%,transparent);backdrop-filter:blur(14px);border-bottom:1px solid var(--line)}
-.topbar-in{display:flex;align-items:center;gap:14px;height:64px}
+/* Header full-width: the topbar frame spans the viewport (no .wrap 1240px
+   clamp) — logo flush left, nav centred, right group flush right.
+   Page content still uses .wrap 1240px. */
+.topbar-in{display:flex;align-items:center;gap:14px;height:64px;max-width:none;margin:0;padding:0 24px}
 .brand{display:flex;align-items:baseline;gap:10px;text-decoration:none;color:var(--ink);white-space:nowrap}
 .brand .zh{font-size:27px;font-weight:900;letter-spacing:.06em;color:var(--red)}
 .brand small{font-size:10px;letter-spacing:.18em;font-weight:700;color:var(--ink3);text-transform:uppercase}
-.mainnav{display:flex;gap:4px;margin-left:auto}
+.mainnav{display:flex;gap:4px;margin-left:auto;margin-right:auto}
 .mainnav a{color:var(--ink2);text-decoration:none;font-size:13.5px;font-weight:600;padding:8px 11px;border-radius:99px;white-space:nowrap}
 .mainnav a:hover{background:var(--surface2);color:var(--ink)}
 .langsel{position:relative;display:flex;align-items:center;flex:none;background:var(--surface);border:1px solid var(--line2);border-radius:99px;padding:0 10px 0 12px;height:38px;gap:7px;color:var(--ink2)}
@@ -85,6 +88,7 @@ a{color:var(--red)}
   .mainnav a{padding:10px 12px;border-radius:8px}
 }
 @media (max-width:560px){
+  .topbar-in{padding:0 16px}
   .wxbtn{display:none}
   .cartbtn .lbl{display:none}
   .cartbtn{padding:9px 12px}
