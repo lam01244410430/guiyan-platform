@@ -183,4 +183,31 @@
       <view class="btn ghost" bindtap="goOrders">{{L.myTickets}}</view>
     </block>
   </block>
+
+  <!-- R6-5: comments — only approved rows are public; the author
+       additionally sees their own pending/rejected rows (server-side).
+       New comments start pending. -->
+  <view class="card">
+    <view class="sec-title serif" style="font-size:32rpx">{{L.commentTitle}}</view>
+    <block wx:if="{{comments.length}}">
+      <view wx:for="{{comments}}" wx:key="id" style="margin-top:16rpx;font-size:28rpx">
+        <view><text style="color:#C9A24B;font-weight:700">{{item.rating}} ★</text> <text style="font-weight:700">{{item.user_name}}</text><text wx:if="{{item.status==='pending'}}" style="color:#a97e1c"> · {{L.commentPending}}</text><text wx:if="{{item.status==='rejected'}}" style="color:#999"> · {{L.commentRejected}}</text></view>
+        <view style="margin-top:6rpx">{{item.content}}</view>
+        <view wx:if="{{item.reply}}" style="margin-top:6rpx;color:#5d5344">{{L.commentReplyLabel}}：{{item.reply}}</view>
+      </view>
+    </block>
+    <view wx:else class="note">{{L.commentEmpty}}</view>
+    <block wx:if="{{loggedIn}}">
+      <view style="display:flex;justify-content:space-between;align-items:center;margin-top:24rpx">
+        <view>{{L.commentRating}}</view>
+        <view class="stepper">
+          <view class="st-btn" bindtap="onCmtRatingDown">−</view>
+          <view class="st-num">{{cmtRating}} ★</view>
+          <view class="st-btn" bindtap="onCmtRatingUp">＋</view>
+        </view>
+      </view>
+      <textarea value="{{cmtText}}" maxlength="500" placeholder="{{L.commentPh}}" bindinput="onCmtText" style="margin-top:24rpx;font-size:28rpx;border:2rpx solid #e5ddd0;border-radius:8rpx;padding:16rpx" />
+      <view class="btn" bindtap="submitComment">{{L.commentSubmit}}</view>
+    </block>
+  </view>
 </view>

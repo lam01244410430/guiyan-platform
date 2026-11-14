@@ -19,7 +19,7 @@
 // shop, shop coupon wins on the same code, duplicate platform code
 // 409, shop-scoped admin cannot create one); subsidy grant (balance +
 // bonus ledger row, cross-shop 403, validation 400/404); plan admin
-// CRUD + cross-shop 403; i18n key counts (H5 405, miniprogram 218,
+// CRUD + cross-shop 403; i18n key counts (H5 418, miniprogram 231,
 // equal sets).
 import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
@@ -498,7 +498,7 @@ test("subsidy grant: balance + bonus ledger row; cross-shop 403; validation 400/
   assert.equal(ownShop.data.account.balance_cents, 100);
 });
 
-test("plan admin CRUD + cross-shop 403; i18n 405/218", async () => {
+test("plan admin CRUD + cross-shop 403; i18n 418/231", async () => {
   const created = await req("/api/admin/stored-value-plans", {
     method: "POST", token: adminToken,
     body: { amount_cents: 30000, bonus_cents: 2000 },
@@ -532,12 +532,12 @@ test("plan admin CRUD + cross-shop 403; i18n 405/218", async () => {
   assert.equal(ownPlan.status, 200, JSON.stringify(ownPlan.data));
   assert.equal(ownPlan.data.stored_value_plan.shop_id, shopBId);
 
-  // i18n: 6 new stored-value keys on both sides (354 -> 360, 157 -> 163); R4-1 adds 6 ticket keys H5 (360 -> 366), 5 mini (163 -> 168); R4-2 adds 1 print key (366 -> 367, 168 -> 169); R4-3 adds 7 batch keys mini-only (169 -> 176); R4-4 adds 5 partial-refund/pickup keys (367 -> 372, 176 -> 181); R6-1 adds 12 license keys (372 -> 384, 181 -> 193). R6-2 adds 13 library keys (384 -> 397, 193 -> 206). R6-3 adds 2 creative keys H5 (397 -> 399), 1 mini (206 -> 207). R6-4 adds 6 match keys (399 -> 405) + 5 filter-bar keys mini-only (207 -> 218).
+  // i18n: 6 new stored-value keys on both sides (354 -> 360, 157 -> 163); R4-1 adds 6 ticket keys H5 (360 -> 366), 5 mini (163 -> 168); R4-2 adds 1 print key (366 -> 367, 168 -> 169); R4-3 adds 7 batch keys mini-only (169 -> 176); R4-4 adds 5 partial-refund/pickup keys (367 -> 372, 176 -> 181); R6-1 adds 12 license keys (372 -> 384, 181 -> 193). R6-2 adds 13 library keys (384 -> 397, 193 -> 206). R6-3 adds 2 creative keys H5 (397 -> 399), 1 mini (206 -> 207). R6-4 adds 6 match keys (399 -> 405) + 5 filter-bar keys mini-only (207 -> 218). R6-5 adds 13 comment/message-type keys (405 -> 418, 218 -> 231).
   const data = await import(
     path.resolve(repoDir, "web", "assets", "js", "data.js")
   );
   const counts = data.LANGS.map((l) => Object.keys(data.I18N[l]).length);
-  assert.deepEqual(counts, [405, 405, 405]);
+  assert.deepEqual(counts, [418, 418, 418]);
   for (const l of data.LANGS)
     for (const k of ["storedValueTitle", "storedValueBalance", "storedValueTopup", "storedValuePlan", "storedValueEmpty", "storedValueUsed"])
       assert.ok(k in data.I18N[l], `${k} missing in H5 ${l}`);
@@ -556,7 +556,7 @@ test("plan admin CRUD + cross-shop 403; i18n 405/218", async () => {
     ].map((m) => m[1]);
   }
   for (const lang of ["zh", "vi", "en"]) {
-    assert.equal(blocks[lang].length, 218, `${lang} key count`);
+    assert.equal(blocks[lang].length, 231, `${lang} key count`);
     for (const k of ["storedValueTitle", "storedValueBalance", "storedValueTopup", "storedValuePlan", "storedValueEmpty", "storedValueUsed"])
       assert.ok(blocks[lang].includes(k), `${k} missing in mini ${lang}`);
   }

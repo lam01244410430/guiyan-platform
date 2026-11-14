@@ -33,7 +33,10 @@ Page({
     couponCode: '', // R3-2: coupon code typed on this page (optional, sent with the order)
     flashLeft: '', // R3-3: live flash-sale countdown text for the selected tier ('' = no live sale)
     // R6-2: venue free-day calendar (null = not loaded / not a venue).
-    calMonth: '', calDays: null, calWeekdays: [], calLabel: '', calOccupied: []
+    calMonth: '', calDays: null, calWeekdays: [], calLabel: '', calOccupied: [],
+    comments: [], // R6-5: approved comments (+ the caller's own pending/rejected)
+    cmtRating: 5, // R6-5: rating picked in the comment form
+    cmtText: '' // R6-5: comment text being typed
   },
   onLoad: function (options) {
     var idx = parseInt(options.idx || '0', 10);
@@ -57,6 +60,42 @@ Page({
     if (apiId != null) {
       api.post('/api/events', { type: 'click', detail: 'resource:' + apiId }).then(function () {}, function () {});
     }
+    // R6-5: comments for this resource (approved public; the caller
+    // additionally sees their own pending/rejected rows). Best-effort
+    // like the performances fetch: a failed fetch just leaves the
+    // section empty, offline keeps the local behaviour.
+    this.loadComments();
+  },
+  loadComments: function () {
+    var self = this;
+    var apiId = this._detailApiId;
+    if (apiId == null || !api.getBase()) return;
+    api.get('/api/resources/' + apiId + '/comments', {}, true).then(function (d) {
+      self.setData({ comments: (d && d.comments) || [] });
+    }, function () { self.setData({ comments: [] }); });
+  },
+  onCmtRatingDown: function () {
+    this.setData({ cmtRating: Math.max(1, this.data.cmtRating - 1) });
+  },
+  onCmtRatingUp: function () {
+    this.setData({ cmtRating: Math.min(5, this.data.cmtRating + 1) });
+  },
+  onCmtText: function (e) {
+    this.setData({ cmtText: e.detail.value });
+  },
+  submitComment: function () {
+    var self = this;
+    var apiId = this._detailApiId;
+    if (apiId == null || !api.getToken()) return;
+    var text = (this.data.cmtText || '').trim();
+    if (!text) return;
+    api.post('/api/resources/' + apiId + '/comments', { rating: this.data.cmtRating, content: text }, true).then(function () {
+      self.setData({ cmtText: '', cmtRating: 5 });
+      wx.showToast({ title: i18n.t('commentPosted', self.data.lang), icon: 'none', duration: 2000 });
+      self.loadComments();
+    }, function (err) {
+      wx.showToast({ title: (err && err.message) || '提交失败', icon: 'none', duration: 2500 });
+    });
   },
   onShow: function () {
     if (this.data.langIdx !== i18n.langIndex()) this.applyLang();
@@ -99,7 +138,10 @@ Page({
       'venueCalendar', 'venueFree', 'venueOccupied', 'venueOccupiedDays',
       'couponCode', 'couponCodePh', 'couponSaved',
       'flashSale', 'flashSaleLeft', 'flashSaleSaved',
-      'licInfo', 'licHolder', 'licType', 'licRegion'];
+      'licInfo', 'licHolder', 'licType', 'licRegion',
+      'commentTitle', 'commentEmpty', 'commentRating', 'commentPh',
+      'commentSubmit', 'commentPending', 'commentPosted',
+      'commentReplyLabel', 'commentRejected'];
     var L = {};
     keys.forEach(function (k) { L[k] = i18n.t(k, lang); });
     var r = api.resourceByIdx(this.data.idx) || data.RES[0];
@@ -113,6 +155,7 @@ Page({
     if (licMeta.ip_region) licRows.push({ k: L.licRegion, v: licMeta.ip_region });
     this.setData({ L: L, lang: lang, langIdx: i18n.langIndex(),
       langName: i18n.LANGS[i18n.langIndex()].label,
+      loggedIn: !!api.getToken(),
       res: { name: r.name, cat: data.catName(r.cat, lang), catId: r.cat,
         city: data.cityName(r.city, lang), price: data.money(r.price),
         unit: data.unitName(r.unit, lang), views: r.views,

@@ -191,7 +191,7 @@ export async function createAdminResource(ctx) {
 }
 
 export async function editAdminResource(ctx) {
-  const { req, p, b, send, session, get, run, audit, cache, all } = ctx;
+  const { req, p, b, send, session, get, run, audit, cache, all, notify } = ctx;
   const m = p.match(/^\/api\/admin\/resources\/(\d+)$/);
   if (m && req.method === "PATCH") {
     assertAdmin(session);
@@ -250,6 +250,28 @@ export async function editAdminResource(ctx) {
       id,
     );
     await audit(session, "修改资源", next.name);
+    // R6-5: a price change or a delisting (published -> draft)
+    // notifies every user who favorited this resource
+    // (type resource_update). Other edits stay silent.
+    const priceChanged = next.price !== r.price;
+    const delisted = r.status === "published" && next.status === "draft";
+    if (priceChanged || delisted) {
+      const favs = await all(
+        "SELECT user_id FROM favorites WHERE resource_id=?",
+        id,
+      );
+      for (const f of favs) {
+        await notify(
+          f.user_id,
+          "资源更新",
+          delisted
+            ? `“${next.name}”已下架。`
+            : `“${next.name}”价格已调整为 ¥${(next.price / 100).toString()}。`,
+          1,
+          "resource_update",
+        );
+      }
+    }
     await bustResourceCache(ctx);
     const updated = await get("SELECT * FROM resources WHERE id=?", id);
     const [resource] = await attachVenues(all, [resourceRow(updated)]);

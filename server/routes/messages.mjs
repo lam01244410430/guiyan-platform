@@ -13,9 +13,20 @@ export async function listMessages(ctx) {
     let limit = parseInt(url.searchParams.get("limit") || "20", 10);
     if (!Number.isFinite(limit) || limit < 1) limit = 20;
     if (limit > 50) limit = 50;
+    // R6-5: inbox groups by message type; ?type= filters to one
+    // group (general / resource_update / comment_reply / order_status).
+    const type = url.searchParams.get("type") || "";
+    assert(
+      type === "" ||
+        ["general", "resource_update", "comment_reply", "order_status"].includes(
+          type,
+        ),
+      "消息类型错误",
+    );
     const messages = await all(
-      "SELECT id,title,content,is_read,created_at FROM messages WHERE user_id=? ORDER BY id DESC LIMIT ?",
+      `SELECT id,title,content,is_read,type,created_at FROM messages WHERE user_id=?${type ? " AND type=?" : ""} ORDER BY id DESC LIMIT ?`,
       u.id,
+      ...(type ? [type] : []),
       limit,
     );
     const row = await get(

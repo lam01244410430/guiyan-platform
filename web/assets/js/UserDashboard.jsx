@@ -36,6 +36,10 @@ const ACCT_TAB_IDS = ACCT_TABS.map(([id]) => id);
 const ORDER_STATUSES = ["pending", "confirmed", "paid", "completed", "cancelled", "refunded", "refund_requested", "disputed"];
 /* R4-1: ticket status -> i18n key (issued/used/void). */
 const TICKET_STATUS_KEY = { issued: "ticketIssued", used: "ticketUsed", void: "ticketVoid" };
+/* R6-5: inbox message type -> i18n key (messages carry a type since
+   this wave; older rows are 'general'). The inbox groups by type. */
+const MSG_TYPE_KEY = { general: "msgTypeGeneral", resource_update: "msgTypeResourceUpdate", comment_reply: "msgTypeCommentReply", order_status: "msgTypeOrderStatus" };
+const MSG_TYPE_ORDER = ["general", "resource_update", "comment_reply", "order_status"];
 /* R4-2: print the order's ticket layout with the browser
    (window.print). The customer print is browser-only — the
    server-side print log (POST /api/admin/tickets/print) is
@@ -949,13 +953,28 @@ export default function UserDashboard() {
                   <div className="db-list" id="inboxList">
                     {tabLoading.inbox ? <div className="db-empty">{t("tabLoading")}</div>
                     : tabErr.inbox ? (<><div className="db-empty">{t("tabLoadErr")}</div><div style={{ textAlign: "center" }}><button type="button" className="btn ghost" onClick={() => loadTabInbox(apiGet, tabSetters)}>{t("retryBtn")}</button></div></>)
-                    : usrMessages.length ? usrMessages.map((m) => (
-                      <div key={m.id} className="order" role="button" tabIndex={0} onClick={() => markMessageRead(m)} onKeyDown={(e) => { if (e.key === "Enter") markMessageRead(m); }}>
-                        <h4>{!m.is_read && (<span aria-label="unread" style={{ color: "var(--red)" }}>● </span>)}{m.title}</h4>
-                        <span className="code">{String(m.created_at || "").slice(0, 16)}</span>
-                        <div className="row"><span style={{ fontSize: 13 }}>{m.content}</span></div>
-                      </div>
-                    )) : <div className="db-empty">{t("inboxEmpty")}</div>}
+                    : usrMessages.length ? (function () {
+                      /* R6-5: group the inbox by message type, in a
+                         fixed order; an unknown type falls back to the
+                         general group. */
+                      const groups = {};
+                      usrMessages.forEach(function (m) {
+                        const k = MSG_TYPE_KEY[m.type] ? m.type : "general";
+                        (groups[k] = groups[k] || []).push(m);
+                      });
+                      return MSG_TYPE_ORDER.filter(function (k) { return groups[k]; }).map(function (k) { return (
+                        <div key={k}>
+                          <h4 style={{ margin: "10px 0 4px", fontSize: 13, color: "var(--ink2)" }}>{t(MSG_TYPE_KEY[k])}</h4>
+                          {groups[k].map((m) => (
+                            <div key={m.id} className="order" role="button" tabIndex={0} onClick={() => markMessageRead(m)} onKeyDown={(e) => { if (e.key === "Enter") markMessageRead(m); }}>
+                              <h4>{!m.is_read && (<span aria-label="unread" style={{ color: "var(--red)" }}>● </span>)}{m.title}</h4>
+                              <span className="code">{String(m.created_at || "").slice(0, 16)}</span>
+                              <div className="row"><span style={{ fontSize: 13 }}>{m.content}</span></div>
+                            </div>
+                          ))}
+                        </div>
+                      ); });
+                    })() : <div className="db-empty">{t("inboxEmpty")}</div>}
                   </div>
                   {usrUnread > 0 && (<div style={{ marginTop: 10 }}><button type="button" className="mini" onClick={markAllMessagesRead}>{t("inboxMarkAll")}</button></div>)}
                 </section>

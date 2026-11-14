@@ -35,6 +35,7 @@ import { wechatMini } from "./routes/oauth.mjs";
 import { patchProfile, uploadAvatar, sendOtp, verifyOtp, patchEmail, patchPhone, patchSocial } from "./routes/account.mjs";
 import { listOrders, createOrder, getOrder, transitionOrder, getOrderContract } from "./routes/orders.mjs";
 import { listDemands, createDemand, getDemandMatches } from "./routes/demands.mjs";
+import { listComments, createComment, listAdminComments, reviewComment, replyComment } from "./routes/comments.mjs";
 import { listMessages, markMessageRead, markAllMessagesRead } from "./routes/messages.mjs";
 import { listFavorites, toggleFavorite, deleteFavorite } from "./routes/favorites.mjs";
 import { ANSWERS, assistant } from "./routes/assistant.mjs";
@@ -200,6 +201,8 @@ export async function createApp({ database }) {
       if (await getResource(ctx)) return;
       if (await getAvailability(ctx)) return;
       if (await viewResource(ctx)) return;
+      if (await listComments(ctx)) return;
+      if (await createComment(ctx)) return;
       if (await recordEvent(ctx)) return;
       if (await login(ctx)) return;
       if (await register(ctx)) return;
@@ -245,6 +248,9 @@ export async function createApp({ database }) {
       if (await adminAlerts(ctx)) return;
       if (await adminOrdersCsv(ctx)) return;
       if (await adminReviewDemand(ctx)) return;
+      if (await listAdminComments(ctx)) return;
+      if (await reviewComment(ctx)) return;
+      if (await replyComment(ctx)) return;
       if (await adminAuditLogs(ctx)) return;
       if (await adminTagRules(ctx)) return;
       if (await listAdminResources(ctx)) return;

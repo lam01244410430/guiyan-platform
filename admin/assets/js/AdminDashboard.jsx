@@ -35,6 +35,8 @@ const NAV_ICONS = {
   users: (<><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2M16 3.128a4 4 0 0 1 0 7.744M22 21v-2a4 4 0 0 0-3-3.87" /><circle cx="9" cy="7" r="4" /></>),
   resources: (<><path d="M12.83 2.18a2 2 0 0 0-1.66 0L2.6 6.08a1 1 0 0 0 0 1.83l8.58 3.91a2 2 0 0 0 1.66 0l8.58-3.9a1 1 0 0 0 0-1.83z" /><path d="M2 12a1 1 0 0 0 .58.91l8.6 3.91a2 2 0 0 0 1.65 0l8.58-3.9A1 1 0 0 0 22 12" /><path d="M2 17a1 1 0 0 0 .58.91l8.6 3.91a2 2 0 0 0 1.65 0l8.58-3.9A1 1 0 0 0 22 17" /></>),
   demands: (<><rect width="8" height="4" x="8" y="2" rx="1" ry="1" /><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2m4 7h4m-4 5h4m-8-5h.01M8 16h.01" /></>),
+  // R6-5 评论审核: Lucide message-square glyph (verbatim path data).
+  comments: (<><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" /></>),
   shops: (<><path d="M3 9l1.5-5h15L21 9" /><path d="M4 9v11a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1V9" /><path d="M9 21v-6h6v6" /></>),
   shows: (<><path d="M2 9a3 3 0 0 1 0 6v2a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-2a3 3 0 0 1 0-6V7a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2Z" /><path d="M13 5v2" /><path d="M13 17v2" /><path d="M13 11v2" /></>),
   venues: (<><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z" /><circle cx="12" cy="10" r="3" /></>),
@@ -93,6 +95,7 @@ const VIEWS = [
   { id: "verify", label: "核销", iconName: "ui:ticket", group: "main" },
   { id: "shops", label: "店铺", iconName: "ui:store", group: "main" },
   { id: "demands", label: "需求", iconName: "ui:clipboard-list", group: "main" },
+  { id: "comments", label: "评论审核", iconName: "ui:message-square", group: "main" },
   { id: "trends", label: "趋势统计", iconName: "ui:chart-line", group: "premium" },
   { id: "analysis", label: "经营分析", iconName: "ui:scroll-text", group: "premium" },
   { id: "alerts", label: "预警中心", iconName: "ui:triangle-alert", group: "premium" },
@@ -190,6 +193,11 @@ export default function AdminDashboard() {
   const [contract, setContract] = useState(null);
   const [users, setUsers] = useState([]);  const [resources, setResources] = useState([]);
   const [demands, setDemands] = useState([]);
+  // R6-5 评论审核: the admin comment list + status filter
+  // ("pending" default) + the per-comment reply draft, keyed by id.
+  const [comments, setComments] = useState([]);
+  const [cmtFilter, setCmtFilter] = useState("pending");
+  const [replyDraft, setReplyDraft] = useState({});
   const [filter, setFilter] = useState("all");
   const [view, setView] = useState("overview");
   // One shared search query for the current view; reset on every view
@@ -785,6 +793,13 @@ export default function AdminDashboard() {
     if (view === "licenses") loadLicenses();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [view]);
+
+  // R6-5 评论审核: load the admin comment list when the view opens
+  // and whenever its status filter changes.
+  useEffect(() => {
+    if (view === "comments") loadComments();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [view, cmtFilter]);
   useEffect(() => {
     if (!biFullscreen) return;
     function onKey(e) { if (e.key === "Escape") setBiFullscreen(false); }
@@ -864,6 +879,49 @@ export default function AdminDashboard() {
       if (e && e.status === 403) toast("无权审核");
       else if (e && e.status === 404) toast("需求不存在");
       else toast("审核失败，请稍后重试");
+    }).finally(function () { setReviewBusyId(null); });
+  }
+
+  /* R6-5 评论审核: load the admin comment list for the chosen
+     status filter ("" = all statuses). */
+  function loadComments() {
+    const qs = "/api/admin/comments" + (cmtFilter ? "?status=" + encodeURIComponent(cmtFilter) : "");
+    apiGet(qs).then(function (d) {
+      setComments(d.comments || []);
+    }).catch(loadFail);
+  }
+  /* R6-5: approve/reject one pending comment (same reviewBusyId
+     pattern as demands). The list reloads so the row's status and
+     any reply render fresh. */
+  function doReviewComment(id, status) {
+    if (reviewBusyId !== null) return;
+    setReviewBusyId(id);
+    apiPatch("/api/admin/comments/" + id, { status }).then(function () {
+      loadComments();
+      loadAudit();
+      toast(status === "approved" ? "已通过" : "已拒绝");
+    }).catch(function (e) {
+      if (e && e.status === 403) toast("无权审核");
+      else if (e && e.status === 404) toast("评价不存在");
+      else toast((e && e.data && e.data.error) || "审核失败，请稍后重试");
+    }).finally(function () { setReviewBusyId(null); });
+  }
+  /* R6-5: reply to one comment. The author is notified
+     (comment_reply) by the server; the reply renders on the comment. */
+  function doReplyComment(id) {
+    if (reviewBusyId !== null) return;
+    const reply = (replyDraft[id] || "").trim();
+    if (!reply) { toast("请填写回复内容"); return; }
+    setReviewBusyId(id);
+    apiPatch("/api/admin/comments/" + id + "/reply", { reply }).then(function () {
+      setReplyDraft(function (m) { const next = { ...m }; delete next[id]; return next; });
+      loadComments();
+      loadAudit();
+      toast("已回复，作者已收到通知");
+    }).catch(function (e) {
+      if (e && e.status === 403) toast("无权回复");
+      else if (e && e.status === 404) toast("评价不存在");
+      else toast((e && e.data && e.data.error) || "回复失败，请稍后重试");
     }).finally(function () { setReviewBusyId(null); });
   }
 
@@ -2366,6 +2424,7 @@ export default function AdminDashboard() {
     venues: ["场馆管理", "共 " + venues.length + " 个场馆 · 座位模板决定是否可选座"],
     shops: ["店铺管理", "共 " + shops.length + " 家店铺 · 仅平台管理员可创建/修改"],
     demands: ["需求总览", "共 " + demands.length + " 条"],
+    comments: ["评论审核", "待审核评价 · 通过/拒绝/回复"],
     trends: ["趋势统计", "按周期查看订单趋势"],
     analysis: ["经营分析", "模拟经营分析报告"],
     alerts: ["预警中心", "库存与模拟预警 · 操作留痕"],
@@ -3915,6 +3974,52 @@ export default function AdminDashboard() {
               </table>
             </div>
             <p className="def-note">审核结果会通知发布人，并在操作审计中留痕。</p>
+          </section>
+
+          {/* R6-5 评论审核: pending list + approve/reject + reply.
+              Approval makes the comment public (rating/review_count
+              follow from the server aggregation); a reply notifies
+              the comment author. */}
+          <section className={"view" + (view === "comments" ? " on" : "")} id="view-comments">
+            <div className="chips">
+              {[["pending", "待审核"], ["", "全部"], ["approved", "已通过"], ["rejected", "已拒绝"]].map(([v, label]) => (
+                <button key={v || "all"} type="button" className={cmtFilter === v ? "on" : ""}
+                  aria-pressed={cmtFilter === v ? "true" : "false"} onClick={() => setCmtFilter(v)}>{label}</button>
+              ))}
+            </div>
+            <div className="tbl-wrap">
+              <table>
+                <thead><tr><th scope="col">编号</th><th scope="col">资源</th><th scope="col">用户</th><th scope="col">评分</th><th scope="col">评价内容</th><th scope="col">状态</th><th scope="col">操作</th></tr></thead>
+                <tbody id="cmtBody">
+                  {comments.length
+                    ? comments.map((c) => (
+                      <tr key={c.id}>
+                        <td className="num">{c.id}</td><td>{c.resource_name || ""}</td><td>{c.user_name || ""}</td>
+                        <td className="num">{"★".repeat(c.rating)}{"☆".repeat(5 - c.rating)}</td>
+                        <td>{c.content}{c.reply ? (<div style={{ fontSize: 12.5, color: "var(--ink2)" }}>回复：{c.reply}</div>) : null}</td>
+                        <td>{c.status === "approved" ? "已通过" : c.status === "pending" ? "待审核" : c.status === "rejected" ? "已拒绝" : (c.status || "")}</td>
+                        <td>
+                          {c.status === "pending" ? (
+                            <span className="row-actions">
+                              <button type="button" className="btn-approve" disabled={reviewBusyId === c.id} onClick={() => doReviewComment(c.id, "approved")}>{reviewBusyId === c.id ? "处理中…" : "通过"}</button>
+                              <button type="button" className="btn-reject" disabled={reviewBusyId === c.id} onClick={() => doReviewComment(c.id, "rejected")}>{reviewBusyId === c.id ? "处理中…" : "拒绝"}</button>
+                            </span>
+                          ) : (
+                            <span className="row-actions">
+                              <input type="text" maxLength={500} placeholder="写回复…" value={replyDraft[c.id] || ""}
+                                onChange={(e) => setReplyDraft(function (m) { return { ...m, [c.id]: e.target.value }; })}
+                                style={{ width: 160 }} />
+                              <button type="button" className="btn-approve" disabled={reviewBusyId === c.id} onClick={() => doReplyComment(c.id)}>{reviewBusyId === c.id ? "处理中…" : "回复"}</button>
+                            </span>
+                          )}
+                        </td>
+                      </tr>
+                    ))
+                    : <tr><td colSpan="7"><div className="empty">暂无评价</div></td></tr>}
+                </tbody>
+              </table>
+            </div>
+            <p className="def-note">通过后评价公开可见，资源评分与评价数随之更新；回复会通知评价作者。</p>
           </section>
 
           <section className={"view" + (view === "trends" ? " on" : "")} id="view-trends">

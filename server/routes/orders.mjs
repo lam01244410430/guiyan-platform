@@ -323,6 +323,8 @@ export async function createOrder(ctx) {
         u.id,
         "预约提交成功",
         `“${r.name}”${d}的预约已提交，等待确认。`,
+        1,
+        "order_status",
       );
       await audit(u, "提交预约", r.name);
       return orderId;
@@ -817,12 +819,16 @@ export async function transitionOrder(ctx) {
           o.user_id,
           "订单售后处理结果",
           `${o.code} · ${o.resource_name}：${result}。${action === "approveRefund" ? (refundStored > 0 ? `其中 ¥${(refundStored / 100).toString()} 已返还文惠卡。` : "") : "原因：" + decision + "。"}该处理为模拟，未产生真实扣款/退款。`,
+          1,
+          "order_status",
         );
       } else {
         await notify(
           o.user_id,
           "订单状态更新",
           `${o.code} · ${o.resource_name} → ${ORDER_STATUS_ZH[to]}。${action === "pay" ? (payStored && payStored.used > 0 ? `文惠卡已扣 ¥${(payStored.used / 100).toString()}，剩余 ¥${(payStored.remainder / 100).toString()}为模拟支付，未扣款。` : "这是模拟支付，未扣款。") : action === "refund" && partial?.auto ? `已自动退回 ${partial.k} 张票，退款 ¥${(partial.refundCents / 100).toString()}${refundStored > 0 ? `，其中 ¥${(refundStored / 100).toString()} 已返还文惠卡` : ""}。该处理为模拟，未产生真实扣款/退款。` : action === "refund" && partial ? `已提交部分退款申请（${partial.k} 张票），等待管理员审核。` : ""}`,
+          1,
+          "order_status",
         );
       }
       // R4-4: a partial-refund request (auto or manual) audits as

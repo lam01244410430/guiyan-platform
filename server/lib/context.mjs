@@ -18,13 +18,24 @@ export function createContext(database) {
       detail,
       time(),
     );
-  const notify = async (uid, title, content, sender = 1) =>
+  // R6-5: messages carry a type (general / resource_update /
+  // comment_reply / order_status). The type classifies the inbox;
+  // it never changes who is notified or when. Old callers pass
+  // nothing and keep the default 'general'.
+  const MESSAGE_TYPES = [
+    "general",
+    "resource_update",
+    "comment_reply",
+    "order_status",
+  ];
+  const notify = async (uid, title, content, sender = 1, type = "general") =>
     await run(
-      "INSERT INTO messages(user_id,sender_id,title,content,created_at) VALUES(?,?,?,?,?)",
+      "INSERT INTO messages(user_id,sender_id,title,content,type,created_at) VALUES(?,?,?,?,?,?)",
       uid,
       sender,
       title,
       content,
+      MESSAGE_TYPES.includes(type) ? type : "general",
       time(),
     );
   function transaction(fn) {

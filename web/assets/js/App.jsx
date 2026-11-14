@@ -224,6 +224,11 @@ export default function App() {
   const [licKind, setLicKind] = useState("all"); /* R6-1: 版权库 kind filter (all/buy/sell) */
   const [licStatus, setLicStatus] = useState("all"); /* R6-1: 版权库 status filter (all/pending/active/expired) */
   const [licenses, setLicenses] = useState([]); /* R6-1: public licence rows for the open 版权库 category, [] = none loaded */
+
+  const [comments, setComments] = useState([]); /* R6-5: approved comments (+ the caller's own pending/rejected) for the open detail */
+  const [cmtRating, setCmtRating] = useState(5); /* R6-5: rating picked in the comment form */
+  const [cmtText, setCmtText] = useState(""); /* R6-5: comment text being typed */
+  const [cmtBusy, setCmtBusy] = useState(false); /* R6-5: comment submit in flight */
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [toastMsg, setToastMsg] = useState("");
   const [chatMsgs, setChatMsgs] = useState([]);
@@ -336,6 +341,40 @@ export default function App() {
     return function () { alive = false; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [store.cat, licKind, licStatus]);
+
+  /* R6-5: comments for the open detail. Public list shows approved
+     rows; a logged-in caller additionally sees their own
+     pending/rejected rows (server-side). A failed fetch just leaves
+     the section empty (offline fallback keeps the local behaviour). */
+  useEffect(() => {
+    if (detailIdx == null) { setComments([]); return; }
+    const rid = APIRES[detailIdx] && APIRES[detailIdx].id;
+    if (rid == null) { setComments([]); return; }
+    let alive = true;
+    apiGet("/api/resources/" + rid + "/comments")
+      .then(function (d) { if (alive) setComments((d && d.comments) || []); })
+      .catch(function () { if (alive) setComments([]); });
+    return function () { alive = false; };
+  }, [detailIdx]);
+
+  /* R6-5: submit a comment (login-gated; the server starts it as
+     pending and only the author sees it until an admin approves it). */
+  function submitComment() {
+    if (cmtBusy || detailIdx == null) return;
+    const rid = APIRES[detailIdx] && APIRES[detailIdx].id;
+    if (rid == null || !user) return;
+    if (!cmtText.trim()) return;
+    setCmtBusy(true);
+    apiPost("/api/resources/" + rid + "/comments", { rating: cmtRating, content: cmtText.trim() })
+      .then(function () {
+        setCmtText(""); setCmtRating(5);
+        toast(t("commentPosted"));
+        return apiGet("/api/resources/" + rid + "/comments");
+      })
+      .then(function (d) { setComments((d && d.comments) || []); })
+      .catch(function (e) { toast((e && e.data && e.data.error) || t("loadErr")); })
+      .finally(function () { setCmtBusy(false); });
+  }
 
   /* R1-3: per-shop storefront theme (?shop=, default 1). Fire-and-
      forget like the availability fetch: a failed fetch just keeps the
@@ -1353,6 +1392,35 @@ export default function App() {
                 {cur[1] === "venue" && APIRES[detailIdx] && APIRES[detailIdx].venue && (
                   <VenueCalendar venueId={APIRES[detailIdx].venue.id} />
                 )}
+
+                {/* R6-5: comments — only approved rows are public; the
+                    author additionally sees their own pending/rejected
+                    rows (server-side). New comments start pending. */}
+                <div className="metalist">
+                  <h4>{t("commentTitle")}</h4>
+                  {comments.length ? comments.map((c) => (
+                    <div key={c.id} className="row" style={{ display: "block", padding: "6px 0" }}>
+                      <span style={{ color: "var(--gold)", fontWeight: 700 }}>{"★".repeat(c.rating)}{"☆".repeat(5 - c.rating)}</span>
+                      {" "}<span style={{ fontWeight: 700 }}>{c.user_name || ""}</span>
+                      {c.status === "pending" ? (<span className="pill" style={{ marginLeft: 6 }}>{t("commentPending")}</span>)
+                        : c.status === "rejected" ? (<span className="pill" style={{ marginLeft: 6 }}>{t("commentRejected")}</span>) : null}
+                      <div style={{ fontSize: 13.5 }}>{c.content}</div>
+                      {c.reply ? (<div style={{ fontSize: 13, color: "var(--ink2)" }}>{t("commentReplyLabel")}：{c.reply}</div>) : null}
+                    </div>
+                  )) : (<div style={{ fontSize: 13.5, color: "var(--ink2)" }}>{t("commentEmpty")}</div>)}
+                  {user ? (
+                    <div style={{ marginTop: 8 }}>
+                      <label style={{ display: "block", fontSize: 13 }}>{t("commentRating")}
+                        <select value={cmtRating} onChange={(e) => setCmtRating(+e.target.value)} style={{ marginLeft: 6 }}>
+                          {[5, 4, 3, 2, 1].map((n) => (<option key={n} value={n}>{n} ★</option>))}
+                        </select>
+                      </label>
+                      <textarea value={cmtText} maxLength={500} rows={2} placeholder={t("commentPh")}
+                        onChange={(e) => setCmtText(e.target.value)} style={{ width: "100%", marginTop: 6 }} />
+                      <button type="button" className="btn" disabled={cmtBusy || !cmtText.trim()} onClick={submitComment} style={{ marginTop: 6 }}>{t("commentSubmit")}</button>
+                    </div>
+                  ) : null}
+                </div>
               </div>
             </>
           )}

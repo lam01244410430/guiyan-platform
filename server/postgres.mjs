@@ -200,6 +200,15 @@ export async function openPostgresStore(
       await client.query(
         "ALTER TABLE events ADD COLUMN IF NOT EXISTS duration_ms INTEGER NOT NULL DEFAULT 0",
       );
+      // R6-5 (comment review + message notifications, 2026-11-14):
+      // message type for inbox grouping (general / resource_update /
+      // comment_reply / order_status). Fresh databases get it from
+      // schema.mjs; existing ones (incl. live Neon) get it here,
+      // same idempotent pattern as the columns above. DEFAULT
+      // 'general' fills existing rows.
+      await client.query(
+        "ALTER TABLE messages ADD COLUMN IF NOT EXISTS type TEXT DEFAULT 'general'",
+      );
       if (!(await client.query("SELECT COUNT(*) AS n FROM users")).rows[0].n) {
         // Batch adjacent inserts to keep first-time setup fast over the network.
         const groups = [];
