@@ -9,7 +9,11 @@
 // and excludes the untagged one; (5) a disabled auto rule grants
 // nothing; (6) a paid show order grants an order_category auto rule;
 // (7) PATCH /api/admin/tag-rules rejects bad auto rules with 400;
-// (8) re-evaluation never duplicates the auto-tag row.
+// (8) re-evaluation never duplicates the auto-tag row;
+// (9) B-053: saving the default rule set keeps the auto rule intact
+// (no `conditions` injected — the server validator refuses them —
+// and the signal survives), and an auto rule with `conditions: []`
+// is rejected with 400.
 //
 // Genre grounding (verified in code, never invented): the only genre
 // value in the seed is meta.genre "民族歌舞" (resources 2 刘三姐 and
@@ -300,6 +304,10 @@ test("R7-5: PATCH tag-rules rejects bad auto rules with 400", async () => {
       ...base,
       conditions: [{ field: "spent", op: "gte", value: 0 }],
     },
+    // B-053: an empty conditions array is still conditions — the
+    // validator requires it to be absent (undefined) on auto rules,
+    // so the admin UI must never inject `conditions: []` on save.
+    { ...base, conditions: [] },
   ];
   try {
     for (const rules of bad) {
@@ -315,6 +323,27 @@ test("R7-5: PATCH tag-rules rejects bad auto rules with 400", async () => {
   } finally {
     await restoreTagRules(adminToken, defaults);
   }
+  assert.deepEqual(await getTagRules(adminToken), defaults);
+});
+
+test("B-053: saving the default rule set keeps the auto rule intact", async () => {
+  const defaults = await getTagRules(adminToken);
+  const folk = defaults.find((r) => r.id === "folk");
+  assert.ok(folk && folk.mode === "auto", `folk must be an auto rule: ${JSON.stringify(folk)}`);
+  assert.equal("conditions" in folk, false, "stored auto rule must carry no conditions key");
+  // Save exactly what the admin UI loads (the B-053 save path): the
+  // whole default set, unchanged. The UI must not inject conditions
+  // into the auto rule, and the signal must survive the round-trip.
+  const saved = await patchTagRules(adminToken, defaults);
+  assert.equal(saved.status, 200, `save defaults -> ${saved.status} ${JSON.stringify(saved.data)}`);
+  const folkSaved = saved.data.tagRules.find((r) => r.id === "folk");
+  assert.equal(folkSaved.mode, "auto");
+  assert.equal("conditions" in folkSaved, false, "saved auto rule must carry no conditions key");
+  assert.deepEqual(folkSaved.signal, { kind: "view_genre", genre: "民族歌舞", threshold: 3 });
+  const highSaved = saved.data.tagRules.find((r) => r.id === "high");
+  assert.equal(highSaved.mode, "manual");
+  assert.equal(highSaved.conditions.length, 1, "manual rules keep their conditions");
+  // Stored state matches what was saved.
   assert.deepEqual(await getTagRules(adminToken), defaults);
 });
 

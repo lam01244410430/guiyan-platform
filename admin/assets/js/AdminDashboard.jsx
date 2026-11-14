@@ -122,6 +122,22 @@ const TAG_FIELDS = [
 ];
 const TAG_NUMERIC = ["spent", "paid_count", "days_since_payment", "view_count", "favorite_count"];
 const TAG_OPS = [["gte", "≥"], ["lte", "≤"], ["gt", ">"], ["lt", "<"], ["eq", "="]];
+// B-053: auto-tag rules (R7-5) have a signal, not conditions — the signal
+// kinds are AUTO_SIGNAL_KINDS in server/lib/profiles.mjs. The admin view
+// renders the signal as text; condition editors stay manual-only.
+const AUTO_SIGNAL_LABELS = {
+  view_genre: "浏览剧种",
+  view_category: "浏览分类",
+  click_category: "点击分类",
+  order_category: "购票分类",
+  favorite_category: "收藏分类",
+};
+function autoSignalText(r) {
+  const s = (r && r.signal) || {};
+  const label = AUTO_SIGNAL_LABELS[s.kind] || "自动信号";
+  const what = s.kind === "view_genre" ? s.genre : s.category;
+  return "自动 · " + label + (what ? " " + what : "") + " ≥ " + (s.threshold || 0) + " 次";
+}
 const ALERT_KINDS = [
   ["sales", "销量突降"], ["verification", "核销异常"], ["inventory", "库存异常"],
   ["data", "数据异常"], ["sentiment", "潜在舆情风险"],
@@ -2417,9 +2433,12 @@ export default function AdminDashboard() {
     setTagRules(function (rs) {
       return rs.map(function (r, n) {
         if (n !== i) return r;
+        // B-053: an auto rule has no conditions by design (the server
+        // validator refuses them) — never inject one from the editor.
+        if (r.mode === "auto") return r;
         return {
           ...r,
-          conditions: r.conditions.map(function (c, k) {
+          conditions: (r.conditions || []).map(function (c, k) {
             if (k !== j) return c;
             const next = { ...c, [key]: value };
             if (key === "field") {
@@ -2857,10 +2876,14 @@ export default function AdminDashboard() {
                     <label>标签名称 <input type="text" value={r.name} maxLength={20} onChange={(e) => editTagRule(i, "name", e.target.value)} /></label>
                     <label>规则编号 <input type="text" value={r.id} maxLength={60} onChange={(e) => editTagRule(i, "id", e.target.value)} /></label>
                     <label><input type="checkbox" checked={r.enabled} onChange={(e) => editTagRule(i, "enabled", e.target.checked)} /> 启用</label>
-                    <label>满足条件 <select value={r.match} onChange={(e) => editTagRule(i, "match", e.target.value)}>
-                      <option value="all">全部满足</option><option value="any">任一满足</option>
-                    </select></label>
-                    {r.conditions.map((c, j) => (
+                    {r.mode === "auto" ? (
+                      <p className="def-note">自动规则：{autoSignalText(r)}（系统自动打标签，无需配置条件）</p>
+                    ) : (
+                      <>
+                        <label>满足条件 <select value={r.match} onChange={(e) => editTagRule(i, "match", e.target.value)}>
+                          <option value="all">全部满足</option><option value="any">任一满足</option>
+                        </select></label>
+                        {(r.conditions || []).map((c, j) => (
                       <div className="tag-cond" key={j}>
                         <select aria-label="条件字段" value={c.field} onChange={(e) => editTagCond(i, j, "field", e.target.value)}>
                           {TAG_FIELDS.map(([f, label]) => (<option key={f} value={f}>{label}</option>))}
@@ -2871,11 +2894,15 @@ export default function AdminDashboard() {
                         {TAG_NUMERIC.indexOf(c.field) !== -1
                           ? <input type="number" aria-label="阈值" value={c.value} min={0} onChange={(e) => editTagCond(i, j, "value", e.target.value === "" ? 0 : Number(e.target.value))} />
                           : <input type="text" aria-label="匹配值" value={c.value} maxLength={40} onChange={(e) => editTagCond(i, j, "value", e.target.value)} />}
-                        <button type="button" className="link-btn" disabled={r.conditions.length <= 1} onClick={() => editTagRule(i, "conditions", r.conditions.filter((_, k) => k !== j))}>删除条件</button>
+                        <button type="button" className="link-btn" disabled={(r.conditions || []).length <= 1} onClick={() => editTagRule(i, "conditions", (r.conditions || []).filter((_, k) => k !== j))}>删除条件</button>
                       </div>
-                    ))}
+                        ))}
+                      </>
+                    )}
                     <div>
-                      <button type="button" className="btn-resolve" disabled={r.conditions.length >= 6} onClick={() => editTagRule(i, "conditions", r.conditions.concat([{ field: "spent", op: "gte", value: 0 }]))}>添加条件</button>{" "}
+                      {r.mode === "auto" ? null : (
+                        <button type="button" className="btn-resolve" disabled={(r.conditions || []).length >= 6} onClick={() => editTagRule(i, "conditions", (r.conditions || []).concat([{ field: "spent", op: "gte", value: 0 }]))}>添加条件</button>
+                      )}{" "}
                       <button type="button" className="btn-reject" onClick={() => setTagRules(tagRules.filter((_, n) => n !== i))}>删除规则</button>
                     </div>
                   </fieldset>
