@@ -3,6 +3,7 @@
    the admin token and goes to dashboard.html. */
 import { useEffect, useState } from "react";
 import { apiPost, clearToken, currentUser, getToken, setToken } from "./adminApi.js";
+import AppFooter from "./AppFooter.jsx";
 
 export default function AdminLogin() {
   const [loginUser, setLoginUser] = useState("");
@@ -43,7 +44,11 @@ export default function AdminLogin() {
     });
   }
 
+  /* Layout restructure 2026-11-14: same header/footer shell as the
+     dashboard — the brand mark in the card is the page header; the
+     footer line sits below it. Behaviour unchanged. */
   return (
+    <div className="login-shell">
     <div className="login-page">
       <div className="login-card">
         <div className="mark">桂演</div>
@@ -62,6 +67,8 @@ export default function AdminLogin() {
         <p className="sub" style={{ margin: "14px 0 0", textAlign: "center" }}>演示账号：admin / admin123</p>
         <a className="login-back" href="/">← 返回首页</a>
       </div>
+    </div>
+    <AppFooter />
     </div>
   );
 }

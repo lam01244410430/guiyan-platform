@@ -9,14 +9,25 @@
 > everywhere) and rebuilt from the original night-theatre brand using
 > our own brand-contract method (`DESIGN.md` as brand contract, with
 > tokens in `tokens.css` and `design-tokens.json`).
+>
+> **Amendment 2026-11-14 (Lam, DECIDED):** the admin shell is now a
+> **black sidebar + white content area**; the overview is restrained
+> (white cards, neutral-ink numbers, at most one restrained accent per
+> screen); data frames use a uniform card shell (title row + body,
+> consistent spacing, quiet borders). This replaces the deep-pine
+> sidebar + warm-paper content + pine hero card for admin. Cinnabar/
+> gold stay only as restrained accents (status pills, one highlight
+> max per screen). Pine stays as a data/structural colour (chart line,
+> status tints), not as shell ground. The rest of this contract is
+> unchanged.
 
 ## 1. Visual Theme & Atmosphere
 
-A theatre at night: dark pine house, warm paper programme, cinnabar
+A theatre at night: dark house, white programme, cinnabar
 seal, gold leaf. The console is an operator's desk backstage — dense,
 legible, calm — with the brand showing in exactly three places: the
-pine sidebar, the serif display type, and one cinnabar accent per
-screen. Everything else is paper, ink, and data.
+black sidebar, the serif display type, and one cinnabar accent per
+screen. Everything else is white, ink, and data.
 
 - **Visual style:** night-theatre editorial — not SaaS, not a book.
 - **Design intent:** a screenshot must be identifiable as 桂演. If the
@@ -26,12 +37,15 @@ screen. Everything else is paper, ink, and data.
 
 ## 2. Color Palette & Roles
 
-- **Pine (brand ground):** `#0B3D36` — sidebar, hero revenue card,
-  chart line, primary structure. Lighter pine `#14564D` for active
-  sidebar item background. Pine soft `#DFF2EE` for selected tint on
-  paper. Pine deep `#0B4F47` for hover on pine.
-- **Paper (page):** `#F7F3EC` — page background only, never a card.
-- **Surface:** `#FFFDF8` — cards, tables, inputs, dropdowns.
+- **Pine (structural green):** `#0B3D36` — chart line, primary structure,
+  selected tint on white. It is NOT the shell ground anymore (amended
+  2026-11-14): the sidebar is black and the hero revenue card is white.
+  Lighter pine `#14564D` for hover on pine surfaces. Pine soft
+  `#DFF2EE` for selected tint. Pine deep `#0B4F47` for hover on pine.
+- **Page:** `#FFFFFF` — white content area (amended 2026-11-14; warm
+  paper `#F7F3EC` is retired for admin).
+- **Surface:** `#FFFFFF` — cards, tables, inputs, dropdowns. White on
+  white, defined by 1px line borders, not by tint.
 - **Surface 2:** `#F3ECDF` — hover rows, secondary wells.
 - **Ink:** `#1C1710` — data, numbers, primary text. Never pure black.
 - **Ink 2:** `#5D5344` — secondary text, labels. **Ink 3:** `#8A7D68`
@@ -100,26 +114,30 @@ screen. Everything else is paper, ink, and data.
 
 ## 5. Layout & Composition
 
-- **Sidebar (the brand anchor):** deep pine `#0B3D36`, cream text
+- **Sidebar (the brand anchor):** black `#000000`, cream text
   `#F5EEDD`. Brand mark 桂演 in Noto Serif SC 900, cream, with a 3px
   cinnabar rule beneath it — **64px wide, left-aligned under the
   mark, never full-width** (a full-width rule reads as a divider,
   not an accent). Nav
   groups separated by a hairline; group labels 11px letterspaced.
-  Nav item: transparent, cream-dim text; hover lighter pine;
-  **active: lighter-pine fill `#14564D` + cream text + gold icon —
+  Nav item: transparent, cream-dim text; hover near-black `#1A1A1A`;
+  **active: near-black fill `#1F1F1F` + cream text + gold icon —
   no left-border accent** (the rounded-card-with-left-border is the
   canonical AI dashboard tile; the active state is a fill, not a
-  border). A **返回首页** link sits directly above the operator card at the
-  bottom of the sidebar: full-width, 9px radius, 1px `--sidebar-line`
-  border, cream text, home icon on the left; hover is a lighter-pine
-  fill. It links to `/` in the same tab. Footer: operator name + role,
-  logout as a bordered button.
-- **Main:** paper background, one view at a time. Page head: serif
-  h1 + sans sub-line + the read-only badge at the far right.
+  border). The operator card and 返回首页 live in the page header,
+  not the sidebar (amended 2026-11-14 — shell split into Sidebar /
+  AppHeader / AppFooter). Footer: one quiet line.
+- **Main:** white background, one view at a time. Page head: breadcrumb
+  `总览 / <view>` + serif h1 + sans sub-line + the read-only badge at
+  the far right.
 - **Stat cards:** white surface, 1px line border, 14px radius.
-  Hero card: flat pine, cream text, serif numerals, gold ¥ unit.
-  Never three or five equal-width cards.
+  Hero card: white surface, ink serif numerals, gold ¥ unit as the
+  single restrained accent per screen. Never three or five equal-width cards.
+- **Cards (uniform shell, amended 2026-11-14):** every content section
+  is a card — title row + body, consistent spacing, quiet 1px line
+  border, white surface on the white content area. A section's main
+  table sits directly in the card body (no inner frame); nested
+  fieldsets / report blocks keep their own borders as grouped content.
 - **Tables:** header 13px 700 ink2, row dividers 1px line, row hover
   surface2, status chips as small soft pills (muted bg + ink text,
   never saturated badges).
@@ -144,10 +162,11 @@ screen. Everything else is paper, ink, and data.
 - **Inputs:** boxed, 1px line2, 9px radius, 12px padding. Focus:
   pine border + 3px pine-soft ring. Real `<label>`, never
   placeholder-as-label.
-- **Login:** paper page, centered white card, serif brand mark in
+- **Login:** white page, centered white card, serif brand mark in
   pine with a 3px cinnabar rule beneath (64px wide, left-aligned,
   never full-width), sans form, cinnabar primary
-  button (9px). No watermark, no gradient mark, no pill button.
+  button (9px). No watermark, no gradient mark, no pill button. One
+  quiet footer line below the card.
 - **Icons:** Lucide monoline SVG, 1.6–1.8px stroke, `currentColor`.
   No emoji as icons, no emoji in product copy.
 - **Badges/chips:** small pills, soft background + ink text.
@@ -182,6 +201,8 @@ screen. Everything else is paper, ink, and data.
 - ❌ No generic blue, no indigo, no violet.
 - ❌ No 99px pill buttons; no rounded card with a left-border accent.
 - ❌ No Inter, no three equal-width cards, no white generic sidebar.
+- ❌ No pine sidebar, no pine hero card (amended 2026-11-14 — black
+  sidebar, white hero, white content area).
 - ❌ No emoji icons, no invented metrics, no filler copy.
 - ❌ No new hex values outside `:root` — every color is a token.
 - ❌ No serif in tables, labels, or body copy.
@@ -198,16 +219,16 @@ screen. Everything else is paper, ink, and data.
 
 When refactoring components against this design system:
 
-- Lead with the sidebar, the serif display type, and the cinnabar
+- Lead with the black sidebar, the serif display type, and the cinnabar
   rule; chrome (borders, shadows) is subtractive.
 - Color tokens are non-negotiable. Do not invent new hex values. If a
   state needs a color outside this palette, use the closest existing
   token and note it in the commit message.
-- Keep every behavior: all 8 views, search on all 8 views, chart
+- Keep every behavior: all 27 views, search on all views, chart
   periods + toggle + tooltip, demand approve/reject, CSV export,
   alerts, audit log, login/logout. This refactor changes appearance
   only — no API, data, or logic changes.
 - Verify like every other Guiyan change: `npm run build` passes,
-  `npm test` 29 pass / 0 fail / 10 skip, smoke 30/0, then a live
-  browser check (login, sidebar, all 8 views, search, chart periods)
+  `npm test` 424 (412/0/12), smoke 60/0, then a live
+  browser check (login, sidebar, all 27 views, search, chart periods)
   before any commit.

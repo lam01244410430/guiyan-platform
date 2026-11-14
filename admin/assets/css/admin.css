@@ -1,16 +1,20 @@
-/* Guiyan admin console — Night Theatre (OpenDesign rebuild 2026-11-11).
-   Deep pine, cinnabar, gold on warm paper — serif for display, sans for
-   data, flat surfaces, one accent per screen. No blue, no gradients,
-   no hex outside :root, no pill buttons, no left-border tiles. */
+/* Guiyan admin console — Night Theatre (brand rebuild 2026-11-11;
+   layout restructure 2026-11-14: black sidebar, white content,
+   uniform card shell, restrained overview).
+   Black sidebar, cinnabar + gold as restrained accents — serif for
+   display, sans for data, flat surfaces, one accent per screen.
+   No blue, no gradients, no hex outside :root, no pill buttons,
+   no left-border tiles. */
 :root{
-  --bg:#f7f3ec; --surface:#fffdf8; --surface2:#f3ecdf;
+  --bg:#ffffff; --surface:#ffffff; --surface2:#f3ecdf;
   --ink:#1c1710; --ink2:#5d5344; --ink3:#8a7d68;
   --line:#ddd2bf; --line2:#cbbd9f;
   --pine:#0b3d36; --pine-light:#14564d; --pine-deep:#0b4f47; --pine-soft:#dff2ee;
   --red:#c8452c; --red-deep:#a83a20; --red-soft:#fdece7; --red-soft-deep:#f9dcd2;
   --gold:#c9a24b; --gold-bar:#b8860b; --gold-ink:#7c5a10; --gold-soft:#fdf3d7;
   --jade:#0d6e5f; --jade-soft:#dcf2ea;
-  --sidebar-bg:#0b3d36; --sidebar-text:#f5eedd; --sidebar-text-dim:#b9d4c9; --sidebar-active-bg:#14564d;
+  --sidebar-bg:#000000; --sidebar-text:#f5eedd; --sidebar-text-dim:#a8a8a8; --sidebar-active-bg:#1f1f1f;
+  --sidebar-hover-bg:#1a1a1a;
   --sidebar-line:rgba(245,238,221,0.16);
   --chart-grid:#e8e0d2; --chart-area:rgba(11,61,54,0.08);
   --overlay:rgba(28,23,16,0.45);
@@ -33,6 +37,8 @@ button{font:inherit;cursor:pointer}
 input{font:inherit}
 
 /* ================= login ================= */
+.login-shell{min-height:100vh;display:flex;flex-direction:column;background:var(--bg)}
+.login-shell .login-page{flex:1;min-height:0}
 .login-page{min-height:100vh;background:var(--bg);display:flex;align-items:center;justify-content:center;padding:24px;position:relative;overflow:hidden}
 .login-card{position:relative;background:var(--surface);border:1px solid var(--line);border-radius:var(--radius-md);width:100%;max-width:400px;padding:36px 34px 30px}
 .login-card .mark{font-family:var(--font-display);font-size:44px;font-weight:900;color:var(--pine);line-height:1;letter-spacing:var(--tracking-display)}
@@ -59,27 +65,35 @@ input{font:inherit}
 .sidebar .mark{font-family:var(--font-display);font-size:30px;font-weight:900;color:var(--sidebar-text);line-height:1;letter-spacing:var(--tracking-display)}
 .sidebar .mark::after{content:"";display:block;width:64px;height:3px;background:var(--red);margin-top:10px}
 .sidebar .mark small{display:block;font-size:11px;letter-spacing:.28em;color:var(--sidebar-text-dim);font-weight:700;margin-top:8px;text-transform:uppercase}
-.sidebar nav{margin-top:34px;display:flex;flex-direction:column;gap:4px}
+.sidebar nav{margin-top:34px;display:flex;flex-direction:column;gap:4px;flex:1;min-height:0;overflow-y:auto}
 .sidebar nav button{all:unset;box-sizing:border-box;display:flex;align-items:center;gap:10px;padding:11px 14px;border-radius:9px;font-size:15px;font-weight:600;color:var(--sidebar-text-dim);cursor:pointer;text-align:left}
-.sidebar nav button:hover{background:var(--pine-deep);color:var(--sidebar-text)}
+.sidebar nav button:hover{background:var(--sidebar-hover-bg);color:var(--sidebar-text)}
 .sidebar nav button.on:hover{background:var(--sidebar-active-bg)}
 .sidebar nav button.on{background:var(--sidebar-active-bg);color:var(--sidebar-text)}
 .sidebar nav button.on .ic{color:var(--gold)}
 .sidebar nav button .ic{width:18px;height:18px;flex:none}
-.sidebar .who{margin-top:auto;border-top:1px solid var(--sidebar-line);padding-top:16px;display:flex;align-items:center;gap:10px}
-.sidebar .who .nm{font-size:13.5px;font-weight:700;line-height:1.3}
-.sidebar .who .rl{font-size:12px;color:var(--sidebar-text-dim)}
-.sidebar .who button{margin-left:auto;border:1px solid var(--sidebar-text-dim);background:transparent;color:var(--sidebar-text);border-radius:9px;padding:6px 12px;font-size:12px;font-weight:700}
-.sidebar .who button:hover{background:var(--pine-deep)}
-.sidebar .home-link{display:flex;align-items:center;gap:10px;box-sizing:border-box;width:100%;margin:0 0 12px;padding:11px 14px;border:1px solid var(--sidebar-line);border-radius:9px;background:transparent;color:var(--sidebar-text);font-size:15px;font-weight:600;text-decoration:none}
-.sidebar .home-link:hover{background:var(--pine-light)}
-.sidebar .home-link .ic{width:18px;height:18px;flex:none}
-.sidebar .home-link:focus-visible{outline:2px solid var(--red);outline-offset:2px}
 .main{flex:1;margin-left:240px;padding:34px 36px 60px;min-width:0}
-.main-head{display:flex;align-items:flex-end;gap:20px;margin-bottom:28px}
-.main-head h1{font-family:var(--font-display);font-size:34px;font-weight:900;line-height:1.15;margin:0;flex:1 1 auto;min-width:0}
-.main-head h1 #pageTitle{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.main-head h1 .sub{display:block;font-family:var(--font-body);font-size:13.5px;font-weight:600;color:var(--ink2);margin-top:6px}
+/* App header (layout restructure 2026-11-14): breadcrumb + title +
+   badge + 返回首页 + operator card, one row, never wraps. */
+.app-header{display:flex;align-items:flex-start;gap:16px;margin-bottom:28px;flex-wrap:nowrap}
+.app-header-main{flex:1 1 auto;min-width:0}
+.crumbs{font-size:12px;font-weight:700;color:var(--ink3);margin:0 0 4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.crumbs span{margin:0 6px}
+.app-header h1{font-family:var(--font-display);font-size:34px;font-weight:900;line-height:1.15;margin:0;min-width:0}
+.app-header h1 #pageTitle{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.app-header h1 .sub{display:block;font-family:var(--font-body);font-size:13.5px;font-weight:600;color:var(--ink2);margin-top:6px}
+.app-header .badge{align-self:center;flex-shrink:0}
+.app-header .home-link{display:flex;align-items:center;gap:8px;box-sizing:border-box;padding:11px 14px;border:1px solid var(--line2);border-radius:9px;background:var(--surface);color:var(--ink);font-size:14px;font-weight:600;text-decoration:none;white-space:nowrap;align-self:center;flex-shrink:0}
+.app-header .home-link:hover{background:var(--surface2)}
+.app-header .home-link .ic{width:18px;height:18px;flex:none}
+.app-header .home-link:focus-visible{outline:2px solid var(--pine);outline-offset:2px}
+.op-card{display:flex;align-items:center;gap:10px;flex-shrink:0;align-self:center}
+.op-card .nm{font-size:13.5px;font-weight:700;line-height:1.3;white-space:nowrap}
+.op-card .rl{font-size:12px;color:var(--ink2)}
+.op-card button{border:1px solid var(--line2);background:transparent;color:var(--ink);border-radius:9px;padding:6px 12px;font-size:12px;font-weight:700;white-space:nowrap}
+.op-card button:hover{background:var(--surface2)}
+.app-footer{margin-top:36px;padding:16px 0;border-top:1px solid var(--line);font-size:12px;color:var(--ink3);text-align:center}
+.login-shell .app-footer{margin-top:0}
 .badge{margin-left:auto;font-size:12px;font-weight:800;padding:5px 12px;border-radius:99px;background:var(--gold-soft);color:var(--gold-ink);white-space:nowrap;flex-shrink:0}
 .menu-btn{display:none;align-items:center;justify-content:center;flex:none;width:40px;height:40px;border:1px solid var(--line2);border-radius:9px;background:var(--surface);color:var(--ink)}
 .menu-btn:hover{background:var(--surface2)}
@@ -88,14 +102,17 @@ input{font:inherit}
 .view.on{display:block}
 .view h2{font-family:var(--font-display);font-size:22px;font-weight:900;margin:0 0 16px}
 
-/* stats: featured revenue card + compact cards (not equal-width) */
+/* stats: featured revenue card + compact cards (not equal-width).
+   Restrained overview (amended 2026-11-14): the hero is a WHITE card
+   with neutral-ink serif numerals — the gold ¥ unit is the single
+   restrained accent per screen. No multicolour stat cards. */
 .stats{display:grid;grid-template-columns:2fr 1fr 1fr 1fr 1fr;gap:14px;margin-bottom:30px}
 .stat{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius-md);padding:18px}
 .stat b{display:block;font-family:var(--font-body);font-size:28px;font-weight:900;line-height:1.15;font-variant-numeric:tabular-nums}
 .stat span{font-size:12px;color:var(--ink2);font-weight:600}
-.stat.hero{background:var(--pine);border-color:var(--pine);color:var(--sidebar-text)}
-.stat.hero b{color:var(--sidebar-text);font-size:34px;font-family:var(--font-display)}
-.stat.hero span{color:var(--sidebar-text)}
+.stat.hero{background:var(--surface);border-color:var(--line);color:var(--ink)}
+.stat.hero b{color:var(--ink);font-size:34px;font-family:var(--font-display)}
+.stat.hero span{color:var(--ink2)}
 .stat.hero b em{font-style:normal;color:var(--gold);font-size:18px}
 
 /* tables */
@@ -141,7 +158,14 @@ th .sort-btn:focus-visible{outline:2px solid var(--pine);outline-offset:1px}
 .chips button{border:1px solid var(--line2);background:var(--surface);border-radius:9px;padding:6px 14px;font-size:13.5px;font-weight:700;color:var(--ink2)}
 .chips button.on{background:var(--pine);border-color:var(--pine);color:var(--sidebar-text)}
 .note{background:var(--gold-soft);border:1px solid var(--line2);border-radius:var(--radius-md);padding:12px 16px;font-size:13.5px;color:var(--ink2);margin-bottom:24px}
-.sec{margin-bottom:36px}
+/* Uniform card shell (layout restructure 2026-11-14, D2): every content
+   section is a card — title row + body, consistent spacing, quiet 1px
+   border, white surface on the white content area. A section's main
+   table sits directly in the card body (no inner frame); nested
+   fieldsets / report blocks keep their own borders as grouped content. */
+.sec{margin-bottom:24px;background:var(--surface);border:1px solid var(--line);border-radius:var(--radius-md);padding:18px 20px}
+.sec h2{margin:0 0 14px}
+.sec>.tbl-wrap{border:0;border-radius:0;background:transparent}
 
 /* order status breakdown: label + proportional bar + count (real shares) */
 .bd-row{display:grid;grid-template-columns:64px 1fr 48px;align-items:center;gap:12px;padding:7px 0}
@@ -165,18 +189,25 @@ th .sort-btn:focus-visible{outline:2px solid var(--pine);outline-offset:1px}
   .drawer-backdrop.open{display:block;position:fixed;inset:0;background:var(--overlay);z-index:50}
   .chips button{min-height:44px;padding:11px 16px}
   .main{margin-left:0;padding:24px 18px 48px}
+  /* Header never wraps: operator name/role hide (logout stays),
+     返回首页 becomes icon-only. */
+  .app-header{gap:12px}
+  .app-header .op-card .nm,.app-header .op-card .rl{display:none}
+  .app-header .home-link span{display:none}
+  .app-header .home-link{padding:11px 12px}
 }
 @media(max-width:560px){
   .stats{grid-template-columns:1fr}
   .stat.hero b{font-size:28px}
-  .main-head h1{font-size:28px}
+  .app-header h1{font-size:28px}
+  .app-header .badge{display:none}
 }
 @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important;scroll-behavior:auto!important}}
 
 /* Motion: hero enters once on load; buttons press on click. */
 @keyframes rise{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
 .login-card{animation:rise var(--duration-enter) var(--ease-out) both}
-.login-btn:active,.chips button:active,.sidebar nav button:active,.btn-export:active,.btn-approve:active,.btn-reject:active,.btn-resolve:active,.sort-btn:active,.sidebar .home-link:active{transform:translateY(2px)}
+.login-btn:active,.chips button:active,.sidebar nav button:active,.btn-export:active,.btn-approve:active,.btn-reject:active,.btn-resolve:active,.sort-btn:active,.app-header .home-link:active{transform:translateY(2px)}
 
 /* ================= premium dashboard (Phase 5) ================= */
 .sidebar .nav-div{height:1px;background:var(--sidebar-line);margin:14px 4px 10px}
@@ -198,7 +229,6 @@ th .sort-btn:focus-visible{outline:2px solid var(--pine);outline-offset:1px}
 .cache-note{font-size:12px;color:var(--ink3);margin:0 0 14px}
 .def-note{font-size:12px;color:var(--ink2);margin:10px 0 0}
 .stat small{display:block;font-size:12px;color:var(--ink2);margin-top:6px;line-height:1.5;font-weight:400}
-.stat.hero small{color:var(--sidebar-text-dim)}
 .series-sum{font-size:13.5px;margin:0 0 8px}
 .user-sum{font-size:13.5px;margin:0 0 4px}
 .link-btn{border:0;background:none;color:var(--red);font-weight:700;font-size:13.5px;padding:0 0 0 8px;text-decoration:underline}
@@ -305,7 +335,7 @@ tr.top1 td{background:var(--gold-soft)}
    how the "打印/导出 PDF" button produces a PDF: the browser's
    "另存为 PDF" destination. The server generates no PDF file. */
 @media print{
-  .sidebar,.main-head,.toast,.bi-actions{display:none !important}
+  .sidebar,.app-header,.toast,.bi-actions{display:none !important}
   .main{margin-left:0;padding:0}
   .view{display:none !important}
   .view#view-bi{display:block !important}

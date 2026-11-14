@@ -19,47 +19,14 @@ import TrendChart from "./TrendChart.jsx";
 import SearchBox from "./SearchBox.jsx";
 import SortButton from "./SortButton.jsx";
 import { cycleDirection, sortRows } from "./sortUtils.js";
+import Sidebar from "./Sidebar.jsx";
+import AppHeader from "./AppHeader.jsx";
+import AppFooter from "./AppFooter.jsx";
 // catZh maps a category id (show/venue/…) to its Chinese name, from a
 // verbatim copy of the CATS table (admin/assets/js/cats.js). It used to
 // come from web/assets/js/data.js, which dragged the whole 866 KB data
 // file (i18n + base64 images) into the admin bundle as a separate chunk.
 import { catZh, CATS } from "./cats.js";
-/* Nav icons are inlined (not <img>) so currentColor inherits the button
-   colour — the gold active icon (DESIGN.md §5) is impossible through
-   <img>, where currentColor resolves to black. Path data copied verbatim
-   from admin/assets/icons/*.svg (stroke-width 1.7 per §6, 1.6–1.8px);
-   the icon files themselves are untouched. */
-const NAV_ICONS = {
-  overview: (<><rect width="7" height="9" x="3" y="3" rx="1" /><rect width="7" height="5" x="14" y="3" rx="1" /><rect width="7" height="9" x="14" y="12" rx="1" /><rect width="7" height="5" x="3" y="16" rx="1" /></>),
-  orders: (<><path d="M12 17V7m4 1h-6a2 2 0 0 0 0 4h4a2 2 0 0 1 0 4H8" /><path d="M4 3a1 1 0 0 1 1-1a1.3 1.3 0 0 1 .7.2l.933.6a1.3 1.3 0 0 0 1.4 0l.934-.6a1.3 1.3 0 0 1 1.4 0l.933.6a1.3 1.3 0 0 0 1.4 0l.933-.6a1.3 1.3 0 0 1 1.4 0l.934.6a1.3 1.3 0 0 0 1.4 0l.933-.6A1.3 1.3 0 0 1 19 2a1 1 0 0 1 1 1v18a1 1 0 0 1-1 1a1.3 1.3 0 0 1-.7-.2l-.933-.6a1.3 1.3 0 0 0-1.4 0l-.934.6a1.3 1.3 0 0 1-1.4 0l-.933-.6a1.3 1.3 0 0 0-1.4 0l-.933.6a1.3 1.3 0 0 1-1.4 0l-.934-.6a1.3 1.3 0 0 0-1.4 0l-.933.6a1.3 1.3 0 0 1-.7.2a1 1 0 0 1-1-1z" /></>),
-  users: (<><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2M16 3.128a4 4 0 0 1 0 7.744M22 21v-2a4 4 0 0 0-3-3.87" /><circle cx="9" cy="7" r="4" /></>),
-  resources: (<><path d="M12.83 2.18a2 2 0 0 0-1.66 0L2.6 6.08a1 1 0 0 0 0 1.83l8.58 3.91a2 2 0 0 0 1.66 0l8.58-3.9a1 1 0 0 0 0-1.83z" /><path d="M2 12a1 1 0 0 0 .58.91l8.6 3.91a2 2 0 0 0 1.65 0l8.58-3.9A1 1 0 0 0 22 12" /><path d="M2 17a1 1 0 0 0 .58.91l8.6 3.91a2 2 0 0 0 1.65 0l8.58-3.9A1 1 0 0 0 22 17" /></>),
-  demands: (<><rect width="8" height="4" x="8" y="2" rx="1" ry="1" /><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2m4 7h4m-4 5h4m-8-5h.01M8 16h.01" /></>),
-  // R6-5 评论审核: Lucide message-square glyph (verbatim path data).
-  comments: (<><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" /></>),
-  shops: (<><path d="M3 9l1.5-5h15L21 9" /><path d="M4 9v11a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1V9" /><path d="M9 21v-6h6v6" /></>),
-  shows: (<><path d="M2 9a3 3 0 0 1 0 6v2a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-2a3 3 0 0 1 0-6V7a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2Z" /><path d="M13 5v2" /><path d="M13 17v2" /><path d="M13 11v2" /></>),
-  venues: (<><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z" /><circle cx="12" cy="10" r="3" /></>),
-  trends: (<><path d="M3 3v16a2 2 0 0 0 2 2h16" /><path d="m19 9-5 5-4-4-3 3" /></>),
-  analysis: (<><path d="M15 12h-5m5-4h-5m9 9V5a2 2 0 0 0-2-2H4" /><path d="M8 21h12a2 2 0 0 0 2-2v-1a1 1 0 0 0-1-1H11a1 1 0 0 0-1 1v1a2 2 0 1 1-4 0V5a2 2 0 1 0-4 0v2a1 1 0 0 0 1 1h3" /></>),
-  alerts: (<><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3" /><path d="M12 9v4" /><path d="M12 17h.01" /></>),
-  tagrules: (<><path d="M12.586 2.586A2 2 0 0 0 11.172 2H4a2 2 0 0 0-2 2v7.172a2 2 0 0 0 .586 1.414l8.704 8.704a2.426 2.426 0 0 0 3.42 0l6.58-6.58a2.426 2.426 0 0 0 0-3.42z" /><circle cx="7.5" cy="7.5" r=".5" fill="currentColor" /></>),
-  aicopy: (<><path d="M12 20h9" /><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z" /></>),
-  account: (<><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2" /><circle cx="12" cy="7" r="4" /></>),
-  tiers: (<><path d="M11.562 3.266a.5.5 0 0 1 .876 0L15.39 8.87a1 1 0 0 0 1.516.294L21.183 5.5a.5.5 0 0 1 .798.519l-2.834 10.246a1 1 0 0 1-.956.735H5.81a1 1 0 0 1-.957-.735L2.02 6.02a.5.5 0 0 1 .798-.519l4.276 3.664a1 1 0 0 0 1.516-.294z" /><path d="M5 21h14" /></>),
-  // R3-6 文惠卡: same crown glyph as 会员等级 (member card) — there is
-  // no dedicated wallet glyph in admin/assets/icons/ yet.
-  storedvalue: (<><path d="M11.562 3.266a.5.5 0 0 1 .876 0L15.39 8.87a1 1 0 0 0 1.516.294L21.183 5.5a.5.5 0 0 1 .798.519l-2.834 10.246a1 1 0 0 1-.956.735H5.81a1 1 0 0 1-.957-.735L2.02 6.02a.5.5 0 0 1 .798-.519l4.276 3.664a1 1 0 0 0 1.516-.294z" /><path d="M5 21h14" /></>),
-  // R4-1 核销: same ticket glyph as 演出 (no dedicated scan glyph in
-  // admin/assets/icons/ yet). Staff = admin role — there is no
-  // separate staff role in this system.
-  verify: (<><path d="M2 9a3 3 0 0 1 0 6v2a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-2a3 3 0 0 1 0-6V7a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2Z" /><path d="M13 5v2" /><path d="M13 17v2" /><path d="M13 11v2" /></>),
-};
-function NavIcon({ v }) {
-  return (
-    <svg className="ic" data-icon={v.iconName} viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">{NAV_ICONS[v.id]}</svg>
-  );
-}
 /* fmtMoney() returns one string ("¥158,028"); split the ¥ out so only
    the unit renders gold in the hero numeral (DESIGN.md §2). adminApi.js
    is out of scope, so the split stays local. */
@@ -75,36 +42,8 @@ function heroMoney(v) {
 const ORDER_STATUS = ["pending", "confirmed", "paid", "completed", "cancelled", "refunded", "refund_requested", "disputed"];
 const DEMAND_STATUS = { approved: "已通过", pending: "待审核", rejected: "已拒绝" };
 const PERF_STATUS = { scheduled: "待上架", on_sale: "在售", cancelled: "已取消" };
-const VIEWS = [
-  { id: "overview", label: "总览", iconName: "ui:layout-dashboard", group: "main" },
-  { id: "orders", label: "订单", iconName: "ui:receipt", group: "main" },
-  { id: "users", label: "用户", iconName: "ui:users", group: "main" },
-  { id: "account", label: "账号", iconName: "ui:user", group: "main" },
-  { id: "tagrules", label: "标签规则", iconName: "ui:tags", group: "main" },
-  { id: "aicopy", label: "文案生成", iconName: "ui:pen", group: "main" },
-  { id: "ipconfig", label: "IP 配置", iconName: "ui:pen", group: "main" },
-  { id: "resources", label: "资源", iconName: "ui:layers", group: "main" },
-  { id: "licenses", label: "版权登记", iconName: "ui:scroll-text", group: "main" },
-  { id: "shows", label: "演出", iconName: "ui:ticket", group: "main" },
-  { id: "venues", label: "场馆", iconName: "ui:map-pin", group: "main" },
-  { id: "tiers", label: "会员等级", iconName: "ui:crown", group: "main" },
-  { id: "coupons", label: "优惠券", iconName: "ui:percent", group: "main" },
-  { id: "flashsales", label: "限时抢购", iconName: "ui:percent", group: "main" },
-  { id: "autorules", label: "自动发券", iconName: "ui:gift", group: "main" },
-  { id: "smstasks", label: "短信群发", iconName: "ui:pen", group: "main" },
-  { id: "storedvalue", label: "文惠卡", iconName: "ui:crown", group: "main" },
-  { id: "verify", label: "核销", iconName: "ui:ticket", group: "main" },
-  { id: "shops", label: "店铺", iconName: "ui:store", group: "main" },
-  { id: "demands", label: "需求", iconName: "ui:clipboard-list", group: "main" },
-  { id: "comments", label: "评论审核", iconName: "ui:message-square", group: "main" },
-  { id: "trends", label: "趋势统计", iconName: "ui:chart-line", group: "premium" },
-  { id: "analysis", label: "经营分析", iconName: "ui:scroll-text", group: "premium" },
-  { id: "alerts", label: "预警中心", iconName: "ui:triangle-alert", group: "premium" },
-  { id: "events", label: "数据运营", iconName: "ui:chart-line", group: "premium" },
-  { id: "memberinsights", label: "会员数据", iconName: "ui:crown", group: "premium" },
-  { id: "bi", label: "数据大屏", iconName: "ui:chart-line", group: "premium" },
-  { id: "financeledger", label: "财务账本", iconName: "ui:scroll-text", group: "premium" },
-];
+/* VIEWS + NAV_ICONS + NavIcon moved to Sidebar.jsx (layout
+   restructure 2026-11-14 — shell split, no logic change). */
 const FILTERS = [
   ["all", "全部"], ["pending", "待确认"], ["confirmed", "已确认"], ["paid", "已支付"],
   ["completed", "已完成"], ["cancelled", "已取消"], ["refunded", "已退款"],
@@ -2509,6 +2448,7 @@ export default function AdminDashboard() {
     overview: ["总览", "运营数据一览"],
     orders: ["全部订单", "共 " + orders.length + " 单 · 可处理售后"],
     users: ["全部用户", "共 " + users.length + " 人"],
+    account: ["账号", "本人资料 · 改密码（OTP 验证）"],
     tagrules: ["标签规则", "自动标签规则 · 保存后立即重算"],
     aicopy: ["文案生成", "本地模板 · 未接入大模型"],
     ipconfig: ["IP 配置", "文小惠形象配置 · 未设置时聊天保持原样"],
@@ -2516,6 +2456,13 @@ export default function AdminDashboard() {
     licenses: ["版权登记", "共 " + licenses.length + " 条授权 · 按店铺管理"],
     shows: ["演出管理", "共 " + shows.length + " 场演出 · 通过审核后可售票"],
     venues: ["场馆管理", "共 " + venues.length + " 个场馆 · 座位模板决定是否可选座"],
+    tiers: ["会员等级", "共 " + memberTiers.length + " 个等级"],
+    coupons: ["优惠券", "共 " + coupons.length + " 张优惠券"],
+    flashsales: ["限时抢购", "共 " + flashSales.length + " 场抢购"],
+    autorules: ["自动发券", "共 " + couponRules.length + " 条规则"],
+    smstasks: ["短信群发", "共 " + smsTasks.length + " 条短信任务"],
+    storedvalue: ["文惠卡", "共 " + storedValuePlans.length + " 种储值方案"],
+    verify: ["核销", "共 " + verifyHistory.length + " 条核销记录"],
     shops: ["店铺管理", "共 " + shops.length + " 家店铺 · 仅平台管理员可创建/修改"],
     demands: ["需求总览", "共 " + demands.length + " 条"],
     comments: ["评论审核", "待审核评价 · 通过/拒绝/回复"],
@@ -2691,46 +2638,19 @@ export default function AdminDashboard() {
     <>
       <a className="skip-link" href="#top">跳到主要内容</a>
       <div id="app" className="admin-app">
-        <aside className={"sidebar" + (drawerOpen ? " open" : "")} id="adminSidebar">
-          <div className="mark">桂演<small>Admin Console</small></div>
-          <nav>
-            {VIEWS.filter((v) => v.group === "main").map((v) => (
-              <button key={v.id} type="button" data-view={v.id} className={view === v.id ? "on" : ""}
-                aria-current={view === v.id ? "page" : undefined} onClick={() => changeView(v.id)}>
-                <NavIcon v={v} />
-                {v.label}
-              </button>
-            ))}
-            <div className="nav-div" aria-hidden="true"></div>
-            <div className="nav-group">经营分析</div>
-            {VIEWS.filter((v) => v.group === "premium").map((v) => (
-              <button key={v.id} type="button" data-view={v.id} className={view === v.id ? "on" : ""}
-                aria-current={view === v.id ? "page" : undefined} onClick={() => changeView(v.id)}>
-                <NavIcon v={v} />
-                {v.label}
-              </button>
-            ))}
-          </nav>
-          <a className="home-link" href="/">
-            <svg className="ic" data-icon="ui:home" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" /><path d="M9 22V12h6v10" /></svg>
-            返回首页
-          </a>
-          <div className="who">
-            <div><div className="nm" id="whoName">{whoName}</div><div className="rl">管理员</div></div>
-            <button type="button" id="logoutBtn" onClick={doLogout}>退出</button>
-          </div>
-        </aside>
+        <Sidebar view={view} onSelect={changeView} drawerOpen={drawerOpen} />
         <div className={"drawer-backdrop" + (drawerOpen ? " open" : "")} aria-hidden="true" onClick={() => setDrawerOpen(false)}></div>
         <main className="main" id="top" tabIndex={-1}>
-          <div className="main-head">
-            <button type="button" className="menu-btn" ref={hamburgerRef}
-              aria-expanded={drawerOpen ? "true" : "false"} aria-controls="adminSidebar" aria-label="打开导航菜单"
-              onClick={() => setDrawerOpen(!drawerOpen)}>
-              <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16" /></svg>
-            </button>
-            <h1><span id="pageTitle">{titles[view][0]}</span><span className="sub" id="pageSub">{view === "users" ? "共 " + filteredUsers.length + " 人" : view === "orders" ? "共 " + filteredOrders.length + " 单 · 可处理售后" : view === "resources" ? "共 " + filteredResources.length + " 项" : view === "demands" ? "共 " + filteredDemands.length + " 条" : titles[view][1]}</span></h1>
-            <span className="badge">管理操作 · 审计留痕</span>
-          </div>
+          <AppHeader
+            viewLabel={titles[view][0]}
+            title={<h1><span id="pageTitle">{titles[view][0]}</span><span className="sub" id="pageSub">{view === "users" ? "共 " + filteredUsers.length + " 人" : view === "orders" ? "共 " + filteredOrders.length + " 单 · 可处理售后" : view === "resources" ? "共 " + filteredResources.length + " 项" : view === "demands" ? "共 " + filteredDemands.length + " 条" : titles[view][1]}</span></h1>}
+            badge="管理操作 · 审计留痕"
+            whoName={whoName}
+            onLogout={doLogout}
+            drawerOpen={drawerOpen}
+            onToggleDrawer={() => setDrawerOpen(!drawerOpen)}
+            hamburgerRef={hamburgerRef}
+          />
 
           <section className={"view" + (view === "overview" ? " on" : "")} id="view-overview">
             <div className="stats">
@@ -4725,6 +4645,7 @@ export default function AdminDashboard() {
               </table>
             </div>
           </section>
+          <AppFooter />
         </main>
       </div>
 

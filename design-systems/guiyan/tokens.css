@@ -1,6 +1,7 @@
 /* design-systems/guiyan/tokens.css
  * Structured token bindings for Guiyan 夜剧场 (Night Theatre).
- * Deep pine, cinnabar, gold on warm paper — serif display, sans data,
+ * Black sidebar + white content (amended 2026-11-14, Lam DECIDED),
+ * cinnabar + gold as restrained accents — serif display, sans data,
  * flat surfaces. Canonical compiled tokens; DESIGN.md is the prose.
  * No blue, no gradients, no hex outside :root.
  */
@@ -12,9 +13,9 @@
   --pine-deep: #0b4f47;
   --pine-soft: #dff2ee;
 
-  /* Page & surfaces */
-  --bg: #f7f3ec;
-  --surface: #fffdf8;
+  /* Page & surfaces — white content area (amended 2026-11-14) */
+  --bg: #ffffff;
+  --surface: #ffffff;
   --surface2: #f3ecdf;
 
   /* Ink */
@@ -42,11 +43,12 @@
   --jade: #0d6e5f;
   --jade-soft: #dcf2ea;
 
-  /* Sidebar */
-  --sidebar-bg: #0b3d36;
+  /* Sidebar — black (amended 2026-11-14, Lam DECIDED) */
+  --sidebar-bg: #000000;
   --sidebar-text: #f5eedd;
-  --sidebar-text-dim: #b9d4c9;
-  --sidebar-active-bg: #14564d;
+  --sidebar-text-dim: #a8a8a8;
+  --sidebar-active-bg: #1f1f1f;
+  --sidebar-hover-bg: #1a1a1a;
   --sidebar-line: rgba(245, 238, 221, 0.16);
 
   /* Overlay (mobile drawer backdrop) */
