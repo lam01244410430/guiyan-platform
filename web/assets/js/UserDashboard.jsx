@@ -90,6 +90,11 @@ export default function UserDashboard() {
   // both calls degrade to null instead of blocking the info tab).
   const [usrProfile, setUsrProfile] = useState(null);
   const [usrRecs, setUsrRecs] = useState([]);
+  // R7-6: context filters for the recommendations (time of day / city /
+  // companion). Empty = no filter; applied on demand, never on mount.
+  const [ctxTime, setCtxTime] = useState("");
+  const [ctxCity, setCtxCity] = useState("");
+  const [ctxComp, setCtxComp] = useState("");
   // R3-1: own member tier + next-tier progress (same info-tab loader).
   const [usrTier, setUsrTier] = useState(null);
   // R3-4: own gifted coupons (same info-tab loader).
@@ -243,6 +248,18 @@ export default function UserDashboard() {
      valid, and only a 401 closes it again. */
   function loadAllTabsNow() {
     loadAllTabs(apiGet, tabSetters);
+  }
+
+  /* R7-6: re-fetch the recommendations with the chosen context
+     (rules only, server-side). A failed fetch leaves the list as-is. */
+  function applyCtx() {
+    const qs = new URLSearchParams({ limit: "5" });
+    if (ctxTime) qs.set("time_of_day", ctxTime);
+    if (ctxCity.trim()) qs.set("city", ctxCity.trim());
+    if (ctxComp) qs.set("companion", ctxComp);
+    apiGet("/api/recommendations?" + qs.toString())
+      .then((d) => setUsrRecs((d && d.recommendations) || []))
+      .catch(() => {});
   }
 
   /* R3-6: top up the 文惠卡 with one of the shop's plans, then reload
@@ -798,6 +815,32 @@ export default function UserDashboard() {
                 {usrRecs.length ? (
                   <section className="db-sec">
                     <h3>{t("recTitle")}</h3>
+                    {/* R7-6: context filters (time / city / companion). */}
+                    <div className="row" style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 8, alignItems: "center" }}>
+                      <span style={{ fontSize: 13 }}>{t("ctxTitle")}</span>
+                      <label style={{ fontSize: 13 }}>{t("ctxTime")}
+                        <select value={ctxTime} onChange={(e) => setCtxTime(e.target.value)} style={{ marginLeft: 4 }}>
+                          <option value="">{t("ctxAny")}</option>
+                          <option value="morning">{t("ctxMorning")}</option>
+                          <option value="afternoon">{t("ctxAfternoon")}</option>
+                          <option value="evening">{t("ctxEvening")}</option>
+                          <option value="night">{t("ctxNight")}</option>
+                        </select>
+                      </label>
+                      <label style={{ fontSize: 13 }}>{t("ctxCity")}
+                        <input value={ctxCity} onChange={(e) => setCtxCity(e.target.value)} placeholder={t("ctxCityPh")} style={{ marginLeft: 4, width: 110 }} />
+                      </label>
+                      <label style={{ fontSize: 13 }}>{t("ctxCompanion")}
+                        <select value={ctxComp} onChange={(e) => setCtxComp(e.target.value)} style={{ marginLeft: 4 }}>
+                          <option value="">{t("ctxAny")}</option>
+                          <option value="alone">{t("ctxAlone")}</option>
+                          <option value="couple">{t("ctxCouple")}</option>
+                          <option value="family">{t("ctxFamily")}</option>
+                          <option value="friends">{t("ctxFriends")}</option>
+                        </select>
+                      </label>
+                      <button type="button" className="btn" onClick={applyCtx}>{t("ctxApply")}</button>
+                    </div>
                     <div className="db-list" id="recsList">
                       {usrRecs.map((r) => (
                         <div key={r.resourceId} className="order">

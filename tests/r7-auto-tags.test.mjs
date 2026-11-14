@@ -21,11 +21,11 @@
 // user, and tests 5–7 restore the default rules in `finally` so later
 // tests see the same rules. This file runs LAST in `npm test`.
 //
-// i18n key counts (H5 428, miniprogram 242) are asserted by
+// i18n key counts (H5 448, miniprogram 262) are asserted by
 // tests/r4-tickets.test.mjs, tests/r2-pickup.test.mjs and
 // tests/p3bugs.test.mjs — this file adds NO customer-visible string
 // (the tag text is data, the admin labels are hardcoded Chinese), so
-// the counts stay 428/242.
+// the counts stay 448/262.
 import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";

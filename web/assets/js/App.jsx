@@ -226,6 +226,7 @@ export default function App() {
   const [licenses, setLicenses] = useState([]); /* R6-1: public licence rows for the open 版权库 category, [] = none loaded */
 
   const [comments, setComments] = useState([]); /* R6-5: approved comments (+ the caller's own pending/rejected) for the open detail */
+  const [itinerary, setItinerary] = useState(null); /* R7-6: hand-entered itinerary template for the open detail (null = none) */
   const [kgRelated, setKgRelated] = useState([]); /* R7-3: knowledge-graph neighbours for the open detail ([] = none) */
   const [cmtRating, setCmtRating] = useState(5); /* R6-5: rating picked in the comment form */
   const [cmtText, setCmtText] = useState(""); /* R6-5: comment text being typed */
@@ -358,9 +359,17 @@ export default function App() {
     return function () { alive = false; };
   }, [detailIdx]);
 
+  /* R7-6: itinerary template for the open detail (hand-entered places
+     only; null when no template was entered for this show). A failed
+     fetch just leaves the section hidden. */
   useEffect(() => {
+    if (detailIdx == null) { setItinerary(null); return; }
     const rid = APIRES[detailIdx] && APIRES[detailIdx].id;
+    if (rid == null) { setItinerary(null); return; }
     let alive = true;
+    apiGet("/api/resources/" + rid + "/itinerary")
+      .then(function (d) { if (alive) setItinerary((d && d.itinerary) || null); })
+      .catch(function () { if (alive) setItinerary(null); });
     return function () { alive = false; };
   }, [detailIdx]);
 
@@ -1457,7 +1466,16 @@ export default function App() {
                     </div>
                   ) : null}
                 </div>
+                {/* R7-6: itinerary suggestion — show + eat + parking +
+                    sleep, hand-entered places only, no merchant links. */}
+                {itinerary ? (
                   <div className="metalist">
+                    <h4>{t("itinTitle")}</h4>
+                    <div style={{ fontSize: 13.5 }}>{itinerary.venue_name}{itinerary.venue_address ? " · " + itinerary.venue_address : ""}</div>
+                    <div style={{ fontSize: 13.5, marginTop: 6 }}><strong>{t("itinEat")}：</strong>{itinerary.eat.map((e) => e.name + (e.note ? "（" + e.note + "）" : "")).join("、")}</div>
+                    <div style={{ fontSize: 13.5 }}><strong>{t("itinParking")}：</strong>{itinerary.parking}</div>
+                    <div style={{ fontSize: 13.5 }}><strong>{t("itinSleep")}：</strong>{itinerary.sleep.map((s) => s.name + (s.note ? "（" + s.note + "）" : "")).join("、")}</div>
+                    <div style={{ fontSize: 12.5, color: "var(--ink2)", marginTop: 4 }}>{itinerary.note}</div>
                   </div>
                 ) : null}
                 {/* R7-3: knowledge-graph neighbours — related

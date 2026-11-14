@@ -396,6 +396,57 @@ export async function openPostgresStore(
           ]);
         }
       }
+      // R7-6 itinerary seed (2026-11-14): one hand-entered template
+      // for the flagship Nanning show 民族歌舞剧《刘三姐》, staged at
+      // 广西文化艺术中心 (verified public address: 南宁市良庆区龙堤路
+      // 25号, by the Yong River near 南宁大桥). Place names are ONLY
+      // ones verified in public sources (see docs/03 R7-6): the venue
+      // itself, 中山路夜市 (Nanning's night market, city centre — the
+      // template says to take a car there, it is NOT in walking range
+      // of the venue), 广西沃顿国际大酒店 (民族大道88号, city centre,
+      // likewise reached by car). No restaurant/hotel/parking name
+      // next to 龙堤路25号 could be verified, so the parking section
+      // is guidance text (use the venue's own parking) and no phone
+      // number, price, link or unverified field is stored anywhere.
+      // Runs on every setup; inserts only when no template exists for
+      // the show, so an admin's edit is never overwritten.
+      {
+        const show = await client.query(
+          "SELECT id FROM resources WHERE name=$1",
+          ["民族歌舞剧《刘三姐》"],
+        );
+        if (show.rows.length) {
+          const existing = await client.query(
+            "SELECT id FROM itineraries WHERE resource_id=$1",
+            [show.rows[0].id],
+          );
+          if (!existing.rows.length) {
+            await client.query(
+              "INSERT INTO itineraries(resource_id,venue_name,venue_address,eat,parking,sleep,note,created_at) VALUES($1,$2,$3,$4,$5,$6,$7,$8)",
+              [
+                show.rows[0].id,
+                "广西文化艺术中心",
+                "南宁市良庆区龙堤路25号",
+                JSON.stringify([
+                  {
+                    name: "中山路夜市",
+                    note: "南宁市中心夜市，演出后乘车前往，非场馆步行范围",
+                  },
+                ]),
+                "自驾请使用场馆配套停车场；散场时段车流集中，建议提前离场。场馆位于邕江边，近南宁大桥。",
+                JSON.stringify([
+                  {
+                    name: "广西沃顿国际大酒店",
+                    note: "位于市中心民族大道88号，演出后乘车前往",
+                  },
+                ]),
+                "地点为手工录入，仅供参考，不含商户链接与电话、价格。",
+                new Date().toISOString(),
+              ],
+            );
+          }
+        }
+      }
       // R7-3 knowledge-graph seed (2026-11-14): 26 nodes + 7 edges,
       // hand-derived from the seeded resources only — Lam decision (c).
       // Nodes: 6 shows + 5 artists + 6 venues + 6 ip (resources by
@@ -681,7 +732,9 @@ export async function openPostgresStore(
             // needs its id the same way — the R3-5 lesson).
             // R7-5: user_tags joins them too (the auto-tag insert
             // needs its id the same way — the R3-5 lesson).
-            /^\s*INSERT\s+INTO\s+(users|resources|orders|demands|comments|messages|events|audit_logs|shops|shows|performances|ticket_types|pickup_points|ticket_templates|venues|seat_templates|seats|member_tiers|coupons|flash_sales|coupon_rules|coupon_gifts|sms_tasks|stored_value_accounts|stored_value_ledger|stored_value_plans|tickets|verify_logs|print_logs|event_aggregates|analysis_snapshots|alert_rules|finance_ledger|licenses|user_tags)\b/i.test(
+            // R7-6: itineraries joins them too (the seed insert needs
+            // its id the same way — the R3-5 lesson).
+            /^\s*INSERT\s+INTO\s+(users|resources|orders|demands|comments|messages|events|audit_logs|shops|shows|performances|ticket_types|pickup_points|ticket_templates|venues|seat_templates|seats|member_tiers|coupons|flash_sales|coupon_rules|coupon_gifts|sms_tasks|stored_value_accounts|stored_value_ledger|stored_value_plans|tickets|verify_logs|print_logs|event_aggregates|analysis_snapshots|alert_rules|finance_ledger|licenses|user_tags|itineraries)\b/i.test(
               sql,
             );
           const result = await execute(

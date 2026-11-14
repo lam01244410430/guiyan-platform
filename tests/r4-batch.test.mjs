@@ -293,16 +293,16 @@ test("non-admin batch -> 403, no verify_logs rows written", async () => {
   assert.equal(await totalLogCount(), beforeTotal);
 });
 
-test("i18n 428/242: 7 new batch keys mini-only, equal sets", async () => {
+test("i18n 448/262: 7 new batch keys mini-only, equal sets", async () => {
   // R4-3 adds 7 batch/queue/scan keys on the mini-program only
   // (169 -> 176); H5 stayed 367 then — the admin batch UI labels are
   // hardcoded Chinese per the admin rule. R4-4 moves both sides to
-  // 428/242 (5 partial-refund/pickup keys); R6-1 adds 12 license keys (372 -> 384, 181 -> 193). R6-2 adds 13 library keys (384 -> 397, 193 -> 206). R6-3 adds 2 creative keys H5 (397 -> 399), 1 mini (206 -> 207). R6-4 adds 6 match keys (399 -> 405) + 5 filter-bar keys mini-only (207 -> 218). R6-5 adds 13 comment/message-type keys (405 -> 418, 218 -> 231). R6-6 adds 5 escrow keys (418 -> 423, 231 -> 236). R7-2 adds 4 voice keys H5 (423 -> 427), 5 mini (236 -> 241).; R7-3 adds 1 knowledge-graph key (427 -> 428, 241 -> 242).
+  // 448/262 (5 partial-refund/pickup keys); R6-1 adds 12 license keys (372 -> 384, 181 -> 193). R6-2 adds 13 library keys (384 -> 397, 193 -> 206). R6-3 adds 2 creative keys H5 (397 -> 399), 1 mini (206 -> 207). R6-4 adds 6 match keys (399 -> 405) + 5 filter-bar keys mini-only (207 -> 218). R6-5 adds 13 comment/message-type keys (405 -> 418, 218 -> 231). R6-6 adds 5 escrow keys (418 -> 423, 231 -> 236). R7-2 adds 4 voice keys H5 (423 -> 427), 5 mini (236 -> 241).; R7-3 adds 1 knowledge-graph key (427 -> 428, 241 -> 242).; R7-6 adds 20 context/itinerary keys (428 -> 448, 242 -> 262).
   const data = await import(
     path.resolve(repoDir, "web", "assets", "js", "data.js")
   );
   const counts = data.LANGS.map((l) => Object.keys(data.I18N[l]).length);
-  assert.deepEqual(counts, [428, 428, 428]);
+  assert.deepEqual(counts, [448, 448, 448]);
   const text = fs.readFileSync(
     path.resolve(repoDir, "miniprogram", "utils", "i18n.js"),
     "utf8",
@@ -318,7 +318,7 @@ test("i18n 428/242: 7 new batch keys mini-only, equal sets", async () => {
     ].map((m) => m[1]);
   }
   for (const lang of ["zh", "vi", "en"]) {
-    assert.equal(blocks[lang].length, 242, `${lang} key count`);
+    assert.equal(blocks[lang].length, 262, `${lang} key count`);
     for (const k of ["verifyBatchTitle", "verifyScan", "verifyBatchPaste", "verifyBatchSync", "verifyQueueTitle", "verifyQueueEmpty", "verifyAdminOnly"])
       assert.ok(blocks[lang].includes(k), `${k} missing in mini ${lang}`);
   }

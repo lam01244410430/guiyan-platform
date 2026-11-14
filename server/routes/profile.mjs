@@ -31,10 +31,41 @@ export async function getRecommendations(ctx) {
   const limit = Number.isSafeInteger(limitRaw)
     ? Math.min(20, Math.max(1, limitRaw))
     : 10;
+  // R7-6 context params (rules only, see profiles.mjs):
+  // time_of_day (morning/afternoon/evening/night), city (any
+  // non-empty string), companion (alone/couple/family/friends).
+  // Unknown enum values -> 400; absent params -> the old behaviour.
+  const TIME_OF_DAY = ["morning", "afternoon", "evening", "night"];
+  const COMPANIONS = ["alone", "couple", "family", "friends"];
+  const timeOfDay = url.searchParams.get("time_of_day") || undefined;
+  const city = (url.searchParams.get("city") || "").trim() || undefined;
+  const companion = url.searchParams.get("companion") || undefined;
+  assert(!timeOfDay || TIME_OF_DAY.includes(timeOfDay), "时段参数错误", 400);
+  assert(
+    !companion || COMPANIONS.includes(companion),
+    "同行人参数错误",
+    400,
+  );
+  assert(!city || city.length <= 20, "城市参数过长", 400);
+  const contextOpts = { time_of_day: timeOfDay, city, companion };
+  const hasContext = Boolean(timeOfDay || city || companion);
   const resources = (
     await all("SELECT * FROM resources WHERE status='published'")
   ).map(resourceRow);
-  const recs = await recommendationsFor(target, resources, ctx);
-  send({ recommendations: recs.slice(0, limit) });
+  const recs = await recommendationsFor(target, resources, ctx, contextOpts);
+  // Echo the applied context only when the caller passed one, so the
+  // no-context response shape is unchanged.
+  send({
+    recommendations: recs.slice(0, limit),
+    ...(hasContext
+      ? {
+          context: {
+            time_of_day: timeOfDay || null,
+            city: city || null,
+            companion: companion || null,
+          },
+        }
+      : {}),
+  });
   return true;
 }

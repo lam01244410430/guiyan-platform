@@ -14,8 +14,8 @@
 //     endpoint, same path, no voice-only shortcut);
 // (3) the price behind that question is real catalog data: 刘三姐 is
 //     ¥280 (28000 cents) in GET /api/resources;
-// (4) i18n counts after the 4 new H5 voice keys (423 -> 427 standalone, 428 merged) and the 5
-//     new mini-program voice keys (236 -> 241 standalone, 242 merged);
+// (4) i18n counts after the 4 new H5 voice keys (423 -> 427 standalone, 448 merged) and the 5
+//     new mini-program voice keys (236 -> 241 standalone, 262 merged);
 // (5) static code checks on the client recognition code (see below).
 //
 // Browser recognition itself is verified by code review + the manual
@@ -163,12 +163,12 @@ test("r7-voice: GET /api/assistant?q= empty -> 400", async () => {
   assert.equal(r.status, 400, JSON.stringify(r.json));
 });
 
-test("r7-voice i18n: H5 428 keys/language, miniprogram 242, voice keys present", async () => {
+test("r7-voice i18n: H5 448 keys/language, miniprogram 262, voice keys present", async () => {
   const data = await import(
     path.resolve(repoDir, "web", "assets", "js", "data.js")
   );
   const counts = data.LANGS.map((l) => Object.keys(data.I18N[l]).length);
-  assert.deepEqual(counts, [428, 428, 428]);
+  assert.deepEqual(counts, [448, 448, 448]);
   for (const k of ["voiceMic", "voiceListening", "voiceUnsupported", "voiceFailed"]) {
     for (const l of data.LANGS)
       assert.ok(k in data.I18N[l], `${k} missing in H5 ${l}`);
@@ -188,7 +188,7 @@ test("r7-voice i18n: H5 428 keys/language, miniprogram 242, voice keys present",
     ].map((m) => m[1]);
   }
   for (const lang of ["zh", "vi", "en"]) {
-    assert.equal(blocks[lang].length, 242, `${lang} key count`);
+    assert.equal(blocks[lang].length, 262, `${lang} key count`);
     for (const k of ["voiceMic", "voiceRecording", "voiceRecordFailed", "voiceNotConnected", "voiceTypeInstead"])
       assert.ok(blocks[lang].includes(k), `${k} missing in mini ${lang}`);
   }

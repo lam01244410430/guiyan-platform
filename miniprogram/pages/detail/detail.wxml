@@ -184,7 +184,17 @@
     </block>
   </block>
 
+  <!-- R7-6: itinerary suggestion — show + eat + parking + sleep,
+       hand-entered places only, no merchant links; hidden when no
+       template was entered for this show. -->
+  <block wx:if="{{itinerary}}">
     <view class="card">
+      <view class="sec-title serif" style="font-size:32rpx">{{L.itinTitle}}</view>
+      <view class="note">{{itinerary.venue_name}} · {{itinerary.venue_address}}</view>
+      <view class="note">{{L.itinEat}}：<block wx:for="{{itinerary.eat}}" wx:key="name">{{item.name}}<text wx:if="{{item.note}}">（{{item.note}}）</text> </block></view>
+      <view class="note">{{L.itinParking}}：{{itinerary.parking}}</view>
+      <view class="note">{{L.itinSleep}}：<block wx:for="{{itinerary.sleep}}" wx:key="name">{{item.name}}<text wx:if="{{item.note}}">（{{item.note}}）</text> </block></view>
+      <view class="note">{{itinerary.note}}</view>
     </view>
   </block>
 

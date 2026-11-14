@@ -15,7 +15,7 @@
 // 403; (7) a held order completes -> 已释放, an unheld order completes
 // -> 已结算 (existing behavior).
 //
-// i18n key counts (H5 428, miniprogram 242) are asserted by the 22
+// i18n key counts (H5 448, miniprogram 262) are asserted by the 22
 // count files — this file asserts the behaviour only. The 5 new escrow
 // keys are presence-checked in tests/wave3.test.mjs.
 import test, { before, after} from "node:test";

@@ -663,7 +663,26 @@ export async function evaluateAutoTags(ctx, userId) {
 // reason TEXT names the matched portrait dimension: preference/category
 // -> 演出类型/观演偏好; same city -> 活跃城市/区域; same meta.genre ->
 // 剧种; same meta.team -> 艺人.
-export async function recommendationsFor(user, resources, ctx) {
+// R7-6 context buckets (rules only — never presented as AI):
+// a performance's start_at hour maps to morning 06–11, afternoon
+// 12–17, evening 18–21, night 22–05. Only performances of approved
+// shows in status scheduled/on_sale count; cancelled ones never do.
+function bucketOf(startAt) {
+  const h = Number(String(startAt).slice(11, 13));
+  if (!Number.isSafeInteger(h)) return null;
+  if (h >= 6 && h < 12) return "morning";
+  if (h >= 12 && h < 18) return "afternoon";
+  if (h >= 18 && h < 22) return "evening";
+  return "night";
+}
+const TIME_LABELS = {
+  morning: "上午场",
+  afternoon: "下午场",
+  evening: "晚场",
+  night: "深夜场",
+};
+
+export async function recommendationsFor(user, resources, ctx, opts = {}) {
   if (!user) return [];
   const { all, orderRows } = ctx;
   const views = await all(
@@ -695,6 +714,49 @@ export async function recommendationsFor(user, resources, ctx) {
   }
   const topGenre = topOf(genreCounts);
   const topTeam = topOf(teamCounts);
+  // R7-6 context scoring (rules + real data only, weights documented
+  // in the comment below; never presented as AI). `opts` is {} when
+  // the caller passed no context params, and then the scores/reasons
+  // below are identical to the old version.
+  //   time_of_day +10: the resource has an approved show's
+  //     performance (scheduled/on_sale) whose start_at hour falls in
+  //     the requested bucket; the reason names the earliest matching
+  //     start time from the real performance row. No performances at
+  //     all -> no boost, no penalty, and no claim about a show time.
+  //   city +8: resource.city equals the requested city (on top of
+  //     the existing +6 for the user's own city).
+  //   companion: family +6 when category='show' and meta.duration
+  //     >= 60 (a full-length show suits a family outing; duration is
+  //     seed data); couple +6 when the show has an evening
+  //     performance (a date-night slot, same real performance rows);
+  //     friends +6 when capacity >= 200 (room for a group; capacity
+  //     is a real resource field); alone: no adjustment — any show
+  //     suits a solo visit. Invalid values are rejected by the route
+  //     (400) and ignored here.
+  const contextOpts = opts || {};
+  const hasContext = Boolean(
+    contextOpts.time_of_day || contextOpts.city || contextOpts.companion,
+  );
+  // Evening (or other-bucket) show times come from the real
+  // performances table, joined through approved shows — never from a
+  // guessed time. Only queried when a context param needs it, so the
+  // no-context path touches no extra table.
+  const perfByResource = new Map(); // resourceId -> [start_at, ...]
+  if (
+    hasContext &&
+    (contextOpts.time_of_day || contextOpts.companion === "couple")
+  ) {
+    const perfRows = await all(
+      `SELECT s.resource_id AS resource_id, p.start_at AS start_at
+         FROM performances p JOIN shows s ON s.id = p.show_id
+        WHERE s.status='approved' AND p.status IN ('scheduled','on_sale')`,
+    );
+    for (const row of perfRows) {
+      const list = perfByResource.get(Number(row.resource_id)) || [];
+      list.push(String(row.start_at));
+      perfByResource.set(Number(row.resource_id), list);
+    }
+  }
   const signals = new Map();
   for (const [rows, key, weight, label] of [
     [views, "detail", 2, "浏览"],
@@ -738,6 +800,48 @@ export async function recommendationsFor(user, resources, ctx) {
       if (r.city === user.city) {
         score += 6;
         reasons.push("与你的所在城市相同（活跃城市/区域）");
+      }
+      if (hasContext && contextOpts.time_of_day) {
+        const starts = (perfByResource.get(r.id) || [])
+          .filter((s) => bucketOf(s) === contextOpts.time_of_day)
+          .sort();
+        if (starts.length) {
+          score += 10;
+          reasons.push(
+            `${TIME_LABELS[contextOpts.time_of_day]}演出（${starts[0].slice(11, 16)} 开演）`,
+          );
+        }
+      }
+      if (hasContext && contextOpts.city && r.city === contextOpts.city) {
+        score += 8;
+        reasons.push(`位于${contextOpts.city}`);
+      }
+      if (hasContext && contextOpts.companion) {
+        if (
+          contextOpts.companion === "family" &&
+          r.category === "show" &&
+          Number.isSafeInteger(meta.duration) &&
+          meta.duration >= 60
+        ) {
+          score += 6;
+          reasons.push(`全场演出（${meta.duration} 分钟），适合全家同行`);
+        } else if (
+          contextOpts.companion === "couple" &&
+          (perfByResource.get(r.id) || []).some(
+            (s) => bucketOf(s) === "evening",
+          )
+        ) {
+          score += 6;
+          reasons.push("晚场演出，适合双人同行");
+        } else if (
+          contextOpts.companion === "friends" &&
+          Number.isSafeInteger(r.capacity) &&
+          r.capacity >= 200
+        ) {
+          score += 6;
+          reasons.push("场地可容纳多人，适合结伴同行");
+        }
+        // alone: no adjustment (documented above).
       }
       return {
         resourceId: r.id,

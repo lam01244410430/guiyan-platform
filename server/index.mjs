@@ -66,6 +66,7 @@ import { getIp, patchIp } from "./routes/ip.mjs";
 import { getBi, exportBi } from "./routes/bi.mjs";
 import { listAlertRules, createAlertRule, patchAlertRule, listFinanceLedger, reconcileFinanceLedger, getResourceStats } from "./routes/alerts-ledger.mjs";
 import { createAdminLicense, listLicenses } from "./routes/licenses.mjs";
+import { getItinerary } from "./routes/itineraries.mjs";
 import { getRelated } from "./routes/kg.mjs";
 
 // A stored-value CSV export (?format=csv on the own-account or the
@@ -202,6 +203,7 @@ export async function createApp({ database }) {
       if (await listResources(ctx)) return;
       if (await getResource(ctx)) return;
       if (await getAvailability(ctx)) return;
+      if (await getItinerary(ctx)) return;
       if (await getRelated(ctx)) return;
       if (await viewResource(ctx)) return;
       if (await listComments(ctx)) return;

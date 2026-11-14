@@ -10,9 +10,9 @@
 #   docker compose -p guiyan-p8-smoke up -d --build
 #   ./scripts/smoke-docker.sh [project]   # default project: guiyan-p8-smoke
 #
-# The script checks the 3 containers are healthy, runs the 64 checks in the
+# The script checks the 3 containers are healthy, runs the 65 checks in the
 # plan Appendix A against the stack, prints PASS/FAIL per check and exits
-# non-zero if any check fails. Check 66 tears the stack down (down -v) and
+# non-zero if any check fails. Check 67 tears the stack down (down -v) and
 # verifies no project containers/volumes remain. All curl calls are direct
 # (no background processes left behind). Target is a disposable stack with a
 # fresh DB — never run it against the live Vercel/Neon deployment.
@@ -437,11 +437,17 @@ RULES_OK=0; [ "$CODE" = "200" ] && has '"id":"folk"' && has '"mode":"auto"' && R
 CODE="$(get "/api/admin/users?tag=%E5%96%9C%E6%AC%A2%E6%B0%91%E6%97%8F%E9%9F%B3%E4%B9%90" "$ADMIN_TOKEN")"
 if [ "$RULES_OK" = "1" ] && [ "$CODE" = "200" ] && [ "$(jlen "['users']")" = "0" ]; then ok "65 tag-rules hold the folk auto rule + GET /api/admin/users?tag=喜欢民族音乐 200, empty list"; else bad "65 auto tags (rules_ok=$RULES_OK, users_code=$CODE, users=$(jlen "['users']"))"; fi
 
-# 66. teardown — down -v, then 0 project containers and 0 project volumes.
+# 66. itinerary template — 200, hand-entered template for the 刘三姐
+# show (resource 2 on a fresh DB): eat/parking/sleep sections, the
+# verified place 中山路夜市, and no merchant link anywhere (R7-6).
+CODE="$(get "/api/resources/2/itinerary")"
+if [ "$CODE" = "200" ] && has '中山路夜市' && has '"parking"' && has '"sleep"' && ! has 'http'; then ok "66 GET /api/resources/2/itinerary 200, template with eat/parking/sleep, no merchant links"; else bad "66 GET /api/resources/2/itinerary (code=$CODE, body=$(cat "$TMP/body"))"; fi
+
+# 67. teardown — down -v, then 0 project containers and 0 project volumes.
 docker compose -p "$PROJECT" down -v >/dev/null 2>&1
 LEFT_C="$(docker ps --format '{{.Names}}' | grep -c "$PROJECT" || true)"
 LEFT_V="$(docker volume ls --format '{{.Name}}' | grep -c "^${PROJECT}_" || true)"
-if [ "$LEFT_C" = "0" ] && [ "$LEFT_V" = "0" ]; then ok "66 down -v: 0 project containers, 0 project volumes"; else bad "66 down -v (containers left=$LEFT_C, volumes left=$LEFT_V)"; fi
+if [ "$LEFT_C" = "0" ] && [ "$LEFT_V" = "0" ]; then ok "67 down -v: 0 project containers, 0 project volumes"; else bad "67 down -v (containers left=$LEFT_C, volumes left=$LEFT_V)"; fi
 
-echo "== smoke-docker: PASS $PASS / FAIL $FAIL (65 checks) =="
+echo "== smoke-docker: PASS $PASS / FAIL $FAIL (66 checks) =="
 [ "$FAIL" = "0" ]

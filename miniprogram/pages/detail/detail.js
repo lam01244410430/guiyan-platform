@@ -37,8 +37,7 @@ Page({
     comments: [], // R6-5: approved comments (+ the caller's own pending/rejected)
     cmtRating: 5, // R6-5: rating picked in the comment form
     cmtText: '', // R6-5: comment text being typed
-    kgRelated: [], // R7-3: knowledge-graph neighbours for this show ([] = none)
-    kgText: '', // R7-3: neighbours rendered as one line (name + kind label, joined with 、)
+    itinerary: null // R7-6: hand-entered itinerary template for this show (null = none)
   },
   onLoad: function (options) {
     var idx = parseInt(options.idx || '0', 10);
@@ -67,9 +66,9 @@ Page({
     // like the performances fetch: a failed fetch just leaves the
     // section empty, offline keeps the local behaviour.
     this.loadComments();
-    // R7-3: knowledge-graph neighbours for this show (related
-    // recommendations). Same best-effort pattern.
-    this.loadKgRelated();
+    // R7-6: itinerary template for this show (hand-entered places
+    // only; null when none was entered). Same best-effort pattern.
+    this.loadItinerary();
   },
   loadComments: function () {
     var self = this;
@@ -79,22 +78,13 @@ Page({
       self.setData({ comments: (d && d.comments) || [] });
     }, function () { self.setData({ comments: [] }); });
   },
-  loadKgRelated: function () {
+  loadItinerary: function () {
     var self = this;
     var apiId = this._detailApiId;
     if (apiId == null || !api.getBase()) return;
-    api.get('/api/kg/related/' + apiId, {}, true).then(function (d) {
-      self.setKgRelated((d && d.related) || []);
-    }, function () { self.setKgRelated([]); });
-  },
-  setKgRelated: function (related) {
-    var lang = i18n.getLang();
-    var text = (related || []).map(function (n) {
-      if (n.kind === 'genre') return n.name;
-      var cat = n.kind === 'ip' ? 'copyright' : n.kind;
-      return n.name + '（' + data.catName(cat, lang) + '）';
-    }).join('、');
-    this.setData({ kgRelated: related || [], kgText: text });
+    api.get('/api/resources/' + apiId + '/itinerary', {}, true).then(function (d) {
+      self.setData({ itinerary: (d && d.itinerary) || null });
+    }, function () { self.setData({ itinerary: null }); });
   },
   onCmtRatingDown: function () {
     this.setData({ cmtRating: Math.max(1, this.data.cmtRating - 1) });
@@ -164,8 +154,8 @@ Page({
       'commentTitle', 'commentEmpty', 'commentRating', 'commentPh',
       'commentSubmit', 'commentPending', 'commentPosted',
       'commentReplyLabel', 'commentRejected',
-      // R7-3: knowledge-graph neighbours block.
-      'kgRelated'];
+      // R7-6: itinerary suggestion block.
+      'itinTitle', 'itinEat', 'itinParking', 'itinSleep', 'itinNote'];
     var L = {};
     keys.forEach(function (k) { L[k] = i18n.t(k, lang); });
     var r = api.resourceByIdx(this.data.idx) || data.RES[0];
@@ -197,9 +187,6 @@ Page({
     // R6-2: a language switch re-renders the calendar labels from
     // the cached month data (no refetch).
     this.renderCalendar();
-    // R7-3: a language switch re-labels the cached graph neighbours
-    // (no refetch).
-    if (this.data.kgRelated.length) this.setKgRelated(this.data.kgRelated);
   },
   // Online: refresh the catalog from the server, then re-render.
   loadOnline: function () {
