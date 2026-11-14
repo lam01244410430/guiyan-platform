@@ -489,7 +489,7 @@ export default function App() {
     function localBook() {
       const code = "GY2026" + String(store.seq++).padStart(6, "0");
       const total = tier ? (tier.price_cents / 100) * qty : r[3] * qty;
-      store.orders.unshift({ code, idx: i, qty, date, total, status: "pending", pickup: pickup || null, template: null });
+      store.orders.unshift({ code, idx: i, qty, date, total, status: "pending", escrow: "未支付", pickup: pickup || null, template: null });
       setDetailIdx(null); rerender(); toast(fmt(t("orderCreated"), { code })); setDrawerOpen(true);
     }
     const rid = APIRES[i] && APIRES[i].id;
@@ -504,7 +504,7 @@ export default function App() {
       if (d && d.ok) {
         const code = d.code || ("GY2026" + String(store.seq++).padStart(6, "0"));
         const total = (typeof d.amount === "number") ? d.amount / 100 : r[3] * qty;
-        store.orders.unshift({ code, idx: i, qty, date, total, status: "pending", apiId: d.id, pickup: d.pickup_point || pickup || null, template: d.ticket_template || null, coupon_cents: (typeof d.coupon_cents === "number" ? d.coupon_cents : 0), flash_cents: (typeof d.flash_cents === "number" ? d.flash_cents : 0) });
+        store.orders.unshift({ code, idx: i, qty, date, total, status: "pending", escrow: "未支付", apiId: d.id, pickup: d.pickup_point || pickup || null, template: d.ticket_template || null, coupon_cents: (typeof d.coupon_cents === "number" ? d.coupon_cents : 0), flash_cents: (typeof d.flash_cents === "number" ? d.flash_cents : 0) });
         setCouponCode("");
         // R2-5: hold the seats the buyer picked on the pending order.
         // A failed hold leaves the order standing (pending) — the
@@ -529,6 +529,21 @@ export default function App() {
 
   function handleOrderAction(act, oi) {
     const o = store.orders[+oi]; if (!o) return;
+    // R6-6: escrow hold (owner or admin) — a separate endpoint, not a
+    // status transition: 模拟托管中 -> 已托管 on a paid order.
+    if (act === "escrowHold") {
+      if (o.apiId != null && isApiAvailable() && getToken()) {
+        apiPost("/api/orders/" + encodeURIComponent(o.apiId) + "/escrow", { action: "hold" }).then(function (d) {
+          o.escrow = (d && d.escrow) || "已托管"; rerender();
+          toast(t("escrowHold")); refreshOrdersApi();
+        }).catch(function (e) {
+          if (e && e.status === 401) { clearToken(); setUser(null); setLoginOpen(true); return; }
+          if (e && e.data && e.data.error) toast(e.data.error);
+          refreshOrdersApi();
+        });
+      }
+      return;
+    }
     const map = { confirm: "confirmed", pay: "paid", complete: "completed", cancel: "cancelled", refund: "refund_requested" };
     if (!map[act]) return;
     if (o.apiId != null && isApiAvailable() && getToken()) {
@@ -1440,7 +1455,7 @@ export default function App() {
             let acts = null;
             if (o.status === "pending") acts = (<><button type="button" className="mini" data-act="confirm" data-oi={oi} onClick={() => handleOrderAction("confirm", oi)}>{t("actConfirm")}</button><button type="button" className="mini" data-act="cancel" data-oi={oi} onClick={() => handleOrderAction("cancel", oi)}>{t("actCancel")}</button></>);
             if (o.status === "confirmed") acts = (<><button type="button" className="mini red" data-act="pay" data-oi={oi} onClick={() => handleOrderAction("pay", oi)}>{fmt(t("actPay"), { amt: money(o.total) })}</button><button type="button" className="mini" data-act="cancel" data-oi={oi} onClick={() => handleOrderAction("cancel", oi)}>{t("actCancel")}</button></>);
-            if (o.status === "paid") acts = (<><button type="button" className="mini red" data-act="complete" data-oi={oi} onClick={() => handleOrderAction("complete", oi)}>{t("actComplete")}</button><button type="button" className="mini" data-act="refund" data-oi={oi} onClick={() => handleOrderAction("refund", oi)}>{t("actRefund")}</button></>);
+            if (o.status === "paid") acts = (<><button type="button" className="mini red" data-act="complete" data-oi={oi} onClick={() => handleOrderAction("complete", oi)}>{t("actComplete")}</button><button type="button" className="mini" data-act="refund" data-oi={oi} onClick={() => handleOrderAction("refund", oi)}>{t("actRefund")}</button>{o.escrow === "模拟托管中" ? (<button type="button" className="mini" data-act="escrowHold" data-oi={oi} onClick={() => handleOrderAction("escrowHold", oi)}>{t("escrowHold")}</button>) : null}</>);
             if (o.status === "completed") acts = (<span style={{ fontSize: 12.5, color: "var(--ink2)" }}>{t("doneNote")}</span>);
             return (
               <div key={o.code + oi} className="order">
@@ -1450,6 +1465,9 @@ export default function App() {
                 {o.flash_cents ? (<span className="code">{fmt(t("flashSaleSaved"), { a: (o.flash_cents / 100).toFixed(2) })}</span>) : null}
                 {o.pickup ? (<span className="code">{t("pickupTitle")}：{o.pickup.name} · {o.pickup.address}</span>) : null}
                 {o.template ? (<span className="code"><i style={{ display: "inline-block", width: 10, height: 10, background: o.template.color, borderRadius: 2, marginRight: 4, verticalAlign: "-1px" }} />{o.template.name}</span>) : null}
+                {o.escrow ? (<span className="code">{t("escrowTitle")}：{o.escrow}</span>) : null}
+                {o.status === "paid" && o.escrow ? (<span className="code">{t("escrowNote")}</span>) : null}
+                {o.status === "disputed" ? (<span className="code">{t("escrowFrozen")}</span>) : null}
                 <div className="row"><span className={"pill " + o.status}>{t(STATUS[o.status])}</span>{acts}</div>
               </div>
             );

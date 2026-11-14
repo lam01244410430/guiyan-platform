@@ -23,6 +23,12 @@
         <block wx:if="{{item.refundedText}}">
           <view class="note">{{item.refundedText}}</view>
         </block>
+        <block wx:if="{{item.escrow}}">
+          <view class="note">{{L.escrowTitle}}：{{item.escrow}}</view>
+        </block>
+        <block wx:if="{{item.status==='disputed'}}">
+          <view class="note">{{L.escrowFrozen}}</view>
+        </block>
         <block wx:if="{{item.status==='pending'}}">
           <view class="btn" bindtap="act" data-act="confirm" data-code="{{item.code}}">{{L.actConfirm}}</view>
           <view class="btn ghost" bindtap="act" data-act="cancel" data-code="{{item.code}}">{{L.actCancel}}</view>
@@ -38,6 +44,10 @@
           </view>
           <view class="btn" bindtap="act" data-act="complete" data-code="{{item.code}}">{{L.actComplete}}</view>
           <view class="btn ghost" bindtap="act" data-act="refund" data-code="{{item.code}}">{{L.actRefund}}</view>
+          <view class="note" wx:if="{{item.escrow}}">{{L.escrowNote}}</view>
+          <block wx:if="{{item.status==='paid' && item.escrow==='模拟托管中'}}">
+            <view class="btn" bindtap="act" data-act="escrowHold" data-code="{{item.code}}">{{L.escrowHold}}</view>
+          </block>
           <view class="note">{{L.partialRefundPrintedNote}}</view>
         </block>
         <block wx:if="{{item.status==='completed'}}">

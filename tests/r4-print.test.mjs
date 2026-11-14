@@ -20,7 +20,7 @@
 // ?order_id=); cross-shop print -> 403 (scoped admin) and the
 // scoped admin's print-logs list hides other shops' rows;
 // non-admin print / print-logs -> 403, anonymous -> 403; i18n key
-// counts (H5 418, miniprogram 231, equal sets).
+// counts (H5 423, miniprogram 236, equal sets).
 import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
@@ -310,12 +310,12 @@ test("non-admin print / print-logs -> 403; anonymous print / print-logs -> 403",
   assert.equal(await printLogCount(printTickets[1].id), 1);
 });
 
-test("i18n 418/231: printTicket key on both sides, equal sets", async () => {
+test("i18n 423/236: printTicket key on both sides, equal sets", async () => {
   const data = await import(
     path.resolve(repoDir, "web", "assets", "js", "data.js")
   );
   const counts = data.LANGS.map((l) => Object.keys(data.I18N[l]).length);
-  assert.deepEqual(counts, [418, 418, 418]);
+  assert.deepEqual(counts, [423, 423, 423]);
   for (const l of data.LANGS)
     assert.ok("printTicket" in data.I18N[l], `printTicket missing in H5 ${l}`);
   const text = fs.readFileSync(
@@ -333,7 +333,7 @@ test("i18n 418/231: printTicket key on both sides, equal sets", async () => {
     ].map((m) => m[1]);
   }
   for (const lang of ["zh", "vi", "en"]) {
-    assert.equal(blocks[lang].length, 231, `${lang} key count`);
+    assert.equal(blocks[lang].length, 236, `${lang} key count`);
     assert.ok(blocks[lang].includes("printTicket"), `printTicket missing in mini ${lang}`);
   }
   const sets = Object.values(blocks).map((k) => new Set(k));

@@ -554,7 +554,11 @@ export async function transitionOrder(ctx) {
         to === "paid"
           ? "模拟托管中"
           : to === "completed"
-            ? "已结算"
+            ? // R6-6: on completion a held order releases (已释放); an
+              // unheld order settles as before (已结算 — wave4.test.mjs:487).
+              o.escrow === "已托管"
+              ? "已释放"
+              : "已结算"
             : to === "refunded"
               ? "已模拟退款"
               : o.escrow,
@@ -910,6 +914,48 @@ export async function transitionOrder(ctx) {
   return false;
 }
 
+
+// R6-6 — 交易保障 (xlsx row 73): escrow hold/release on a paid order.
+// Hold moves escrow 模拟托管中 -> 已托管 (owner or admin); release moves
+// 已托管 -> 已释放 (admin only). A disputed order freezes escrow (both
+// actions -> 400 until the dispute is resolved via rejectDispute /
+// resolve; a refund_requested order is likewise non-paid, so it 400s
+// on the paid check and its escrow stays governed by the refund flow).
+// Only paid orders can be escrowed; anything else -> 400. Escrow is a
+// ledger state only — under simulated payment no real money moves
+// (real escrow waits for R8 bank integration). Validate BEFORE any
+// write (OTP lesson); the UPDATE + audit run in one transaction.
+export async function escrowOrder(ctx) {
+  const { p, req, b, send, needUser, get, run, transaction, audit } = ctx;
+  const m = p.match(/^\/api\/orders\/(\d+)\/escrow$/);
+  if (!m || req.method !== "POST") return false;
+  const u = needUser();
+  const o = await get("SELECT * FROM orders WHERE id=?", Number(m[1]));
+  assert(o, "订单不存在", 404);
+  assert(o.user_id === u.id || u.role === "admin", "无权操作此订单", 403);
+  const action = b?.action;
+  assert(action === "hold" || action === "release", "托管操作无效", 400);
+  if (action === "release")
+    assert(u.role === "admin", "仅管理员可释放托管", 403);
+  assert(o.status !== "disputed", "争议处理中，托管已冻结", 400);
+  assert(o.status === "paid", "仅已支付订单可托管", 400);
+  const next =
+    action === "hold"
+      ? o.escrow === "模拟托管中"
+        ? "已托管"
+        : null
+      : o.escrow === "已托管"
+        ? "已释放"
+        : null;
+  assert(next, "当前托管状态不允许该操作", 400);
+  await transaction(async () => {
+    await run("UPDATE orders SET escrow=? WHERE id=?", next, o.id);
+    await audit(u, "托管操作", `${o.code} ${action} ${o.escrow}→${next}`);
+  });
+  send({ ok: true, status: o.status, escrow: next });
+  return true;
+}
+
 // Wave 4 #15 — simulated service/licence agreement per order (具体功能 #12,
 // port of zhou guiyan-demo/server/index.mjs:910-928). Content is generated
 // on the fly from the order + resource meta: nothing is written to the DB
@@ -947,6 +993,7 @@ export async function getOrderContract(ctx) {
         `区域：${meta.territory || "订单约定地点"}`,
         `设备押金：${yuan2(meta.deposit || 0)}元（仅展示，不收取）`,
         "服务流程：预约→审核→模拟支付→服务完成→模拟结算。",
+        `托管条款（模拟）：托管金额 = 订单金额（${yuan2(o.amount)}元），托管方 = 平台，释放条件 = 订单完成或双方确认；模拟支付下无真实资金流动。`,
         "纠纷可通过订单申诉提交，资金状态仅为本地模拟。",
       ].join("\n"),
     });

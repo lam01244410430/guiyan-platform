@@ -285,7 +285,10 @@ function mapApiOrder(o) {
     // R4-4: partial-refund history (0 = none) — the orders page
     // shows what a partial refund already returned.
     refund_quantity: o.refund_quantity || 0,
-    refunded_cents: o.refunded_cents || 0
+    refunded_cents: o.refunded_cents || 0,
+    // R6-6: escrow ledger state ('' = none) — the orders page shows
+    // the status + the hold button for a paid order.
+    escrow: o.escrow || ''
   };
 }
 

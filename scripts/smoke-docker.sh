@@ -10,9 +10,9 @@
 #   docker compose -p guiyan-p8-smoke up -d --build
 #   ./scripts/smoke-docker.sh [project]   # default project: guiyan-p8-smoke
 #
-# The script checks the 3 containers are healthy, runs the 58 checks in the
+# The script checks the 3 containers are healthy, runs the 59 checks in the
 # plan Appendix A against the stack, prints PASS/FAIL per check and exits
-# non-zero if any check fails. Check 60 tears the stack down (down -v) and
+# non-zero if any check fails. Check 61 tears the stack down (down -v) and
 # verifies no project containers/volumes remain. All curl calls are direct
 # (no background processes left behind). Target is a disposable stack with a
 # fresh DB — never run it against the live Vercel/Neon deployment.
@@ -390,11 +390,18 @@ if [ "$CODE" = "200" ] && has '"matches"'; then ok "58 GET /api/demands/1/matche
 CODE="$(get "/api/resources/1/comments")"
 if [ "$CODE" = "200" ] && has '"comments"'; then ok "59 GET /api/resources/1/comments 200, comments list"; else bad "59 GET /api/resources/1/comments (code=$CODE, body=$(cat "$TMP/body"))"; fi
 
-# 60. teardown — down -v, then 0 project containers and 0 project volumes.
+# 60. escrow contract clause — 200 as admin, contract contains the
+# escrow clause (R6-6; the contract is generated from the seeded
+# order 1 — only the clause is asserted here, the escrow flow itself
+# is asserted by tests/r6-escrow.test.mjs)
+CODE="$(get "/api/orders/1/contract" "$ADMIN_TOKEN")"
+if [ "$CODE" = "200" ] && has '托管条款'; then ok "60 GET /api/orders/1/contract as admin 200, contains escrow clause"; else bad "60 GET /api/orders/1/contract as admin (code=$CODE, body=$(cat "$TMP/body"))"; fi
+
+# 61. teardown — down -v, then 0 project containers and 0 project volumes.
 docker compose -p "$PROJECT" down -v >/dev/null 2>&1
 LEFT_C="$(docker ps --format '{{.Names}}' | grep -c "$PROJECT" || true)"
 LEFT_V="$(docker volume ls --format '{{.Name}}' | grep -c "^${PROJECT}_" || true)"
-if [ "$LEFT_C" = "0" ] && [ "$LEFT_V" = "0" ]; then ok "60 down -v: 0 project containers, 0 project volumes"; else bad "60 down -v (containers left=$LEFT_C, volumes left=$LEFT_V)"; fi
+if [ "$LEFT_C" = "0" ] && [ "$LEFT_V" = "0" ]; then ok "61 down -v: 0 project containers, 0 project volumes"; else bad "61 down -v (containers left=$LEFT_C, volumes left=$LEFT_V)"; fi
 
-echo "== smoke-docker: PASS $PASS / FAIL $FAIL (59 checks) =="
+echo "== smoke-docker: PASS $PASS / FAIL $FAIL (60 checks) =="
 [ "$FAIL" = "0" ]

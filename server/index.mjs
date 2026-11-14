@@ -33,7 +33,7 @@ import { listResources, getResource, getAvailability, viewResource } from "./rou
 import { login, logout, register, changePassword } from "./routes/auth.mjs";
 import { wechatMini } from "./routes/oauth.mjs";
 import { patchProfile, uploadAvatar, sendOtp, verifyOtp, patchEmail, patchPhone, patchSocial } from "./routes/account.mjs";
-import { listOrders, createOrder, getOrder, transitionOrder, getOrderContract } from "./routes/orders.mjs";
+import { listOrders, createOrder, getOrder, transitionOrder, escrowOrder, getOrderContract } from "./routes/orders.mjs";
 import { listDemands, createDemand, getDemandMatches } from "./routes/demands.mjs";
 import { listComments, createComment, listAdminComments, reviewComment, replyComment } from "./routes/comments.mjs";
 import { listMessages, markMessageRead, markAllMessagesRead } from "./routes/messages.mjs";
@@ -220,6 +220,7 @@ export async function createApp({ database }) {
       if (await createOrder(ctx)) return;
       if (await getOrder(ctx)) return;
       if (await transitionOrder(ctx)) return;
+      if (await escrowOrder(ctx)) return;
       if (await getOrderContract(ctx)) return;
       if (await listMessages(ctx)) return;
       if (await markMessageRead(ctx)) return;

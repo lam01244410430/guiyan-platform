@@ -26,11 +26,11 @@
 // rules. All assertions filter by this file's own usernames /
 // resource / show — other test files share this DB.
 //
-// i18n key counts (H5 418, miniprogram 231) are asserted by
+// i18n key counts (H5 423, miniprogram 236) are asserted by
 // tests/r4-tickets.test.mjs, tests/r2-pickup.test.mjs and
 // tests/p3bugs.test.mjs — this file adds NO customer-visible string
 // (the admin view labels are hardcoded Chinese), so the counts stay
-// 418/231.
+// 423/236.
 import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";

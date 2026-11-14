@@ -40,6 +40,7 @@ Page({
       // carried here for i18n parity with H5).
       'pickupNote', 'partialRefundQty', 'partialRefundBtn',
       'partialRefundDone', 'partialRefundPrintedNote',
+      'escrowTitle', 'escrowHold', 'escrowRelease', 'escrowFrozen', 'escrowNote',
       'confirmBtn', 'cancelBtn', 'viewsUnit'];
     var L = {};
     keys.forEach(function (k) { L[k] = i18n.t(k, lang); });
@@ -65,6 +66,7 @@ Page({
         ? i18n.fmt(i18n.t('partialRefundDone', lang),
           { n: o.refund_quantity, a: (o.refunded_cents || 0) / 100 })
         : '',
+      escrow: o.escrow || '',
       payLabel: i18n.fmt(i18n.t('actPay', lang), { amt: data.money(o.total) }) };
   },
   _favView: function (idx, lang) {
@@ -163,6 +165,21 @@ Page({
     var order = null;
     for (var i = 0; i < this.data.orders.length; i++) {
       if (this.data.orders[i].code === code) { order = this.data.orders[i]; break; }
+    }
+    // R6-6: escrow hold (owner) — POST /api/orders/:id/escrow; the
+    // server holds the state, so refresh to render it (release is
+    // admin-only and lives in the admin dashboard).
+    if (action === 'escrowHold') {
+      if (order && order.apiId != null && api.isOnline()) {
+        api.post('/api/orders/' + order.apiId + '/escrow', { action: 'hold' }, true).then(function () {
+          wx.showToast({ title: i18n.t('escrowHold', lang), icon: 'none' });
+          self.refresh();
+        }).catch(function (err) {
+          wx.showToast({ title: (err && err.message) || i18n.t('escrowHold', lang), icon: 'none' });
+          self.refresh();
+        });
+      }
+      return;
     }
     function done(status) {
       store.updateOrder(code, status);
