@@ -305,10 +305,10 @@ export default function AdminDashboard() {
   // id whose theme save is in flight (same pattern as shopBusyId).
   const [themeForm, setThemeForm] = useState(null);
   const [themeBusyId, setThemeBusyId] = useState(null);
-  // R1-2 admin accounts: own profile form + OTP password change, and
-  // the id of the user whose enable/disable is in flight.
-  const [acctName, setAcctName] = useState("");
-  const [acctEmail, setAcctEmail] = useState("");
+  // R1-2 admin accounts: the id of the user whose enable/disable is
+  // in flight. (Admin redesign Item 4: the own-profile form + OTP
+  // password change left the dashboard with the 账号 view — the
+  // server endpoints stay for out-of-dashboard use.)
   // R2-1 shows + performances: the show list + the open create form
   // draft + the status filter + the id of the show under review +
   // the open per-show performance manager (perfShowId) + its create
@@ -435,12 +435,16 @@ export default function AdminDashboard() {
   // admin writes).
   const [printOrderId, setPrintOrderId] = useState("");
   const [printBusy, setPrintBusy] = useState(false);
-  const [acctBusy, setAcctBusy] = useState(false);
-  const [acctOtp, setAcctOtp] = useState("");
-  const [acctOtpInput, setAcctOtpInput] = useState("");
-  const [acctNewPw, setAcctNewPw] = useState("");
-  const [acctPwBusy, setAcctPwBusy] = useState(false);
   const [userStatusBusyId, setUserStatusBusyId] = useState(null);
+  // Admin redesign Item 4 — user CRUD (Q7(a)): the open edit form
+  // draft (null = closed; {id, name, city, email, phone}), the open
+  // create form draft (null = closed), the user awaiting delete
+  // confirmation (null = none), and the id of the user whose
+  // create/edit/delete is in flight ("create" for a create).
+  const [userEditForm, setUserEditForm] = useState(null);
+  const [userCreateForm, setUserCreateForm] = useState(null);
+  const [userDeleteTarget, setUserDeleteTarget] = useState(null);
+  const [userCrudBusyId, setUserCrudBusyId] = useState(null);
   const [triggerBusy, setTriggerBusy] = useState("");
   const loadedRef = useRef({ trends: "", analysis: "", alerts: false, tagrules: false });
   // Monotonic request id: guards the lazy period fetches below against
@@ -730,9 +734,6 @@ export default function AdminDashboard() {
       setStats(res[0]);
       setOrders(res[1].orders || []);
       setUsers(res[2].users || []);
-      // R1-2: initialise the account form from the signed-in admin's row.
-      const meRow0 = (res[2].users || []).find((x) => x.id === u.id);
-      if (meRow0) { setAcctName(meRow0.name || ""); setAcctEmail(meRow0.email || ""); }
       setResources(res[3].resources || []);
       setDemands(res[4].demands || []);
       setShops(res[5].shops || []);
@@ -2303,50 +2304,6 @@ export default function AdminDashboard() {
     else apiPost("/api/admin/ticket-templates", body).then(done).catch(fail).finally(fin);
   }
 
-  // R1-2 admin accounts: own profile (name/email) + OTP password
-  // change + enable/disable other accounts. The OTP target is always
-  // the SAVED email (from the users list), never the unsaved draft —
-  // the server consumes the code against the stored email.
-  function saveAcctProfile() {
-    if (acctBusy) return;
-    if (!acctName.trim()) { toast("请填写姓名"); return; }
-    setAcctBusy(true);
-    apiPatch("/api/admin/profile", { name: acctName.trim(), email: acctEmail.trim() }).then(function (d) {
-      setUsers(function (us) { return us.map(function (x) { return x.id === d.user.id ? d.user : x; }); });
-      setWhoName(d.user.name || d.user.username || "管理员");
-      loadAudit();
-      toast("已保存");
-    }).catch(function (e) {
-      toast((e && e.data && e.data.error) || "保存失败，请检查表单");
-    }).finally(function () { setAcctBusy(false); });
-  }
-  function sendAcctOtp() {
-    if (acctBusy) return;
-    const meNow = currentUser();
-    const saved = users.find(function (x) { return meNow && x.id === meNow.id; });
-    const target = (saved && saved.email) || "";
-    if (!target) { toast("请先在上方保存邮箱"); return; }
-    setAcctBusy(true);
-    apiPost("/api/account/send-otp", { channel: "email", target: target }).then(function (d) {
-      setAcctOtp(d.code || "");
-      toast("验证码已生成（模拟，未真实发送）");
-    }).catch(function (e) {
-      toast((e && e.data && e.data.error) || "发送失败，请稍后重试");
-    }).finally(function () { setAcctBusy(false); });
-  }
-  function doAcctChangePassword() {
-    if (acctPwBusy) return;
-    if (!/^\d{6}$/.test(acctOtpInput)) { toast("请输入6位验证码"); return; }
-    if (!acctNewPw.trim()) { toast("请输入新密码"); return; }
-    setAcctPwBusy(true);
-    apiPost("/api/admin/change-password", { newPassword: acctNewPw.trim(), code: acctOtpInput }).then(function () {
-      setAcctOtp(""); setAcctOtpInput(""); setAcctNewPw("");
-      loadAudit();
-      toast("密码已修改");
-    }).catch(function (e) {
-      toast((e && e.data && e.data.error) || "修改失败，请检查验证码");
-    }).finally(function () { setAcctPwBusy(false); });
-  }
   function doToggleUserStatus(usr) {
     if (userStatusBusyId !== null) return;
     const next = usr.status === "disabled" ? "active" : "disabled";
@@ -2358,6 +2315,84 @@ export default function AdminDashboard() {
     }).catch(function (e) {
       toast((e && e.data && e.data.error) || "操作失败，请稍后重试");
     }).finally(function () { setUserStatusBusyId(null); });
+  }
+
+  // Admin redesign Item 4 — user CRUD (Q7(a)). The default admin
+  // (id 1) is locked in the UI: no edit/disable/delete buttons and a
+  // grayed row. INTERIM: the root account is identified by id === 1 —
+  // Item 5 replaces this with role === "root".
+  function isRootUser(usr) { return !!usr && usr.id === 1; }
+  // Edit/delete are offered only for plain users, never for an admin
+  // row and never for the caller's own row (the server enforces the
+  // same rules with 403). Enable/disable keeps the R1-2 rule: any
+  // non-self, non-root row for a platform admin.
+  function canEditUser(usr) {
+    return isPlatformAdmin && !!me && !!usr && usr.id !== me.id && !isRootUser(usr) && usr.role !== "admin";
+  }
+  function openUserEditForm(usr) {
+    if (!canEditUser(usr)) return;
+    setUserEditForm({ id: usr.id, name: usr.name || "", city: usr.city || "", email: usr.email || "", phone: usr.phone || "" });
+  }
+  function editUserForm(key, value) {
+    setUserEditForm(function (f) { return f ? { ...f, [key]: value } : f; });
+  }
+  function saveUserEdit() {
+    if (!userEditForm || userCrudBusyId !== null) return;
+    if (!userEditForm.name.trim()) { toast("请填写姓名"); return; }
+    if (userEditForm.phone.trim() && !/^\+?\d{9,15}$/.test(userEditForm.phone.trim())) { toast("手机号格式不正确"); return; }
+    setUserCrudBusyId(userEditForm.id);
+    apiPatch("/api/admin/users/" + userEditForm.id, {
+      name: userEditForm.name.trim(), city: userEditForm.city.trim(),
+      email: userEditForm.email.trim(), phone: userEditForm.phone.trim(),
+    }).then(function (d) {
+      setUsers(function (us) { return us.map(function (x) { return x.id === d.user.id ? d.user : x; }); });
+      setUserEditForm(null);
+      loadAudit();
+      toast("已保存");
+    }).catch(function (e) {
+      toast((e && e.data && e.data.error) || "保存失败，请检查表单");
+    }).finally(function () { setUserCrudBusyId(null); });
+  }
+  function openUserCreateForm() {
+    setUserCreateForm({ username: "", password: "", name: "", city: "", email: "", phone: "" });
+  }
+  function editUserCreateForm(key, value) {
+    setUserCreateForm(function (f) { return f ? { ...f, [key]: value } : f; });
+  }
+  function saveUserCreate() {
+    if (!userCreateForm || userCrudBusyId !== null) return;
+    if (!/^[A-Za-z0-9_]{3,20}$/.test(userCreateForm.username.trim())) { toast("用户名需为3–20位字母、数字或下划线"); return; }
+    if (userCreateForm.password.trim().length < 6) { toast("密码至少6位"); return; }
+    if (!userCreateForm.name.trim()) { toast("请填写姓名"); return; }
+    if (userCreateForm.phone.trim() && !/^\+?\d{9,15}$/.test(userCreateForm.phone.trim())) { toast("手机号格式不正确"); return; }
+    setUserCrudBusyId("create");
+    apiPost("/api/admin/users", {
+      username: userCreateForm.username.trim(), password: userCreateForm.password.trim(),
+      name: userCreateForm.name.trim(), city: userCreateForm.city.trim(),
+      email: userCreateForm.email.trim(), phone: userCreateForm.phone.trim(),
+    }).then(function (d) {
+      // New users sort first (the list is id DESC, the new row has
+      // the highest id); it carries no tags yet, which the table
+      // already tolerates ((usr.tags || [])).
+      setUsers(function (us) { return [d.user].concat(us); });
+      setUserCreateForm(null);
+      loadAudit();
+      toast("已新建用户");
+    }).catch(function (e) {
+      toast((e && e.data && e.data.error) || "新建失败，请检查表单");
+    }).finally(function () { setUserCrudBusyId(null); });
+  }
+  function doDeleteUser(usr) {
+    if (!usr || userCrudBusyId !== null) return;
+    setUserCrudBusyId(usr.id);
+    apiDelete("/api/admin/users/" + usr.id).then(function () {
+      setUsers(function (us) { return us.filter(function (x) { return x.id !== usr.id; }); });
+      setUserDeleteTarget(null);
+      loadAudit();
+      toast("已删除用户");
+    }).catch(function (e) {
+      toast((e && e.data && e.data.error) || "删除失败");
+    }).finally(function () { setUserCrudBusyId(null); });
   }
 
   function doTriggerAlert(kind) {
@@ -2463,7 +2498,6 @@ export default function AdminDashboard() {
     overview: ["总览", "运营数据一览"],
     orders: ["全部订单", "可处理售后"],
     users: ["全部用户", ""],
-    account: ["账号", "本人资料 · 改密码（OTP 验证）"],
     tagrules: ["标签规则", "自动标签规则 · 保存后立即重算"],
     aicopy: ["文案生成", "本地模板 · 未接入大模型"],
     ipconfig: ["IP 配置", "文小惠形象配置 · 未设置时聊天保持原样"],
@@ -2494,7 +2528,10 @@ export default function AdminDashboard() {
   // shop_id since R1-1; NULL = platform admin, all shops).
   const me = currentUser();
   const isPlatformAdmin = !me || me.shop_id === null || me.shop_id === undefined;
-  // R1-2: the signed-in admin's row (for the account view + self checks).
+  // Admin redesign Item 4: the signed-in admin's row — the read-only
+  // "my account" card at the top of the users view. Profile + password
+  // change left the dashboard with the 账号 view, so this row is
+  // display-only here.
   const meRow = me ? users.find((x) => x.id === me.id) : null;
   const total = ORDER_STATUS.reduce(function (n, k) { return n + (by[k] || 0); }, 0);
   // Search (redesign 2026-11-11): one query, client-side, substring match
@@ -2750,6 +2787,23 @@ export default function AdminDashboard() {
           </section>
 
           <section className={"view" + (view === "users" ? " on" : "")} id="view-users">
+            {/* Admin redesign Item 4 — the 账号 view merged into 用户:
+                the signed-in admin's own account, READ-ONLY (no edit
+                controls, no password-change UI — profile + password
+                change left the dashboard with the 账号 view). */}
+            {meRow ? (
+              <div className="my-account-card" id="my-account-card">
+                <h2>我的账号</h2>
+                <div className="my-account-rows">
+                  <span><span className="lbl">账号：</span><b>{meRow.username}</b></span>
+                  <span><span className="lbl">姓名：</span>{meRow.name || "—"}</span>
+                  <span><span className="lbl">邮箱：</span>{meRow.email || "—"}</span>
+                  <span><span className="lbl">角色：</span>{meRow.role}</span>
+                  <span><span className="lbl">店铺：</span>{meRow.shop_id === null || meRow.shop_id === undefined ? "平台总店" : shopName(meRow.shop_id)}</span>
+                </div>
+                <p className="def-note">仅查看 — 账号资料与密码不在管理后台内修改。</p>
+              </div>
+            ) : null}
             <div className="search-row">
               <SearchBox id="search-users" label="搜索用户" placeholder="输入ID、姓名、账号、邮箱或城市…"
                 value={query} onChange={setQuery} resultCount={q ? filteredUsers.length : null} />
@@ -2757,6 +2811,9 @@ export default function AdminDashboard() {
                 <option value="">全部标签</option>
                 {allTags.map((tg) => (<option key={tg} value={tg}>{tg}</option>))}
               </select>
+              {isPlatformAdmin ? (
+                <button type="button" className="btn-export" onClick={openUserCreateForm}>新建用户</button>
+              ) : null}
             </div>
             <div className="tbl-wrap">
               <table>
@@ -2764,14 +2821,20 @@ export default function AdminDashboard() {
                 <tbody id="usersBody">
                   {users.length
                     ? (filteredUsers.length ? sortedUsers.map((usr) => (
-                      <tr key={usr.username}>
+                      <tr key={usr.username} className={isRootUser(usr) ? "row-locked" : undefined}>
                         <td className="id">{usr.id}</td><td className="cell-ellipsis" title={usr.name || ""}>{usr.name || ""}</td><td>{usr.username}</td><td>{usr.role}</td>
                         <td>{usr.city || ""}</td><td>{usr.channel || ""}</td><td>{usr.verified ? "已认证" : "未认证"}</td>
                         <td>{(usr.tags || []).map((tg) => (<span key={tg} className="pill tag">{tg}</span>))}</td>
                         <td>{usr.status === "disabled" ? "停用" : "启用"}</td>
                         <td>
-                          {isPlatformAdmin && me && usr.id !== me.id ? (
+                          {isPlatformAdmin && me && usr.id !== me.id && !isRootUser(usr) ? (
                             <span className="row-actions">
+                              {usr.role !== "admin" ? (
+                                <>
+                                  <button type="button" className="btn-view" disabled={userCrudBusyId !== null} onClick={() => openUserEditForm(usr)}>编辑</button>
+                                  <button type="button" className="btn-view" disabled={userCrudBusyId !== null} onClick={() => setUserDeleteTarget(usr)}>删除</button>
+                                </>
+                              ) : null}
                               <button type="button" className="btn-view" disabled={userStatusBusyId !== null} onClick={() => doToggleUserStatus(usr)}>{userStatusBusyId === usr.id ? "处理中…" : (usr.status === "disabled" ? "启用" : "停用")}</button>
                             </span>
                           ) : "—"}
@@ -2783,32 +2846,6 @@ export default function AdminDashboard() {
               </table>
             </div>
             <div className="tbl-total">共 {filteredUsers.length} 人</div>
-          </section>
-
-          <section className={"view" + (view === "account" ? " on" : "")} id="view-account">
-            <div className="note">本人资料与改密码。改密码用 OTP 发到当前已保存的邮箱（模拟验证码，未真实发送）；未保存邮箱的账号请先在上方保存邮箱。</div>
-            <fieldset className="tag-rule">
-              <legend>本人资料</legend>
-              <label>账号 <input type="text" value={me ? me.username : ""} disabled /></label>
-              <label>姓名 <input type="text" value={acctName} maxLength={50} onChange={(e) => setAcctName(e.target.value)} /></label>
-              <label>邮箱 <input type="text" value={acctEmail} maxLength={100} onChange={(e) => setAcctEmail(e.target.value)} /></label>
-              <div>
-                <button type="button" className="btn-export" disabled={acctBusy} onClick={saveAcctProfile}>{acctBusy ? "保存中…" : "保存资料"}</button>
-              </div>
-            </fieldset>
-            <fieldset className="tag-rule">
-              <legend>修改密码（OTP 验证）</legend>
-              <label>验证码发到 <input type="text" value={(meRow && meRow.email) || ""} disabled /></label>
-              <div>
-                <button type="button" className="btn-export" disabled={acctBusy || !(meRow && meRow.email)} onClick={sendAcctOtp}>获取验证码</button>
-              </div>
-              {acctOtp ? (<p className="def-note">模拟验证码（未真实发送）：<b>{acctOtp}</b></p>) : null}
-              <label>验证码 <input type="text" value={acctOtpInput} maxLength={6} inputMode="numeric" onChange={(e) => setAcctOtpInput(e.target.value.replace(/\D/g, "").slice(0, 6))} /></label>
-              <label>新密码 <input type="password" value={acctNewPw} maxLength={100} onChange={(e) => setAcctNewPw(e.target.value)} /></label>
-              <div>
-                <button type="button" className="btn-export" disabled={acctPwBusy} onClick={doAcctChangePassword}>{acctPwBusy ? "修改中…" : "修改密码"}</button>
-              </div>
-            </fieldset>
           </section>
 
           <section className={"view" + (view === "tagrules" ? " on" : "")} id="view-tagrules">
@@ -4700,6 +4737,59 @@ export default function AdminDashboard() {
           <AppFooter />
         </main>
       </div>
+
+      {/* Admin redesign Item 4 — user CRUD modals (Q7(a)): edit (4
+          fields only — never username/id/role), create (role forced
+          "user" by the server), delete with confirmation. */}
+      {userEditForm ? (
+        <div className="contract-overlay" role="dialog" aria-modal="true" onClick={(e) => { if (e.target === e.currentTarget) setUserEditForm(null); }}>
+          <div className="contract-sheet">
+            <h3>编辑用户</h3>
+            <div className="modal-form">
+              <label>姓名 <input type="text" value={userEditForm.name} maxLength={50} onChange={(e) => editUserForm("name", e.target.value)} /></label>
+              <label>城市 <input type="text" value={userEditForm.city} maxLength={30} onChange={(e) => editUserForm("city", e.target.value)} /></label>
+              <label>邮箱 <input type="text" value={userEditForm.email} maxLength={100} onChange={(e) => editUserForm("email", e.target.value)} /></label>
+              <label>手机号 <input type="text" value={userEditForm.phone} maxLength={16} onChange={(e) => editUserForm("phone", e.target.value)} /></label>
+            </div>
+            <div className="contract-actions">
+              <button type="button" className="btn-approve" disabled={userCrudBusyId !== null} onClick={saveUserEdit}>{userCrudBusyId !== null ? "保存中…" : "保存"}</button>
+              <button type="button" className="btn-reject" onClick={() => setUserEditForm(null)}>取消</button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+      {userCreateForm ? (
+        <div className="contract-overlay" role="dialog" aria-modal="true" onClick={(e) => { if (e.target === e.currentTarget) setUserCreateForm(null); }}>
+          <div className="contract-sheet">
+            <h3>新建用户</h3>
+            <div className="modal-form">
+              <label>账号 <input type="text" value={userCreateForm.username} maxLength={20} onChange={(e) => editUserCreateForm("username", e.target.value)} /></label>
+              <label>密码 <input type="password" value={userCreateForm.password} maxLength={100} onChange={(e) => editUserCreateForm("password", e.target.value)} /></label>
+              <label>姓名 <input type="text" value={userCreateForm.name} maxLength={50} onChange={(e) => editUserCreateForm("name", e.target.value)} /></label>
+              <label>城市 <input type="text" value={userCreateForm.city} maxLength={30} onChange={(e) => editUserCreateForm("city", e.target.value)} /></label>
+              <label>邮箱 <input type="text" value={userCreateForm.email} maxLength={100} onChange={(e) => editUserCreateForm("email", e.target.value)} /></label>
+              <label>手机号 <input type="text" value={userCreateForm.phone} maxLength={16} onChange={(e) => editUserCreateForm("phone", e.target.value)} /></label>
+            </div>
+            <p className="def-note">新建账号角色固定为普通用户（user）。</p>
+            <div className="contract-actions">
+              <button type="button" className="btn-approve" disabled={userCrudBusyId !== null} onClick={saveUserCreate}>{userCrudBusyId !== null ? "新建中…" : "新建用户"}</button>
+              <button type="button" className="btn-reject" onClick={() => setUserCreateForm(null)}>取消</button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+      {userDeleteTarget ? (
+        <div className="contract-overlay" role="dialog" aria-modal="true" onClick={(e) => { if (e.target === e.currentTarget) setUserDeleteTarget(null); }}>
+          <div className="contract-sheet">
+            <h3>删除用户</h3>
+            <p className="contract-text">确定删除用户 {userDeleteTarget.username}（{userDeleteTarget.name || "—"}）吗？已有业务数据（订单、需求、评价、收藏、票务等）的用户无法删除。</p>
+            <div className="contract-actions">
+              <button type="button" className="btn-reject" disabled={userCrudBusyId !== null} onClick={() => doDeleteUser(userDeleteTarget)}>{userCrudBusyId !== null ? "删除中…" : "确认删除"}</button>
+              <button type="button" className="btn-approve" onClick={() => setUserDeleteTarget(null)}>取消</button>
+            </div>
+          </div>
+        </div>
+      ) : null}
 
       {/* Wave 4 #15: simulated agreement modal (具体功能 #12). */}
       {contract && (

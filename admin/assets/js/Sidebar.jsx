@@ -24,7 +24,6 @@ const NAV_ICONS = {
   alerts: (<><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3" /><path d="M12 9v4" /><path d="M12 17h.01" /></>),
   tagrules: (<><path d="M12.586 2.586A2 2 0 0 0 11.172 2H4a2 2 0 0 0-2 2v7.172a2 2 0 0 0 .586 1.414l8.704 8.704a2.426 2.426 0 0 0 3.42 0l6.58-6.58a2.426 2.426 0 0 0 0-3.42z" /><circle cx="7.5" cy="7.5" r=".5" fill="currentColor" /></>),
   aicopy: (<><path d="M12 20h9" /><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z" /></>),
-  account: (<><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2" /><circle cx="12" cy="7" r="4" /></>),
   tiers: (<><path d="M11.562 3.266a.5.5 0 0 1 .876 0L15.39 8.87a1 1 0 0 0 1.516.294L21.183 5.5a.5.5 0 0 1 .798.519l-2.834 10.246a1 1 0 0 1-.956.735H5.81a1 1 0 0 1-.957-.735L2.02 6.02a.5.5 0 0 1 .798-.519l4.276 3.664a1 1 0 0 0 1.516-.294z" /><path d="M5 21h14" /></>),
   // R3-6 文惠卡: same crown glyph as 会员等级 (member card) — there is
   // no dedicated wallet glyph in admin/assets/icons/ yet.
@@ -44,7 +43,6 @@ const VIEWS = [
   { id: "overview", label: "总览", iconName: "ui:layout-dashboard", group: "main" },
   { id: "orders", label: "订单", iconName: "ui:receipt", group: "main" },
   { id: "users", label: "用户", iconName: "ui:users", group: "main" },
-  { id: "account", label: "账号", iconName: "ui:user", group: "main" },
   { id: "tagrules", label: "标签规则", iconName: "ui:tags", group: "main" },
   { id: "aicopy", label: "文案生成", iconName: "ui:pen", group: "main" },
   { id: "ipconfig", label: "IP 配置", iconName: "ui:pen", group: "main" },

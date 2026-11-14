@@ -133,15 +133,17 @@ test("admin profile: patch name/email; bad email 400; duplicate email 409", asyn
   );
 });
 
-test("status change is platform-admin only; self-disable 400; unknown 404; bad status 400", async () => {
+test("status change is platform-admin only; self-disable 403; unknown 404; bad status 400", async () => {
   const t2 = await loginOk("r1admin2", "Admin1234");
   assert.equal(
     (await req(`/api/admin/users/${admin2Id}/status`, { method: "PATCH", token: t2, body: { status: "disabled" } })).status,
     403,
   );
+  // Admin redesign Item 4 changed self-disable from 400 to 403 (a
+  // permission refusal, same as the new disable-root guard).
   assert.equal(
     (await req(`/api/admin/users/${adminId}/status`, { method: "PATCH", token: adminToken, body: { status: "disabled" } })).status,
-    400,
+    403,
   );
   assert.equal(
     (await req("/api/admin/users/99999/status", { method: "PATCH", token: adminToken, body: { status: "disabled" } })).status,

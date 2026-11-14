@@ -53,7 +53,7 @@ import { createTicketType, listTicketTypes, patchTicketType } from "./routes/tic
 import { createPickupPoint, listPickupPoints, deletePickupPoint, listTemplates, createTemplate, patchTemplate, getShopTemplate } from "./routes/pickup.mjs";
 import { listVenues, getVenue, getVenueAvailability, createVenue, patchVenue, listSeatTemplates, createSeatTemplate, patchSeatTemplate } from "./routes/venues.mjs";
 import { generateSeats, listSeats, selectSeats } from "./routes/seats.mjs";
-import { patchAdminProfile, patchAdminUserStatus, adminChangePassword } from "./routes/admin-account.mjs";
+import { patchAdminProfile, patchAdminUserStatus, adminChangePassword, createAdminUser, patchAdminUser, deleteAdminUser } from "./routes/admin-account.mjs";
 import { listShopTiers, listAdminTiers, createMemberTier, patchMemberTier, getAccountTier } from "./routes/member-tiers.mjs";
 import { listAdminCoupons, getAdminCoupon, createCoupon, patchCoupon } from "./routes/coupons.mjs";
 import { listAdminFlashSales, getAdminFlashSale, createFlashSale, patchFlashSale } from "./routes/flash-sales.mjs";
@@ -311,6 +311,9 @@ export async function createApp({ database }) {
       if (await patchAdminProfile(ctx)) return;
       if (await patchAdminUserStatus(ctx)) return;
       if (await adminChangePassword(ctx)) return;
+      if (await createAdminUser(ctx)) return;
+      if (await patchAdminUser(ctx)) return;
+      if (await deleteAdminUser(ctx)) return;
       if (await listShopTiers(ctx)) return;
       if (await listAdminTiers(ctx)) return;
       if (await createMemberTier(ctx)) return;

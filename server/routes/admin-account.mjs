@@ -10,12 +10,24 @@
 // session stops resolving at once (index.mjs excludes disabled users
 // from the session join).
 import { scryptSync, timingSafeEqual } from "node:crypto";
-import { assert, text, safeUser } from "../lib/http.mjs";
+import { assert, text, safeUser, time } from "../lib/http.mjs";
 import { hashPassword } from "./auth.mjs";
 import { consumeVerifiedCode } from "./account.mjs";
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const ACCOUNT_STATUSES = ["active", "disabled"];
+// Admin redesign Item 4 (2026-11-15) — user CRUD (Q7(a)): the 账号
+// view merged into 用户, so the admin account endpoints live here
+// next to the R1-2 status endpoint.
+// INTERIM (Item 4): the default admin — the highest-privilege account
+// — is identified by id === 1. The `root` role value arrives in Item
+// 5, which replaces every `id === 1` check below with
+// `role === "root"`.
+const ROOT_ADMIN_ID = 1;
+// Same username rule as registration (auth.mjs); same phone rule as
+// the customer phone change (account.mjs).
+const USERNAME_RE = /^[A-Za-z0-9_]{3,20}$/;
+const PHONE_RE = /^\+?\d{9,15}$/;
 
 function assertAdmin(session) {
   assert(session?.role === "admin", "无权访问管理后台", 403);
@@ -87,8 +99,14 @@ export async function patchAdminUserStatus(ctx) {
   const target = await get("SELECT * FROM users WHERE id=?", id);
   assert(target, "用户不存在", 404);
   assert(ACCOUNT_STATUSES.includes(b.status), "账号状态错误", 400);
+  // Admin redesign Item 4: the default admin (id 1 — INTERIM root
+  // check, Item 5 switches to role === "root") can never be disabled,
+  // and nobody disables their own account. Both are 403 (a
+  // permission refusal), not 400: the R1-2 self-disable check was 400
+  // and is changed here per the approved redesign.
+  assert(id !== ROOT_ADMIN_ID, "默认管理员账号不可停用", 403);
   if (id === me.id && b.status === "disabled")
-    assert(false, "不能停用自己的账号", 400);
+    assert(false, "不能停用自己的账号", 403);
   await run("UPDATE users SET status=? WHERE id=?", b.status, id);
   await audit(
     me,
@@ -103,6 +121,11 @@ export async function patchAdminUserStatus(ctx) {
 export async function adminChangePassword(ctx) {
   const { p, req, b, send, needUser, get, run, audit } = ctx;
   if (p !== "/api/admin/change-password" || req.method !== "POST") return false;
+  // Admin redesign Item 4 (Q2(a)): the dashboard no longer exposes
+  // this endpoint — profile + password change left the dashboard UI
+  // with the 账号 view — but the endpoint itself stays, for
+  // out-of-dashboard / manual use. There is no self-serve password
+  // reset flow inside the dashboard yet; that is a later decision.
   const u = needUser();
   assertAdmin(u);
   // Validate the new password BEFORE consuming the code (OTP lesson:
@@ -126,6 +149,206 @@ export async function adminChangePassword(ctx) {
   await consumeVerifiedCode(ctx, u.id, "email", u.email.toLowerCase(), b.code);
   await run("UPDATE users SET password=? WHERE id=?", hashPassword(next), u.id);
   await audit(u, "修改密码", "修改密码");
+  send({ ok: true });
+  return true;
+}
+
+// Admin redesign Item 4 — create a user (Q7(a)). Platform-admin
+// only; role is FORCED to "user" even if a role is sent (granting
+// admin is a separate root-only action, Item 5). Same username /
+// password / email rules as registration (auth.mjs); scrypt hashing
+// exactly like registration; no auto-login (no token is returned).
+export async function createAdminUser(ctx) {
+  const { p, req, b, send, needUser, get, run, audit } = ctx;
+  if (p !== "/api/admin/users" || req.method !== "POST") return false;
+  const me = needUser();
+  assertPlatformAdmin(me);
+  const username = typeof b.username === "string" ? b.username.trim() : "";
+  assert(
+    USERNAME_RE.test(username),
+    "用户名需为3–20位字母、数字或下划线",
+    400,
+  );
+  const password = typeof b.password === "string" ? b.password.trim() : "";
+  assert(password.length >= 6, "密码至少6位", 400);
+  assert(password.length <= 100, "密码不能超过100位", 400);
+  const name = text(b.name, "姓名", 50);
+  let city = null;
+  if (b.city !== undefined && b.city !== null && String(b.city).trim() !== "") {
+    city = String(b.city).trim();
+    assert(city.length <= 30, "城市不能超过30字", 400);
+  }
+  let email = null;
+  if (b.email !== undefined && b.email !== null && String(b.email).trim() !== "") {
+    assert(
+      typeof b.email === "string" &&
+        b.email.trim().length <= 100 &&
+        EMAIL_RE.test(b.email.trim()),
+      "邮箱格式不正确",
+      400,
+    );
+    email = b.email.trim().toLowerCase();
+  }
+  let phone = null;
+  if (b.phone !== undefined && b.phone !== null && String(b.phone).trim() !== "") {
+    phone = String(b.phone).trim();
+    assert(PHONE_RE.test(phone), "手机号格式不正确", 400);
+  }
+  const existing = await get("SELECT id FROM users WHERE username=?", username);
+  assert(!existing, "用户名已被注册", 409);
+  const inserted = await run(
+    "INSERT INTO users(username,password,name,role,city,email,phone,created_at) VALUES(?,?,?,?,?,?,?,?)",
+    username,
+    hashPassword(password),
+    name,
+    "user",
+    city,
+    email,
+    phone,
+    time(),
+  );
+  const u = await get("SELECT * FROM users WHERE id=?", inserted.lastInsertRowid);
+  await audit(me, "管理账号", `新建用户 ${username}`);
+  send({ user: safeUser(u) }, 201);
+  return true;
+}
+
+// Admin redesign Item 4 — edit a regular user (Q7(a)): 姓名/城市/
+// 邮箱/手机号 only. Platform-admin only; the target must be a plain
+// user — an admin-role account (and the default admin, id 1 — INTERIM
+// root check, Item 5 switches to role === "root") is never editable
+// here, and neither is the caller's own row (own profile editing left
+// the dashboard with the 账号 view; only root manages admin accounts).
+// username/id/role are never editable through this endpoint: sending
+// any of them is a 400 (role changes are a separate root-only action,
+// Item 5). Email follows the profile rules (trim + lowercase,
+// duplicate -> 409); phone must match ^\+?\d{9,15}$ when non-empty.
+// An empty city/phone clears the field.
+export async function patchAdminUser(ctx) {
+  const { p, req, b, send, needUser, get, run, audit } = ctx;
+  const m = p.match(/^\/api\/admin\/users\/(\d+)$/);
+  if (!m || req.method !== "PATCH") return false;
+  const me = needUser();
+  assertPlatformAdmin(me);
+  const id = Number(m[1]);
+  const target = await get("SELECT * FROM users WHERE id=?", id);
+  assert(target, "用户不存在", 404);
+  assert(target.role !== "admin", "管理员账号不可通过此接口修改", 403);
+  assert(target.id !== ROOT_ADMIN_ID, "默认管理员账号不可修改", 403);
+  assert(target.id !== me.id, "不能修改自己的账号", 403);
+  assert(
+    !("username" in b) && !("role" in b) && !("id" in b),
+    "不允许修改账号、角色或编号",
+    400,
+  );
+  const updates = {};
+  let hasField = false;
+  if ("name" in b) {
+    hasField = true;
+    updates.name = text(b.name, "姓名", 50);
+  }
+  if ("city" in b) {
+    hasField = true;
+    const city = typeof b.city === "string" ? b.city.trim() : "";
+    assert(city.length <= 30, "城市不能超过30字", 400);
+    updates.city = city;
+  }
+  if ("email" in b) {
+    hasField = true;
+    const email =
+      typeof b.email === "string" ? b.email.trim().toLowerCase() : "";
+    assert(
+      email.length > 0 && email.length <= 100 && EMAIL_RE.test(email),
+      "邮箱格式不正确",
+      400,
+    );
+    const clash = await get(
+      "SELECT id FROM users WHERE LOWER(email)=? AND id<>?",
+      email,
+      id,
+    );
+    assert(!clash, "邮箱已被使用", 409);
+    updates.email = email;
+  }
+  if ("phone" in b) {
+    hasField = true;
+    const phone = typeof b.phone === "string" ? b.phone.trim() : "";
+    assert(phone === "" || PHONE_RE.test(phone), "手机号格式不正确", 400);
+    updates.phone = phone;
+  }
+  assert(hasField, "未提供可修改的字段", 400);
+  const keys = Object.keys(updates);
+  const sets = keys.map((k) => `${k}=?`).join(", ");
+  await run(
+    `UPDATE users SET ${sets} WHERE id=?`,
+    ...keys.map((k) => updates[k]),
+    id,
+  );
+  const fresh = await get("SELECT * FROM users WHERE id=?", id);
+  await audit(me, "管理账号", `修改用户 ${target.username} ${keys.join("、")}`);
+  send({ user: safeUser(fresh) });
+  return true;
+}
+
+// Every table that references users(id) (schema.mjs). A user with a
+// row in ANY of them cannot be deleted: this endpoint NEVER
+// cascade-deletes — the data stays, so the account stays, and the
+// admin resolves the data first (e.g. a user with orders keeps the
+// account). Checking every FK up front also means the DELETE below
+// can never trip a foreign-key violation.
+const USER_REFERENCES = [
+  ["sessions", "user_id", "登录会话"],
+  ["resources", "owner_id", "资源"],
+  ["orders", "user_id", "订单"],
+  ["demands", "user_id", "需求"],
+  ["comments", "user_id", "评价"],
+  ["messages", "user_id", "站内消息"],
+  ["messages", "sender_id", "站内消息"],
+  ["favorites", "user_id", "收藏"],
+  ["events", "user_id", "行为记录"],
+  ["user_tags", "user_id", "用户标签"],
+  ["audit_logs", "user_id", "审计记录"],
+  ["verification_codes", "user_id", "验证码"],
+  ["oauth_accounts", "user_id", "第三方账号"],
+  ["shops", "owner_id", "店铺"],
+  ["shows", "created_by", "演出"],
+  ["coupon_redemptions", "user_id", "优惠券核销"],
+  ["coupon_gifts", "user_id", "赠券"],
+  ["stored_value_accounts", "user_id", "储值账户"],
+  ["tickets", "verified_by", "票务核销"],
+  ["verify_logs", "verified_by", "核销记录"],
+  ["print_logs", "printed_by", "打印记录"],
+];
+
+// Admin redesign Item 4 — delete a user (Q7(a)). Platform-admin
+// only; only a plain role=user account, never an admin (and never
+// the default admin, id 1 — INTERIM root check, Item 5 switches to
+// role === "root"), never the caller themself. If the user owns any
+// referential data (orders/demands/comments/favorites/tickets or any
+// other row in USER_REFERENCES) the delete is refused with 400 —
+// no cascade-delete. Otherwise the row is hard-deleted and the
+// deletion is written to the audit log (against the caller).
+export async function deleteAdminUser(ctx) {
+  const { p, req, send, needUser, get, run, audit } = ctx;
+  const m = p.match(/^\/api\/admin\/users\/(\d+)$/);
+  if (!m || req.method !== "DELETE") return false;
+  const me = needUser();
+  assertPlatformAdmin(me);
+  const id = Number(m[1]);
+  const target = await get("SELECT * FROM users WHERE id=?", id);
+  assert(target, "用户不存在", 404);
+  assert(target.role !== "admin", "管理员账号不可删除", 403);
+  assert(target.id !== ROOT_ADMIN_ID, "默认管理员账号不可删除", 403);
+  assert(target.id !== me.id, "不能删除自己的账号", 403);
+  for (const [table, col, label] of USER_REFERENCES) {
+    const row = await get(
+      `SELECT 1 AS x FROM ${table} WHERE ${col}=? LIMIT 1`,
+      id,
+    );
+    assert(!row, `该用户已有${label}，无法删除`, 400);
+  }
+  await run("DELETE FROM users WHERE id=?", id);
+  await audit(me, "管理账号", `删除用户 ${target.username}`);
   send({ ok: true });
   return true;
 }
