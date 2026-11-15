@@ -39,7 +39,7 @@
   --btn-gap-sm:8px; --btn-gap:12px;
   --shadow-hover:0 2px 16px rgba(35,35,35,0.06);
   --shadow-menu:0 8px 24px rgba(35,35,35,0.12);
-  --ease-out:cubic-bezier(0.23,1,0.32,1); --duration-enter:200ms; --duration-exit:140ms;
+  --ease-out:cubic-bezier(0.23,1,0.32,1); --ease-in-out:cubic-bezier(0.77,0,0.175,1); --ease-drawer:cubic-bezier(0.32,0.72,0,1); --duration-enter:200ms; --duration-exit:140ms;
 }
 *{box-sizing:border-box}
 html{scroll-behavior:smooth}
@@ -138,7 +138,8 @@ select.field-sm{padding-right:28px}
 .bell-badge{position:absolute;top:-6px;right:-6px;min-width:18px;height:18px;padding:0 5px;border-radius:99px;color:#fff;font-size:11px;font-weight:800;line-height:18px;text-align:center}
 .bell-badge.critical{background:var(--signal-red)}
 .bell-badge.warning{background:var(--signal-yellow)}
-.bell-dropdown{position:absolute;right:0;top:calc(100% + 8px);width:340px;max-height:420px;overflow-y:auto;background:var(--p-bg);border:1px solid var(--line2);border-radius:12px;box-shadow:0 12px 32px rgba(0,0,0,.14);z-index:50;padding:12px 14px}
+.bell-dropdown{position:absolute;right:0;top:calc(100% + 8px);width:340px;max-height:420px;overflow-y:auto;background:var(--p-bg);border:1px solid var(--line2);border-radius:12px;box-shadow:0 12px 32px rgba(0,0,0,.14);z-index:50;padding:12px 14px;transform-origin:top right;transition:transform 200ms var(--ease-out),opacity 200ms var(--ease-out)}
+@starting-style{.bell-dropdown{opacity:0;transform:scale(.95)}}
 .bell-dropdown h3{font-size:13px;margin:6px 0 8px}
 .bell-item{display:flex;gap:8px;align-items:flex-start;padding:8px 0;border-top:1px solid var(--line);font-size:13px}
 .bell-dot{flex:none;width:8px;height:8px;border-radius:99px;margin-top:5px}
@@ -234,6 +235,7 @@ td{padding:11px 14px;border-bottom:1px solid var(--line);vertical-align:middle}
 td.code,.mono{font-family:var(--font-mono)}
 td.id{font-family:var(--font-mono);font-size:13px;color:var(--p-muted);font-variant-numeric:tabular-nums;white-space:nowrap}
 tr:last-child td{border-bottom:0}
+tbody tr{transition:background-color 140ms var(--ease-out)}
 tbody tr:hover{background:var(--p-surface)}
 td.num,th.num{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
 /* SortButton: 14px icon beside the header label, inside <th>. */
@@ -296,7 +298,7 @@ th .sort-btn:focus-visible{outline:2px solid var(--p-action);outline-offset:1px}
 @media(max-width:1100px){.main{padding:24px 24px 48px}.stats{grid-template-columns:1fr 1fr}.stat.hero{grid-column:1/-1}}
 @media(max-width:860px){
   .menu-btn{display:inline-flex}
-  .sidebar{transform:translateX(-100%);transition:transform var(--duration-enter) var(--ease-out);z-index:60}
+  .sidebar{transform:translateX(-100%);transition:transform var(--duration-enter) var(--ease-drawer);z-index:60}
   .sidebar.open{transform:translateX(0)}
   .drawer-backdrop.open{display:block;position:fixed;inset:0;background:var(--overlay);z-index:50}
   .chips button{min-height:44px;padding:11px 16px}
@@ -315,7 +317,13 @@ th .sort-btn:focus-visible{outline:2px solid var(--p-action);outline-offset:1px}
 }
 @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important;scroll-behavior:auto!important}}
 
-/* Motion: hero enters once on load; buttons press on click. */
+/* Motion: one orchestrated entrance (login card) + short press/hover
+   feedback everywhere; dropdowns and modals enter from scale(.95) +
+   opacity 0 via @starting-style (bell scales from its trigger, modals
+   stay centered); drawer uses the drawer curve. Never ease-in, never
+   transition:all, never scale(0) — all UI motion stays under 300ms.
+   Keyboard-initiated actions and table re-renders are not animated;
+   reduced-motion disables every transition/animation (rule above). */
 @keyframes rise{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
 .login-card{animation:rise var(--duration-enter) var(--ease-out) both}
 /* Press feedback: a subtle scale (never a jump), with a short transition. */
@@ -341,8 +349,10 @@ th .sort-btn:focus-visible{outline:2px solid var(--p-action);outline-offset:1px}
 /* Wave 4 #15: per-order contract button + simulated agreement modal. */
 .btn-view{border:1px solid var(--line2);background:var(--p-bg);color:var(--p-ink);border-radius:9px;font-weight:700;font-size:12px;padding:6px 14px;white-space:nowrap;min-height:30px}
 .btn-view:hover{background:var(--p-surface)}
-.contract-overlay{position:fixed;inset:0;background:var(--overlay);z-index:60;display:flex;align-items:center;justify-content:center;padding:22px}
-.contract-sheet{background:var(--p-bg);color:var(--p-ink);width:100%;max-width:640px;max-height:88vh;overflow-y:auto;border-radius:16px;padding:26px 28px;box-shadow:var(--shadow-menu)}
+.contract-overlay{position:fixed;inset:0;background:var(--overlay);z-index:60;display:flex;align-items:center;justify-content:center;padding:22px;transition:opacity 200ms var(--ease-out)}
+@starting-style{.contract-overlay{opacity:0}}
+.contract-sheet{background:var(--p-bg);color:var(--p-ink);width:100%;max-width:640px;max-height:88vh;overflow-y:auto;border-radius:16px;padding:26px 28px;box-shadow:var(--shadow-menu);transition:transform 200ms var(--ease-out),opacity 200ms var(--ease-out)}
+@starting-style{.contract-sheet{opacity:0;transform:scale(.95)}}
 .contract-sheet h3{font-family:var(--font-display);font-size:20px;font-weight:var(--display-weight);margin:0 0 14px}
 .contract-text{white-space:pre-wrap;word-break:break-word;font:inherit;font-size:13.5px;line-height:1.8;margin:0 0 16px}
 .contract-actions{display:flex;gap:var(--btn-gap);flex-wrap:wrap}
