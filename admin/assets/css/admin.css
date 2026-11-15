@@ -36,6 +36,7 @@
   --leading-body:1.6; --leading-tight:1.15;
   --space-1:4px; --space-2:8px; --space-3:12px; --space-4:14px; --space-5:16px; --space-6:18px; --space-7:20px; --space-8:24px; --space-9:28px; --space-10:34px; --space-11:36px;
   --radius-sm:9px; --radius-md:14px; --radius-lg:20px; --radius-chip:99px;
+  --btn-gap-sm:8px; --btn-gap:12px;
   --shadow-hover:0 2px 16px rgba(35,35,35,0.06);
   --shadow-menu:0 8px 24px rgba(35,35,35,0.12);
   --ease-out:cubic-bezier(0.23,1,0.32,1); --duration-enter:200ms; --duration-exit:140ms;
@@ -317,25 +318,34 @@ th .sort-btn:focus-visible{outline:2px solid var(--p-action);outline-offset:1px}
 /* Motion: hero enters once on load; buttons press on click. */
 @keyframes rise{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
 .login-card{animation:rise var(--duration-enter) var(--ease-out) both}
-.login-btn:active,.chips button:active,.sidebar nav button:active,.btn-export:active,.btn-approve:active,.btn-reject:active,.btn-resolve:active,.sort-btn:active,.app-header .home-link:active{transform:translateY(2px)}
+/* Press feedback: a subtle scale (never a jump), with a short transition. */
+.login-btn,.chips button,.sidebar nav button,.btn-export,.btn-md,.btn-ghost,.btn-view,.btn-approve,.btn-reject,.btn-resolve,.sort-btn,.app-header .home-link,.op-card button,.bell-btn,.menu-btn,.search-clear,.bell-view-all,.inline-mark{transition:background-color 140ms var(--ease-out),border-color 140ms var(--ease-out),color 140ms var(--ease-out),transform 160ms var(--ease-out)}
+.login-btn:active,.chips button:active,.sidebar nav button:active,.btn-export:active,.btn-md:active,.btn-ghost:active,.btn-view:active,.btn-approve:active,.btn-reject:active,.btn-resolve:active,.sort-btn:active,.app-header .home-link:active,.op-card button:active,.bell-btn:active,.menu-btn:active,.search-clear:active,.bell-view-all:active,.inline-mark:active{transform:scale(.97)}
 
 /* ================= premium dashboard (Phase 5) ================= */
 .sidebar .nav-div{height:1px;background:var(--sidebar-line);margin:14px 4px 10px}
 .sidebar .nav-group{font-size:11px;letter-spacing:.18em;color:var(--sidebar-text-dim);font-weight:700;padding:0 14px 6px}
 .trend-bar{display:flex;align-items:flex-start;gap:12px;flex-wrap:wrap;margin-bottom:14px}
 .trend-bar .chips{margin-bottom:0;flex:1}
-.btn-export{margin-left:auto;border:0;border-radius:9px;background:var(--p-action);color:var(--p-action-ink);font-weight:700;font-size:13.5px;padding:13px 18px;white-space:nowrap}
+.btn-export{margin-left:auto;border:0;border-radius:9px;background:var(--p-action);color:var(--p-action-ink);font-weight:700;font-size:13.5px;padding:13px 18px;white-space:nowrap;min-height:44px}
 .btn-export:hover{background:var(--action-hover)}
 .btn-export:disabled{opacity:.6;cursor:default}
+/* Medium button (form / filter actions) + ghost variant (subtle inline actions). */
+.btn-md{border:1px solid var(--line2);border-radius:9px;background:var(--p-bg);color:var(--p-ink);font-weight:700;font-size:13.5px;padding:10px 16px;white-space:nowrap;min-height:40px}
+.btn-md:hover{background:var(--p-surface)}
+.btn-md:disabled{opacity:.6;cursor:default}
+.btn-ghost{border:0;border-radius:9px;background:transparent;color:var(--p-ink);font-weight:700;font-size:13.5px;padding:10px 16px;white-space:nowrap;min-height:40px}
+.btn-ghost:hover{background:var(--p-surface)}
+.btn-ghost:disabled{opacity:.6;cursor:default}
 
 /* Wave 4 #15: per-order contract button + simulated agreement modal. */
-.btn-view{border:1px solid var(--line2);background:var(--p-bg);color:var(--p-ink);border-radius:9px;font-weight:700;font-size:12px;padding:6px 14px;white-space:nowrap}
+.btn-view{border:1px solid var(--line2);background:var(--p-bg);color:var(--p-ink);border-radius:9px;font-weight:700;font-size:12px;padding:6px 14px;white-space:nowrap;min-height:30px}
 .btn-view:hover{background:var(--p-surface)}
 .contract-overlay{position:fixed;inset:0;background:var(--overlay);z-index:60;display:flex;align-items:center;justify-content:center;padding:22px}
 .contract-sheet{background:var(--p-bg);color:var(--p-ink);width:100%;max-width:640px;max-height:88vh;overflow-y:auto;border-radius:16px;padding:26px 28px;box-shadow:var(--shadow-menu)}
 .contract-sheet h3{font-family:var(--font-display);font-size:20px;font-weight:var(--display-weight);margin:0 0 14px}
 .contract-text{white-space:pre-wrap;word-break:break-word;font:inherit;font-size:13.5px;line-height:1.8;margin:0 0 16px}
-.contract-actions{display:flex;gap:10px;flex-wrap:wrap}
+.contract-actions{display:flex;gap:var(--btn-gap);flex-wrap:wrap}
 .cache-note{font-size:12px;color:var(--p-muted);margin:0 0 14px}
 .def-note{font-size:12px;color:var(--p-muted);margin:10px 0 0}
 .stat small{display:block;font-size:12px;color:var(--p-muted);margin-top:6px;line-height:1.5;font-weight:400}
@@ -379,29 +389,29 @@ tr.top1 td{background:var(--p-surface)}
 .alert.info{background:var(--p-surface)}
 .alert b{display:block;font-size:15px;margin:8px 0 2px}
 .alert p{margin:0 0 10px;font-size:13.5px;color:var(--p-muted)}
-.btn-resolve{border:1px solid var(--line2);background:var(--p-bg);border-radius:9px;padding:6px 14px;font-size:13.5px;font-weight:700;color:var(--p-ink)}
+.btn-resolve{border:1px solid var(--line2);background:var(--p-bg);border-radius:9px;padding:6px 14px;font-size:12px;font-weight:700;color:var(--p-ink);min-height:30px}
 .btn-resolve:hover{background:var(--p-surface)}
 .audit-time{font-variant-numeric:tabular-nums;white-space:nowrap}
 
 /* demand review buttons */
-.row-actions{display:flex;gap:8px;white-space:nowrap}
-.btn-approve{border:0;border-radius:9px;background:var(--p-action);color:var(--p-action-ink);font-weight:700;font-size:12px;padding:6px 14px}
+.row-actions{display:flex;gap:var(--btn-gap-sm);white-space:nowrap}
+.btn-approve{border:0;border-radius:9px;background:var(--p-action);color:var(--p-action-ink);font-weight:700;font-size:12px;padding:6px 14px;min-height:30px}
 .btn-approve:hover{background:var(--action-hover)}
 .btn-approve:disabled,.btn-reject:disabled{opacity:.6;cursor:default}
-.btn-reject{border:1px solid var(--line2);background:var(--signal-red-soft);color:var(--signal-red-deep);border-radius:9px;font-weight:700;font-size:12px;padding:6px 14px}
+.btn-reject{border:1px solid var(--line2);background:var(--signal-red-soft);color:var(--signal-red-deep);border-radius:9px;font-weight:700;font-size:12px;padding:6px 14px;min-height:30px}
 .btn-reject:hover{background:var(--signal-red-soft-deep)}
 
 @media(max-width:860px){
   .venue-grid{grid-template-columns:1fr}
   .sidebar .nav-div{margin:6px 4px}
   .sidebar .nav-group{padding:0 12px 4px}
-  .btn-export{min-height:44px}
   .chart-tip{font-size:12px;padding:6px 9px}
   .search-clear{width:44px;height:44px}
 }
 
 /* ================= SearchBox (redesign 2026-11-11) ================= */
-.search-row{margin-bottom:14px}
+.search-row{margin-bottom:14px;display:flex;gap:var(--btn-gap);align-items:flex-end;flex-wrap:wrap}
+.search-row .search-box{flex:0 1 340px;min-width:0}
 .search-box{max-width:340px}
 .search-box label{display:block;font-size:13.5px;font-weight:700;color:var(--p-muted);margin:0 0 6px}
 .search-input{position:relative;display:flex;align-items:center}

@@ -3383,7 +3383,7 @@ export default function AdminDashboard() {
                 <option value="">全部场馆</option>
                 {venues.map((v) => (<option key={v.id} value={String(v.id)}>{v.name}</option>))}
               </select></label>
-              <button type="button" className="btn-export" disabled={availBusy} onClick={() => lookupAvailability(availVenueId ? Number(availVenueId) : null, availDate)}>{availBusy ? "查询中…" : "查空闲"}</button>
+              <button type="button" className="btn-md" disabled={availBusy} onClick={() => lookupAvailability(availVenueId ? Number(availVenueId) : null, availDate)}>{availBusy ? "查询中…" : "查空闲"}</button>
             </div>
             {availResult ? (<div className="note">{availSummaryText(availResult)}</div>) : null}
             {venueForm ? (
