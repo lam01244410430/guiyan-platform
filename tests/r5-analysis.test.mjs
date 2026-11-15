@@ -438,12 +438,12 @@ test("tier distribution + spending buckets match the real users", async () => {
     spending.rows.map((r) => [r.user_id, Number(r.spending)]),
   );
   const allUsers = await pool.query(
-    "SELECT COUNT(*) AS n FROM users WHERE role<>'admin'",
+    "SELECT COUNT(*) AS n FROM users WHERE role NOT IN ('admin','root')",
   );
   const totalUsers = Number(allUsers.rows[0].n);
   assert.equal(a.members.total_users, totalUsers);
   const want = new Map();
-  const userIds = await pool.query("SELECT id FROM users WHERE role<>'admin'");
+  const userIds = await pool.query("SELECT id FROM users WHERE role NOT IN ('admin','root')");
   const buckets = [
     { label: "未消费", min: 0, max: 0 },
     { label: "100元以下", min: 1, max: 9999 },
