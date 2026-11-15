@@ -255,9 +255,9 @@ CODE="$(get /api/shops/1/theme)"
 PC="$(jval "['theme']['primaryColor']")"
 if [ "$CODE" = "200" ] && [ "$PC" = "#0b3d36" ]; then ok "31 GET /api/shops/1/theme 200, default primaryColor #0b3d36"; else bad "31 GET /api/shops/1/theme (code=$CODE, primaryColor=$PC)"; fi
 
-# 32. self-disable rejected — 400 (R1-2; the admin cannot disable itself)
+# 32. self-disable rejected — 403 (Item 4: disable-root and self-disable are both 403, was 400 in R1-2)
 CODE="$(patch /api/admin/users/1/status '{"status":"disabled"}' "$ADMIN_TOKEN")"
-if [ "$CODE" = "400" ]; then ok "32 PATCH /api/admin/users/1/status disabled as admin 400 self-disable"; else bad "32 PATCH /api/admin/users/1/status disabled as admin (code=$CODE, want 400)"; fi
+if [ "$CODE" = "403" ]; then ok "32 PATCH /api/admin/users/1/status disabled as admin 403 self-disable"; else bad "32 PATCH /api/admin/users/1/status disabled as admin (code=$CODE, want 403)"; fi
 
 # 33. unknown shop theme — 404 (R1-3)
 CODE="$(get /api/shops/99999/theme)"
