@@ -114,6 +114,13 @@ export async function patchAdminUserStatus(ctx) {
   // the R1-2 self-disable check was 400 and is changed here per the
   // approved redesign.
   assert(!isRootUser(target), "默认管理员账号不可停用", 403);
+  // FINDING-1 (Lam 2026-11-15 — only root may change another
+  // admin's status): an admin-class target needs a root caller, in
+  // BOTH directions — disable AND re-enable — or a non-root admin
+  // could undo a root disable. Regular users are unchanged: any
+  // platform admin may enable/disable them.
+  if (isAdminRole(target.role) && !isRootUser(me))
+    assert(false, "只有最高管理员可停用/启用管理员账号", 403);
   if (id === me.id && b.status === "disabled")
     assert(false, "不能停用自己的账号", 403);
   await run("UPDATE users SET status=? WHERE id=?", b.status, id);

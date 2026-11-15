@@ -17,11 +17,14 @@
 // backfill: a DB with id 1 role "admin" is promoted to "root" by a
 // fresh server boot (probe server on TEST_PORT + 10); Item 4 guards
 // still hold after the role conversion (edit/delete/disable root as
-// a non-root admin -> 403); source-grep: isAdminRole/isRootUser
+// a non-root admin -> 403); FINDING-1 (Lam 2026-11-15): only root may
+// change another admin's status — non-root disable/enable of an admin
+// -> 403 (status unchanged), root disable/enable -> 200, non-root
+// disable/enable of a regular user -> 200; source-grep: isAdminRole/isRootUser
 // helpers + permission matrix, zero old-style `role === "admin"`
 // gates left in server/, role-based isRootUser + grant/revoke
 // buttons only for root + my-account card shows role, AdminLogin
-// admits root.
+// admits root, status button hidden on admin rows for a non-root caller.
 import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
@@ -86,6 +89,9 @@ let grantUserId;
 let revokeUserId;
 let plainUserId;
 let plainToken;
+// Users created by the FINDING-1 tests (each test deletes its own
+// via the API; this list is the safety net if a test fails midway).
+const findingIds = [];
 
 before(async () => {
   child = spawn("node", ["server.mjs"], {
@@ -148,7 +154,7 @@ after(async () => {
   if (child) child.kill("SIGTERM");
   // Clean up everything this file created (sessions + audit rows
   // reference user ids first — audit_logs.user_id is a real FK).
-  const ids = [grantUserId, revokeUserId, plainUserId, admin2Id];
+  const ids = [grantUserId, revokeUserId, plainUserId, admin2Id, ...findingIds];
   await pool.query("DELETE FROM orders WHERE user_id = ANY($1)", [ids]);
   await pool.query("DELETE FROM sessions WHERE user_id = ANY($1)", [ids]);
   await pool.query("DELETE FROM audit_logs WHERE user_id = ANY($1)", [ids]);
@@ -349,6 +355,113 @@ test("Item 4 guards still hold after the role conversion", async () => {
   assert.equal(await roleOf(rootId), "root");
 });
 
+// ---- FINDING-1 (Lam 2026-11-15): only root may change another ----
+// admin's status. Helpers: each test creates its own user through
+// the Item 4 endpoint, grants admin where needed (root only), and
+// deletes the user again at the end (revoke first), so no other
+// test is affected.
+async function mkFindingUser(username) {
+  const r = await req("/api/admin/users", {
+    method: "POST",
+    token: rootToken,
+    body: {
+      username, password: "Find1234", name: "FINDING用户",
+      city: "南宁", email: `${username}@example.com`, phone: "+8613800000001",
+    },
+  });
+  assert.equal(r.status, 201, `create ${username} -> ${r.status} ${JSON.stringify(r.data)}`);
+  findingIds.push(r.data.user.id);
+  return r.data.user.id;
+}
+async function grantAdmin(userId) {
+  const r = await req(`/api/admin/users/${userId}/role`, {
+    method: "PATCH",
+    token: rootToken,
+    body: { role: "admin" },
+  });
+  assert.equal(r.status, 200, `grant ${userId} -> ${r.status} ${JSON.stringify(r.data)}`);
+}
+async function revokeAdmin(userId) {
+  const r = await req(`/api/admin/users/${userId}/role`, {
+    method: "PATCH",
+    token: rootToken,
+    body: { role: "user" },
+  });
+  assert.equal(r.status, 200, `revoke ${userId} -> ${r.status} ${JSON.stringify(r.data)}`);
+}
+async function deleteFindingUser(userId) {
+  const r = await req(`/api/admin/users/${userId}`, { method: "DELETE", token: rootToken });
+  assert.equal(r.status, 200, `delete ${userId} -> ${r.status} ${JSON.stringify(r.data)}`);
+}
+async function statusOf(userId) {
+  const list = await req("/api/admin/users", { token: rootToken });
+  assert.equal(list.status, 200, JSON.stringify(list.data));
+  const row = list.data.users.find((u) => u.id === userId);
+  assert.ok(row, `user ${userId} must be listed`);
+  return row.status;
+}
+
+test("FINDING-1: non-root admin cannot disable or re-enable another admin (403, status unchanged)", async () => {
+  const uid = await mkFindingUser("finding1adm1");
+  await grantAdmin(uid);
+  assert.equal(await roleOf(uid), "admin");
+  assert.equal(
+    (await req(`/api/admin/users/${uid}/status`, { method: "PATCH", token: admin2Token, body: { status: "disabled" } })).status,
+    403,
+  );
+  assert.equal(await statusOf(uid), "active");
+  // Re-enable is the same rule: a non-root admin must not undo a
+  // root disable, so the guard fires in both directions.
+  assert.equal(
+    (await req(`/api/admin/users/${uid}/status`, { method: "PATCH", token: admin2Token, body: { status: "active" } })).status,
+    403,
+  );
+  assert.equal(await statusOf(uid), "active");
+  await revokeAdmin(uid);
+  await deleteFindingUser(uid);
+});
+
+test("FINDING-1: root disables + re-enables another admin (200)", async () => {
+  const uid = await mkFindingUser("finding1adm2");
+  await grantAdmin(uid);
+  const off = await req(`/api/admin/users/${uid}/status`, {
+    method: "PATCH",
+    token: rootToken,
+    body: { status: "disabled" },
+  });
+  assert.equal(off.status, 200, JSON.stringify(off.data));
+  assert.equal(off.data.user.status, "disabled");
+  assert.equal(await statusOf(uid), "disabled");
+  const on = await req(`/api/admin/users/${uid}/status`, {
+    method: "PATCH",
+    token: rootToken,
+    body: { status: "active" },
+  });
+  assert.equal(on.status, 200, JSON.stringify(on.data));
+  assert.equal(on.data.user.status, "active");
+  await revokeAdmin(uid);
+  await deleteFindingUser(uid);
+});
+
+test("FINDING-1: non-root admin can still disable + re-enable a regular user (200)", async () => {
+  const uid = await mkFindingUser("finding1usr1");
+  const off = await req(`/api/admin/users/${uid}/status`, {
+    method: "PATCH",
+    token: admin2Token,
+    body: { status: "disabled" },
+  });
+  assert.equal(off.status, 200, JSON.stringify(off.data));
+  assert.equal(off.data.user.status, "disabled");
+  const on = await req(`/api/admin/users/${uid}/status`, {
+    method: "PATCH",
+    token: admin2Token,
+    body: { status: "active" },
+  });
+  assert.equal(on.status, 200, JSON.stringify(on.data));
+  assert.equal(on.data.user.status, "active");
+  await deleteFindingUser(uid);
+});
+
 // ---- UI + code-shape checks (source-grep only, no server needed) ----
 const repo = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 function read(rel) {
@@ -418,6 +531,22 @@ test("UI: role-based root, grant/revoke buttons only for root, card shows role",
   // The my-account card already shows the caller's own role (Item 4);
   // with Item 5 it shows "root" for id 1.
   assert.ok(dashboardJsx.includes("{meRow.role}"), "my-account card must show the caller's role");
+});
+
+test("UI (FINDING-1): status button hidden on admin rows for a non-root caller", () => {
+  // The button keeps its exact onClick (admin-redesign-users-crud
+  // asserts it), but it must not render on an admin row unless the
+  // caller is root — the server 403 is the enforcement, this is only
+  // the reflection. Root rows never reach the button (outer
+  // !isRootUser(usr) condition), so the check is role === "admin".
+  assert.ok(
+    dashboardJsx.includes('usr.role === "admin" && !isRoot ? null : ('),
+    "status button must sit in a {usr.role === \"admin\" && !isRoot ? null : (...)} branch",
+  );
+  assert.ok(
+    dashboardJsx.includes("FINDING-1, Lam 2026-11-15"),
+    "the status-button rule must be recorded in the dashboard comment",
+  );
 });
 
 test("AdminLogin admits root; RBAC test wired into the npm test chain", () => {

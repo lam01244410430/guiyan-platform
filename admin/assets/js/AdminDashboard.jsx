@@ -2326,8 +2326,9 @@ export default function AdminDashboard() {
   function isRootUser(usr) { return !!usr && (usr.role === "root" || usr.id === 1); }
   // Edit/delete are offered only for plain users, never for an admin
   // row and never for the caller's own row (the server enforces the
-  // same rules with 403). Enable/disable keeps the R1-2 rule: any
-  // non-self, non-root row for a platform admin.
+  // same rules with 403). Enable/disable: any non-self, non-root row
+  // for a platform admin — EXCEPT an admin row needs a root caller
+  // (FINDING-1, Lam 2026-11-15; the server enforces it with 403).
   function canEditUser(usr) {
     return isPlatformAdmin && !!me && !!usr && usr.id !== me.id && !isRootUser(usr) && usr.role !== "admin";
   }
@@ -2866,7 +2867,9 @@ export default function AdminDashboard() {
                                   <button type="button" className="btn-view" disabled={userCrudBusyId !== null} onClick={() => doChangeUserRole(usr, "admin")}>授予管理</button>
                                 )
                               ) : null}
-                              <button type="button" className="btn-view" disabled={userStatusBusyId !== null} onClick={() => doToggleUserStatus(usr)}>{userStatusBusyId === usr.id ? "处理中…" : (usr.status === "disabled" ? "启用" : "停用")}</button>
+                              {usr.role === "admin" && !isRoot ? null : (
+                                <button type="button" className="btn-view" disabled={userStatusBusyId !== null} onClick={() => doToggleUserStatus(usr)}>{userStatusBusyId === usr.id ? "处理中…" : (usr.status === "disabled" ? "启用" : "停用")}</button>
+                              )}
                             </span>
                           ) : "—"}
                         </td>

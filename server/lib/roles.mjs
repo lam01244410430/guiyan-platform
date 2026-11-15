@@ -5,7 +5,8 @@
 //           edit / disable / demote it through the dashboard, not
 //           even itself; ONLY root grants / revokes the admin role.
 //   admin — full dashboard EXCEPT: cannot touch the root account,
-//           cannot grant / revoke roles.
+//           cannot grant / revoke roles, cannot change another
+//           admin's status (FINDING-1 — that is root-only).
 //   user  — no admin access, 403 on every admin endpoint.
 // Every rule is enforced in the API (403), never only in the UI;
 // every role change writes an audit-log row.
@@ -18,11 +19,15 @@
 //     PATCH /api/admin/users/:id (edit), DELETE /api/admin/users/:id
 //     (delete) and PATCH /api/admin/users/:id/status (disable) all
 //     refuse the root target with 403 (admin-account.mjs).
+//     PATCH /api/admin/users/:id/status on an admin-class target
+//     (disable or re-enable) is also root-only — FINDING-1, Lam
+//     2026-11-15 (admin-account.mjs).
 //   admin + root (platform admin only, shop_id NULL — a shop-scoped
 //     admin gets 403; user gets 403; anon 401):
 //     POST /api/admin/users, PATCH /api/admin/users/:id,
 //     DELETE /api/admin/users/:id, PATCH /api/admin/users/:id/status
-//     (admin-account.mjs).
+//     (regular-user targets only — admin targets are root-only,
+//     FINDING-1) (admin-account.mjs).
 //   admin + root (any admin, shop-scoped included; user 403):
 //     GET /api/admin/stats, /api/admin/orders, /api/admin/users,
 //     /api/admin/demands (admin.mjs), every other /api/admin/*
@@ -38,10 +43,11 @@
 //   public (no role check by design — customer flow, not admin):
 //     /api/auth/*, /api/demands, /api/resources, /api/orders
 //     (owner-only parts), /api/account/*, /api/assistant/chat.
-// See FINDING-1 in the Item 5 verification package: a non-root
-// platform admin CAN disable another non-root admin (status
-// endpoint) — Item 4's approved shape, kept unchanged here; Lam
-// decides whether that needs a root-only rule.
+// FINDING-1 (Lam 2026-11-15, FIXED): only root may change another
+// admin's status — the status endpoint refuses an admin-class target
+// for a non-root caller with 403, in both directions (disable and
+// re-enable), so a non-root admin cannot undo a root disable.
+// Regular-user targets are unchanged (any platform admin).
 
 export const ROOT_ROLE = "root";
 export const ADMIN_ROLE = "admin";
