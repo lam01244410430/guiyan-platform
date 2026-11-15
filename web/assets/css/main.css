@@ -448,10 +448,10 @@ th .sort-btn:focus-visible{outline:2px solid var(--red);outline-offset:1px}
    hidden number spinners) with the customer night-theatre tokens.
    Scoped to the account page only — home, booking, auth and chat
    controls keep their own rules. */
-.db-profile .row input,.db-profile .row select,.order .row input{font-size:13.5px;color:var(--ink);background:var(--surface);border:1px solid var(--line2);border-radius:var(--r-sm);outline:none}
+.db-profile .row input,.db-profile .row select,#ordersTable .db-actions input{font-size:13.5px;color:var(--ink);background:var(--surface);border:1px solid var(--line2);border-radius:var(--r-sm);outline:none}
 .db-profile .row input,.db-profile .row select{height:44px;padding:0 12px}
-.db-profile .row input:focus,.db-profile .row select:focus,.order .row input:focus{border-color:var(--red);box-shadow:0 0 0 3px rgba(176,58,30,0.14)}
-.db-profile .row input:disabled,.db-profile .row select:disabled,.order .row input:disabled{opacity:.6;cursor:default}
+.db-profile .row input:focus,.db-profile .row select:focus,#ordersTable .db-actions input:focus{border-color:var(--red);box-shadow:0 0 0 3px rgba(176,58,30,0.14)}
+.db-profile .row input:disabled,.db-profile .row select:disabled,#ordersTable .db-actions input:disabled{opacity:.6;cursor:default}
 .db-profile .row input[type="number"]{font-variant-numeric:tabular-nums}
 .db-profile .row input[type="number"]::-webkit-outer-spin-button,.db-profile .row input[type="number"]::-webkit-inner-spin-button{-webkit-appearance:none;margin:0}
 .db-profile .row input[type="number"]{-moz-appearance:textfield;appearance:textfield}
@@ -459,13 +459,13 @@ th .sort-btn:focus-visible{outline:2px solid var(--red);outline-offset:1px}
 /* Small variant (36px): the refund row in the orders tab. */
 .field-sm{height:36px;padding:0 10px;font-size:13px}
 select.field-sm{padding-right:28px}
-.order .row input[type="text"]{width:150px}
-.order .row input[type="number"]{width:64px}
-.order .row .mini{height:36px}
+#ordersTable .db-actions input[type="text"]{width:150px}
+#ordersTable .db-actions input[type="number"]{width:64px}
+#ordersTable .db-actions .mini{height:36px}
 /* OTP-send / save buttons in the account rows match the 44px input height. */
 .db-profile .row .v .btn{height:44px;padding-top:0;padding-bottom:0}
 /* Elderly large-text mode (R7-7) still wins over the account controls. */
-html.large-text .db-profile .row input,html.large-text .db-profile .row select,html.large-text .order .row input{font-size:17px}
+html.large-text .db-profile .row input,html.large-text .db-profile .row select,html.large-text #ordersTable .db-actions input{font-size:17px}
 .db-empty{text-align:center;color:var(--ink2);padding:36px 10px;font-size:14px}
 .db-actions{display:flex;gap:8px;flex-wrap:wrap}
 .db-actions .mini{border:1px solid var(--line2);background:transparent;border-radius:99px;padding:6px 13px;font-size:12.5px;font-weight:700;color:var(--ink);cursor:pointer}

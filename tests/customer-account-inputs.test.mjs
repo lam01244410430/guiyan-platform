@@ -25,15 +25,15 @@ const serverPkg = JSON.parse(
 
 test("account controls base: 44px, customer tokens, one focus ring", () => {
   assert.ok(
-    mainCss.includes(".db-profile .row input,.db-profile .row select,.order .row input{font-size:13.5px;color:var(--ink);background:var(--surface);border:1px solid var(--line2);border-radius:var(--r-sm);outline:none}"),
+    mainCss.includes(".db-profile .row input,.db-profile .row select,#ordersTable .db-actions input{font-size:13.5px;color:var(--ink);background:var(--surface);border:1px solid var(--line2);border-radius:var(--r-sm);outline:none}"),
     "account controls share one base with customer tokens",
   );
   assert.ok(mainCss.includes(".db-profile .row input,.db-profile .row select{height:44px;padding:0 12px}"), "account base height is 44px");
   assert.ok(
-    mainCss.includes(".db-profile .row input:focus,.db-profile .row select:focus,.order .row input:focus{border-color:var(--red);box-shadow:0 0 0 3px rgba(176,58,30,0.14)}"),
+    mainCss.includes(".db-profile .row input:focus,.db-profile .row select:focus,#ordersTable .db-actions input:focus{border-color:var(--red);box-shadow:0 0 0 3px rgba(176,58,30,0.14)}"),
     "account focus ring is the customer red, not the admin ink",
   );
-  assert.ok(mainCss.includes(".db-profile .row input:disabled,.db-profile .row select:disabled,.order .row input:disabled{opacity:.6;cursor:default}"), "disabled account controls dim to .6");
+  assert.ok(mainCss.includes(".db-profile .row input:disabled,.db-profile .row select:disabled,#ordersTable .db-actions input:disabled{opacity:.6;cursor:default}"), "disabled account controls dim to .6");
 });
 
 test("account controls tokens: no admin palette anywhere in the customer CSS", () => {
@@ -60,9 +60,15 @@ test("account refund row: inline widths gone, sm size + CSS widths instead", () 
   assert.ok(userJsx.includes('<input type="text" className="field-sm" maxLength={500}'), "refund reason uses the sm size");
   assert.ok(userJsx.includes('<input type="number" className="field-sm" min={1} max={remaining}'), "refund quantity uses the sm size");
   assert.ok(mainCss.includes(".field-sm{height:36px;padding:0 10px;font-size:13px}"), "customer sm variant is 36px");
-  assert.ok(mainCss.includes(".order .row input[type=\"text\"]{width:150px}"), "refund reason width lives in CSS now");
-  assert.ok(mainCss.includes(".order .row input[type=\"number\"]{width:64px}"), "refund quantity width lives in CSS now");
-  assert.ok(mainCss.includes(".order .row .mini{height:36px}"), "refund-row buttons match the 36px inputs");
+  assert.ok(mainCss.includes("#ordersTable .db-actions input[type=\"text\"]{width:150px}"), "refund reason width lives in CSS now");
+  assert.ok(mainCss.includes("#ordersTable .db-actions input[type=\"number\"]{width:64px}"), "refund quantity width lives in CSS now");
+  assert.ok(mainCss.includes("#ordersTable .db-actions .mini{height:36px}"), "refund-row buttons match the 36px inputs");
+});
+
+test("account refund row: rules target the orders table, no dead selector", () => {
+  assert.ok(!mainCss.includes(".order .row input"), "the old .order .row selector matched nothing in the orders tab");
+  assert.ok(!mainCss.includes(".order .row .mini"), "the old .order .row mini selector matched nothing in the orders tab");
+  assert.ok(mainCss.includes("#ordersTable .db-actions input"), "refund-row rules must target #ordersTable .db-actions");
 });
 
 test("account buttons: OTP-send / save buttons match the 44px input height", () => {
@@ -71,7 +77,7 @@ test("account buttons: OTP-send / save buttons match the 44px input height", () 
 
 test("account large-text: elderly large-text mode still wins", () => {
   assert.ok(
-    mainCss.includes("html.large-text .db-profile .row input,html.large-text .db-profile .row select,html.large-text .order .row input{font-size:17px}"),
+    mainCss.includes("html.large-text .db-profile .row input,html.large-text .db-profile .row select,html.large-text #ordersTable .db-actions input{font-size:17px}"),
     "large-text override must cover the account controls",
   );
 });
