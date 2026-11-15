@@ -152,8 +152,14 @@ after(async () => {
   await pool.query("DELETE FROM orders WHERE code='CRUD-ORDER-1'");
   await pool.query("DELETE FROM sessions WHERE user_id = ANY($1)", [ids]);
   await pool.query("DELETE FROM audit_logs WHERE user_id = ANY($1)", [ids]);
-  await pool.query("DELETE FROM users WHERE id = ANY($1)", [ids]);
+  // Break the two-way FK cycle first: creating the shop assigned
+  // shop_id to admin2 (users.shop_id -> shops.id), while the shop
+  // still points at admin2 (shops.owner_id -> users.id) — so no
+  // DELETE order works until the assignment is removed.
+  // shop_id=NULL is valid per R1 (NULL = platform admin).
+  await pool.query("UPDATE users SET shop_id=NULL WHERE id=$1", [admin2Id]);
   await pool.query("DELETE FROM shops WHERE owner_id=$1", [admin2Id]);
+  await pool.query("DELETE FROM users WHERE id = ANY($1)", [ids]);
   await pool.end();
 });
 
