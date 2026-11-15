@@ -11,7 +11,7 @@
 // block is gone, .pill.confirmed dark override exists in data-theme form,
 // .themebtn / .theme-seg / .set-link rules exist; (3) dark contrast —
 // every text pair parsed from the dark token block measures >= 4.5:1,
-// borders >= 3:1 (WCAG, computed, not guessed); (4) i18n — H5 467 keys
+// borders >= 3:1 (WCAG, computed, not guessed); (4) i18n — H5 480 keys
 // in zh/vi/en + 82 in th/ms/id, the 12 new settings/theme keys present
 // in zh/vi/en (mini-program 269 + 82); (5) bootstrap — both HTML
 // entries carry the inline script that sets data-theme before first
@@ -191,10 +191,10 @@ test("css: dark text pairs measure >= 4.5:1, borders >= 3:1 (parsed from the tok
   }
 });
 
-test("i18n: H5 467 keys/language in zh/vi/en + 82 in th/ms/id, equal sets in zh/vi/en, the 12 theme/settings keys present in zh/vi/en", async () => {
+test("i18n: H5 480 keys/language in zh/vi/en + 82 in th/ms/id, equal sets in zh/vi/en, the 12 theme/settings keys present in zh/vi/en", async () => {
   const data = await import(path.resolve(repoDir, "web", "assets", "js", "data.js"));
   const counts = data.LANGS.map((l) => Object.keys(data.I18N[l]).length);
-  assert.deepEqual(counts, [467, 467, 467, 82, 82, 82]);
+  assert.deepEqual(counts, [480, 480, 480, 82, 82, 82]);
   for (const k of THEME_KEYS) {
     // theme keys live in zh/vi/en only (R7-8: th/ms/id carry the 82-key core
     // set; t() falls back to zh for the rest).

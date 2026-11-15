@@ -1,8 +1,10 @@
 // Guiyan frontend — Vite multi-page build (React 19).
 //
-// Four entries keep the exact URLs of the old static site:
+// Five entries keep the exact URLs of the old static site, plus the
+// R9-1 brand page:
 //   /                     <- web/index.html     (customer SPA)
 //   /user.html            <- web/user.html      (user dashboard)
+//   /brand.html           <- web/brand.html     (R9-1 brand site, no sales)
 //   /admin/               <- admin/index.html   (admin login)
 //   /admin/dashboard.html <- admin/dashboard.html (admin console)
 // No new URL is introduced; the SPA fallback for unknown paths stays in
@@ -34,6 +36,7 @@ export default defineConfig({
       input: {
         main: "web/index.html",
         user: "web/user.html",
+        brand: "web/brand.html",
         admin: "admin/index.html",
         dashboard: "admin/dashboard.html",
       },

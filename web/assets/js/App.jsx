@@ -1253,6 +1253,7 @@ export default function App() {
                 <li><a href="#catalog">{t("navCatalog")}</a></li>
                 <li><a href="#demands">{t("navDemands")}</a></li>
                 <li><a href="#ai">{t("navAssistant")}</a></li>
+                <li><a href="brand.html">{t("brandNav")}</a></li>
                 <li><button type="button" className="linklike" id="footOrders" onClick={() => setDrawerOpen(true)}>{t("myTickets")}</button></li>
               </ul>
             </div>

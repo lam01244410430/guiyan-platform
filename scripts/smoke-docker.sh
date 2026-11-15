@@ -458,11 +458,27 @@ if [ "$CODE" = "200" ] && [ "$N" = "4" ] && [ "$HASREC" = "yes" ] && [ "$CODE2" 
 CODE="$(post /api/ai/copy '{"prompt":"为《京剧》写一段推送"}' "$DEMO_TOKEN")"
 if [ "$CODE" = "200" ] && has '"genre":"戏曲"' && has '"mock":true'; then ok "68 POST /api/ai/copy 京剧 prompt 200, genre 戏曲, mock"; else bad "68 POST /api/ai/copy genre (code=$CODE, body=$(cat "$TMP/body"))"; fi
 
-# 69. teardown — down -v, then 0 project containers and 0 project volumes.
+# 69. brand site — 200, the brand page title + the brand entry script
+# (R9-1; served from the dist build by the Node server)
+CODE="$(get /brand.html)"
+if [ "$CODE" = "200" ] && has '桂演品牌官网' && has '/assets/brand-'; then ok "69 GET /brand.html 200, brand title + brand entry"; else bad "69 GET /brand.html (code=$CODE, body=$(cat "$TMP/body" | head -c 200))"; fi
+
+# 70. robots.txt — 200, allows the brand page + points at the sitemap
+# (R9-1; static file from Vite public/, served by the Node server)
+CODE="$(get /robots.txt)"
+if [ "$CODE" = "200" ] && has 'Allow: /brand.html' && has 'Allow: /user.html' && has 'Sitemap: https://guiyan-platform.vercel.app/sitemap.xml'; then ok "70 GET /robots.txt 200, allows /brand.html + /user.html, sitemap line"; else bad "70 GET /robots.txt (code=$CODE, body=$(cat "$TMP/body"))"; fi
+
+# 71. sitemap.xml — 200, valid XML listing exactly the 3 public URLs
+# (R9-1; static file from Vite public/)
+CODE="$(get /sitemap.xml)"
+LOCS="$(grep -o '<loc>' "$TMP/body" | wc -l | tr -d ' ')"
+if [ "$CODE" = "200" ] && has '<?xml version="1.0" encoding="UTF-8"?>' && [ "$LOCS" = "3" ] && has 'https://guiyan-platform.vercel.app/brand.html' && has 'https://guiyan-platform.vercel.app/user.html'; then ok "71 GET /sitemap.xml 200, XML with exactly 3 URLs"; else bad "71 GET /sitemap.xml (code=$CODE, locs=$LOCS, body=$(cat "$TMP/body" | head -c 300))"; fi
+
+# 72. teardown — down -v, then 0 project containers and 0 project volumes.
 docker compose -p "$PROJECT" down -v >/dev/null 2>&1
 LEFT_C="$(docker ps --format '{{.Names}}' | grep -c "$PROJECT" || true)"
 LEFT_V="$(docker volume ls --format '{{.Name}}' | grep -c "^${PROJECT}_" || true)"
-if [ "$LEFT_C" = "0" ] && [ "$LEFT_V" = "0" ]; then ok "69 down -v: 0 project containers, 0 project volumes"; else bad "61 down -v (containers left=$LEFT_C, volumes left=$LEFT_V)"; fi
+if [ "$LEFT_C" = "0" ] && [ "$LEFT_V" = "0" ]; then ok "72 down -v: 0 project containers, 0 project volumes"; else bad "72 down -v (containers left=$LEFT_C, volumes left=$LEFT_V)"; fi
 
-echo "== smoke-docker: PASS $PASS / FAIL $FAIL (68 checks) =="
+echo "== smoke-docker: PASS $PASS / FAIL $FAIL (71 checks) =="
 [ "$FAIL" = "0" ]

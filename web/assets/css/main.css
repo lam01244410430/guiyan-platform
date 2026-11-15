@@ -548,3 +548,25 @@ html.large-text body{font-size:18px}
 html.large-text .topbar-in,html.large-text .mainnav a,html.large-text .langsel select{font-size:16px}
 html.large-text .btn,html.large-text button{font-size:17px}
 html.large-text input,html.large-text select,html.large-text textarea{font-size:17px}
+
+/* ============ R9-1 brand site (.brand-*) ============
+   Same night-theatre tokens as the rest of the customer web
+   (deep pine #0b3d36, cinnabar, gold, paper) — never the admin palette. */
+.brand-hero .hero-in{padding-bottom:72px}
+.brand-cta{margin-top:28px;display:flex;gap:12px;flex-wrap:wrap}
+.brand-sec{padding:64px 0 8px}
+.brand-sec:last-of-type{padding-bottom:72px}
+.brand-about{max-width:860px;font-size:17px;line-height:1.9;color:var(--ink2);margin:0}
+.brand-stats{display:grid;grid-template-columns:repeat(4,1fr);gap:16px}
+.brand-stat{background:var(--surface);border:1px solid var(--line);border-top:3px solid var(--red-solid);border-radius:var(--r-lg);padding:22px 20px}
+.brand-stat b{display:block;font-family:"Noto Serif SC",serif;font-size:36px;font-weight:900;color:var(--ink);line-height:1.1}
+.brand-stat span{display:block;margin-top:6px;font-size:13px;color:var(--ink2)}
+.brand-failed{color:var(--red);font-weight:700}
+.brand-venues{display:grid;grid-template-columns:repeat(3,1fr);gap:16px}
+.brand-venue{background:var(--surface);border:1px solid var(--line);border-radius:var(--r-lg);padding:20px}
+.brand-venue b{display:block;font-family:"Noto Serif SC",serif;font-size:17px;font-weight:700;line-height:1.4}
+.brand-venue span{display:block;margin-top:6px;font-size:13px;color:var(--ink2);line-height:1.6}
+.brand-channels{display:grid;grid-template-columns:repeat(3,1fr);gap:16px}
+.brand-channel{background:var(--night);color:var(--cream);border-radius:var(--r-lg);padding:34px 20px;text-align:center;font-family:"Noto Serif SC",serif;font-size:22px;font-weight:700}
+@media(max-width:900px){.brand-venues,.brand-channels{grid-template-columns:repeat(2,1fr)}.brand-stats{grid-template-columns:repeat(2,1fr)}}
+@media(max-width:560px){.brand-venues,.brand-channels,.brand-stats{grid-template-columns:1fr}.brand-sec{padding-top:44px}}

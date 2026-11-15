@@ -7,6 +7,7 @@ COPY vite.config.js ./
 COPY web ./web
 COPY admin ./admin
 COPY scripts ./scripts
+COPY public ./public
 RUN npm run build            # -> dist/ (flattened: /index.html /user.html /admin/)
 
 # Stage 2 — runtime: chỉ cần server lock (pg/redis/aws) để chạy API

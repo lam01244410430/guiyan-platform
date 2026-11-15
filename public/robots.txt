@@ -1,0 +1,5 @@
+User-agent: *
+Allow: /
+Allow: /brand.html
+Allow: /user.html
+Sitemap: https://guiyan-platform.vercel.app/sitemap.xml

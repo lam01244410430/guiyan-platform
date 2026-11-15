@@ -100,9 +100,14 @@ export function Header(props) {
     return () => document.removeEventListener("click", onDocClick);
   }, [props.menuOpen]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // R9-1 brand site: the brand variant links home for catalog/demands/
+  // assistant and back to itself for the brand page; the index variant
+  // also links to the brand page (plan Q5 default (a): header + footer).
   const navLinks = variant === "index"
-    ? [["#catalog", "navCatalog"], ["#demands", "navDemands"], ["#ai", "navAssistant"], ["#wechat", "navWechat"]]
-    : [["index.html#catalog", "navCatalog"], ["index.html#demands", "navDemands"], ["index.html#ai", "navAssistant"], ["user.html", "navUser"]];
+    ? [["#catalog", "navCatalog"], ["#demands", "navDemands"], ["#ai", "navAssistant"], ["brand.html", "brandNav"], ["#wechat", "navWechat"]]
+    : variant === "brand"
+      ? [["index.html#catalog", "navCatalog"], ["index.html#demands", "navDemands"], ["index.html#ai", "navAssistant"], ["brand.html", "brandNav"]]
+      : [["index.html#catalog", "navCatalog"], ["index.html#demands", "navDemands"], ["index.html#ai", "navAssistant"], ["user.html", "navUser"]];
   const name = user ? (user.name || user.username || "demo") : "demo";
 
   return (
