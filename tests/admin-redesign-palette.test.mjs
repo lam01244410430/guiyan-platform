@@ -99,13 +99,17 @@ test("admin redesign palette: admin type uses the dealt fonts, sidebar is invers
 test("admin redesign palette: thin scrollbar CSS present and wired to the sidebar", () => {
   for (const snippet of [
     ".thin-scroll",
-    "scrollbar-width:thin",
-    "scrollbar-color:",
     "::-webkit-scrollbar{width:6px;height:6px}",
     "::-webkit-scrollbar-track{background:transparent}",
     "::-webkit-scrollbar-thumb",
   ]) {
     assert.ok(css.includes(snippet), `scrollbar CSS missing: ${snippet}`);
+  }
+  // No standard scrollbar properties: Chromium ignores ::-webkit-scrollbar
+  // whenever one is set on the element, so the 6px rule would never apply
+  // (item 1 CDP FAIL, 2026-11-15 — the .thin-scroll rule used to set them).
+  for (const prop of ["scrollbar-width", "scrollbar-color"]) {
+    assert.ok(!css.includes(prop), `standard ${prop} must not be in admin.css (kills webkit 6px)`);
   }
   assert.ok(
     sidebarJsx.includes('className="thin-scroll"'),
