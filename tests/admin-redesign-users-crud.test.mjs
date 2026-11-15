@@ -152,8 +152,8 @@ after(async () => {
   await pool.query("DELETE FROM orders WHERE code='CRUD-ORDER-1'");
   await pool.query("DELETE FROM sessions WHERE user_id = ANY($1)", [ids]);
   await pool.query("DELETE FROM audit_logs WHERE user_id = ANY($1)", [ids]);
-  await pool.query("DELETE FROM shops WHERE owner_id=$1", [admin2Id]);
   await pool.query("DELETE FROM users WHERE id = ANY($1)", [ids]);
+  await pool.query("DELETE FROM shops WHERE owner_id=$1", [admin2Id]);
   await pool.end();
 });
 
