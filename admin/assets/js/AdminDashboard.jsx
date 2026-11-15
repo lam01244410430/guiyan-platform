@@ -108,6 +108,32 @@ function pendingPartialInfo(o) {
    red `!`, refund_requested a yellow `!` (orderMarkLevel, from the
    order's own status — no alert object carries an order id). Clicking
    the mark goes to the alerts view (onViewAlerts). */
+// B-055: long order-row cells (code, user, resource) truncate with an
+// ellipsis and expand on click — Excel-style: click a truncated cell to
+// read the full value, click again to collapse. Keyboard: focus the cell,
+// Enter/Space toggles. The title tooltip keeps the full value on hover.
+function ExpandableCell({ value, mono }) {
+  const [expanded, setExpanded] = useState(false);
+  const text = value || "";
+  return (
+    <td
+      className={(mono ? "code " : "") + "cell-ellipsis expandable" + (expanded ? " expanded" : "")}
+      title={text}
+      tabIndex={0}
+      aria-expanded={expanded}
+      onClick={() => setExpanded((v) => !v)}
+      onKeyDown={(e) => {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          setExpanded((v) => !v);
+        }
+      }}
+    >
+      {text}
+    </td>
+  );
+}
+
 function OrderRow({ o, onContract, onReview, onEscrow, reviewBusyId, onViewAlerts }) {
   const busy = reviewBusyId === o.id;
   const pending = pendingPartialInfo(o);
@@ -115,7 +141,7 @@ function OrderRow({ o, onContract, onReview, onEscrow, reviewBusyId, onViewAlert
   return (
     <>
       <tr>
-        <td className="code">{o.code}</td><td className="cell-ellipsis" title={o.user_name || ""}>{o.user_name || ""}</td><td className="cell-ellipsis" title={o.resource_name || ""}>{o.resource_name || ""}</td>
+        <ExpandableCell value={o.code} mono /><ExpandableCell value={o.user_name} /><ExpandableCell value={o.resource_name} />
         <td className="num">{fmtMoney(o.amount)}</td><td>{o.booking_date || ""}</td>
         <td><span className={"pill " + o.status}>{STATUS[o.status] || o.status}</span>{mark ? (<button type="button" className={"inline-mark " + mark} title={o.status === "disputed" ? "纠纷待处理，点击前往预警中心" : "售后待处理，点击前往预警中心"} aria-label="查看预警中心" onClick={onViewAlerts}>!</button>) : null}</td>
         <td>{o.escrow || ""}</td>
@@ -2771,8 +2797,8 @@ export default function AdminDashboard() {
                   countText={q ? (overviewMatches.length > 8 ? `找到 ${overviewMatches.length} 条（显示前 8 条）` : `找到 ${overviewMatches.length} 条`) : undefined} />
               </div>
               <div className="tbl-wrap">
-                <table>
-                  <thead><tr><th scope="col" aria-sort={ariaSort("overview", "code")}>订单号<SortButton label="订单号" sortKey="code" tableId="overview" sort={sorts.overview} onToggle={toggleSort} /></th><th scope="col">用户</th><th scope="col">资源</th><th scope="col" className="num" aria-sort={ariaSort("overview", "amount")}>金额<SortButton label="金额" sortKey="amount" tableId="overview" sort={sorts.overview} onToggle={toggleSort} /></th><th scope="col" aria-sort={ariaSort("overview", "booking_date")}>预订日期<SortButton label="预订日期" sortKey="booking_date" tableId="overview" sort={sorts.overview} onToggle={toggleSort} /></th><th scope="col">状态</th><th scope="col">托管</th><th scope="col">协议</th><th scope="col" className="col-actions">售后</th></tr></thead>
+                <table className="orders-table">
+                  <thead><tr><th scope="col" aria-sort={ariaSort("overview", "code")}>订单号<SortButton label="订单号" sortKey="code" tableId="overview" sort={sorts.overview} onToggle={toggleSort} /></th><th scope="col">用户</th><th scope="col">资源</th><th scope="col" className="num col-amount" aria-sort={ariaSort("overview", "amount")}>金额<SortButton label="金额" sortKey="amount" tableId="overview" sort={sorts.overview} onToggle={toggleSort} /></th><th scope="col" className="col-date" aria-sort={ariaSort("overview", "booking_date")}>预订日期<SortButton label="预订日期" sortKey="booking_date" tableId="overview" sort={sorts.overview} onToggle={toggleSort} /></th><th scope="col" className="col-status">状态</th><th scope="col" className="col-escrow">托管</th><th scope="col" className="col-contract">协议</th><th scope="col" className="col-actions">售后</th></tr></thead>
                   <tbody id="recentBody">
                     {orders.length
                       ? (overviewMatches.length ? sortedOverview.slice(0, 8).map((o) => <OrderRow key={o.code} o={o} onContract={openContract} onReview={doReviewOrder} onEscrow={doEscrowOrder} reviewBusyId={reviewBusyId} />)
@@ -2800,8 +2826,8 @@ export default function AdminDashboard() {
               <button type="button" className="btn-export" disabled={csvBusy} onClick={doExportCsv}>{csvBusy ? "导出中…" : "导出订单CSV"}</button>
             </div>
             <div className="tbl-wrap">
-              <table>
-                <thead><tr><th scope="col" aria-sort={ariaSort("orders", "code")}>订单号<SortButton label="订单号" sortKey="code" tableId="orders" sort={sorts.orders} onToggle={toggleSort} /></th><th scope="col">用户</th><th scope="col">资源</th><th scope="col" className="num" aria-sort={ariaSort("orders", "amount")}>金额<SortButton label="金额" sortKey="amount" tableId="orders" sort={sorts.orders} onToggle={toggleSort} /></th><th scope="col" aria-sort={ariaSort("orders", "booking_date")}>预订日期<SortButton label="预订日期" sortKey="booking_date" tableId="orders" sort={sorts.orders} onToggle={toggleSort} /></th><th scope="col">状态</th><th scope="col">托管</th><th scope="col">协议</th><th scope="col" className="col-actions">售后</th></tr></thead>
+              <table className="orders-table">
+                <thead><tr><th scope="col" aria-sort={ariaSort("orders", "code")}>订单号<SortButton label="订单号" sortKey="code" tableId="orders" sort={sorts.orders} onToggle={toggleSort} /></th><th scope="col">用户</th><th scope="col">资源</th><th scope="col" className="num col-amount" aria-sort={ariaSort("orders", "amount")}>金额<SortButton label="金额" sortKey="amount" tableId="orders" sort={sorts.orders} onToggle={toggleSort} /></th><th scope="col" className="col-date" aria-sort={ariaSort("orders", "booking_date")}>预订日期<SortButton label="预订日期" sortKey="booking_date" tableId="orders" sort={sorts.orders} onToggle={toggleSort} /></th><th scope="col" className="col-status">状态</th><th scope="col" className="col-escrow">托管</th><th scope="col" className="col-contract">协议</th><th scope="col" className="col-actions">售后</th></tr></thead>
                 <tbody id="ordersBody">
                   {filteredOrders.length ? sortedOrders.map((o) => <OrderRow key={o.code} o={o} onContract={openContract} onReview={doReviewOrder} onEscrow={doEscrowOrder} reviewBusyId={reviewBusyId} onViewAlerts={() => changeView("alerts")} />)
                     : (q ? searchEmpty(9) : <tr><td colSpan="9"><div className="empty">暂无订单</div></td></tr>)}

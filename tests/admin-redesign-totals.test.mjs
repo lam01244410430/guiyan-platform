@@ -213,8 +213,10 @@ test("totals action columns: explicit widths so buttons never overflow", () => {
 
 test("totals ellipsis: name cells carry ellipsis class + title tooltip", () => {
   for (const snippet of [
-    '<td className="cell-ellipsis" title={o.user_name || ""}>{o.user_name || ""}</td>',
-    '<td className="cell-ellipsis" title={o.resource_name || ""}>{o.resource_name || ""}</td>',
+    // B-055: OrderRow's long cells moved into ExpandableCell (ellipsis +
+    // title tooltip live in the component, plus click-to-expand).
+    '<ExpandableCell value={o.user_name} />',
+    '<ExpandableCell value={o.resource_name} />',
     '<td className="cell-ellipsis" title={usr.name || ""}>{usr.name || ""}</td>',
     '<td className="cell-ellipsis" title={d.title}>{d.title}</td>',
     '<td className="cell-ellipsis" title={s.title}>{s.title}</td>',

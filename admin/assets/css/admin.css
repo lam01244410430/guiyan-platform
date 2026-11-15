@@ -178,6 +178,20 @@ table{width:100%;border-collapse:collapse;font-size:13.5px;min-width:640px}
 .tbl-wrap > table th.col-actions-wide{width:250px}
 .tbl-wrap > table th.col-actions-xwide{width:320px}
 .tbl-wrap > table th.col-wide{width:260px}
+/* B-055: the orders tables (overview + orders view) give their five
+   short-content columns fixed narrow widths so the long columns
+   (order code, user, resource) keep room to read; the table min-width
+   grows so the fixed columns never squeeze the long ones to nothing. */
+.tbl-wrap > table.orders-table{min-width:880px}
+.tbl-wrap > table th.col-status{width:88px}
+.tbl-wrap > table th.col-escrow{width:100px}
+.tbl-wrap > table th.col-contract{width:140px}
+.tbl-wrap > table th.col-amount{width:96px}
+.tbl-wrap > table th.col-date{width:112px}
+/* B-055: a truncated cell expands on click (Excel-style) to show the
+   full value; click again (or Enter/Space when focused) to collapse. */
+td.cell-ellipsis.expandable{cursor:pointer}
+td.cell-ellipsis.expanded{white-space:normal;word-break:break-all;overflow:visible}
 td.cell-ellipsis{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 span.cell-ellipsis{display:inline-block;vertical-align:middle;max-width:calc(100% - 26px);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .tbl-wrap table table td.cell-ellipsis{max-width:220px}
