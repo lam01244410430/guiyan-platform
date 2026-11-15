@@ -43,6 +43,13 @@ test("buttons sizes: lg primary, md filter, sm row actions", () => {
   assert.ok(css.includes(".btn-resolve{border:1px solid var(--line2);background:var(--p-bg);border-radius:9px;padding:6px 14px;font-size:12px;font-weight:700;color:var(--p-ink);min-height:30px}"), "btn-resolve joins the sm size (was 13.5px)");
 });
 
+test("buttons line-height: pinned to 1 so min-height governs the size", () => {
+  assert.ok(
+    css.includes(".btn-export,.btn-md,.btn-ghost,.btn-view,.btn-approve,.btn-reject,.btn-resolve{line-height:1}"),
+    "button line-height must be pinned to 1 — body 1.6 pushed lg to 48px",
+  );
+});
+
 test("buttons variants: primary / secondary / danger-soft / ghost all defined", () => {
   assert.ok(css.includes(".btn-md:hover{background:var(--p-surface)}"), "md secondary hovers grayer");
   assert.ok(css.includes(".btn-ghost{border:0;border-radius:9px;background:transparent;color:var(--p-ink);font-weight:700;font-size:13.5px;padding:10px 16px;white-space:nowrap;min-height:40px}"), "ghost variant exists for subtle inline actions");

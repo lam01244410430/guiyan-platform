@@ -345,6 +345,11 @@ th .sort-btn:focus-visible{outline:2px solid var(--p-action);outline-offset:1px}
 .btn-ghost{border:0;border-radius:9px;background:transparent;color:var(--p-ink);font-weight:700;font-size:13.5px;padding:10px 16px;white-space:nowrap;min-height:40px}
 .btn-ghost:hover{background:var(--p-surface)}
 .btn-ghost:disabled{opacity:.6;cursor:default}
+/* Buttons pin their own line-height: the body is 1.6, which pushed the
+   lg primary to 48px although its min-height is 44px. With line-height 1
+   the padding + text stay below the min-height, so the min-height governs
+   the size exactly (lg 44 / md 40 / sm 30). */
+.btn-export,.btn-md,.btn-ghost,.btn-view,.btn-approve,.btn-reject,.btn-resolve{line-height:1}
 
 /* Wave 4 #15: per-order contract button + simulated agreement modal. */
 .btn-view{border:1px solid var(--line2);background:var(--p-bg);color:var(--p-ink);border-radius:9px;font-weight:700;font-size:12px;padding:6px 14px;white-space:nowrap;min-height:30px}
