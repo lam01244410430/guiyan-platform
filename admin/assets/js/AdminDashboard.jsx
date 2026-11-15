@@ -2858,7 +2858,7 @@ export default function AdminDashboard() {
             <div className="search-row">
               <SearchBox id="search-users" label="搜索用户" placeholder="输入ID、姓名、账号、邮箱或城市…"
                 value={query} onChange={setQuery} resultCount={q ? filteredUsers.length : null} />
-              <select className="tag-filter" aria-label="按标签筛选" value={tagFilter} onChange={(e) => setTagFilter(e.target.value)}>
+              <select aria-label="按标签筛选" value={tagFilter} onChange={(e) => setTagFilter(e.target.value)}>
                 <option value="">全部标签</option>
                 {allTags.map((tg) => (<option key={tg} value={tg}>{tg}</option>))}
               </select>
@@ -2962,7 +2962,7 @@ export default function AdminDashboard() {
               <SearchBox id="search-resources" label="搜索资源" placeholder="输入资源名、分类或城市…"
                 value={query} onChange={setQuery} resultCount={q ? filteredResources.length : null} />
               {isPlatformAdmin ? (
-                <select className="tag-filter" aria-label="按店铺筛选" value={resShopFilter} onChange={(e) => setResShopFilter(e.target.value)}>
+                <select aria-label="按店铺筛选" value={resShopFilter} onChange={(e) => setResShopFilter(e.target.value)}>
                   <option value="">全部店铺</option>
                   {shops.map((s) => (<option key={s.id} value={String(s.id)}>{s.name}</option>))}
                 </select>
@@ -3189,7 +3189,7 @@ export default function AdminDashboard() {
             <div className="search-row">
               <SearchBox id="search-shows" label="搜索演出" placeholder="输入演出名称、资源或店铺…"
                 value={query} onChange={setQuery} resultCount={q ? filteredShows.length : null} />
-              <select className="tag-filter" aria-label="按状态筛选" value={showStatusFilter} onChange={(e) => setShowStatusFilter(e.target.value)}>
+              <select aria-label="按状态筛选" value={showStatusFilter} onChange={(e) => setShowStatusFilter(e.target.value)}>
                 <option value="">全部状态</option>
                 <option value="pending">待审核</option>
                 <option value="approved">已通过</option>
@@ -3378,8 +3378,8 @@ export default function AdminDashboard() {
                 optionally one venue) and see which venues are free
                 that day. Read-only; occupied venues list their shows. */}
             <div className="search-row">
-              <label>查空闲日期 <input type="date" value={availDate} onChange={(e) => setAvailDate(e.target.value)} /></label>
-              <label>场馆 <select value={availVenueId} onChange={(e) => setAvailVenueId(e.target.value)}>
+              <label>查空闲日期 <input type="date" className="field-sm" value={availDate} onChange={(e) => setAvailDate(e.target.value)} /></label>
+              <label>场馆 <select className="field-sm" value={availVenueId} onChange={(e) => setAvailVenueId(e.target.value)}>
                 <option value="">全部场馆</option>
                 {venues.map((v) => (<option key={v.id} value={String(v.id)}>{v.name}</option>))}
               </select></label>
@@ -4752,14 +4752,14 @@ export default function AdminDashboard() {
           <section className={"view" + (view === "financeledger" ? " on" : "")} id="view-financeledger">
             <div className="note">账本与订单同事务记账：支付记订单收入、批准退款记退款支出（退回文惠卡的部分另记一行正数）、充值记储值充值。收入合计 + 退款合计 = 仍为已支付/已完成订单的金额合计。</div>
             <div className="search-row">
-              <select className="tag-filter" aria-label="按类型筛选" value={ledgerKind} onChange={(e) => setLedgerKind(e.target.value)}>
+              <select aria-label="按类型筛选" value={ledgerKind} onChange={(e) => setLedgerKind(e.target.value)}>
                 <option value="">全部类型</option>
                 <option value="order_income">订单收入</option>
                 <option value="refund_out">退款支出</option>
                 <option value="topup_in">储值充值</option>
                 <option value="card_refund">退回文惠卡</option>
               </select>
-              <select className="tag-filter" aria-label="按对账状态筛选" value={ledgerReconciled} onChange={(e) => setLedgerReconciled(e.target.value)}>
+              <select aria-label="按对账状态筛选" value={ledgerReconciled} onChange={(e) => setLedgerReconciled(e.target.value)}>
                 <option value="">全部对账状态</option>
                 <option value="0">未对账</option>
                 <option value="1">已对账</option>

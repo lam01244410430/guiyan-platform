@@ -45,7 +45,27 @@ html{scroll-behavior:smooth}
 body{margin:0;background:var(--p-bg);color:var(--p-ink);font-family:var(--font-text);font-size:15px;line-height:1.6;font-variant-numeric:tabular-nums;-webkit-font-smoothing:antialiased}
 a{color:var(--p-ink)}
 button{font:inherit;cursor:pointer}
-input{font:inherit}
+/* Design polish (Step 1): one shared control system for every text /
+   number / date / select / textarea control in the admin console —
+   44px base, one focus ring, custom select chevron, hidden number
+   spinners, styled date indicator. The login card keeps its own look
+   (its more-specific rule below wins, plus height:auto). Checkboxes
+   keep a native 16px box with the action accent. */
+input,select,textarea{font:inherit;font-size:13.5px;color:var(--p-ink);background:var(--p-bg);border:1px solid var(--line2);border-radius:9px;outline:none}
+input,select{height:44px;padding:0 12px}
+textarea{height:auto;min-height:88px;padding:10px 12px;resize:vertical}
+input:focus,select:focus,textarea:focus{border-color:var(--p-action);box-shadow:0 0 0 3px rgba(35,35,35,0.12)}
+input:disabled,select:disabled,textarea:disabled{opacity:.6;cursor:default}
+input[type="checkbox"]{width:16px;height:16px;padding:0;border:0;border-radius:0;background:none;accent-color:var(--p-action);vertical-align:-3px}
+input[type="number"]{font-variant-numeric:tabular-nums}
+input[type="number"]::-webkit-outer-spin-button,input[type="number"]::-webkit-inner-spin-button{-webkit-appearance:none;margin:0}
+input[type="number"]{-moz-appearance:textfield;appearance:textfield}
+input[type="date"]::-webkit-calendar-picker-indicator{opacity:.55;cursor:pointer}
+select{appearance:none;-webkit-appearance:none;background-image:url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23686868' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 12px center;background-size:12px;padding-right:32px}
+select:disabled{background-image:url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23a4a4a4' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E")}
+/* Small variant (36px): dense filter rows and in-table cells. */
+.field-sm{height:36px;padding:0 10px;font-size:13px}
+select.field-sm{padding-right:28px}
 
 /* ================= login ================= */
 .login-shell{min-height:100vh;display:flex;flex-direction:column;background:var(--p-bg)}
@@ -57,8 +77,7 @@ input{font:inherit}
 .login-card h1{font-family:var(--font-display);font-size:22px;font-weight:var(--display-weight);margin:10px 0 2px}
 .login-card .sub{color:var(--p-muted);font-size:13.5px;margin:0 0 24px}
 .login-card label{display:block;font-size:13.5px;font-weight:700;color:var(--p-muted);margin:0 0 6px}
-.login-card input{width:100%;border:1px solid var(--line2);border-radius:9px;padding:12px 14px;font-size:15px;background:var(--p-bg);color:var(--p-ink);margin-bottom:14px;outline:none}
-.login-card input:focus{border-color:var(--p-action);box-shadow:0 0 0 3px rgba(35,35,35,0.12)}
+.login-card input{width:100%;border:1px solid var(--line2);border-radius:9px;padding:12px 14px;font-size:15px;background:var(--p-bg);color:var(--p-ink);margin-bottom:14px;outline:none;height:auto}
 .login-card .err{color:var(--signal-red);font-size:13.5px;min-height:20px;margin:0 0 6px}
 .login-btn{width:100%;border:0;border-radius:9px;background:var(--p-action);color:var(--p-action-ink);font-weight:700;font-size:15px;padding:13px 20px}
 .login-btn:hover{background:var(--action-hover)}
@@ -208,7 +227,7 @@ tr.row-locked td{color:var(--p-muted);background:var(--p-surface)}
 tr.row-locked td .pill{opacity:.65}
 .modal-form{margin-bottom:14px}
 .modal-form label{display:block;margin:0 0 10px;font-size:13px;color:var(--p-muted)}
-.modal-form input{font:inherit;font-size:13.5px;padding:8px 10px;border:1px solid var(--line2);border-radius:9px;background:var(--p-bg);color:var(--p-ink);width:100%;margin-top:4px}
+.modal-form input{width:100%;margin-top:4px}
 th{text-align:left;font-size:13px;font-weight:700;color:var(--p-muted);padding:12px 14px;border-bottom:1px solid var(--line);white-space:nowrap}
 td{padding:11px 14px;border-bottom:1px solid var(--line);vertical-align:middle}
 td.code,.mono{font-family:var(--font-mono)}
@@ -233,18 +252,19 @@ th .sort-btn:focus-visible{outline:2px solid var(--p-action);outline-offset:1px}
 .tag-rule{border:1px solid var(--line2);border-radius:var(--radius-md);padding:14px 16px;margin-bottom:14px;background:var(--p-bg)}
 .tag-rule legend{font-weight:800;padding:0 6px}
 .tag-rule label{display:inline-block;margin:0 10px 8px 0;font-size:13px;color:var(--p-muted)}
-.tag-rule input[type="text"],.tag-rule input[type="number"],.tag-rule select{font:inherit;font-size:13.5px;padding:6px 8px;border:1px solid var(--line2);border-radius:9px;background:var(--p-bg);color:var(--p-ink);max-width:220px}
+.tag-rule input[type="text"],.tag-rule input[type="number"],.tag-rule select{height:36px;max-width:220px}
+.tag-rule input[type="text"],.tag-rule input[type="number"]{padding:0 10px}
+.tag-rule select{padding:0 28px 0 10px}
 .tag-cond{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:8px}
 .tag-cond .link-btn{padding:0}
-.tag-filter{font:inherit;font-size:13.5px;padding:9px 10px;border:1px solid var(--line2);border-radius:9px;background:var(--p-bg);color:var(--p-ink)}
 /* Wave 3 #10 copy template: channel cards reuse .sec/.note; pre-wrap keeps line breaks. */
 .copy-card{border:1px solid var(--line);border-radius:var(--radius-md);background:var(--p-bg);padding:14px 16px;margin-bottom:14px}
 .copy-card h3{margin:0 0 8px;font-size:14px}
 .copy-card pre{white-space:pre-wrap;font:inherit;font-size:13.5px;color:var(--p-ink);margin:0 0 10px}
-.copy-prompt{width:100%;font:inherit;font-size:14px;padding:10px 12px;border:1px solid var(--line2);border-radius:9px;background:var(--p-bg);color:var(--p-ink);min-height:64px;resize:vertical}
+.copy-prompt{width:100%;min-height:64px}
 /* Wave 3 #8 operator card in the analysis view. */
 .op-row{display:flex;gap:8px;margin-bottom:12px}
-.op-row input{flex:1;font:inherit;font-size:14px;padding:10px 12px;border:1px solid var(--line2);border-radius:9px;background:var(--p-bg);color:var(--p-ink)}
+.op-row input{flex:1}
 .chips{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px}
 .chips button{border:1px solid var(--line2);background:var(--p-bg);border-radius:9px;padding:6px 14px;font-size:13.5px;font-weight:700;color:var(--p-muted)}
 .chips button.on{background:var(--p-accent);border-color:var(--p-accent);color:var(--p-accent-ink)}
@@ -386,10 +406,8 @@ tr.top1 td{background:var(--p-surface)}
 .search-box label{display:block;font-size:13.5px;font-weight:700;color:var(--p-muted);margin:0 0 6px}
 .search-input{position:relative;display:flex;align-items:center}
 .search-input .search-ic{position:absolute;left:12px;width:16px;height:16px;pointer-events:none;color:var(--p-muted)}
-.search-input input{width:100%;height:44px;border:1px solid var(--line2);border-radius:9px;
-  padding:0 38px 0 36px;font-size:15px;background:var(--p-bg);color:var(--p-ink);outline:none}
+.search-input input{width:100%;height:44px;padding:0 38px 0 36px;font-size:15px}
 .search-input input::placeholder{color:var(--p-muted)}
-.search-input input:focus{border-color:var(--p-action);box-shadow:0 0 0 3px rgba(35,35,35,0.12)}
 /* Hide the browser's own search clear button so it does not duplicate ours */
 .search-input input::-webkit-search-cancel-button{display:none}
 .search-clear{position:absolute;right:6px;width:32px;height:32px;border:0;border-radius:99px;
