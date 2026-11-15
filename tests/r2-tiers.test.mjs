@@ -348,7 +348,7 @@ test("non-admin tier create -> 403; scheduled performance tiers -> 404; i18n 372
     path.resolve(repoDir, "web", "assets", "js", "data.js")
   );
   const counts = data.LANGS.map((l) => Object.keys(data.I18N[l]).length);
-  assert.deepEqual(counts, [480, 480, 480, 82, 82, 82]);
+  assert.deepEqual(counts, [481, 481, 481, 82, 82, 82]);
   for (const k of ["tierTitle", "tierEmpty", "tierSoldOut", "tierLeft", "tierPick", "pickupTitle", "pickupEmpty", "pickupPick"]) {
     for (const l of ["zh", "vi", "en"])
       assert.ok(k in data.I18N[l], `${k} missing in H5 ${l}`);

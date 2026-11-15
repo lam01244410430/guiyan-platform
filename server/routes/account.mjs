@@ -4,6 +4,7 @@
 // yet (Wave 5 #29); the only guard here is the login + audit trail.
 import { randomInt } from "node:crypto";
 import { assert, text, int, time, safeUser } from "../lib/http.mjs";
+import { emailConfigured, sendEmail } from "../lib/email.mjs";
 import { validKey } from "../storage.mjs";
 
 // Avatar files: JPEG/PNG/WebP only (the generic storage upload accepts
@@ -71,12 +72,15 @@ export async function patchProfile(ctx) {
 // does not import from the auth routes.
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
-// OTP for contact changes (2026-11-12, Lam) — SIMULATED delivery: the
-// project has no email/SMS provider and no budget for one, so the server
-// generates the code and returns it in the send-otp response; the UI
-// shows it as a demo code labelled 模拟，未真实发送. Never claim a real
-// email/SMS was sent. Registration stays unverified — OTP applies only
-// to changing the email / phone of a signed-in account.
+// OTP for contact changes (2026-11-12, Lam) — delivery: email is REAL
+// when the provider is configured (AWS SES via SMTP, server/lib/email.mjs)
+// and simulated otherwise; phone has no SMS provider, so it is always
+// simulated. Real email: the code goes out by email and is NEVER returned
+// in the send-otp response. Simulated: the server returns the code in the
+// response and the UI shows it as a demo code labelled 模拟，未真实发送.
+// Never claim a real email/SMS was sent when it was simulated.
+// Registration stays unverified — OTP applies only to changing the email /
+// phone of a signed-in account.
 // Rules (decided 2026-11-12): 6 digits, 5-minute expiry, single-use,
 // max 5 wrong attempts per code, 60s resend cooldown per (user, channel,
 // target), max 5 sends/hour per target. A new send invalidates the
@@ -179,8 +183,33 @@ export async function sendOtp(ctx) {
       time(),
     );
     await audit(u, "发送验证码", `${channel}:${target}`);
-    // The code IS returned: delivery is simulated (see the header
-    // comment), so there is no channel to send it through.
+    // Email delivery is real when the provider is configured: the code
+    // goes out by email and is NEVER returned in the response. Phone has
+    // no SMS provider, and email without a provider, so both keep the old
+    // simulated behaviour (code returned). A failed send throws 502 — the
+    // request transaction rolls back, so no code is stored and the user
+    // simply retries.
+    if (channel === "email" && emailConfigured()) {
+      try {
+        await sendEmail({
+          to: target,
+          subject: "桂演验证码",
+          text: `您的桂演验证码是 ${code}，5 分钟内有效，请勿泄露。`,
+          html: `<p>您的桂演验证码是 <b>${code}</b>，5 分钟内有效，请勿泄露。</p>`,
+        });
+      } catch (e) {
+        assert(false, "邮件发送失败，请稍后再试", 502);
+      }
+      send({
+        channel,
+        target,
+        sent: true,
+        expires_in_seconds: OTP_TTL_MS / 1000,
+      });
+      return true;
+    }
+    // Simulated delivery (phone always; email without a provider): the
+    // code IS returned, exactly as before.
     send({
       channel,
       target,

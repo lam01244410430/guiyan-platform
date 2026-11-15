@@ -176,11 +176,15 @@ export default function UserDashboard() {
   const [emailForm, setEmailForm] = useState("");
   const [emailMsg, setEmailMsg] = useState("");
   // OTP for contact changes (2026-11-12): the 6-digit code typed by the
-  // user + the demo code returned by send-otp (simulated delivery — the
-  // code is shown in the UI, labelled 模拟，未真实发送） + the in-flight
-  // flag for the send button. Email and phone each keep their own copy.
+  // user + the delivery state returned by send-otp. Email is REAL when the
+  // provider is configured (the server sends the code by email and answers
+  // {sent:true} with no code — the UI shows the sent note instead); without
+  // a provider the server returns a demo code, shown labelled 模拟，未真实发送.
+  // Phone has no SMS provider, so it always shows the demo code. Email and
+  // phone each keep their own copy.
   const [emailCode, setEmailCode] = useState("");
   const [emailDemo, setEmailDemo] = useState(null);
+  const [emailSent, setEmailSent] = useState(false);
   const [emailOtpBusy, setEmailOtpBusy] = useState(false);
   // OTP phone tab (2026-11-12): mirrors the email tab exactly.
   const [phoneForm, setPhoneForm] = useState("");
@@ -465,10 +469,12 @@ export default function UserDashboard() {
   }
 
   // OTP for contact changes (2026-11-12): ask the server for a code for
-  // the target currently typed in the tab's form. The server returns the
-  // demo code (simulated delivery) and the UI shows it in the note below
-  // the code input. A server error (bad format, duplicate, cooldown)
-  // lands in the tab's message line, like every other save error.
+  // the target currently typed in the tab's form. With the email provider
+  // configured the server sends the code by email and answers {sent:true}
+  // with no code, and the UI shows the sent note; otherwise the server
+  // returns the demo code (simulated delivery) and the UI shows it in the
+  // note below the code input. A server error (bad format, duplicate,
+  // cooldown) lands in the tab's message line, like every other save error.
   function doSendOtp(channel) {
     const target = channel === "email" ? emailForm : phoneForm;
     if (channel === "email") { setEmailMsg(""); setEmailOtpBusy(true); }
@@ -476,6 +482,7 @@ export default function UserDashboard() {
     apiPost("/api/account/send-otp", { channel, target }).then(function (res) {
       if (channel === "email") {
         setEmailDemo(res && res.code ? String(res.code) : null);
+        setEmailSent(Boolean(res && res.sent));
         setEmailOtpBusy(false);
       } else {
         setPhoneDemo(res && res.code ? String(res.code) : null);
@@ -505,6 +512,7 @@ export default function UserDashboard() {
         setEmailForm("");
         setEmailCode("");
         setEmailDemo(null);
+        setEmailSent(false);
         if (res && res.user) { setUser(res.user); setToken(getToken(), res.user); }
         toast(t("admResSaved"));
       });
@@ -879,6 +887,7 @@ export default function UserDashboard() {
                     <div className="row"><span className="k">{t("emailNew")}</span><span className="v"><input type="email" value={emailForm} placeholder={user.email || "example@mail.com"} onChange={(e) => setEmailForm(e.target.value)} /></span></div>
                     <div className="row"><span className="k">{t("otpCode")}</span><span className="v"><input type="text" inputMode="numeric" maxLength={6} value={emailCode} placeholder={t("otpCodePh")} onChange={(e) => setEmailCode(e.target.value)} /> <button type="button" className="btn" disabled={emailOtpBusy} onClick={() => doSendOtp("email")}>{t("otpSend")}</button></span></div>
                     {emailDemo ? <div className="row"><span className="k"></span><span className="v"><span className="acct-note">{fmt(t("otpDemoNote"), { code: emailDemo })}</span></span></div> : null}
+                    {emailSent ? <div className="row"><span className="k"></span><span className="v"><span className="acct-note">{t("otpSentNote")}</span></span></div> : null}
                     <div className="row"><span className="k"></span><span className="v"><button type="button" className="btn red" onClick={doChangeEmail}>{t("admResSave")}</button>{emailMsg ? <span style={{ color: "var(--red)", marginLeft: 12 }}>{emailMsg}</span> : null}</span></div>
                   </div>
                 </section>
