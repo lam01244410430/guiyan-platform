@@ -359,6 +359,16 @@ export default function AdminDashboard() {
   const [perfShowId, setPerfShowId] = useState(null);
   const [perfForm, setPerfForm] = useState(null);
   const [perfBusyId, setPerfBusyId] = useState(null);
+  // Showtimes-final: direct performances of a non-show resource —
+  // the resource whose manager is open (resPerfResId) + its
+  // performances loaded on demand (resPerfsByRes, from availability,
+  // tiers included) + the open create draft (null = closed). Status
+  // + tiers reuse the shared perf/tier handlers below where they fit
+  // (doResPerfStatus reloads the list; the tier manager is keyed by
+  // performance id, so it works for direct performances as-is).
+  const [resPerfResId, setResPerfResId] = useState(null);
+  const [resPerfsByRes, setResPerfsByRes] = useState({});
+  const [resPerfForm, setResPerfForm] = useState(null);
   // R2-2 ticket types (price tiers): the performance whose tiers are
   // open (tierPerfId) + tiers loaded on demand per performance
   // (tiersByPerf) + the open tier create/edit draft (null = closed) +
@@ -2217,6 +2227,63 @@ export default function AdminDashboard() {
     }).finally(function () { setPerfBusyId(null); });
   }
 
+  // Showtimes-final: direct performances live on the resource row
+  // (not on a show). The list comes from availability (on-sale
+  // performances with their tiers); creating one goes straight to
+  // on sale with a default tier (server-side), so the list is
+  // reloaded after create/status change instead of patched in place.
+  function loadResPerfs(resId) {
+    apiGet("/api/resources/" + resId + "/availability").then(function (d) {
+      setResPerfsByRes(function (m) { return { ...m, [resId]: d.performances || [] }; });
+    }).catch(loadFail);
+  }
+  function toggleResPerfManager(r) {
+    if (resPerfResId === r.id) {
+      setResPerfResId(null);
+      setResPerfForm(null);
+    } else {
+      setResPerfResId(r.id);
+      setResPerfForm({ resId: r.id, start_at: "", price: "" });
+      loadResPerfs(r.id);
+    }
+  }
+  function editResPerfForm(key, value) {
+    setResPerfForm(function (f) { return f ? { ...f, [key]: value } : f; });
+  }
+  function saveResPerfForm() {
+    if (!resPerfForm || perfBusyId !== null) return;
+    if (!resPerfForm.start_at) { toast("请填写开演时间"); return; }
+    const price = Number(resPerfForm.price);
+    if (!Number.isFinite(price) || price < 0) { toast("请填写有效票价"); return; }
+    const resId = resPerfForm.resId;
+    setPerfBusyId("new");
+    apiPost("/api/resources/" + resId + "/performances", {
+      start_at: resPerfForm.start_at, price_cents: Math.round(price * 100),
+    }).then(function () {
+      setResPerfForm({ resId: resId, start_at: "", price: "" });
+      loadResPerfs(resId);
+      loadAudit();
+      toast("已创建场次");
+    }).catch(function (e) {
+      if (e && e.status === 403) toast("只能管理本店铺的场次");
+      else if (e && e.status === 404) toast("资源不存在");
+      else toast((e && e.data && e.data.error) || "保存失败，请检查表单");
+    }).finally(function () { setPerfBusyId(null); });
+  }
+  function doResPerfStatus(pf, resId, status) {
+    if (perfBusyId !== null) return;
+    setPerfBusyId(pf.id);
+    apiPatch("/api/admin/performances/" + pf.id, { status: status }).then(function () {
+      loadResPerfs(resId);
+      loadAudit();
+      toast(status === "on_sale" ? "已上架" : "已取消");
+    }).catch(function (e) {
+      if (e && e.status === 403) toast("只能管理本店铺的场次");
+      else if (e && e.status === 404) toast("场次不存在");
+      else toast((e && e.data && e.data.error) || "操作失败，请稍后重试");
+    }).finally(function () { setPerfBusyId(null); });
+  }
+
   // R2-2 ticket types (price tiers): create/edit inside the performance
   // manager. Tiers load on demand per performance (the admin shows list
   // does not carry them); create/edit only — there is no delete endpoint.
@@ -3146,6 +3213,9 @@ export default function AdminDashboard() {
                               {r.category === "show" ? (
                                 <button type="button" className="btn-view" disabled={resBusyId !== null} onClick={() => doSyncRes(r)}>{resBusyId === r.id ? "处理中…" : "同步渠道"}</button>
                               ) : null}
+                              {r.category !== "show" ? (
+                                <button type="button" className="btn-view" onClick={() => toggleResPerfManager(r)}>{resPerfResId === r.id ? "收起场次" : "场次管理"}</button>
+                              ) : null}
                             </span>
                           </td>
                         </tr>
@@ -3157,6 +3227,87 @@ export default function AdminDashboard() {
                           <tr>
                             <td colSpan="9">
                               <span>浏览 {resStats[r.id].views}（事件 {resStats[r.id].event_views}）· 点击 {resStats[r.id].clicks} · 订单 {resStats[r.id].orders} · 收入 {fmtMoney(resStats[r.id].revenue_cents)} · 已售票 {resStats[r.id].tickets_sold} · 已核销 {resStats[r.id].verify_count}</span>
+                            </td>
+                          </tr>
+                        ) : null}
+                        {/* Showtimes-final: direct performances of a
+                            non-show resource (same manager shape as the
+                            shows view; the tier sub-table is shared). */}
+                        {resPerfResId === r.id ? (
+                          <tr>
+                            <td colSpan="9">
+                              {(resPerfsByRes[r.id] || []).length ? (
+                                <table>
+                                  <thead><tr><th scope="col" className="col-datetime">开演时间</th><th scope="col" className="col-money">票价</th><th scope="col" className="col-state">状态</th><th scope="col" className="col-actions-wide">操作</th></tr></thead>
+                                  <tbody>
+                                    {(resPerfsByRes[r.id] || []).map((pf) => (
+                                      <Fragment key={pf.id}>
+                                      <tr>
+                                        <td>{pf.start_at}</td><td className="num">{fmtMoney(pf.price_cents)}</td>
+                                        <td>{PERF_STATUS[pf.status] || pf.status}</td>
+                                        <td>
+                                          <span className="row-actions">
+                                            {pf.status === "scheduled" ? (
+                                              <button type="button" className="btn-approve" disabled={perfBusyId === pf.id} onClick={() => doResPerfStatus(pf, r.id, "on_sale")}>{perfBusyId === pf.id ? "处理中…" : "上架"}</button>
+                                            ) : null}
+                                            {pf.status !== "cancelled" ? (
+                                              <button type="button" className="btn-reject" disabled={perfBusyId === pf.id} onClick={() => doResPerfStatus(pf, r.id, "cancelled")}>{perfBusyId === pf.id ? "处理中…" : "取消"}</button>
+                                            ) : null}
+                                            <button type="button" className="btn-view" onClick={() => toggleTierManager(pf)}>{tierPerfId === pf.id ? "收起票种" : "票种"}</button>
+                                          </span>
+                                        </td>
+                                      </tr>
+                                      {tierPerfId === pf.id ? (
+                                        <tr>
+                                          <td colSpan="4">
+                                            {(tiersByPerf[pf.id] || []).length ? (
+                                              <table>
+                                                <thead><tr><th scope="col">票种</th><th scope="col" className="col-money">票价</th><th scope="col" className="col-num-md">票数上限</th><th scope="col" className="col-datetime">截止时间</th><th scope="col" className="col-actions">操作</th></tr></thead>
+                                                <tbody>
+                                                  {(tiersByPerf[pf.id] || []).map((tt) => (
+                                                    <tr key={tt.id}>
+                                                      <td className="cell-ellipsis" title={tt.name}>{tt.name}</td><td className="num">{fmtMoney(tt.price_cents)}</td>
+                                                      <td className="num">{tt.quota}</td><td>{tt.sale_until || "—"}</td>
+                                                      <td>
+                                                        <span className="row-actions">
+                                                          <button type="button" className="btn-view" disabled={tierBusyId !== null} onClick={() => openTierForm(pf, tt)}>编辑</button>
+                                                        </span>
+                                                      </td>
+                                                    </tr>
+                                                  ))}
+                                                </tbody>
+                                              </table>
+                                            ) : (<div className="empty">暂无票种</div>)}
+                                            {tierForm && tierForm.perfId === pf.id ? (
+                                              <div style={{ marginTop: 12 }}>
+                                                <label>票种名称 <input type="text" value={tierForm.name} maxLength={100} onChange={(e) => editTierForm("name", e.target.value)} /></label>{" "}
+                                                <label>票价（元） <input type="number" min="0" step="1" value={tierForm.price} onChange={(e) => editTierForm("price", e.target.value)} /></label>{" "}
+                                                <label>票数上限 <input type="number" min="1" step="1" value={tierForm.quota} onChange={(e) => editTierForm("quota", e.target.value)} /></label>{" "}
+                                                <label>截止时间 <input type="datetime-local" value={tierForm.sale_until} onChange={(e) => editTierForm("sale_until", e.target.value)} /></label>{" "}
+                                                <button type="button" className="btn-export" disabled={tierBusyId !== null} onClick={saveTierForm}>{tierBusyId !== null ? "保存中…" : (tierForm.id ? "保存票种" : "创建票种")}</button>{" "}
+                                                <button type="button" className="btn-view" onClick={() => setTierForm(null)}>取消</button>
+                                              </div>
+                                            ) : (
+                                              <div className="row-end" style={{ marginTop: 12 }}><button type="button" className="btn-view" onClick={() => openTierForm(pf, null)}>添加票种</button></div>
+                                            )}
+                                          </td>
+                                        </tr>
+                                      ) : null}
+                                      </Fragment>
+                                    ))}
+                                  </tbody>
+                                </table>
+                              ) : (<div className="empty">暂无场次</div>)}
+                              {resPerfForm && resPerfForm.resId === r.id ? (
+                                <div style={{ marginTop: 12 }}>
+                                  <label>开演时间 <input type="datetime-local" value={resPerfForm.start_at} onChange={(e) => editResPerfForm("start_at", e.target.value)} /></label>{" "}
+                                  <label>票价（元） <input type="number" min="0" step="1" value={resPerfForm.price} onChange={(e) => editResPerfForm("price", e.target.value)} /></label>{" "}
+                                  <button type="button" className="btn-export" disabled={perfBusyId !== null} onClick={saveResPerfForm}>{perfBusyId !== null ? "保存中…" : "创建场次"}</button>{" "}
+                                  <button type="button" className="btn-view" onClick={() => setResPerfForm(null)}>取消</button>
+                                </div>
+                              ) : (
+                                <div className="row-end" style={{ marginTop: 12 }}><button type="button" className="btn-view" onClick={() => setResPerfForm({ resId: r.id, start_at: "", price: "" })}>添加场次</button></div>
+                              )}
                             </td>
                           </tr>
                         ) : null}
