@@ -202,6 +202,11 @@ select.field-sm{padding-right:28px}
 .sidebar nav button.on{background:var(--sidebar-active-bg);color:var(--sidebar-text)}
 .sidebar nav button.on .ic{color:var(--p-inv-accent)}
 .sidebar nav button .ic{width:16px;height:16px;flex:none}
+/* Sidebar group indent (Lam 2026-11-17): premium items sit under the
+   经营分析 label, so they indent +12px (padding-left 26px vs the 14px
+   label). Desktop only (min-width 861px) — the drawer (<=860px, incl.
+   the 3-column grid at <=560px) is untouched. */
+@media(min-width:861px){.sidebar nav button.nav-sub{padding-left:26px}}
 .main{flex:1;margin-left:240px;padding:34px 36px 60px;min-width:0}
 /* App header (layout restructure 2026-11-14): breadcrumb + title +
    返回首页 + operator card, one row, never wraps. */

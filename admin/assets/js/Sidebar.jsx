@@ -84,7 +84,7 @@ export default function Sidebar({ view, onSelect, drawerOpen }) {
         <div className="nav-div" aria-hidden="true"></div>
         <div className="nav-group">经营分析</div>
         {VIEWS.filter((v) => v.group === "premium").map((v) => (
-          <button key={v.id} type="button" data-view={v.id} className={view === v.id ? "on" : ""}
+          <button key={v.id} type="button" data-view={v.id} className={"nav-sub" + (view === v.id ? " on" : "")}
             aria-current={view === v.id ? "page" : undefined} onClick={() => onSelect(v.id)}>
             <NavIcon v={v} />
             {v.label}
