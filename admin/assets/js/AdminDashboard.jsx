@@ -818,19 +818,36 @@ export default function AdminDashboard() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Lazy loads (trends / analysis / overview): the same 10s timeout +
+  // one retry as the mount batch. The 5s default aborts the heavy
+  // analysis query on a cold serverless function, leaving the donut
+  // stuck on 加载中… with a false toast (live 2026-11-16 18:18: the
+  // batch had already recovered the KPIs, but the lazy loads still
+  // used the bare 5s abort). Auth failures (401/403) keep the
+  // loadFail behaviour (redirect / forbidden) and are never retried.
+  // The retry is chained off the first attempt's rejection handler,
+  // so an error thrown by onOk itself never triggers a retry.
+  function lazyGet(path, onOk) {
+    function once() { return apiGet(path, { timeoutMs: 10000 }); }
+    return once().then(onOk, function (e) {
+      if (e && (e.status === 401 || e.status === 403)) throw e;
+      return once().then(onOk);
+    });
+  }
+
   // Premium data loads lazily: only when its view opens (and refetches
   // when `period` changes or after an alert mutation busts the cache).
   useEffect(() => {
     if (view === "trends" && loadedRef.current.trends !== period) {
       const seq = ++requestSeqRef.current;
-      apiGet("/api/admin/stats?period=" + period).then(function (d) {
+      lazyGet("/api/admin/stats?period=" + period, function (d) {
         if (seq !== requestSeqRef.current) return;
         setSeriesData(d); loadedRef.current.trends = period;
       }).catch(loadFail);
     }
     if (view === "analysis" && (loadedRef.current.analysis !== period || analysisStale)) {
       const seq = ++requestSeqRef.current;
-      apiGet("/api/admin/analysis?period=" + period).then(function (d) {
+      lazyGet("/api/admin/analysis?period=" + period, function (d) {
         if (seq !== requestSeqRef.current) return;
         setAnalysis(d); loadedRef.current.analysis = period; setAnalysisStale(false);
       }).catch(loadFail);
@@ -841,14 +858,22 @@ export default function AdminDashboard() {
     // opening those views afterwards does not refetch the same period.
     if (view === "overview" && (loadedRef.current.overview !== period || analysisStale)) {
       const seq = ++requestSeqRef.current;
-      loadedRef.current.overview = period;
-      apiGet("/api/admin/stats?period=" + period).then(function (d) {
+      // The overview flag is set only once BOTH fetches for this
+      // period succeed (markOverviewLoaded below). Setting it before
+      // the fetch left a failed load unretryable: reopening the view
+      // saw the flag already set and never refetched, so the donut
+      // stayed on 加载中… until the period changed. The trends /
+      // analysis flags were already success-only; overview now is too.
+      function markOverviewLoaded() {
+        if (loadedRef.current.trends === period && loadedRef.current.analysis === period) loadedRef.current.overview = period;
+      }
+      lazyGet("/api/admin/stats?period=" + period, function (d) {
         if (seq !== requestSeqRef.current) return;
-        setSeriesData(d); loadedRef.current.trends = period;
+        setSeriesData(d); loadedRef.current.trends = period; markOverviewLoaded();
       }).catch(loadFail);
-      apiGet("/api/admin/analysis?period=" + period).then(function (d) {
+      lazyGet("/api/admin/analysis?period=" + period, function (d) {
         if (seq !== requestSeqRef.current) return;
-        setAnalysis(d); loadedRef.current.analysis = period; setAnalysisStale(false);
+        setAnalysis(d); loadedRef.current.analysis = period; setAnalysisStale(false); markOverviewLoaded();
       }).catch(loadFail);
     }
     if (view === "tagrules" && !loadedRef.current.tagrules) {

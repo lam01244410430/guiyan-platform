@@ -259,8 +259,74 @@ test("overview lazy load: trend + analysis fetch when the overview opens", () =>
     dashboardJsx.includes('view === "overview" && (loadedRef.current.overview !== period || analysisStale)'),
     "overview must have its own lazy-load guard",
   );
-  assert.ok(dashboardJsx.includes('apiGet("/api/admin/stats?period=" + period)'), "overview must fetch the trend series");
-  assert.ok(dashboardJsx.includes('apiGet("/api/admin/analysis?period=" + period)'), "overview must fetch the analysis channels");
+  assert.ok(dashboardJsx.includes('lazyGet("/api/admin/stats?period=" + period'), "overview must fetch the trend series via lazyGet");
+  assert.ok(dashboardJsx.includes('lazyGet("/api/admin/analysis?period=" + period'), "overview must fetch the analysis channels via lazyGet");
+  assert.ok(
+    !dashboardJsx.includes('apiGet("/api/admin/stats?period=" + period)'),
+    "no lazy trend fetch is left on the bare 5s apiGet",
+  );
+  assert.ok(
+    !dashboardJsx.includes('apiGet("/api/admin/analysis?period=" + period)'),
+    "no lazy analysis fetch is left on the bare 5s apiGet",
+  );
+});
+
+test("lazy loads: 10s timeout + one retry like the mount batch; 401/403 never retried", () => {
+  // Live 2026-11-16 18:18: the mount batch (allSettled + 10s + retry)
+  // recovered the KPIs, but trends/analysis/overview still called the
+  // bare apiGet — the 5s default aborted the heavy analysis query on
+  // the cold function, so the donut stayed on 加载中… with a false
+  // toast. All four lazy fetches (trends + analysis + overview x2)
+  // must go through lazyGet with the same 10s + one retry as the batch.
+  const helper = dashboardJsx.match(/function lazyGet\(path, onOk\) \{([\s\S]*?)\n  \}/);
+  assert.ok(helper, "lazyGet helper must exist");
+  assert.ok(
+    helper[1].includes("function once() { return apiGet(path, { timeoutMs: 10000 }); }"),
+    "lazyGet must fetch with a 10s timeout",
+  );
+  assert.equal(
+    (helper[1].match(/once\(\)\.then/g) || []).length,
+    2,
+    "lazyGet must attempt the fetch twice (first attempt + one retry of the same 10s call)",
+  );
+  assert.ok(
+    helper[1].includes("e.status === 401 || e.status === 403"),
+    "lazyGet must not retry auth failures (401/403 keep the redirect/forbidden behaviour)",
+  );
+  assert.equal(
+    (dashboardJsx.match(/lazyGet\("\/api\/admin\/stats\?period=" \+ period/g) || []).length,
+    2,
+    "both trend fetches (trends view + overview) must use lazyGet",
+  );
+  assert.equal(
+    (dashboardJsx.match(/lazyGet\("\/api\/admin\/analysis\?period=" \+ period/g) || []).length,
+    2,
+    "both analysis fetches (analysis view + overview) must use lazyGet",
+  );
+});
+
+test("overview loaded flag: set only when both fetches succeed, never before the fetch", () => {
+  // The old code set loadedRef.current.overview = period BEFORE the
+  // fetch: a failed load left the flag set, so reopening the view
+  // never refetched and the donut stayed on 加载中… forever. The
+  // trends/analysis flags were already success-only; overview must be
+  // too — set only once both period fetches have succeeded.
+  assert.ok(
+    !/loadedRef\.current\.overview = period;\s*\n\s*(lazyGet|apiGet)/.test(dashboardJsx),
+    "the overview flag must not be set before a fetch",
+  );
+  assert.ok(
+    dashboardJsx.includes("loadedRef.current.trends === period && loadedRef.current.analysis === period"),
+    "the overview flag must be set only when both the trend and analysis fetches for the period succeeded",
+  );
+  assert.ok(
+    dashboardJsx.includes("setSeriesData(d); loadedRef.current.trends = period;"),
+    "the trends flag is still set only on a successful fetch",
+  );
+  assert.ok(
+    dashboardJsx.includes("setAnalysis(d); loadedRef.current.analysis = period;"),
+    "the analysis flag is still set only on a successful fetch",
+  );
 });
 
 test("donut palette: muted brand tokens only, no hex literals in the component", () => {
