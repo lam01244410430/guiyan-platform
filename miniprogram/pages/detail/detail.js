@@ -177,7 +177,7 @@ Page({
   },
   // R7-7: voice ticket purchase — typed text (no recognition on the
   // mini-program, see R7-2) goes to POST /api/voice-order; the server
-  // creates a PENDING draft order only. Payment still needs the manual
+  // creates a PENDING draft order only. Payment still needs the seller
   // confirm -> pay steps on the order.
   submitVoice: function () {
     var self = this;

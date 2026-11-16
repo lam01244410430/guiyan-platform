@@ -30,7 +30,7 @@
     <view class="btn" bindtap="book">{{L.bookNow}}</view>
     <!-- R7-7: voice ticket purchase — typed text (no recognition on the
          mini-program) is parsed server-side into a PENDING draft order;
-         payment still needs manual confirm -> pay on the order. Dialect
+         payment still needs seller confirm -> pay on the order. Dialect
          is a frame only (see the note). -->
     <view style="margin-top:24rpx">
       <view class="sec-title serif" style="font-size:32rpx">{{L.voiceTitle}}</view>
@@ -174,7 +174,6 @@
         <view class="note"><text style="display:inline-block;width:20rpx;height:20rpx;background:{{order.template.color}};border-radius:4rpx;margin-right:8rpx"></text>{{order.template.name}}</view>
       </block>
       <block wx:if="{{order.status==='pending'}}">
-        <view class="btn" bindtap="act" data-act="confirm">{{L.actConfirm}}</view>
         <view class="btn ghost" bindtap="act" data-act="cancel">{{L.actCancel}}</view>
       </block>
       <block wx:if="{{order.status==='confirmed'}}">

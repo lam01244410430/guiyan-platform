@@ -30,7 +30,6 @@
           <view class="note">{{L.escrowFrozen}}</view>
         </block>
         <block wx:if="{{item.status==='pending'}}">
-          <view class="btn" bindtap="act" data-act="confirm" data-code="{{item.code}}">{{L.actConfirm}}</view>
           <view class="btn ghost" bindtap="act" data-act="cancel" data-code="{{item.code}}">{{L.actCancel}}</view>
         </block>
         <block wx:if="{{item.status==='confirmed'}}">

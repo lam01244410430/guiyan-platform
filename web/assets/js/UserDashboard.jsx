@@ -636,7 +636,7 @@ export default function UserDashboard() {
      refund automatically, printed ones wait for admin review (the
      note under the picker says so). */
   function usrActs(o) {
-    if (o.status === "pending") return (<><button type="button" className="mini" data-act="confirm" data-id={o.id} onClick={() => usrOrderAction("confirm", o.id)}>{t("actConfirm")}</button><button type="button" className="mini" data-act="cancel" data-id={o.id} onClick={() => usrOrderAction("cancel", o.id)}>{t("actCancel")}</button></>);
+    if (o.status === "pending") return (<><button type="button" className="mini" data-act="cancel" data-id={o.id} onClick={() => usrOrderAction("cancel", o.id)}>{t("actCancel")}</button></>);
     if (o.status === "confirmed") return (<><button type="button" className="mini red" data-act="pay" data-id={o.id} onClick={() => usrOrderAction("pay", o.id)}>{fmt(t("actPay"), { amt: fmtMoney(o.amount) })}</button><button type="button" className="mini" data-act="cancel" data-id={o.id} onClick={() => usrOrderAction("cancel", o.id)}>{t("actCancel")}</button></>);
     if (o.status === "paid") {
       const remaining = o.quantity - (o.refund_quantity || 0);

@@ -574,7 +574,7 @@ export default function App() {
   /* R7-7: voice ticket purchase — the typed text (or the R7-2
      transcript) goes to POST /api/voice-order; the server parses it
      and creates a PENDING draft order only. Payment still needs the
-     manual confirm -> pay steps on the order itself (My Tickets). */
+     seller confirm -> pay steps on the order itself (My Tickets). */
   function submitVoiceOrder() {
     const text = voiceText.trim();
     if (!text) { toast(t("voicePh")); return; }
@@ -1451,7 +1451,7 @@ export default function App() {
                 </div>
                 {/* R7-7: voice ticket purchase — typed text (or the R7-2
                     transcript) is parsed server-side into a pending draft
-                    order; payment still needs manual confirm -> pay.
+                    order; payment still needs seller confirm -> pay.
                     Dialect is a frame only (see voiceDialectNote). */}
                 <div className="bookrow voice-order">
                   <h4>{t("voiceTitle")}</h4>
@@ -1564,7 +1564,7 @@ export default function App() {
           {store.orders.map((o, oi) => {
             const r = RES[o.idx];
             let acts = null;
-            if (o.status === "pending") acts = (<><button type="button" className="mini" data-act="confirm" data-oi={oi} onClick={() => handleOrderAction("confirm", oi)}>{t("actConfirm")}</button><button type="button" className="mini" data-act="cancel" data-oi={oi} onClick={() => handleOrderAction("cancel", oi)}>{t("actCancel")}</button></>);
+            if (o.status === "pending") acts = (<><button type="button" className="mini" data-act="cancel" data-oi={oi} onClick={() => handleOrderAction("cancel", oi)}>{t("actCancel")}</button></>);
             if (o.status === "confirmed") acts = (<><button type="button" className="mini red" data-act="pay" data-oi={oi} onClick={() => handleOrderAction("pay", oi)}>{fmt(t("actPay"), { amt: money(o.total) })}</button><button type="button" className="mini" data-act="cancel" data-oi={oi} onClick={() => handleOrderAction("cancel", oi)}>{t("actCancel")}</button></>);
             if (o.status === "paid") acts = (<><button type="button" className="mini red" data-act="complete" data-oi={oi} onClick={() => handleOrderAction("complete", oi)}>{t("actComplete")}</button><button type="button" className="mini" data-act="refund" data-oi={oi} onClick={() => handleOrderAction("refund", oi)}>{t("actRefund")}</button>{o.escrow === "模拟托管中" ? (<button type="button" className="mini" data-act="escrowHold" data-oi={oi} onClick={() => handleOrderAction("escrowHold", oi)}>{t("escrowHold")}</button>) : null}</>);
             if (o.status === "completed") acts = (<span style={{ fontSize: 12.5, color: "var(--ink2)" }}>{t("doneNote")}</span>);
