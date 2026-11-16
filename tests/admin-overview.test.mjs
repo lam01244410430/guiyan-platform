@@ -106,13 +106,16 @@ test("analysis channels match the real paid orders grouped by channel", async ()
   const r = await req("/api/admin/analysis?period=day", { token: adminToken });
   assert.equal(r.status, 200, JSON.stringify(r.data));
   assert.ok(Array.isArray(r.data.channels));
-  // Same paid scope as the endpoint (admin-insights.mjs PAID_STATUSES):
-  // paid + completed + disputed + refund_requested — money received and
-  // not yet refunded counts; fully-refunded orders do not. (The R5
-  // analysis tests use this same 4-status list.)
+  // Same paid scope as the stats KPI (adminStatsTotals revenue_cents)
+  // and the analysis revenue: paid + completed ONLY. Disputed /
+  // refund_requested orders are under after-sales handling and stay
+  // out of revenue, so the donut (channels) sums to the KPI total.
+  // (The R5 analysis sections — shows / promos / venues — keep the
+  // wider 4-status PAID_STATUSES; only revenue + channels use this
+  // scope, see admin-insights.mjs REVENUE_STATUSES.)
   const rows = await pool.query(
     `SELECT channel AS name, SUM(amount)::bigint AS amount, COUNT(*)::bigint AS orders
-       FROM orders WHERE status IN ('paid','completed','disputed','refund_requested')
+       FROM orders WHERE status IN ('paid','completed')
        GROUP BY channel ORDER BY amount DESC`,
   );
   assert.equal(r.data.channels.length, rows.rows.length, "channel count must match the DB");
@@ -123,6 +126,77 @@ test("analysis channels match the real paid orders grouped by channel", async ()
   }
   const sum = r.data.channels.reduce((a, c) => a + Number(c.amount), 0);
   assert.equal(sum, Number(r.data.kpis.revenue), "channel amounts must sum to total revenue");
+});
+
+test("channels sum = kpis.revenue = stats revenue with refund_requested/disputed orders present", async () => {
+  // Live-data regression for the ¥3,600 donut gap (GY2026000005):
+  // on the seed DB there are no disputed / refund_requested orders,
+  // so the channels test above cannot tell the two scopes apart.
+  // Drive two real orders through the API (probe2 flow: create as
+  // demo -> confirm -> pay -> refund / dispute) and assert the
+  // excluded statuses move no revenue at all.
+  const before = await req("/api/admin/analysis?period=day", { token: adminToken });
+  assert.equal(before.status, 200, JSON.stringify(before.data));
+  const statsBefore = await req("/api/admin/stats", { token: adminToken });
+  assert.equal(statsBefore.status, 200, JSON.stringify(statsBefore.data));
+  const resource = await req("/api/admin/resources", {
+    method: "POST",
+    token: adminToken,
+    body: { name: "总览 donut 退款测试商品", category: "digital", city: "南宁", price: 28000, unit: "张", stock: 100, shop_id: 1 },
+  });
+  assert.equal(resource.status, 200, JSON.stringify(resource.data));
+  const resourceId = resource.data.resource.id;
+  const demoToken = await login("demo", "demo123");
+  async function makePaidOrder(bookingDate) {
+    const created = await req("/api/orders", {
+      method: "POST",
+      token: demoToken,
+      body: { resourceId, quantity: 1, booking_date: bookingDate },
+    });
+    assert.equal(created.status, 200, JSON.stringify(created.data));
+    const orderId = created.data.order?.id ?? created.data.id;
+    for (const action of ["confirm", "pay"]) {
+      const r = await req(`/api/orders/${orderId}/${action}`, { method: "POST", token: demoToken, body: {} });
+      assert.equal(r.status, 200, `${action} -> ${r.status} ${JSON.stringify(r.data)}`);
+    }
+    return orderId;
+  }
+  const refundId = await makePaidOrder("2026-12-28");
+  const refund = await req(`/api/orders/${refundId}/refund`, {
+    method: "POST",
+    token: demoToken,
+    body: { reason: "临时有事" },
+  });
+  assert.equal(refund.status, 200, JSON.stringify(refund.data));
+  assert.equal(refund.data.status, "refund_requested");
+  const disputeId = await makePaidOrder("2026-12-29");
+  const dispute = await req(`/api/orders/${disputeId}/dispute`, {
+    method: "POST",
+    token: demoToken,
+    body: { reason: "与商家有争议" },
+  });
+  assert.equal(dispute.status, 200, JSON.stringify(dispute.data));
+  assert.equal(dispute.data.status, "disputed");
+  // The two excluded orders really hold money (2 x ¥280): under the
+  // old 4-status scope the donut would exceed the KPI by exactly this.
+  const excluded = await pool.query(
+    `SELECT COALESCE(SUM(amount),0) AS total FROM orders
+       WHERE status IN ('disputed','refund_requested')`,
+  );
+  assert.ok(Number(excluded.rows[0].total) >= 56000, `excluded statuses must hold >= 56000 cents, got ${excluded.rows[0].total}`);
+  const after = await req("/api/admin/analysis?period=day", { token: adminToken });
+  assert.equal(after.status, 200, JSON.stringify(after.data));
+  const statsAfter = await req("/api/admin/stats", { token: adminToken });
+  assert.equal(statsAfter.status, 200, JSON.stringify(statsAfter.data));
+  const channelSum = after.data.channels.reduce((a, c) => a + Number(c.amount), 0);
+  assert.equal(channelSum, Number(after.data.kpis.revenue), "channel amounts must sum to analysis revenue");
+  assert.equal(Number(after.data.kpis.revenue), Number(before.data.kpis.revenue), "refund_requested/disputed orders must not move analysis revenue");
+  assert.equal(Number(statsAfter.data.revenue_cents), Number(statsBefore.data.revenue_cents), "refund_requested/disputed orders must not move stats revenue");
+  assert.equal(Number(after.data.kpis.revenue), Number(statsAfter.data.revenue_cents), "analysis revenue must equal stats revenue_cents (donut centre = KPI)");
+  const sql = await pool.query(
+    "SELECT COALESCE(SUM(amount),0) AS total FROM orders WHERE status IN ('paid','completed')",
+  );
+  assert.equal(Number(after.data.kpis.revenue), Number(sql.rows[0].total), "analysis revenue must match direct paid/completed SQL");
 });
 
 // ---- source-grep checks (no server needed) ----

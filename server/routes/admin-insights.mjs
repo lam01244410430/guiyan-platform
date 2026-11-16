@@ -32,6 +32,14 @@ import { computeAutoAlerts, activeAlertRules } from "./alerts-ledger.mjs";
 
 const PERIODS = ["day", "week", "month", "quarter"];
 const PAID_STATUSES = ["paid", "completed", "disputed", "refund_requested"];
+// Revenue scope (donut + hero 总收入): paid/completed ONLY — the same
+// scope as adminStatsTotals() revenue_cents (routes/admin.mjs) and the
+// seriesFor() series, so the channel donut sums to the KPI 交易总额.
+// disputed / refund_requested orders have been paid but are under
+// after-sales handling, so they stay out of revenue here; the ranking /
+// shows / promos / venue sections below keep the wider PAID_STATUSES
+// (money received, not yet refunded) pinned by tests/r5-analysis.test.mjs.
+const REVENUE_STATUSES = ["paid", "completed"];
 const SOURCES = {
 票房: "未接入",
 核销: "未接入",
@@ -284,6 +292,7 @@ const { today, orders, resources, users, threshold, venueRows, shows, performanc
 await loadAnalysisData(ctx);
 const resourcesById = new Map(resources.map((r) => [r.id, r]));
 const paid = orders.filter((o) => PAID_STATUSES.includes(o.status));
+const revenueOrders = orders.filter((o) => REVENUE_STATUSES.includes(o.status));
 const series = await seriesFor(ctx, period);
 
 // User profiles (tags, portrait, suggestion) come from the shared
@@ -612,13 +621,13 @@ byMonth.set(k, (byMonth.get(k) || 0) + o.amount);
 }
 const seasons = [...byMonth].sort((a, b) => b[1] - a[1]);
 const channels = new Map();
-for (const o of paid)
+for (const o of revenueOrders)
 channels.set(o.channel, (channels.get(o.channel) || 0) + o.amount);
 const channelRows = [...channels]
 .map(([name, amount]) => ({
 name,
 amount,
-orders: paid.filter((o) => o.channel === name).length,
+orders: revenueOrders.filter((o) => o.channel === name).length,
 }))
 .sort((a, b) => b.amount - a.amount);
 
@@ -651,16 +660,16 @@ const insights = [
 `预约跟进：${pending}笔待确认，${abnormal}笔售后待处理。`,
 ];
 const kpis = {
-revenue: sum(paid, "amount"),
+revenue: sum(revenueOrders, "amount"),
 orders: orders.length,
-paidOrders: paid.length,
+paidOrders: revenueOrders.length,
 resources: resources.filter((r) => r.status === "published").length,
 users: active.size,
 };
 const report = [
 "模拟经营分析报告",
-`生成日期：${today}；金额按有效已支付订单统计，退款成功订单剔除。`,
-`交易总额：${(kpis.revenue / 100).toFixed(2)}元；历史订单：${kpis.orders}笔；有效付费订单：${paid.length}笔。`,
+`生成日期：${today}；金额按有效已支付订单统计，仅含已支付/已完成订单。`,
+`交易总额：${(kpis.revenue / 100).toFixed(2)}元；历史订单：${kpis.orders}笔；有效付费订单：${kpis.paidOrders}笔。`,
 ...venues.map(
 (v) =>
 `${v.name}：未来30天档期占用${v.occupancy}%，闲置${v.idleRate}%，热门预约星期${v.peak}；关联剧目${v.performances}场，上座率${v.seatOccupancy === null? "暂无关联售票样本": v.seatOccupancy + "%"}，场均票房${v.averageRevenue === null? "暂无": (v.averageRevenue / 100).toFixed(2) + "元"}。`,
@@ -702,7 +711,7 @@ potential,
 silent,
 },
 definitions: {
-revenue: "有效已支付金额（剔除退款成功及取消订单）",
+revenue: "有效已支付金额（仅含已支付/已完成订单）",
 orders: "历史全部订单，包含取消与退款",
 series:
 "按订单创建时间（北京时间）归集，补齐零交易周期；无支付时间字段",
