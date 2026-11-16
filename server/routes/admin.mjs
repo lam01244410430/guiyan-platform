@@ -7,6 +7,11 @@ import { profileRows } from "../lib/profiles.mjs";
 // GET /api/admin/stats and the BI KPIs (routes/bi.mjs). Shared so
 // the two endpoints can never drift apart; the BI test asserts
 // equality. (R5-3.)
+// Admin overview (2026-11-16): two more fields for the KPI cards —
+// published_resources (resources with status 'published') and
+// active_users_30d (non-admin users with >=1 order in the last 30
+// Beijing days, same window/definition as the analysis `active` set
+// in admin-insights.mjs: Beijing today minus 29 days, any status).
 export async function adminStatsTotals(get) {
   return get(`
     SELECT
@@ -14,7 +19,11 @@ export async function adminStatsTotals(get) {
       (SELECT COUNT(*) FROM orders) AS orders,
       (SELECT COALESCE(SUM(amount),0) FROM orders WHERE status IN ('paid','completed')) AS revenue_cents,
       (SELECT COUNT(*) FROM resources) AS resources,
-      (SELECT COUNT(*) FROM demands) AS demands`);
+      (SELECT COUNT(*) FROM demands) AS demands,
+      (SELECT COUNT(*) FROM resources WHERE status = 'published') AS published_resources,
+      (SELECT COUNT(DISTINCT user_id) FROM orders
+         WHERE DATE(created_at::timestamptz AT TIME ZONE 'Asia/Shanghai') >= ((now() AT TIME ZONE 'Asia/Shanghai')::date - 29)
+           AND user_id IN (SELECT id FROM users WHERE role <> 'admin')) AS active_users_30d`);
 }
 
 export async function adminStats(ctx) {

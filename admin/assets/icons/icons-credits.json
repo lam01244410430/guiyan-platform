@@ -108,5 +108,27 @@
     "licence": "ISC",
     "url": "https://github.com/lucide-icons/lucide",
     "trademark": false
+  },
+  {
+    "file": "ui-wallet.svg",
+    "icon": "ui:wallet",
+    "name": "Wallet",
+    "kind": "line",
+    "source": "@iconify-json/lucide@1.2.100",
+    "author": "Lucide Contributors",
+    "licence": "ISC",
+    "url": "https://github.com/lucide-icons/lucide",
+    "trademark": false
+  },
+  {
+    "file": "ui-calendar.svg",
+    "icon": "ui:calendar",
+    "name": "Calendar",
+    "kind": "line",
+    "source": "@iconify-json/lucide@1.2.100",
+    "author": "Lucide Contributors",
+    "licence": "ISC",
+    "url": "https://github.com/lucide-icons/lucide",
+    "trademark": false
   }
 ]

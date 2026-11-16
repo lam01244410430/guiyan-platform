@@ -26,6 +26,16 @@
   --action-hover:#000000;
   --signal-red:#d92d20; --signal-red-deep:#b42318; --signal-red-soft:#fdecea; --signal-red-soft-deep:#f9dcd2;
   --signal-yellow:#f59e0b; --signal-yellow-deep:#b54708;
+  /* Order-status + channel-chart brand tokens: the customer
+     night-theatre brand (pine / gold / cinnabar + softs), reused in
+     the admin ONLY for order-status pills/bars and the channel donut —
+     a deliberate, Lam-approved exception to the grayscale rule, scoped
+     to those two surfaces. --brand-gold is a fill only, never text
+     (2.94:1 on its soft — pill text uses --brand-gold-deep, 4.83:1). */
+  --brand-pine:#0b3d36; --brand-pine-soft:#dcefe9;
+  --brand-gold:#a97e1c; --brand-gold-soft:#f1e5c3; --brand-gold-deep:#7c5e14;
+  --brand-gold-soft-deep:#e9d8a6; --brand-gold-deepest:#6b5312;
+  --brand-cinnabar:#b03a1e; --brand-cinnabar-soft:#f6e3d8;
   --sidebar-bg:var(--p-inv-bg); --sidebar-text:var(--p-inv-ink); --sidebar-text-dim:var(--p-inv-muted);
   --sidebar-active-bg:var(--p-inv-surface);
   --sidebar-hover-bg:#2b2b2b;
@@ -297,6 +307,44 @@ th .sort-btn:focus-visible{outline:2px solid var(--p-action);outline-offset:1px}
 .bd-fill.cancelled,.bd-fill.refunded{background:var(--gray-500)}
 .bd-num{text-align:right;font-variant-numeric:tabular-nums;font-weight:700;font-size:13.5px}
 .bd-total{margin-top:10px;font-size:13.5px;color:var(--p-muted)}
+
+/* Overview dashboard (2026-11-16): header + 4 KPI cards + charts row
+   (trend left, channel donut right). White cards on the white content
+   area, funnel type, hover goes grayer — same system as the rest. */
+.ov-head{display:flex;align-items:flex-end;justify-content:space-between;gap:16px;flex-wrap:wrap;margin-bottom:20px}
+.ov-title{margin:0;font-family:var(--font-display);font-size:28px;font-weight:400;letter-spacing:var(--display-tracking);line-height:1.15}
+.ov-sub{margin:4px 0 0;font-size:13.5px;color:var(--p-muted)}
+.ov-head-actions{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.ov-head-actions .chips{margin-bottom:0}
+.ov-kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:24px}
+.ov-kpi{background:var(--p-bg);border:1px solid var(--line);border-radius:var(--radius-md);padding:18px}
+.ov-kpi:hover{background:var(--p-surface)}
+.ov-kpi-ic{display:inline-grid;place-items:center;width:36px;height:36px;border-radius:9px;background:var(--p-surface);color:var(--p-ink);margin-bottom:12px}
+.ov-kpi-label{display:block;font-size:12px;color:var(--p-muted);font-weight:600}
+.ov-kpi b{display:block;font-size:28px;font-weight:900;line-height:1.15;font-variant-numeric:tabular-nums;margin-top:2px}
+.ov-kpi b .ov-unit{font-size:15px;font-weight:700;margin-left:2px}
+.ov-kpi small{display:block;font-size:12px;color:var(--p-muted);margin-top:6px;line-height:1.5;font-weight:400}
+.ov-charts{display:grid;grid-template-columns:1.6fr 1fr;gap:14px;margin-bottom:24px}
+.ov-charts .sec{margin-bottom:0}
+.ov-chart h2{margin:0 0 4px}
+.ov-range{margin:0 0 12px;font-size:13px;color:var(--p-muted)}
+.ov-chart .def-note{margin:12px 0 0}
+@media(max-width:1100px){.ov-kpis{grid-template-columns:1fr 1fr}.ov-charts{grid-template-columns:1fr}}
+@media(max-width:560px){.ov-kpis{grid-template-columns:1fr}}
+
+/* Channel donut: ring + centre total + legend (name + amount + %). */
+.donut-wrap{display:flex;flex-direction:column;align-items:center;gap:8px}
+.donut{max-width:100%;height:auto}
+.donut-total{font-size:17px;font-weight:900;fill:var(--p-ink);font-family:var(--font-text)}
+.donut-total-label{font-size:12px;fill:var(--p-muted);font-family:var(--font-text)}
+.donut-legend{list-style:none;margin:8px 0 0;padding:0;width:100%}
+.donut-legend li{display:grid;grid-template-columns:12px 1fr auto auto;align-items:center;gap:8px;padding:6px 8px;border-radius:9px;font-size:13.5px;cursor:default}
+.donut-legend li.on{background:var(--p-surface)}
+.donut-dot{width:10px;height:10px;border-radius:99px}
+.donut-name{font-weight:600}
+.donut-val{color:var(--p-muted);font-variant-numeric:tabular-nums}
+.donut-pct{font-weight:700;font-variant-numeric:tabular-nums;min-width:52px;text-align:right}
+.donut-legend li.donut-empty{grid-column:1/-1;color:var(--p-muted)}
 .toast{position:fixed;left:50%;bottom:26px;transform:translate(-50%,80px);background:var(--p-inv-bg);color:var(--p-inv-ink);padding:13px 22px;border-radius:99px;font-size:13.5px;font-weight:600;z-index:120;transition:transform var(--duration-enter) var(--ease-out);max-width:92vw;text-align:center}
 .toast.show{transform:translate(-50%,0)}
 @media(max-width:1100px){.main{padding:24px 24px 48px}.stats{grid-template-columns:1fr 1fr}.stat.hero{grid-column:1/-1}}

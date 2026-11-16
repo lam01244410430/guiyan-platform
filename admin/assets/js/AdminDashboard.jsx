@@ -16,6 +16,7 @@ import {
   apiGet, apiPost, apiPatch, apiDelete, apiDownloadCsv, apiDownloadFile, downloadText, clearToken, currentUser, getToken, fmtMoney, STATUS,
 } from "./adminApi.js";
 import TrendChart from "./TrendChart.jsx";
+import DonutChart from "./DonutChart.jsx";
 import SearchBox from "./SearchBox.jsx";
 import SortButton from "./SortButton.jsx";
 import { cycleDirection, sortRows } from "./sortUtils.js";
@@ -41,6 +42,17 @@ function heroMoney(v) {
    missing from orders_by_status counts as 0); the total comes from the
    same /api/admin/stats response. No invented figures. */
 const ORDER_STATUS = ["pending", "confirmed", "paid", "completed", "cancelled", "refunded", "refund_requested", "disputed"];
+
+/* Overview KPI icons — path data copied verbatim from
+   admin/assets/icons/ui-{wallet,calendar,layers,users}.svg (same
+   convention as the sidebar NAV_ICONS: the svg files are the source
+   of truth, stroke-width 1.7 per §6). */
+const KPI_ICONS = {
+  revenue: (<><path d="M21 12V7H5a2 2 0 0 1 0-4h14v4" /><path d="M3 5v14a2 2 0 0 0 2 2h16v-5" /><path d="M18 12a2 2 0 0 0 0 4h4v-4Z" /></>),
+  orders: (<><path d="M8 2v4" /><path d="M16 2v4" /><rect width="18" height="18" x="3" y="4" rx="2" /><path d="M3 10h18" /></>),
+  resources: (<><path d="M12.83 2.18a2 2 0 0 0-1.66 0L2.6 6.08a1 1 0 0 0 0 1.83l8.58 3.91a2 2 0 0 0 1.66 0l8.58-3.9a1 1 0 0 0 0-1.83z" /><path d="M2 12a1 1 0 0 0 .58.91l8.6 3.91a2 2 0 0 0 1.65 0l8.58-3.9A1 1 0 0 0 22 12" /><path d="M2 17a1 1 0 0 0 .58.91l8.6 3.91a2 2 0 0 0 1.65 0l8.58-3.9A1 1 0 0 0 22 17" /></>),
+  users: (<><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2M16 3.128a4 4 0 0 1 0 7.744M22 21v-2a4 4 0 0 0-3-3.87" /><circle cx="9" cy="7" r="4" /></>),
+};
 const DEMAND_STATUS = { approved: "已通过", pending: "待审核", rejected: "已拒绝" };
 const PERF_STATUS = { scheduled: "待上架", on_sale: "在售", cancelled: "已取消" };
 /* VIEWS + NAV_ICONS + NavIcon moved to Sidebar.jsx (layout
@@ -796,6 +808,22 @@ export default function AdminDashboard() {
     }
     if (view === "analysis" && (loadedRef.current.analysis !== period || analysisStale)) {
       const seq = ++requestSeqRef.current;
+      apiGet("/api/admin/analysis?period=" + period).then(function (d) {
+        if (seq !== requestSeqRef.current) return;
+        setAnalysis(d); loadedRef.current.analysis = period; setAnalysisStale(false);
+      }).catch(loadFail);
+    }
+    // Overview dashboard: the trend series + channel breakdown load
+    // lazily with the overview view (same endpoints and period state
+    // as the trends / analysis views) and share their loaded flags, so
+    // opening those views afterwards does not refetch the same period.
+    if (view === "overview" && (loadedRef.current.overview !== period || analysisStale)) {
+      const seq = ++requestSeqRef.current;
+      loadedRef.current.overview = period;
+      apiGet("/api/admin/stats?period=" + period).then(function (d) {
+        if (seq !== requestSeqRef.current) return;
+        setSeriesData(d); loadedRef.current.trends = period;
+      }).catch(loadFail);
       apiGet("/api/admin/analysis?period=" + period).then(function (d) {
         if (seq !== requestSeqRef.current) return;
         setAnalysis(d); loadedRef.current.analysis = period; setAnalysisStale(false);
@@ -2768,12 +2796,62 @@ export default function AdminDashboard() {
           />
 
           <section className={"view" + (view === "overview" ? " on" : "")} id="view-overview">
-            <div className="stats">
-              <div className="stat hero"><span>总收入</span><b id="statRevenue">{heroMoney(stats ? stats.revenue_cents : 0)}</b></div>
-              <div className="stat"><span>用户</span><b id="statUsers">{stats ? stats.users : 0}</b></div>
-              <div className="stat"><span>订单</span><b id="statOrders">{stats ? stats.orders : 0}</b></div>
-              <div className="stat"><span>资源</span><b id="statResources">{stats ? stats.resources : 0}</b></div>
-              <div className="stat"><span>需求</span><b id="statDemands">{stats ? stats.demands : 0}</b></div>
+            {/* Overview dashboard (2026-11-16): header + 4 KPI cards +
+                trend + channel donut, following the reference layout.
+                Every number comes from the live API — the reference
+                screenshot's figures are layout only, never data. */}
+            <div className="ov-head">
+              <div>
+                <h2 className="ov-title">运营总览</h2>
+                <p className="ov-sub">演艺资源与运营数据，一目了然</p>
+              </div>
+              <div className="ov-head-actions">
+                <div className="chips ov-period">
+                  {PERIODS.map(([p, label]) => (
+                    <button key={p} type="button" data-period={p} className={period === p ? "on" : ""}
+                      aria-pressed={period === p ? "true" : "false"} onClick={() => setPeriod(p)}>{label}</button>
+                  ))}
+                </div>
+                <button type="button" className="btn-export" disabled={csvBusy} onClick={doExportCsv}>{csvBusy ? "导出中…" : "导出当前统计"}</button>
+              </div>
+            </div>
+            <div className="ov-kpis">
+              <div className="ov-kpi">
+                <span className="ov-kpi-ic"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">{KPI_ICONS.revenue}</svg></span>
+                <span className="ov-kpi-label">交易总额</span>
+                <b id="ovKpiRevenue">{fmtMoney(stats ? stats.revenue_cents : 0)}</b>
+                <small>仅含已支付/已完成订单</small>
+              </div>
+              <div className="ov-kpi">
+                <span className="ov-kpi-ic"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">{KPI_ICONS.orders}</svg></span>
+                <span className="ov-kpi-label">预约订单</span>
+                <b id="ovKpiOrders">{stats ? stats.orders : 0}<span className="ov-unit">笔</span></b>
+                <small>历史全部订单，含取消和退款</small>
+              </div>
+              <div className="ov-kpi">
+                <span className="ov-kpi-ic"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">{KPI_ICONS.resources}</svg></span>
+                <span className="ov-kpi-label">上架资源</span>
+                <b id="ovKpiResources">{stats ? (stats.published_resources ?? 0) : 0}<span className="ov-unit">项</span></b>
+                <small>已上架资源，共 {stats ? stats.resources : 0} 项</small>
+              </div>
+              <div className="ov-kpi">
+                <span className="ov-kpi-ic"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">{KPI_ICONS.users}</svg></span>
+                <span className="ov-kpi-label">活跃用户</span>
+                <b id="ovKpiActiveUsers">{stats ? (stats.active_users_30d ?? 0) : 0}<span className="ov-unit">人</span></b>
+                <small>近30天下单去重用户</small>
+              </div>
+            </div>
+            <div className="ov-charts">
+              <div className="sec ov-chart">
+                <h2>交易趋势</h2>
+                <p className="ov-range">{seriesData && seriesData.series && seriesData.series.length ? `${seriesData.series[0].date} — ${seriesData.series[seriesData.series.length - 1].date}` : "加载中…"}</p>
+                {seriesData ? <TrendChart series={seriesData.series} period={period} /> : <div className="empty">加载中…</div>}
+                <p className="def-note">按订单创建时间（北京时间）归集，补齐零交易周期；无支付时间字段</p>
+              </div>
+              <div className="sec ov-chart ov-donut-card">
+                <h2>交易渠道分布</h2>
+                {analysis ? <DonutChart channels={analysis.channels} total={stats ? stats.revenue_cents : 0} /> : <div className="empty">加载中…</div>}
+              </div>
             </div>
             <div className="note">订单可在订单页处理售后；用户仅查看；资源可在资源页管理；需求可在需求页审核，操作留痕。支付与 AI 均为模拟。</div>
             <div className="sec">
