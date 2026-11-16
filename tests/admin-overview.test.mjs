@@ -106,9 +106,13 @@ test("analysis channels match the real paid orders grouped by channel", async ()
   const r = await req("/api/admin/analysis?period=day", { token: adminToken });
   assert.equal(r.status, 200, JSON.stringify(r.data));
   assert.ok(Array.isArray(r.data.channels));
+  // Same paid scope as the endpoint (admin-insights.mjs PAID_STATUSES):
+  // paid + completed + disputed + refund_requested — money received and
+  // not yet refunded counts; fully-refunded orders do not. (The R5
+  // analysis tests use this same 4-status list.)
   const rows = await pool.query(
     `SELECT channel AS name, SUM(amount)::bigint AS amount, COUNT(*)::bigint AS orders
-       FROM orders WHERE status IN ('paid','completed')
+       FROM orders WHERE status IN ('paid','completed','disputed','refund_requested')
        GROUP BY channel ORDER BY amount DESC`,
   );
   assert.equal(r.data.channels.length, rows.rows.length, "channel count must match the DB");
