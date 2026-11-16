@@ -6,6 +6,11 @@
 // Number spinners are hidden GLOBALLY on the customer side
 // (same as admin) — keyboard entry still works. --r-sm / --radius-sm
 // are NOT changed (they are also used by non-inputs).
+// EXCEPTION (Lam 2026-11-16 20:13): header buttons are now uniformly
+// ROUND/pill — the 4px rule is overridden ONLY for the header, so the
+// header language select (.langsel) is a 999px pill, not 4px. Every
+// other input/select/textarea stays 4px (var(--input-r)); all other
+// buttons, inputs and popups stay 4px.
 // Source-grep assertions only, no server and no database needed.
 import test from "node:test";
 import assert from "node:assert/strict";
@@ -39,8 +44,18 @@ test("customer inputs: one global 4px rule covers every input/select/textarea", 
   assert.ok(mainCss.includes(".auth-card input,.auth-card select,.auth-card textarea{width:100%;box-sizing:border-box;border:1px solid var(--line2);border-radius:var(--input-r);"), "auth card inputs are 4px");
   assert.ok(mainCss.includes(".chat-form input{flex:1;background:#262219;border:1px solid rgba(245,238,221,.2);border-radius:var(--input-r);"), "chat input is 4px");
   assert.ok(mainCss.includes(".ai-form input{flex:1;min-width:0;background:var(--surface);border:1px solid var(--line);border-radius:var(--input-r);"), "assistant input is 4px");
-  assert.ok(mainCss.includes(".langsel{position:relative;display:flex;align-items:center;flex:none;background:var(--surface);border:1px solid var(--line2);border-radius:var(--input-r);"), "header language select is 4px, not a pill");
+  // NOTE: .langsel is NOT asserted here — it is the one input exception
+  // (header pill, Lam 2026-11-16 20:13); see the test below.
   assert.ok(mainCss.includes(".preview-controls input[type=\"color\"]{width:38px;height:28px;padding:0;border:1px solid var(--line2);border-radius:var(--input-r);"), "color input is 4px");
+});
+
+test("header language select is the ONE pill input (Lam 2026-11-16 20:13)", () => {
+  // Lam 2026-11-16 20:13: header buttons are now uniformly ROUND/pill,
+  // overriding the 4px rule ONLY for the header — so .langsel (the header
+  // language select) is border-radius:999px. Every other
+  // input/select/textarea stays 4px (var(--input-r)).
+  assert.ok(mainCss.includes(".langsel{position:relative;display:flex;align-items:center;flex:none;background:var(--surface);border:1px solid var(--line2);border-radius:999px;"), "header language select is a 999px pill");
+  assert.ok(!mainCss.includes(".langsel{position:relative;display:flex;align-items:center;flex:none;background:var(--surface);border:1px solid var(--line2);border-radius:var(--input-r);"), "header language select is no longer 4px");
 });
 
 test("customer inputs: no input keeps a pill/large radius", () => {
