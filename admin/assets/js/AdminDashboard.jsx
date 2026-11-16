@@ -4336,6 +4336,7 @@ export default function AdminDashboard() {
           </section>
 
           <section className={"view" + (view === "aicopy" ? " on" : "")} id="view-aicopy">
+            <div className="note">AI 生成三渠道文案草稿；智能服务不可用时自动用本地模板。缺日期、价格、地点时只留占位符，不编造。请用中文输入主题。</div>
             <textarea className="copy-prompt" aria-label="文案主题" placeholder="例如：为《刘三姐》写一段小红书推送，地点：南宁剧场，票价280元"
               value={copyPrompt} onChange={(e) => setCopyPrompt(e.target.value)} />
             <div className="chips">
