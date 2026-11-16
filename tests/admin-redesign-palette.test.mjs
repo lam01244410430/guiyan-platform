@@ -54,6 +54,14 @@ test("admin redesign palette: no forbidden brand tokens remain in admin CSS", ()
 
 test("admin redesign palette: no forbidden hex values remain in admin CSS", () => {
   const lower = css.toLowerCase();
+  // Lam-approved exception (admin-overview round, plan §2): the order-status
+  // palette reuses the customer brand pine/gold/cinnabar, but ONLY as
+  // --brand-* tokens in :root — never as raw hex anywhere else. Strip the
+  // token lines before the ban check so the exception stays scoped.
+  const withoutBrandTokens = lower
+    .split("\n")
+    .filter((line) => !line.trimStart().startsWith("--brand-"))
+    .join("\n");
   for (const hex of [
     "#f3ecdf",
     "#c8452c",
@@ -66,7 +74,36 @@ test("admin redesign palette: no forbidden hex values remain in admin CSS", () =
     "#ddd2bf",
     "#fdf3d7",
   ]) {
-    assert.ok(!lower.includes(hex), `forbidden hex remains in admin.css: ${hex}`);
+    assert.ok(
+      !withoutBrandTokens.includes(hex),
+      `forbidden hex remains in admin.css: ${hex}`,
+    );
+  }
+});
+
+test("admin redesign palette: status-palette brand hexes occur only in :root --brand-* tokens", () => {
+  // Scope guard for the exception above: every approved status-palette hex
+  // must live on a --brand-* token line, never scattered in a rule.
+  const lines = css.toLowerCase().split("\n");
+  for (const hex of [
+    "#0b3d36",
+    "#dcefe9",
+    "#a97e1c",
+    "#f1e5c3",
+    "#7c5e14",
+    "#e9d8a6",
+    "#6b5312",
+    "#b03a1e",
+    "#f6e3d8",
+  ]) {
+    for (const line of lines) {
+      if (line.includes(hex)) {
+        assert.ok(
+          line.trimStart().startsWith("--brand-"),
+          `status hex ${hex} outside a --brand-* token line: ${line.trim()}`,
+        );
+      }
+    }
   }
 });
 
