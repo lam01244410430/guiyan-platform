@@ -61,7 +61,15 @@ let otherShopId;
 let demoToken;
 let demoId;
 let resourceId;
-let day = 26;
+let day = 0;
+const DAYS = [
+  "2026-12-26",
+  "2026-12-27",
+  "2026-12-28",
+  "2026-12-29",
+  "2026-12-30",
+  "2026-12-31",
+];
 
 function hashPassword(pw) {
   // Same format as server/seed.mjs + server/routes/auth.mjs: salt +
@@ -104,7 +112,9 @@ async function adminLogin() {
 }
 
 function nextDate() {
-  return `2026-12-${day++}`;
+  // Show orders take the stock path (no per-date block), so dates
+  // only need to be valid — cycle inside 26..31, never past Dec 31.
+  return DAYS[day++ % DAYS.length];
 }
 
 async function createOrder(token, bookingDate) {
