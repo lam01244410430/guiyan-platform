@@ -103,6 +103,7 @@ async function orderAs(token, body) {
 
 let adminToken;
 let demoToken;
+let orderToken; // fresh account for amount-sensitive order tests (see before())
 let shopAdminToken;
 let shopBId;
 let resId; // tourism resource, stock 5, ¥100
@@ -137,6 +138,11 @@ before(async () => {
   }
   adminToken = await login("admin", "admin123");
   demoToken = await login("demo", "demo123");
+  // The full suite shares one DB across files, so by the time this file
+  // runs demo has paid spend from earlier files and holds a 15%-off
+  // member tier (17000, not 20000, for a ¥200 tier order). Amount-
+  // sensitive order tests below use a fresh account with no tier.
+  orderToken = (await register("sforder", "sforder123")).token;
   const pw = hashPassword("Admin1234");
   const a2 = await pool.query(
     "INSERT INTO users(username,password,name,role,city,created_at) VALUES($1,$2,$3,'admin','南宁',$4) RETURNING id",
@@ -305,7 +311,7 @@ test("order without a performance when on-sale performances exist -> 400", async
 });
 
 test("order direct perf + default tier -> 200, booking_date = start date, amount = tier price x qty", async () => {
-  const o = await orderAs(demoToken, {
+  const o = await orderAs(orderToken, {
     resourceId: resId, quantity: 2, booking_date: "2026-12-05",
     performance_id: perfId, ticket_type_id: tierId,
   });
@@ -346,19 +352,19 @@ test("order with another resource's performance -> 400; pickup_point_id on a dir
 
 test("quota: sold-out -> 409; cancel restores it", async () => {
   // 2 of 5 sold by orderA; 4 more do not fit.
-  const over = await orderAs(demoToken, {
+  const over = await orderAs(orderToken, {
     resourceId: resId, quantity: 4, booking_date: "2026-12-05",
     performance_id: perfId, ticket_type_id: tierId,
   });
   assert.equal(over.status, 409, JSON.stringify(over.data));
-  assert.equal((await transition(demoToken, orderAId, "cancel")).status, 200);
-  const full = await orderAs(demoToken, {
+  assert.equal((await transition(orderToken, orderAId, "cancel")).status, 200);
+  const full = await orderAs(orderToken, {
     resourceId: resId, quantity: 5, booking_date: "2026-12-05",
     performance_id: perfId, ticket_type_id: tierId,
   });
   assert.equal(full.status, 200, JSON.stringify(full.data));
   orderCId = full.data.id;
-  const oneMore = await orderAs(demoToken, {
+  const oneMore = await orderAs(orderToken, {
     resourceId: resId, quantity: 1, booking_date: "2026-12-05",
     performance_id: perfId, ticket_type_id: tierId,
   });
@@ -397,16 +403,16 @@ test("expired tier -> 400; cancelled perf not sellable", async () => {
 });
 
 test("pay issues tickets; refund approval restores quota", async () => {
-  await payThrough(demoToken, orderCId);
-  const list = await req(`/api/orders/${orderCId}/tickets`, { token: demoToken });
+  await payThrough(orderToken, orderCId);
+  const list = await req(`/api/orders/${orderCId}/tickets`, { token: orderToken });
   assert.equal(list.status, 200, JSON.stringify(list.data));
   assert.equal(list.data.tickets.length, 5);
   assert.ok(list.data.tickets.every((x) => x.status === "issued"));
-  assert.equal((await transition(demoToken, orderCId, "refund", { reason: "不去了" })).status, 200);
+  assert.equal((await transition(orderToken, orderCId, "refund", { reason: "不去了" })).status, 200);
   assert.equal((await transition(adminToken, orderCId, "approveRefund")).status, 200);
-  const after = await req(`/api/orders/${orderCId}/tickets`, { token: demoToken });
+  const after = await req(`/api/orders/${orderCId}/tickets`, { token: orderToken });
   assert.ok(after.data.tickets.every((x) => x.status === "void"));
-  const again = await orderAs(demoToken, {
+  const again = await orderAs(orderToken, {
     resourceId: resId, quantity: 1, booking_date: "2026-12-05",
     performance_id: perfId, ticket_type_id: tierId,
   });
