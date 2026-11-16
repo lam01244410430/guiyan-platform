@@ -2531,7 +2531,9 @@ export default function AdminDashboard() {
     const prompt = copyPrompt.trim();
     if (copyBusy || !prompt) return;
     setCopyBusy(true);
-    apiPost("/api/ai/copy", { prompt }).then(function (d) {
+    // AI copy waits on the live agent (~6s observed); the default 5s
+    // abort would kill the request before the model answers.
+    apiPost("/api/ai/copy", { prompt }, { timeoutMs: 30000 }).then(function (d) {
       setCopyResult(d);
     }).catch(function (e) {
       if (e && e.status === 401) toast("请先登录");

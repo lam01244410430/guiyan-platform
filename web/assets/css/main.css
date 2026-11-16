@@ -168,10 +168,10 @@ section{padding:76px 0}
 .sec-head p{margin:0 0 4px auto;max-width:380px;color:var(--ink2);font-size:14px}
 @media(max-width:760px){.sec-head p{margin:0}}
 
-/* categories — one row (2026-11-16): 10 tiles in one row on desktop
+/* categories — one row (2026-11-16): 11 tiles in one row on desktop
    (>=1240px); 5 columns <=1240, 3 <=900, 2 <=560. Tile content is
    unchanged — only the grid changes. */
-.catrail{display:grid;grid-template-columns:repeat(10,1fr);gap:12px}
+.catrail{display:grid;grid-template-columns:repeat(11,1fr);gap:12px}
 @media(max-width:1240px){.catrail{grid-template-columns:repeat(5,1fr)}}
 .cat{position:relative;text-align:left;background:var(--surface);border:1px solid var(--line);border-radius:var(--r-md);padding:18px 16px 14px;transition:transform .18s,border-color .18s,box-shadow .18s;color:var(--ink)}
 .cat:hover{transform:translateY(-3px);border-color:var(--red);box-shadow:var(--shadow)}

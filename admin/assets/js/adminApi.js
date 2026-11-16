@@ -2,8 +2,9 @@
    Self-contained, no shared customer frontend. Same-origin by default
    (override via ?api=<origin>); API paths include the /api prefix (as in
    miniprogram/utils/api.js); token in sessionStorage under admin-only keys
-   ("guiyan-admin-token" / "guiyan-admin-user"); 5s timeout; all money is
-   INTEGER CENTS on the wire. */
+   ("guiyan-admin-token" / "guiyan-admin-user"); 5s timeout by default — a
+   call may pass opts.timeoutMs for a longer one (AI copy waits on the live
+   agent, ~6s observed); all money is INTEGER CENTS on the wire. */
 export function $(id) { return document.getElementById(id); }
 export function esc(s) { return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;"); }
 
@@ -29,7 +30,8 @@ export function apiFetch(path, opts) {
   let ctrl = null;
   try { ctrl = new AbortController(); } catch (e) { ctrl = null; }
   let timer = null;
-  if (ctrl) { timer = setTimeout(function () { try { ctrl.abort(); } catch (e) {} }, 5000); }
+  const timeoutMs = Number.isFinite(opts.timeoutMs) && opts.timeoutMs > 0 ? opts.timeoutMs : 5000;
+  if (ctrl) { timer = setTimeout(function () { try { ctrl.abort(); } catch (e) {} }, timeoutMs); }
   const headers = { "Content-Type": "application/json" };
   const tk = getToken(); if (tk) headers.Authorization = "Bearer " + tk;
   return fetch(apiBase() + path, { method: opts.method || "GET", headers, body: opts.body ? JSON.stringify(opts.body) : undefined, signal: ctrl ? ctrl.signal : undefined })
@@ -44,7 +46,7 @@ export function apiFetch(path, opts) {
     .catch(function (e) { if (timer) clearTimeout(timer); throw e; });
 }
 export function apiGet(path) { return apiFetch(path, { method: "GET" }); }
-export function apiPost(path, body) { return apiFetch(path, { method: "POST", body }); }
+export function apiPost(path, body, opts) { return apiFetch(path, { method: "POST", body, timeoutMs: opts && opts.timeoutMs }); }
 export function apiPatch(path, body) { return apiFetch(path, { method: "PATCH", body }); }
 export function apiDelete(path) { return apiFetch(path, { method: "DELETE" }); }
 /* File download (not apiFetch: the payload is not JSON). Sends the
