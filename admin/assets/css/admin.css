@@ -1,59 +1,131 @@
-/* Guiyan admin console — redesign 2026-11-15: pure white, minimalist.
-   Layout restructure 2026-11-14: black sidebar, white content,
-   uniform card shell, restrained overview.
-   Dealt palette (admin only): white ground, neutral gray scale, mint
-   accent used sparingly for selected / active / focus; sidebar black
-   via inverse tokens. No cream, no orange, no dark green, no violet;
-   hover goes grayer, never warmer. Customer web and mini-program keep
-   their own brand. No blue, no gradients, no hex outside :root,
-   no pill buttons, no left-border tiles. */
+/* Guiyan admin console — dashboard redesign 2026-11-16 (Lam-approved):
+   quiet light theme on the repo tokens: page #f8f8f6, card #ffffff,
+   soft #f1f1ef, sidebar #f3f3f1; ink #17171a, muted #66666d; one accent
+   #3e63dd + one money #0f7f57; warn/down only where they mean something.
+   Font stays Funnel Display/Sans + DM Mono; order-status pills keep
+   their 7 approved pairs; controls stay 44px / 4px radius.
+   Dark theme: :root[data-theme="dark"] below (toggle in AppHeader,
+   shared key guiyan-theme with the customer web). Hex lives in :root
+   blocks only; every other rule uses var(--…). */
 :root{
-  --p-bg: #ffffff; --p-surface: #f3f3f3; --p-ink: #232323; --p-muted: #686868;
-  --p-accent: #a1ffcb; --p-accent-ink: #232323; --p-action: #232323; --p-action-ink: #ffffff;
-  --p-inv-bg: #232323; --p-inv-surface: #303030; --p-inv-ink: #ffffff; --p-inv-muted: #a4a4a4;
-  --p-inv-accent: #a1ffcb; --p-inv-accent-ink: #232323; --p-inv-action: #a1ffcb; --p-inv-action-ink: #232323;
+  --p-bg: #f8f8f6; --p-card: #ffffff; --p-surface: #f1f1ef;
+  --p-ink: #17171a; --p-ink-2: #48484d; --p-muted: #66666d;
+  --p-accent: #3e63dd; --p-accent-ink: #17171a;
+  --p-accent-tint: rgba(62,99,221,0.06); --p-accent-ring: rgba(62,99,221,0.20);
+  --p-money: #0f7f57; --p-up: #0f7f57; --p-down: #d23f45; --p-warn: #c98a00;
+  --money-tint: rgba(15,127,87,0.07); --money-ring: rgba(15,127,87,0.25);
+  --p-tip: #1f2530; --p-live: #12a150;
+  --p-action: #3e63dd; --p-action-ink: #ffffff;
+  --p-inv-bg: #1f2530; --p-inv-ink: #ffffff;
+  --p-inv-accent: #3e63dd;
   --font-display: "Funnel Display", system-ui, sans-serif;
   --font-text: "Funnel Sans", system-ui, sans-serif;
   --font-mono: "DM Mono", ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
   --display-weight: 400; --display-tracking: -0.03em; --display-tracking-xl: -0.04em;
-  --ly-scale: 0.98;
-  /* Neutral gray scale (derived from the dealt palette) + functional
-     signals only: a plain red and a plain amber for destructive /
-     critical / warning states — never as general surfaces. */
-  --gray-100:#f3f3f3; --gray-200:#e9e9e9; --gray-300:#e3e3e3; --gray-400:#c9c9c9;
-  --gray-500:#a4a4a4; --gray-600:#8a8a8a; --gray-700:#6e6e6e; --gray-800:#4a4a4a;
-  --line:var(--gray-300); --line2:var(--gray-400);
-  --action-hover:#000000;
-  --signal-red:#d92d20; --signal-red-deep:#b42318; --signal-red-soft:#fdecea; --signal-red-soft-deep:#f9dcd2;
-  --signal-yellow:#f59e0b; --signal-yellow-deep:#b54708;
+  /* Neutral gray scale (hex kept so the pill/bar contrast tests can
+     resolve them) + functional signals only. --gray-300 #ededed is the
+     hairline-on-card approximation of --line (used by the confirmed
+     pill background); --gray-500/600/700 are fills, never text. */
+  --gray-100:#f1f1ef; --gray-300:#ededed; --gray-400:#c9c9c9;
+  --gray-500:#66666d; --gray-600:#48484d; --gray-700:#48484d;
+  --line:rgba(0,0,0,0.075); --line2:rgba(0,0,0,0.14);
+  --action-hover:#3559c9;
+  --focus-ring:rgba(62,99,221,0.18);
+  /* Down / warn as TEXT: down #d23f45 reaches 4.63:1 only on a white
+     card (4.35:1 on the page — never put down-text on the page);
+     money #0f7f57 reaches 5.01:1 on a card but 4.43:1 on soft (never
+     money-text on soft); warn #c98a00 is a fill/badge background only
+     — white on warn is 2.95:1, ink #17171a on warn is 6.06:1, so every
+     warning badge/mark carries ink text, never white. */
+  --signal-red:#d23f45; --signal-red-deep:#b42318; --signal-red-soft:#fdecea; --signal-red-soft-deep:#f9dcd2;
+  --signal-yellow:#c98a00;
   /* Order-status + channel-chart brand tokens: the customer
      night-theatre brand (pine / gold / cinnabar + softs), reused in
-     the admin ONLY for order-status pills/bars and the channel donut —
-     a deliberate, Lam-approved exception to the grayscale rule, scoped
-     to those two surfaces. --brand-gold is a fill only, never text
-     (2.94:1 on its soft — pill text uses --brand-gold-deep, 4.83:1). */
+     the admin ONLY for order-status pills/bars — a deliberate,
+     Lam-approved exception to the grayscale rule, scoped to those two
+     surfaces. --brand-gold is a fill only, never text (pill text uses
+     --brand-gold-deep, 4.83:1). The donut no longer uses these (D4:
+     one money hue, shades below). */
   --brand-pine:#0b3d36; --brand-pine-soft:#dcefe9;
   --brand-gold:#a97e1c; --brand-gold-soft:#f1e5c3; --brand-gold-deep:#7c5e14;
   --brand-gold-soft-deep:#e9d8a6; --brand-gold-deepest:#6b5312;
   --brand-cinnabar:#b03a1e; --brand-cinnabar-soft:#f6e3d8;
-  --sidebar-bg:var(--p-inv-bg); --sidebar-text:var(--p-inv-ink); --sidebar-text-dim:var(--p-inv-muted);
-  --sidebar-active-bg:var(--p-inv-surface);
-  --sidebar-hover-bg:#2b2b2b;
-  --sidebar-line:rgba(255,255,255,0.16);
-  --chart-grid:var(--gray-300); --chart-area:rgba(35,35,35,0.06);
+  /* Donut (D4): one money hue, intensity falling with rank. Light
+     ramp is all >= 3:1 against the white card (5.01 / 4.29 / 3.44 /
+     3.28:1); ranks 3–4 are close in lightness but differ in hue
+     (green vs teal) and are disambiguated by hover + the ranked
+     legend. Dark ramp is all >= 3:1 against the dark card. */
+  --donut-1:#0f7f57; --donut-2:#238a66; --donut-3:#3f9a78; --donut-4:#2f9e8f;
+  --sidebar-bg:#f3f3f1; --sidebar-text:#17171a; --sidebar-text-dim:#66666d;
+  --sidebar-active-bg:rgba(62,99,221,0.08);
+  --sidebar-hover-bg:#f1f1ef;
+  --sidebar-line:rgba(0,0,0,0.075);
+  --chart-grid:var(--line); --chart-area:rgba(15,127,87,0.07);
   --overlay:rgba(35,35,35,0.45);
-  --text-xs:12px; --text-sm:13.5px; --text-base:15px; --text-lg:18px; --text-xl:22px; --text-2xl:28px; --text-3xl:34px;
-  --leading-body:1.6; --leading-tight:1.15;
-  --space-1:4px; --space-2:8px; --space-3:12px; --space-4:14px; --space-5:16px; --space-6:18px; --space-7:20px; --space-8:24px; --space-9:28px; --space-10:34px; --space-11:36px;
-  --radius-sm:9px; --radius-md:14px; --radius-lg:20px; --radius-chip:99px; --input-r:4px;
+  --radius-sm:9px; --radius-md:16px; --input-r:4px;
   --btn-gap-sm:8px; --btn-gap:12px;
-  --shadow-hover:0 2px 16px rgba(35,35,35,0.06);
-  --shadow-menu:0 8px 24px rgba(35,35,35,0.12);
-  --ease-out:cubic-bezier(0.23,1,0.32,1); --ease-in-out:cubic-bezier(0.77,0,0.175,1); --ease-drawer:cubic-bezier(0.32,0.72,0,1); --duration-enter:200ms; --duration-exit:140ms;
+  --shadow-card:0 1px 2px rgba(0,0,0,0.04), 0 1px 1px rgba(0,0,0,0.02);
+  --shadow-menu:0 12px 32px -8px rgba(0,0,0,0.18), 0 0 0 1px rgba(0,0,0,0.06);
+  --ease-out:cubic-bezier(0.23,1,0.32,1); --ease-drawer:cubic-bezier(0.32,0.72,0,1); --duration-enter:200ms; --duration-exit:140ms;
 }
+/* Dark theme (D3, 2026-11-16): same token names, dark values from the
+   repo tokens. Contrast notes (all >= 4.5:1 unless marked non-text):
+   - Accent #7b96ff as TEXT on dark card is 6.70:1, but WHITE text on
+     accent is 2.75:1 — dark primary buttons carry DARK ink text
+     (#17171a on #7b96ff = 6.52:1), not white.
+   - Down #ff6b70 as text on dark card is 6.64:1, but white on down is
+     2.77:1 — dark critical badges/marks carry dark ink text
+     (#17171a on #ff6b70 = 6.46:1), see the overrides below.
+   - Warn #f6b100 with ink text is 9.55:1 (same ink text as light).
+   - Pills: six pairs keep their light backgrounds (opaque, ratios
+     unchanged); only .completed breaks (its background is --p-ink,
+     which flips light in dark, while its text stays white) and is
+     overridden below. Dark pill pairs: pending 4.83, confirmed 13.59,
+     paid 10.12, completed 14.76, refund_requested 5.17, disputed
+     4.87, cancelled/refunded 5.10 — all >= 4.5:1.
+   - Breakdown bars: the four dark brand fills (pine/gold-deep/
+     gold-deepest/cinnabar) are near-invisible on the dark track, so
+     they take lighter fills below. */
+:root[data-theme="dark"]{
+  --p-bg:#0b0b0d; --p-card:#141417; --p-surface:#1c1c20;
+  --p-ink:#f3f3f5; --p-ink-2:#c4c4ca; --p-muted:#8c8c95;
+  --p-accent:#7b96ff; --p-accent-ink:#f3f3f5;
+  --p-accent-tint:rgba(123,150,255,0.12); --p-accent-ring:rgba(123,150,255,0.30);
+  --p-money:#34c48b; --p-up:#34c48b; --p-down:#ff6b70; --p-warn:#f6b100;
+  --money-tint:rgba(52,196,139,0.10); --money-ring:rgba(52,196,139,0.30);
+  --p-tip:#2a3548; --p-live:#34c48b;
+  --p-action:#7b96ff; --p-action-ink:#17171a;
+  --p-inv-bg:#2a3548; --p-inv-ink:#ffffff;
+  --p-inv-accent:#7b96ff;
+  --gray-100:#1c1c20; --gray-300:#26262b; --gray-400:#3a3a41;
+  --gray-500:#8c8c95; --gray-600:#c4c4ca; --gray-700:#c4c4ca;
+  --line:rgba(255,255,255,0.08); --line2:rgba(255,255,255,0.16);
+  --action-hover:#93a9ff;
+  --focus-ring:rgba(123,150,255,0.30);
+  --signal-red:#ff6b70; --signal-red-deep:#ff8589; --signal-red-soft:#3a1f22; --signal-red-soft-deep:#4a2428;
+  --signal-yellow:#f6b100;
+  --donut-1:#34c48b; --donut-2:#2aa87a; --donut-3:#1f8a64; --donut-4:#177050;
+  --sidebar-bg:#101013; --sidebar-text:#f3f3f5; --sidebar-text-dim:#8c8c95;
+  --sidebar-active-bg:rgba(123,150,255,0.12);
+  --sidebar-hover-bg:#1c1c20;
+  --sidebar-line:rgba(255,255,255,0.08);
+  --chart-grid:var(--line); --chart-area:rgba(52,196,139,0.10);
+  --overlay:rgba(0,0,0,0.55);
+  --shadow-card:0 1px 2px rgba(0,0,0,0.30), 0 1px 1px rgba(0,0,0,0.20);
+  --shadow-menu:0 12px 32px -8px rgba(0,0,0,0.50), 0 0 0 1px rgba(255,255,255,0.08);
+  --fill-paid:#34c48b; --fill-pending:#d9a521; --fill-refund:#e0b34a; --fill-disputed:#f0806a;
+  --pill-completed-bg:#e9e9ec; --pill-completed-fg:#17171a;
+}
+:root[data-theme="dark"] .pill.completed{background:var(--pill-completed-bg);color:var(--pill-completed-fg)}
+:root[data-theme="dark"] .bd-fill.paid{background:var(--fill-paid)}
+:root[data-theme="dark"] .bd-fill.pending{background:var(--fill-pending)}
+:root[data-theme="dark"] .bd-fill.refund_requested{background:var(--fill-refund)}
+:root[data-theme="dark"] .bd-fill.disputed{background:var(--fill-disputed)}
+:root[data-theme="dark"] .bell-badge.critical,:root[data-theme="dark"] .inline-mark.critical{color:#17171a}
+:root[data-theme="dark"] .sidebar nav{--scroll-thumb:rgba(255,255,255,0.35);--scroll-thumb-hover:rgba(255,255,255,0.55)}
 *{box-sizing:border-box}
 html{scroll-behavior:smooth}
-body{margin:0;background:var(--p-bg);color:var(--p-ink);font-family:var(--font-text);font-size:15px;line-height:1.6;font-variant-numeric:tabular-nums;-webkit-font-smoothing:antialiased}
+body{margin:0;background:var(--p-bg);color:var(--p-ink);font-family:var(--font-text);font-size:14px;line-height:1.6;font-variant-numeric:tabular-nums;-webkit-font-smoothing:antialiased}
 a{color:var(--p-ink)}
 button{font:inherit;cursor:pointer}
 /* Design polish (Step 1): one shared control system for every text /
@@ -63,10 +135,10 @@ button{font:inherit;cursor:pointer}
    login card keeps its own look (its more-specific rule below wins,
    plus height:auto). Checkboxes keep a native 16px box with the
    action accent. */
-input,select,textarea{font:inherit;font-size:13.5px;color:var(--p-ink);background:var(--p-bg);border:1px solid var(--line2);border-radius:var(--input-r);outline:none}
+input,select,textarea{font:inherit;font-size:13.5px;color:var(--p-ink);background:var(--p-card);border:1px solid var(--line2);border-radius:var(--input-r);outline:none}
 input,select{height:44px;padding:0 12px}
 textarea{height:auto;min-height:88px;padding:10px 12px;resize:vertical}
-input:focus,select:focus,textarea:focus{border-color:var(--p-action);box-shadow:0 0 0 3px rgba(35,35,35,0.12)}
+input:focus,select:focus,textarea:focus{border-color:var(--p-action);box-shadow:0 0 0 3px var(--focus-ring)}
 input:disabled,select:disabled,textarea:disabled{opacity:.6;cursor:default}
 input[type="checkbox"]{width:16px;height:16px;padding:0;border:0;border-radius:0;background:none;accent-color:var(--p-action);vertical-align:-3px}
 input[type="number"]{font-variant-numeric:tabular-nums}
@@ -83,13 +155,13 @@ select.field-sm{padding-right:28px}
 .login-shell{min-height:100vh;display:flex;flex-direction:column;background:var(--p-bg)}
 .login-shell .login-page{flex:1;min-height:0}
 .login-page{min-height:100vh;background:var(--p-bg);display:flex;align-items:center;justify-content:center;padding:24px;position:relative;overflow:hidden}
-.login-card{position:relative;background:var(--p-bg);border:1px solid var(--line);border-radius:var(--radius-md);width:100%;max-width:400px;padding:36px 34px 30px}
+.login-card{position:relative;background:var(--p-card);border:1px solid var(--line);border-radius:var(--radius-md);width:100%;max-width:400px;padding:36px 34px 30px}
 .login-card .mark{font-family:var(--font-display);font-size:44px;font-weight:var(--display-weight);color:var(--p-ink);line-height:1;letter-spacing:var(--display-tracking)}
 .login-card .mark::after{content:"";display:block;width:64px;height:3px;background:var(--p-action);margin-top:10px}
 .login-card h1{font-family:var(--font-display);font-size:22px;font-weight:var(--display-weight);margin:10px 0 2px}
 .login-card .sub{color:var(--p-muted);font-size:13.5px;margin:0 0 24px}
 .login-card label{display:block;font-size:13.5px;font-weight:700;color:var(--p-muted);margin:0 0 6px}
-.login-card input{width:100%;border:1px solid var(--line2);border-radius:var(--input-r);padding:12px 14px;font-size:15px;background:var(--p-bg);color:var(--p-ink);margin-bottom:14px;outline:none;height:auto}
+.login-card input{width:100%;border:1px solid var(--line2);border-radius:var(--input-r);padding:12px 14px;font-size:15px;background:var(--p-card);color:var(--p-ink);margin-bottom:14px;outline:none;height:auto}
 .login-card .err{color:var(--signal-red);font-size:13.5px;min-height:20px;margin:0 0 6px}
 .login-btn{width:100%;border:0;border-radius:9px;background:var(--p-action);color:var(--p-action-ink);font-weight:700;font-size:15px;padding:13px 20px}
 .login-btn:hover{background:var(--action-hover)}
@@ -107,7 +179,7 @@ select.field-sm{padding-right:28px}
 .sidebar .mark{font-family:var(--font-display);font-size:30px;font-weight:var(--display-weight);color:var(--sidebar-text);line-height:1;letter-spacing:var(--display-tracking)}
 .sidebar .mark::after{content:"";display:block;width:64px;height:3px;background:var(--p-inv-accent);margin-top:10px}
 .sidebar .mark small{display:block;font-size:11px;letter-spacing:.28em;color:var(--sidebar-text-dim);font-weight:700;margin-top:8px;text-transform:uppercase}
-.sidebar nav{margin-top:34px;display:flex;flex-direction:column;gap:4px;flex:1;min-height:0;overflow-y:auto;--scroll-thumb:rgba(255,255,255,0.35);--scroll-thumb-hover:rgba(255,255,255,0.55)}
+.sidebar nav{margin-top:34px;display:flex;flex-direction:column;gap:4px;flex:1;min-height:0;overflow-y:auto;--scroll-thumb:rgba(23,23,26,0.28);--scroll-thumb-hover:rgba(23,23,26,0.45)}
 /* Thin scrollbar (redesign 2026-11-15) — reusable class: sidebar nav
    now, dropdowns later. 6px, transparent track, gray thumb visible on
    hover only (WebKit). No standard scrollbar properties here: Chromium
@@ -123,7 +195,7 @@ select.field-sm{padding-right:28px}
 .sidebar nav button.on:hover{background:var(--sidebar-active-bg)}
 .sidebar nav button.on{background:var(--sidebar-active-bg);color:var(--sidebar-text)}
 .sidebar nav button.on .ic{color:var(--p-inv-accent)}
-.sidebar nav button .ic{width:18px;height:18px;flex:none}
+.sidebar nav button .ic{width:16px;height:16px;flex:none}
 .main{flex:1;margin-left:240px;padding:34px 36px 60px;min-width:0}
 /* App header (layout restructure 2026-11-14): breadcrumb + title +
    返回首页 + operator card, one row, never wraps. */
@@ -131,25 +203,28 @@ select.field-sm{padding-right:28px}
 .app-header-main{flex:1 1 auto;min-width:0}
 .crumbs{font-size:12px;font-weight:700;color:var(--p-muted);margin:0 0 4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .crumbs span{margin:0 6px}
-.app-header h1{font-family:var(--font-display);font-size:34px;font-weight:var(--display-weight);line-height:1.15;margin:0;min-width:0;letter-spacing:var(--display-tracking-xl)}
+.app-header h1{font-family:var(--font-display);font-size:30px;font-weight:var(--display-weight);line-height:1.15;margin:0;min-width:0;letter-spacing:var(--display-tracking-xl)}
 .app-header h1 #pageTitle{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .app-header h1 .sub{display:block;font-family:var(--font-text);font-size:13.5px;font-weight:600;color:var(--p-muted);margin-top:6px}
-.app-header .home-link{display:flex;align-items:center;gap:8px;box-sizing:border-box;padding:11px 14px;border:1px solid var(--line2);border-radius:4px;background:var(--p-bg);color:var(--p-ink);font-size:14px;font-weight:600;text-decoration:none;white-space:nowrap;align-self:center;flex-shrink:0}
+.app-header .home-link{display:flex;align-items:center;gap:8px;box-sizing:border-box;padding:11px 14px;border:1px solid var(--line2);border-radius:4px;background:var(--p-card);color:var(--p-ink);font-size:14px;font-weight:600;text-decoration:none;white-space:nowrap;align-self:center;flex-shrink:0}
 .app-header .home-link:hover{background:var(--p-surface)}
-.app-header .home-link .ic{width:18px;height:18px;flex:none}
+.app-header .home-link .ic{width:16px;height:16px;flex:none}
 .app-header .home-link:focus-visible{outline:2px solid var(--p-action);outline-offset:2px}
 /* Notification bell (admin redesign Item 2): header button + unread
    count badge + dropdown. Badge red (--signal-red) when any unread
    alert is critical, amber (--signal-yellow) when any unread alert is
    warning, hidden at zero. Dropdown scrolls with .thin-scroll. */
 .bell-wrap{position:relative;align-self:center;flex-shrink:0}
-.bell-btn{position:relative;display:flex;align-items:center;justify-content:center;width:40px;height:40px;border:1px solid var(--line2);border-radius:4px;background:var(--p-bg);color:var(--p-ink);cursor:pointer}
+.bell-btn{position:relative;display:flex;align-items:center;justify-content:center;width:40px;height:40px;border:1px solid var(--line2);border-radius:4px;background:var(--p-card);color:var(--p-ink);cursor:pointer}
 .bell-btn:hover{background:var(--p-surface)}
+.theme-btn{position:relative;display:flex;align-items:center;justify-content:center;width:40px;height:40px;border:1px solid var(--line2);border-radius:4px;background:var(--p-card);color:var(--p-ink);cursor:pointer;align-self:center;flex-shrink:0}
+.theme-btn:hover{background:var(--p-surface)}
+.theme-btn:focus-visible{outline:2px solid var(--p-action);outline-offset:2px}
 .bell-btn:focus-visible{outline:2px solid var(--p-action);outline-offset:2px}
 .bell-badge{position:absolute;top:-6px;right:-6px;min-width:18px;height:18px;padding:0 5px;border-radius:99px;color:#fff;font-size:11px;font-weight:800;line-height:18px;text-align:center}
 .bell-badge.critical{background:var(--signal-red)}
-.bell-badge.warning{background:var(--signal-yellow)}
-.bell-dropdown{position:absolute;right:0;top:calc(100% + 8px);width:340px;max-height:420px;overflow-y:auto;background:var(--p-bg);border:1px solid var(--line2);border-radius:12px;box-shadow:0 12px 32px rgba(0,0,0,.14);z-index:50;padding:12px 14px;transform-origin:top right;transition:transform 200ms var(--ease-out),opacity 200ms var(--ease-out)}
+.bell-badge.warning{background:var(--signal-yellow);color:#17171a}
+.bell-dropdown{position:absolute;right:0;top:calc(100% + 8px);width:340px;max-height:420px;overflow-y:auto;background:var(--p-card);border:1px solid var(--line2);border-radius:12px;box-shadow:var(--shadow-menu);z-index:50;padding:12px 14px;transform-origin:top right;transition:transform 200ms var(--ease-out),opacity 200ms var(--ease-out)}
 @starting-style{.bell-dropdown{opacity:0;transform:scale(.95)}}
 .bell-dropdown h3{font-size:13px;margin:6px 0 8px}
 .bell-item{display:flex;gap:8px;align-items:flex-start;padding:8px 0;border-top:1px solid var(--line);font-size:13px}
@@ -161,7 +236,7 @@ select.field-sm{padding-right:28px}
 .bell-item .d{color:var(--p-muted);font-size:12px}
 .bell-audit{padding:6px 0;border-top:1px solid var(--line);font-size:12.5px;color:var(--p-muted)}
 .bell-empty{padding:10px 0;font-size:13px;color:var(--p-muted)}
-.bell-view-all{display:block;width:100%;margin-top:10px;padding:9px 0;border:1px solid var(--line2);border-radius:4px;min-height:44px;background:var(--p-bg);color:var(--p-ink);font-size:13px;font-weight:700;cursor:pointer;text-align:center}
+.bell-view-all{display:block;width:100%;margin-top:10px;padding:9px 0;border:1px solid var(--line2);border-radius:4px;min-height:44px;background:var(--p-card);color:var(--p-ink);font-size:13px;font-weight:700;cursor:pointer;text-align:center}
 .bell-view-all:hover{background:var(--p-surface)}
 /* Inline warning marks (admin redesign Item 2): a `!` on the affected
    row — red for critical (disputed order), amber for warning
@@ -169,7 +244,7 @@ select.field-sm{padding-right:28px}
    goes to the alerts view. */
 .inline-mark{display:inline-flex;align-items:center;justify-content:center;width:18px;height:18px;margin-left:6px;border:0;border-radius:99px;color:#fff;font-size:12px;font-weight:800;line-height:1;cursor:pointer;vertical-align:middle}
 .inline-mark.critical{background:var(--signal-red)}
-.inline-mark.warning{background:var(--signal-yellow)}
+.inline-mark.warning{background:var(--signal-yellow);color:#17171a}
 .inline-mark:focus-visible{outline:2px solid var(--p-action);outline-offset:2px}
 .op-card{display:flex;align-items:center;gap:10px;flex-shrink:0;align-self:center}
 .op-card .nm{font-size:13.5px;font-weight:700;line-height:1.3;white-space:nowrap}
@@ -178,29 +253,29 @@ select.field-sm{padding-right:28px}
 .op-card button:hover{background:var(--p-surface)}
 .app-footer{margin-top:36px;padding:16px 0;border-top:1px solid var(--line);font-size:12px;color:var(--p-muted);text-align:center}
 .login-shell .app-footer{margin-top:0}
-.menu-btn{display:none;align-items:center;justify-content:center;flex:none;width:40px;height:40px;border:1px solid var(--line2);border-radius:4px;background:var(--p-bg);color:var(--p-ink)}
+.menu-btn{display:none;align-items:center;justify-content:center;flex:none;width:40px;height:40px;border:1px solid var(--line2);border-radius:4px;background:var(--p-card);color:var(--p-ink)}
 .menu-btn:hover{background:var(--p-surface)}
 .drawer-backdrop{display:none}
 .view{display:none}
 .view.on{display:block}
-.view h2{font-family:var(--font-display);font-size:22px;font-weight:var(--display-weight);margin:0 0 16px}
+.view h2{font-family:var(--font-display);font-size:16px;font-weight:600;margin:0 0 16px}
 
 /* stats: featured revenue card + compact cards (not equal-width).
    Restrained overview (amended 2026-11-14): the hero is a WHITE card
    with neutral-ink numerals — no colour accent on this screen.
    No multicolour stat cards. */
 .stats{display:grid;grid-template-columns:2fr 1fr 1fr 1fr 1fr;gap:14px;margin-bottom:30px}
-.stat{background:var(--p-bg);border:1px solid var(--line);border-radius:var(--radius-md);padding:18px}
+.stat{background:var(--p-card);border:1px solid var(--line);border-radius:var(--radius-md);box-shadow:var(--shadow-card);padding:18px}
 .stat b{display:block;font-family:var(--font-text);font-size:28px;font-weight:900;line-height:1.15;font-variant-numeric:tabular-nums}
 .stat span{font-size:12px;color:var(--p-muted);font-weight:600}
-.stat.hero{background:var(--p-bg);border-color:var(--line);color:var(--p-ink)}
-.stat.hero b{color:var(--p-ink);font-size:34px;font-family:var(--font-display)}
+.stat.hero{background:var(--p-card);border-color:var(--line);color:var(--p-ink)}
+.stat.hero b{color:var(--p-ink);font-size:32px;font-family:var(--font-display)}
 .stat.hero span{color:var(--p-muted)}
 .stat.hero b em{font-style:normal;color:var(--p-ink);font-size:18px}
 
 /* tables */
-.tbl-wrap{overflow-x:auto;border:1px solid var(--line);border-radius:var(--radius-md);background:var(--p-bg)}
-table{width:100%;border-collapse:collapse;font-size:13.5px;min-width:640px}
+.tbl-wrap{overflow-x:auto;border:1px solid var(--line);border-radius:var(--radius-md);box-shadow:var(--shadow-card);background:var(--p-card)}
+table{width:100%;border-collapse:collapse;font-size:13px;min-width:640px}
 /* Admin redesign Item 3: fixed layout on top-level list tables so long
    names truncate (ellipsis + title tooltip) instead of wrapping rows
    taller; the action column keeps an explicit width so its buttons
@@ -263,7 +338,7 @@ span.cell-ellipsis{display:inline-block;vertical-align:middle;max-width:calc(100
    read-only "my account" card at the top of the users view, the
    locked default-admin row (id 1 — grayed, no action buttons), and
    the user CRUD modal form (same tokens as the Item 1 palette). */
-.my-account-card{background:var(--p-bg);border:1px solid var(--line);border-radius:var(--radius-md);padding:16px 20px;margin-bottom:16px}
+.my-account-card{background:var(--p-card);border:1px solid var(--line);border-radius:var(--radius-md);padding:16px 20px;margin-bottom:16px}
 .my-account-card h2{font-family:var(--font-display);font-size:17px;font-weight:var(--display-weight);margin:0 0 10px}
 .my-account-rows{display:flex;flex-wrap:wrap;gap:6px 28px;font-size:13.5px}
 .my-account-rows .lbl{color:var(--p-muted)}
@@ -303,7 +378,7 @@ th .sort-btn:focus-visible{outline:2px solid var(--p-action);outline-offset:1px}
 .pill.cancelled,.pill.refunded{background:var(--gray-100);color:var(--p-muted)}
 .pill.tag{background:var(--p-surface);color:var(--p-muted);margin:0 4px 4px 0;display:inline-block}
 /* Wave 3 #9 tag-rule editor: plain fieldset form, same tokens as the rest. */
-.tag-rule{border:1px solid var(--line2);border-radius:var(--radius-md);padding:14px 16px;margin-bottom:14px;background:var(--p-bg)}
+.tag-rule{border:1px solid var(--line2);border-radius:var(--radius-md);padding:14px 16px;margin-bottom:14px;background:var(--p-card)}
 .tag-rule legend{font-weight:800;padding:0 6px}
 .tag-rule label{display:inline-block;margin:0 10px 8px 0;font-size:13px;color:var(--p-muted)}
 .tag-rule input[type="text"],.tag-rule input[type="number"],.tag-rule select{height:36px;max-width:220px}
@@ -312,7 +387,7 @@ th .sort-btn:focus-visible{outline:2px solid var(--p-action);outline-offset:1px}
 .tag-cond{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:8px}
 .tag-cond .link-btn{padding:0}
 /* Wave 3 #10 copy template: channel cards reuse .sec/.note; pre-wrap keeps line breaks. */
-.copy-card{border:1px solid var(--line);border-radius:var(--radius-md);background:var(--p-bg);padding:14px 16px;margin-bottom:14px}
+.copy-card{border:1px solid var(--line);border-radius:var(--radius-md);background:var(--p-card);padding:14px 16px;margin-bottom:14px}
 .copy-card h3{margin:0 0 8px;font-size:14px}
 .copy-card pre{white-space:pre-wrap;font:inherit;font-size:13.5px;color:var(--p-ink);margin:0 0 10px}
 .copy-prompt{width:100%;min-height:64px}
@@ -320,9 +395,9 @@ th .sort-btn:focus-visible{outline:2px solid var(--p-action);outline-offset:1px}
 .op-row{display:flex;gap:8px;margin-bottom:12px}
 .op-row input{flex:1}
 .chips{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px}
-.chips button{border:1px solid var(--line2);background:var(--p-bg);border-radius:4px;padding:6px 14px;font-size:13.5px;font-weight:700;color:var(--p-muted);min-height:36px}
+.chips button{border:1px solid var(--line2);background:var(--p-card);border-radius:4px;padding:6px 14px;font-size:13.5px;font-weight:700;color:var(--p-muted);min-height:36px}
 .chips button.btn-export{background:var(--p-action);color:var(--p-action-ink);border:0;padding:13px 18px;min-height:44px}
-.chips button.on{background:var(--p-accent);border-color:var(--p-accent);color:var(--p-accent-ink)}
+.chips button.on{background:var(--p-accent-tint);border-color:var(--p-accent-ring);color:var(--p-accent-ink)}
 /* Resources category filter (2026-11-16): one row, horizontal scroll. */
 .res-cat-row{flex-wrap:nowrap;overflow-x:auto}
 .res-cat-row button{flex:none}
@@ -332,14 +407,16 @@ th .sort-btn:focus-visible{outline:2px solid var(--p-action);outline-offset:1px}
    border, white surface on the white content area. A section's main
    table sits directly in the card body (no inner frame); nested
    fieldsets / report blocks keep their own borders as grouped content. */
-.sec{margin-bottom:24px;background:var(--p-bg);border:1px solid var(--line);border-radius:var(--radius-md);padding:18px 20px}
+.sec{margin-bottom:24px;background:var(--p-card);border:1px solid var(--line);border-radius:var(--radius-md);box-shadow:var(--shadow-card);padding:18px 20px}
 .sec h2{margin:0 0 14px}
 .sec>.tbl-wrap{border:0;border-radius:0;background:transparent}
 
-/* order status breakdown: label + proportional bar + count (real shares) */
-.bd-row{display:grid;grid-template-columns:64px 1fr 48px;align-items:center;gap:12px;padding:7px 0}
-.bd-label{font-size:13.5px;font-weight:600;color:var(--p-muted)}
-.bd-track{height:10px;border-radius:99px;background:var(--p-surface);overflow:hidden}
+/* order status breakdown (dashboard redesign): ranked rows — label +
+   count + action on the row, share bar 3px along the row's bottom edge. */
+.bd-row{display:block;padding:8px 4px 7px}
+.bd-row-top{display:flex;align-items:center;gap:12px}
+.bd-label{font-size:13.5px;font-weight:600;color:var(--p-muted);flex:none;width:64px}
+.bd-track{height:3px;border-radius:99px;background:var(--line);overflow:hidden;margin-top:7px}
 .bd-fill{display:block;height:100%;border-radius:99px;min-width:2px}
 /* Breakdown bars use the same dark colour as the matching pill text
    (kept statuses keep their pre-existing grey/ink bar). */
@@ -350,25 +427,41 @@ th .sort-btn:focus-visible{outline:2px solid var(--p-action);outline-offset:1px}
 .bd-fill.refund_requested{background:var(--brand-gold-deepest)}
 .bd-fill.disputed{background:var(--brand-cinnabar)}
 .bd-fill.cancelled,.bd-fill.refunded{background:var(--gray-500)}
-.bd-num{text-align:right;font-variant-numeric:tabular-nums;font-weight:700;font-size:13.5px}
+.bd-num{text-align:right;font-variant-numeric:tabular-nums;font-weight:700;font-size:13.5px;margin-left:auto}
+.bd-action{margin-left:4px}
 .bd-total{margin-top:10px;font-size:13.5px;color:var(--p-muted)}
 
 /* Overview dashboard (2026-11-16): header + 4 KPI cards + charts row
    (trend left, channel donut right). White cards on the white content
    area, funnel type, hover goes grayer — same system as the rest. */
-.ov-head{display:flex;align-items:flex-end;justify-content:space-between;gap:16px;flex-wrap:wrap;margin-bottom:20px}
-.ov-title{margin:0;font-family:var(--font-display);font-size:28px;font-weight:400;letter-spacing:var(--display-tracking);line-height:1.15}
-.ov-sub{margin:4px 0 0;font-size:13.5px;color:var(--p-muted)}
+.ov-head{display:flex;justify-content:flex-end;gap:12px;flex-wrap:wrap;margin-bottom:20px}
 .ov-head-actions{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+/* "Updated" pill (D8): the client time the data finished loading
+   (HH:mm); its tooltip states the real refresh interval. */
+.pill-updated{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--line2);background:var(--p-card);border-radius:99px;padding:6px 12px;font-size:12px;font-weight:700;color:var(--p-muted);white-space:nowrap;min-height:36px}
+.live-dot{width:8px;height:8px;border-radius:99px;background:var(--p-live);flex:none}
 .ov-head-actions .chips{margin-bottom:0}
-.ov-kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:24px}
-.ov-kpi{background:var(--p-bg);border:1px solid var(--line);border-radius:var(--radius-md);padding:18px}
-.ov-kpi:hover{background:var(--p-surface)}
+.ov-kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:1px;margin-bottom:24px;background:var(--line);border:1px solid var(--line);border-radius:var(--radius-md);box-shadow:var(--shadow-card);overflow:hidden}
+.ov-kpi{display:block;width:100%;text-align:left;background:var(--p-card);border:0;border-radius:0;padding:6px}
+.ov-kpi-in{display:block;padding:12px 12px 10px;border-radius:12px}
+.ov-kpi:hover .ov-kpi-in{background:var(--p-surface)}
+.ov-kpi.report-only{cursor:default}
+.ov-kpi.sel-money .ov-kpi-in{background:var(--money-tint);box-shadow:inset 0 0 0 1px var(--money-ring)}
+.ov-kpi.sel-accent .ov-kpi-in{background:var(--p-accent-tint);box-shadow:inset 0 0 0 1px var(--p-accent-ring)}
 .ov-kpi-ic{display:inline-grid;place-items:center;width:36px;height:36px;border-radius:9px;background:var(--p-surface);color:var(--p-ink);margin-bottom:12px}
 .ov-kpi-label{display:block;font-size:12px;color:var(--p-muted);font-weight:600}
 .ov-kpi b{display:block;font-size:28px;font-weight:900;line-height:1.15;font-variant-numeric:tabular-nums;margin-top:2px}
 .ov-kpi b .ov-unit{font-size:15px;font-weight:700;margin-left:2px}
-.ov-kpi small{display:block;font-size:12px;color:var(--p-muted);margin-top:6px;line-height:1.5;font-weight:400}
+/* Delta + baseline (one or two words): coloured by meaning for
+   revenue/orders (up = money green, down = red), grey for the neutral
+   users tile; a small base reads grey "was N", never a red -100%. */
+.ov-delta{display:block;font-size:12px;font-weight:700;margin-top:6px;font-variant-numeric:tabular-nums}
+.ov-delta.up{color:var(--p-up)}
+.ov-delta.down{color:var(--p-down)}
+.ov-delta.neutral{color:var(--p-muted)}
+.ov-spark{display:block;width:100%;height:28px;margin-top:8px}
+.ov-spark polyline{fill:none;stroke-width:1.5}
+.ov-spark polygon{stroke:none}
 .ov-charts{display:grid;grid-template-columns:1.6fr 1fr;gap:14px;margin-bottom:24px}
 .ov-charts .sec{margin-bottom:0}
 .ov-chart h2{margin:0 0 4px}
@@ -383,13 +476,42 @@ th .sort-btn:focus-visible{outline:2px solid var(--p-action);outline-offset:1px}
 .donut-total{font-size:17px;font-weight:900;fill:var(--p-ink);font-family:var(--font-text)}
 .donut-total-label{font-size:12px;fill:var(--p-muted);font-family:var(--font-text)}
 .donut-legend{list-style:none;margin:8px 0 0;padding:0;width:100%}
-.donut-legend li{display:grid;grid-template-columns:12px 1fr auto auto;align-items:center;gap:8px;padding:6px 8px;border-radius:9px;font-size:13.5px;cursor:default}
+.donut-legend li{position:relative;display:flex;align-items:baseline;gap:8px;min-height:44px;padding:10px 12px 9px;font-size:13.5px;cursor:default}
 .donut-legend li.on{background:var(--p-surface)}
-.donut-dot{width:10px;height:10px;border-radius:99px}
-.donut-name{font-weight:600}
-.donut-val{color:var(--p-muted);font-variant-numeric:tabular-nums}
+.donut-name{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:600}
+.donut-val{color:var(--p-muted);font-variant-numeric:tabular-nums;white-space:nowrap}
 .donut-pct{font-weight:700;font-variant-numeric:tabular-nums;min-width:52px;text-align:right}
-.donut-legend li.donut-empty{grid-column:1/-1;color:var(--p-muted)}
+.donut-bar{position:absolute;left:12px;right:12px;bottom:0;height:3px;border-radius:99px;background:var(--line)}
+.donut-bar i{display:block;height:100%;border-radius:99px}
+.donut-legend li.donut-empty{display:block;color:var(--p-muted)}
+/* Ranked breakdown list (shared by the analysis channel/resource
+   rows): name + value + share, 3px share bar on the row's bottom edge. */
+.rk-list{margin:0;padding:0;list-style:none}
+.rk-head{display:flex;gap:8px;padding:0 12px 6px;font-size:12px;color:var(--p-muted);font-weight:700}
+.rk-row{position:relative;display:flex;align-items:baseline;gap:8px;min-height:44px;padding:10px 12px 9px}
+.rk-row:hover{background:var(--p-surface)}
+.rk-rank{flex:none;width:28px;color:var(--p-muted);font-variant-numeric:tabular-nums}
+.rk-name{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:600}
+.rk-sub{color:var(--p-muted);font-size:12px;white-space:nowrap}
+.rk-val{font-variant-numeric:tabular-nums;font-weight:700;text-align:right;white-space:nowrap}
+.rk-pct{color:var(--p-muted);font-variant-numeric:tabular-nums;min-width:52px;text-align:right}
+.rk-bar{position:absolute;left:12px;right:12px;bottom:0;height:3px;border-radius:99px;background:var(--line)}
+.rk-fill{display:block;height:100%;border-radius:99px}
+/* One dark tooltip system for the whole screen: dark surface, white
+   text, 12px, 9px radius, placed above the element and kept inside
+   the viewport; shows on hover and on keyboard focus, hides on
+   scroll / Escape / re-render. */
+.tooltip{position:fixed;z-index:150;background:var(--p-tip);color:#fff;font-size:12px;line-height:1.5;padding:8px 12px;border-radius:9px;box-shadow:var(--shadow-menu);pointer-events:none;max-width:320px}
+.tooltip b{display:block;font-size:13px;color:#fff}
+.tooltip .tip-sub{display:block;color:rgba(255,255,255,0.72)}
+/* Loading / stale / error states: skeleton blocks the size of the
+   final content; stale keeps old data visible but dimmed and
+   unclickable (never flashes zeros); a failed refresh is one
+   page-level note, not a toast per panel. */
+.skel{border-radius:9px;background:var(--p-surface);animation:skel-pulse 1.4s ease-in-out infinite}
+@keyframes skel-pulse{0%,100%{opacity:1}50%{opacity:.55}}
+.is-stale{opacity:.4;pointer-events:none}
+.page-note{background:var(--p-surface);border:1px solid var(--line2);border-radius:var(--radius-md);padding:10px 14px;font-size:13px;color:var(--p-ink);margin-bottom:16px}
 .toast{position:fixed;left:50%;bottom:26px;transform:translate(-50%,80px);background:var(--p-inv-bg);color:var(--p-inv-ink);padding:13px 22px;border-radius:99px;font-size:13.5px;font-weight:600;z-index:120;transition:transform var(--duration-enter) var(--ease-out);max-width:92vw;text-align:center}
 .toast.show{transform:translate(-50%,0)}
 @media(max-width:1100px){.main{padding:24px 24px 48px}.stats{grid-template-columns:1fr 1fr}.stat.hero{grid-column:1/-1}}
@@ -411,6 +533,20 @@ th .sort-btn:focus-visible{outline:2px solid var(--p-action);outline-offset:1px}
   .stats{grid-template-columns:1fr}
   .stat.hero b{font-size:28px}
   .app-header h1{font-size:28px}
+  /* Phone menu (375px): the drawer becomes a full-width menu grid,
+     3 columns, icon over label; closes on tap / Escape / backdrop /
+     route change like the drawer. */
+  .sidebar{width:100%;padding:20px 16px}
+  .sidebar nav{display:grid;grid-template-columns:repeat(3,1fr);gap:4px;overflow-y:auto}
+  .sidebar nav button{flex-direction:column;align-items:center;gap:6px;padding:12px 4px;font-size:12px;text-align:center}
+  .sidebar .nav-div,.sidebar .nav-group{grid-column:1/-1}
+  .sidebar .nav-group{padding:6px 4px 2px}
+}
+@media(min-width:112.5rem){
+  /* Wide dashboards grow: content reaches ~1640px and the venue
+     breakdown sits in one 4-column row. Forms/CRUD stay narrow. */
+  .main{max-width:1640px;margin-left:max(240px,calc((100% - 1640px)/2));margin-right:auto}
+  .venue-grid{grid-template-columns:repeat(4,1fr)}
 }
 @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important;scroll-behavior:auto!important}}
 
@@ -442,7 +578,7 @@ th .sort-btn:focus-visible{outline:2px solid var(--p-action);outline-offset:1px}
 .btn-export:hover{background:var(--action-hover)}
 .btn-export:disabled{opacity:.6;cursor:default}
 /* Medium button (form / filter actions) + ghost variant (subtle inline actions). */
-.btn-md{border:1px solid var(--line2);border-radius:4px;background:var(--p-bg);color:var(--p-ink);font-weight:700;font-size:13.5px;padding:10px 16px;white-space:nowrap;min-height:44px}
+.btn-md{border:1px solid var(--line2);border-radius:4px;background:var(--p-card);color:var(--p-ink);font-weight:700;font-size:13.5px;padding:10px 16px;white-space:nowrap;min-height:44px}
 .btn-md:hover{background:var(--p-surface)}
 .btn-md:disabled{opacity:.6;cursor:default}
 .btn-ghost{border:0;border-radius:4px;background:transparent;color:var(--p-ink);font-weight:700;font-size:13.5px;padding:10px 16px;white-space:nowrap;min-height:44px}
@@ -455,11 +591,11 @@ th .sort-btn:focus-visible{outline:2px solid var(--p-action);outline-offset:1px}
 .btn-export,.btn-md,.btn-ghost,.btn-view,.mini,.btn-approve,.btn-reject,.btn-resolve{line-height:1}
 
 /* Wave 4 #15: per-order contract button + simulated agreement modal. */
-.btn-view,.mini{border:1px solid var(--line2);background:var(--p-bg);color:var(--p-ink);border-radius:4px;font-weight:700;font-size:12px;padding:6px 14px;white-space:nowrap;min-height:36px}
+.btn-view,.mini{border:1px solid var(--line2);background:var(--p-card);color:var(--p-ink);border-radius:4px;font-weight:700;font-size:12px;padding:6px 14px;white-space:nowrap;min-height:36px}
 .btn-view:hover{background:var(--p-surface)}
 .contract-overlay{position:fixed;inset:0;background:var(--overlay);z-index:60;display:flex;align-items:center;justify-content:center;padding:22px;transition:opacity 200ms var(--ease-out)}
 @starting-style{.contract-overlay{opacity:0}}
-.contract-sheet{background:var(--p-bg);color:var(--p-ink);width:100%;max-width:640px;max-height:88vh;overflow-y:auto;border-radius:16px;padding:26px 28px;box-shadow:var(--shadow-menu);transition:transform 200ms var(--ease-out),opacity 200ms var(--ease-out)}
+.contract-sheet{background:var(--p-card);color:var(--p-ink);width:100%;max-width:640px;max-height:88vh;overflow-y:auto;border-radius:16px;padding:26px 28px;box-shadow:var(--shadow-menu);transition:transform 200ms var(--ease-out),opacity 200ms var(--ease-out)}
 @starting-style{.contract-sheet{opacity:0;transform:scale(.95)}}
 .contract-sheet h3{font-family:var(--font-display);font-size:20px;font-weight:var(--display-weight);margin:0 0 14px}
 .contract-text{white-space:pre-wrap;word-break:break-word;font:inherit;font-size:13.5px;line-height:1.8;margin:0 0 16px}
@@ -473,32 +609,35 @@ th .sort-btn:focus-visible{outline:2px solid var(--p-action);outline-offset:1px}
 .link-btn:hover{color:var(--signal-red-deep)}
 
 /* chart (pure SVG) */
-.chart-wrap{background:var(--p-bg);border:1px solid var(--line);border-radius:var(--radius-md);padding:18px;margin-bottom:16px}
+.chart-wrap{background:var(--p-card);border:1px solid var(--line);border-radius:var(--radius-md);box-shadow:var(--shadow-card);padding:18px;margin-bottom:16px}
 .chart-toggle{margin-bottom:6px}
 .chart-box{position:relative}
 .chart-box svg{display:block}
 .chart-box svg text{font-variant-numeric:tabular-nums}
 .chart-box .grid{stroke:var(--chart-grid);stroke-width:1}
 .chart-box .axis{fill:var(--p-muted);font-size:12px}
-.chart-box .line{fill:none;stroke:var(--p-action);stroke-width:2.5;stroke-linejoin:round;stroke-linecap:round}
-.chart-box .area{fill:var(--chart-area);stroke:none}
-.chart-box .dot{fill:var(--p-action)}
-.chart-box .bar{fill:var(--gray-700)}
+.chart-box .line{fill:none;stroke:var(--chart-metric,var(--p-action));stroke-width:2.5;stroke-linejoin:round;stroke-linecap:round}
+.chart-box .prev-line{fill:none;stroke:var(--p-muted);stroke-width:1.5;stroke-dasharray:5 4;stroke-linejoin:round;stroke-linecap:round}
+.chart-box .dot-partial{fill:var(--p-card);stroke:var(--chart-metric,var(--p-action));stroke-width:2}
+.chart-box .area{fill:var(--chart-area-tint,var(--chart-area));stroke:none}
+.chart-box .dot{fill:var(--chart-metric,var(--p-action))}
+.chart-box .bar{fill:var(--chart-metric,var(--p-action))}
+.chart-box .bar-partial{fill:var(--chart-area-tint,var(--chart-area));stroke:var(--chart-metric,var(--p-action));stroke-width:1.5;stroke-dasharray:4 3}
 .chart-box .bar-val{fill:var(--p-muted);font-size:12px;font-weight:700}
 .chart-box .hover-line{stroke:var(--line2);stroke-width:1;stroke-dasharray:3 3}
-.chart-tip{position:absolute;top:0;transform:translate(-50%,0);background:var(--p-bg);border:1px solid var(--line2);border-radius:var(--radius-sm);box-shadow:var(--shadow-menu);padding:8px 12px;font-size:12px;white-space:nowrap;pointer-events:none;z-index:5}
-.chart-tip b{display:block;font-size:13.5px;margin-bottom:2px}
-.chart-tip span{display:block;color:var(--p-muted);font-variant-numeric:tabular-nums}
+.chart-tip{position:absolute;top:0;transform:translate(-50%,0);background:var(--p-tip);color:#fff;border:0;border-radius:var(--radius-sm);box-shadow:var(--shadow-menu);padding:8px 12px;font-size:12px;white-space:nowrap;pointer-events:none;z-index:5}
+.chart-tip b{display:block;font-size:13.5px;margin-bottom:2px;color:#fff}
+.chart-tip span{display:block;color:rgba(255,255,255,0.72);font-variant-numeric:tabular-nums}
 .src-chips{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:6px}
 .src-chip{font-size:12px;font-weight:700;color:var(--p-muted);background:var(--p-surface);border:1px solid var(--line);border-radius:99px;padding:4px 12px}
 
 /* analysis */
-.report-title{font-family:var(--font-display);font-size:22px;font-weight:var(--display-weight);margin:0 0 18px}
+.report-title{font-family:var(--font-display);font-size:16px;font-weight:600;margin:0 0 18px}
 .insights{margin:0;padding-left:20px;font-size:13.5px}
 .insights li{margin-bottom:8px}
 .venue-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px}
 .venue-card b{font-size:28px}
-.report{background:var(--p-bg);border:1px solid var(--line);border-radius:var(--radius-md);padding:18px 20px}
+.report{background:var(--p-card);border:1px solid var(--line);border-radius:var(--radius-md);box-shadow:var(--shadow-card);padding:18px 20px}
 .report pre{margin:0;font:inherit;font-size:13.5px;line-height:1.8;white-space:pre-wrap;word-break:break-word}
 tr.top1 td{background:var(--p-surface)}
 
@@ -507,7 +646,7 @@ tr.top1 td{background:var(--p-surface)}
 .alert.info{background:var(--p-surface)}
 .alert b{display:block;font-size:15px;margin:8px 0 2px}
 .alert p{margin:0 0 10px;font-size:13.5px;color:var(--p-muted)}
-.btn-resolve{border:1px solid var(--line2);background:var(--p-bg);border-radius:4px;padding:6px 14px;font-size:12px;font-weight:700;color:var(--p-ink);min-height:36px}
+.btn-resolve{border:1px solid var(--line2);background:var(--p-card);border-radius:4px;padding:6px 14px;font-size:12px;font-weight:700;color:var(--p-ink);min-height:36px}
 .btn-resolve:hover{background:var(--p-surface)}
 .audit-time{font-variant-numeric:tabular-nums;white-space:nowrap}
 
@@ -524,6 +663,12 @@ tr.top1 td{background:var(--p-surface)}
   .sidebar .nav-div{margin:6px 4px}
   .sidebar .nav-group{padding:0 12px 4px}
   .chart-tip{font-size:12px;padding:6px 9px}
+.chart-legend{display:flex;gap:16px;align-items:center;font-size:12px;color:var(--p-muted);margin-bottom:8px}
+.chart-legend .lg-line{display:inline-block;width:20px;height:0;border-top:2.5px solid var(--chart-metric,var(--p-action));vertical-align:middle;margin-right:6px}
+.chart-legend .lg-prev{border-top:2px dashed var(--p-muted)}
+.chart-chips{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
+.chart-chip{font-size:12px;font-weight:700;color:var(--p-muted);background:var(--p-surface);border:1px solid var(--line);border-radius:99px;padding:5px 12px;font-variant-numeric:tabular-nums}
+.chart-chip b{color:var(--p-ink);font-weight:700}
   .search-clear{width:44px;height:44px}
 }
 
