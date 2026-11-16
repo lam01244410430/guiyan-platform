@@ -194,7 +194,7 @@ STATUS="$(jval "['status']")"
 if { [ "$CODE" = "200" ] || [ "$CODE" = "201" ]; } && [ "$STATUS" = "pending" ]; then ok "21 POST /api/orders 200/201 pending (id=$OID)"; else bad "21 POST /api/orders (code=$CODE, status=$STATUS)"; fi
 
 # 22. confirm
-CODE="$(post "/api/orders/$OID/confirm" '{}' "$DEMO_TOKEN")"
+CODE="$(post "/api/orders/$OID/confirm" '{}' "$ADMIN_TOKEN")"
 if [ "$CODE" = "200" ] && [ "$(jval "['status']")" = "confirmed" ]; then ok "22 POST /api/orders/$OID/confirm 200 confirmed"; else bad "22 confirm (code=$CODE, status=$(jval "['status']"))"; fi
 
 # 23. pay (simulated)
