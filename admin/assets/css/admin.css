@@ -295,7 +295,15 @@ table{width:100%;border-collapse:collapse;font-size:13px;min-width:640px}
    names truncate (ellipsis + title tooltip) instead of wrapping rows
    taller; the action column keeps an explicit width so its buttons
    never overflow or wrap, and wide text columns keep room to read. */
-.tbl-wrap > table{table-layout:fixed}
+/* Tables pagination-fit round (2026-11-17, Lam-approved plan Q2(b)):
+   max-width:max-content stops the leftover width from ballooning one
+   column (measured by CDP on a replica: with width:100% only, the
+   unclassed 名称 column of 资源总览 took 740px at 1920px; capping it
+   alone re-spread the leftover proportionally — 操作 reached 407px —
+   and pushed the table past its wrap at 1249px. max-content keeps every
+   column at its specified width; the wrap only scrolls when the capped
+   total exceeds the frame (established .tbl-wrap pattern). */
+.tbl-wrap > table{table-layout:fixed;max-width:max-content}
 .tbl-wrap > table th.col-actions{width:170px}
 .tbl-wrap > table th.col-actions-wide{width:250px}
 .tbl-wrap > table th.col-actions-xwide{width:320px}
@@ -384,6 +392,19 @@ td.cell-ellipsis{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 span.cell-ellipsis{display:inline-block;vertical-align:middle;max-width:calc(100% - 26px);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .tbl-wrap table table td.cell-ellipsis{max-width:220px}
 .tbl-total{margin-top:10px;font-size:13.5px;color:var(--p-muted)}
+/* Tables pagination (2026-11-17): the pager sits bottom-right under the
+   table, below the .tbl-total line; only rendered when the list exceeds
+   25 rows (see Pager.jsx). Buttons follow the 4px / sm-36px control
+   template; the current page uses the accent outline, never a filled
+   accent (white text on the dark-theme accent fails contrast). */
+.pager{display:flex;justify-content:flex-end;align-items:center;gap:6px;margin-top:10px;flex-wrap:wrap}
+.pager-total{font-size:13.5px;color:var(--p-muted);margin-right:6px}
+.pager-btn{border:1px solid var(--line2);background:var(--p-card);color:var(--p-ink);border-radius:4px;font-weight:700;font-size:12px;padding:6px 12px;white-space:nowrap;min-height:36px;min-width:36px;cursor:pointer}
+.pager-btn:hover:not(:disabled){background:var(--p-surface)}
+.pager-btn:disabled{opacity:.45;cursor:default}
+.pager-btn.on{background:var(--p-surface);border-color:var(--p-action);color:var(--p-action)}
+.pager-btn:focus-visible{outline:2px solid var(--p-action);outline-offset:2px}
+.pager-ellipsis{color:var(--p-muted);padding:0 2px}
 /* Admin redesign Item 4 — the 账号 view merged into 用户: the
    read-only "my account" card at the top of the users view, the
    locked default-admin row (id 1 — grayed, no action buttons), and

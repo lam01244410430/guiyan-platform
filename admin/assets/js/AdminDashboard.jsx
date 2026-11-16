@@ -21,6 +21,7 @@ import Tooltip from "./Tooltip.jsx";
 import RankedList from "./RankedList.jsx";
 import SearchBox from "./SearchBox.jsx";
 import SortButton from "./SortButton.jsx";
+import Pager, { PAGE_SIZE } from "./Pager.jsx";
 import { cycleDirection, sortRows } from "./sortUtils.js";
 import { lowStockResourceIds, orderMarkLevel, resourceMarkLevel } from "./bellUtils.js";
 import Sidebar from "./Sidebar.jsx";
@@ -2923,6 +2924,29 @@ export default function AdminDashboard() {
     ranking: { sales: (r) => r.sales, quantity: (r) => r.quantity, revenue: (r) => r.revenue },
     audit: { created_at: (l) => String(l.created_at || "") },
   };
+  // Tables pagination (2026-11-17, Lam-approved plan Q1(a)): one page
+  // state per table id. The page resets to 1 whenever the rendered list
+  // changes (search / filter / sort) — detected by a signature of the
+  // list's length + first/last row keys — and clamps to the last page
+  // when the list shrinks. Slicing is client-side only; the API and the
+  // data are untouched.
+  const [tablePages, setTablePages] = useState({});
+  function tableRowKey(r) {
+    if (!r || typeof r !== "object") return String(r ?? "");
+    return String(r.code ?? r.username ?? r.id ?? r.name ?? r.title ?? r.label ?? r.period ?? r.type ?? "");
+  }
+  function tablePage(id, list) {
+    const rows = Array.isArray(list) ? list : [];
+    const total = rows.length;
+    const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+    const sig = total + "|" + rows.slice(0, 3).map(tableRowKey).join(",") + "|" + rows.slice(-3).map(tableRowKey).join(",");
+    const stored = tablePages[id];
+    const page = stored && stored.sig === sig ? Math.min(stored.page, totalPages) : 1;
+    return { id, total, page, totalPages, sig, rows: rows.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE) };
+  }
+  function goTablePage(id, sig, page) {
+    setTablePages((prev) => ({ ...prev, [id]: { sig, page } }));
+  }
   function sorted(tableId, rows) {
     const s = sorts[tableId];
     if (!s) return rows;
@@ -2944,6 +2968,37 @@ export default function AdminDashboard() {
   const sortedChannels = sorted("channels", filteredChannels);
   const sortedRanking = sorted("ranking", filteredRanking);
   const sortedAudit = sorted("audit", filteredAudit);
+  // One page object per list table (overview preview + trends preview +
+  // channels ranked rows are pre-sliced already and get no pager).
+  const pgOrders = tablePage("orders", sortedOrders);
+  const pgUsers = tablePage("users", sortedUsers);
+  const pgResources = tablePage("resources", sortedResources);
+  const pgTemplates = tablePage("templates", templates);
+  const pgShops = tablePage("shops", sortedShops);
+  const pgShows = tablePage("shows", sortedShows);
+  const pgVenues = tablePage("venues", filteredVenueList);
+  const pgTiers = tablePage("tiers", memberTiers);
+  const pgCoupons = tablePage("coupons", coupons);
+  const pgFlashSales = tablePage("flashsales", flashSales);
+  const pgCouponRules = tablePage("autorules", couponRules);
+  const pgSmsTasks = tablePage("smstasks", smsTasks);
+  const pgLicenses = tablePage("licenses", licenses);
+  const pgStoredPlans = tablePage("stored-plans", storedValuePlans);
+  const pgSvLedger = tablePage("sv-ledger", lookupResult ? lookupResult.ledger : []);
+  const pgBatch = tablePage("batch", batchResults);
+  const pgVerifyHistory = tablePage("verify-history", verifyHistory);
+  const pgDemands = tablePage("demands", sortedDemands);
+  const pgComments = tablePage("comments", comments);
+  const pgAnalysisShows = tablePage("analysis-shows", analysis ? analysis.shows || [] : []);
+  const pgAnalysisCoupons = tablePage("analysis-coupons", analysis && analysis.promos ? analysis.promos.coupons || [] : []);
+  const pgAnalysisFlash = tablePage("analysis-flash", analysis && analysis.promos ? analysis.promos.flash_sales || [] : []);
+  const pgAnalysisTiers = tablePage("analysis-tiers", analysis && analysis.members ? analysis.members.tiers || [] : []);
+  const pgAlertRules = tablePage("alerts", alertRules);
+  const pgAudit = tablePage("audit", sortedAudit);
+  const pgEvents = tablePage("events", eventAggregates);
+  const pgSuggestions = tablePage("suggestions", memberInsights ? memberInsights.suggestions : []);
+  const pgMemberUsers = tablePage("member-users", memberInsights ? memberInsights.users : []);
+  const pgFinance = tablePage("finance", financeLedger);
   // Search empty state (parent-side): distinct from the "no data at all"
   // state — only shown while a query is active and nothing matches.
   const searchEmpty = (colSpan) => (
@@ -3129,7 +3184,7 @@ export default function AdminDashboard() {
               </div>
               <div className="tbl-wrap ov-recent">
                 <table className="orders-table">
-                  <thead><tr><th scope="col" className="col-code" aria-sort={ariaSort("overview", "code")}>订单号<SortButton label="订单号" sortKey="code" tableId="overview" sort={sorts.overview} onToggle={toggleSort} /></th><th scope="col">用户</th><th scope="col">资源</th><th scope="col" className="num col-amount" aria-sort={ariaSort("overview", "amount")}>金额<SortButton label="金额" sortKey="amount" tableId="overview" sort={sorts.overview} onToggle={toggleSort} /></th><th scope="col" className="col-date" aria-sort={ariaSort("overview", "booking_date")}>预订日期<SortButton label="预订日期" sortKey="booking_date" tableId="overview" sort={sorts.overview} onToggle={toggleSort} /></th><th scope="col" className="col-status">状态</th><th scope="col" className="col-escrow">托管</th><th scope="col" className="col-contract">协议</th><th scope="col" className="col-actions-md">售后</th></tr></thead>
+                  <thead><tr><th scope="col" className="col-code" aria-sort={ariaSort("overview", "code")}>订单号<SortButton label="订单号" sortKey="code" tableId="overview" sort={sorts.overview} onToggle={toggleSort} /></th><th scope="col" className="col-name">用户</th><th scope="col" className="col-name">资源</th><th scope="col" className="num col-amount" aria-sort={ariaSort("overview", "amount")}>金额<SortButton label="金额" sortKey="amount" tableId="overview" sort={sorts.overview} onToggle={toggleSort} /></th><th scope="col" className="col-date" aria-sort={ariaSort("overview", "booking_date")}>预订日期<SortButton label="预订日期" sortKey="booking_date" tableId="overview" sort={sorts.overview} onToggle={toggleSort} /></th><th scope="col" className="col-status">状态</th><th scope="col" className="col-escrow">托管</th><th scope="col" className="col-contract">协议</th><th scope="col" className="col-actions-md">售后</th></tr></thead>
                   <tbody id="recentBody">
                     {orders.length
                       ? (overviewMatches.length ? sortedOverview.slice(0, 8).map((o) => <OrderRow key={o.code} o={o} onContract={openContract} onReview={doReviewOrder} onEscrow={doEscrowOrder} reviewBusyId={reviewBusyId} />)
@@ -3158,14 +3213,15 @@ export default function AdminDashboard() {
             </div>
             <div className="tbl-wrap">
               <table className="orders-table">
-                <thead><tr><th scope="col" className="col-code" aria-sort={ariaSort("orders", "code")}>订单号<SortButton label="订单号" sortKey="code" tableId="orders" sort={sorts.orders} onToggle={toggleSort} /></th><th scope="col">用户</th><th scope="col">资源</th><th scope="col" className="num col-amount" aria-sort={ariaSort("orders", "amount")}>金额<SortButton label="金额" sortKey="amount" tableId="orders" sort={sorts.orders} onToggle={toggleSort} /></th><th scope="col" className="col-date" aria-sort={ariaSort("orders", "booking_date")}>预订日期<SortButton label="预订日期" sortKey="booking_date" tableId="orders" sort={sorts.orders} onToggle={toggleSort} /></th><th scope="col" className="col-status">状态</th><th scope="col" className="col-escrow">托管</th><th scope="col" className="col-contract">协议</th><th scope="col" className="col-actions-md">售后</th></tr></thead>
+                <thead><tr><th scope="col" className="col-code" aria-sort={ariaSort("orders", "code")}>订单号<SortButton label="订单号" sortKey="code" tableId="orders" sort={sorts.orders} onToggle={toggleSort} /></th><th scope="col" className="col-name">用户</th><th scope="col" className="col-name">资源</th><th scope="col" className="num col-amount" aria-sort={ariaSort("orders", "amount")}>金额<SortButton label="金额" sortKey="amount" tableId="orders" sort={sorts.orders} onToggle={toggleSort} /></th><th scope="col" className="col-date" aria-sort={ariaSort("orders", "booking_date")}>预订日期<SortButton label="预订日期" sortKey="booking_date" tableId="orders" sort={sorts.orders} onToggle={toggleSort} /></th><th scope="col" className="col-status">状态</th><th scope="col" className="col-escrow">托管</th><th scope="col" className="col-contract">协议</th><th scope="col" className="col-actions-md">售后</th></tr></thead>
                 <tbody id="ordersBody">
-                  {filteredOrders.length ? sortedOrders.map((o) => <OrderRow key={o.code} o={o} onContract={openContract} onReview={doReviewOrder} onEscrow={doEscrowOrder} reviewBusyId={reviewBusyId} onViewAlerts={() => changeView("alerts")} />)
+                  {filteredOrders.length ? pgOrders.rows.map((o) => <OrderRow key={o.code} o={o} onContract={openContract} onReview={doReviewOrder} onEscrow={doEscrowOrder} reviewBusyId={reviewBusyId} onViewAlerts={() => changeView("alerts")} />)
                     : (q ? searchEmpty(9) : <tr><td colSpan="9"><div className="empty">暂无订单</div></td></tr>)}
                 </tbody>
               </table>
             </div>
             <div className="tbl-total">共 {filteredOrders.length} 单</div>
+            <Pager p={pgOrders} onPage={(pg) => goTablePage("orders", pgOrders.sig, pg)} />
           </section>
 
           <section className={"view" + (view === "users" ? " on" : "")} id="view-users">
@@ -3202,7 +3258,7 @@ export default function AdminDashboard() {
                 <thead><tr><th scope="col" className="col-id" aria-sort={ariaSort("users", "id")}>ID<SortButton label="ID" sortKey="id" tableId="users" sort={sorts.users} onToggle={toggleSort} /></th><th scope="col" className="col-uname" aria-sort={ariaSort("users", "name")}>姓名<SortButton label="姓名" sortKey="name" tableId="users" sort={sorts.users} onToggle={toggleSort} /></th><th scope="col" className="col-account" aria-sort={ariaSort("users", "username")}>账号<SortButton label="账号" sortKey="username" tableId="users" sort={sorts.users} onToggle={toggleSort} /></th><th scope="col" className="col-role">角色</th><th scope="col" className="col-city">城市</th><th scope="col" className="col-shop">渠道</th><th scope="col" className="col-verify">认证</th><th scope="col" className="col-tags">标签</th><th scope="col" className="col-state">状态</th><th scope="col" className="col-actions-wide">操作</th></tr></thead>
                 <tbody id="usersBody">
                   {users.length
-                    ? (filteredUsers.length ? sortedUsers.map((usr) => (
+                    ? (filteredUsers.length ? pgUsers.rows.map((usr) => (
                       <tr key={usr.username} className={isRootUser(usr) ? "row-locked" : undefined}>
                         <td className="id">{usr.id}</td><td className="cell-ellipsis" title={usr.name || ""}>{usr.name || ""}</td><td className="cell-ellipsis" title={usr.username}>{usr.username}</td><td>{usr.role}</td>
                         <td>{usr.city || ""}</td><td>{usr.channel || ""}</td><td>{usr.verified ? "已认证" : "未认证"}</td>
@@ -3236,6 +3292,7 @@ export default function AdminDashboard() {
               </table>
             </div>
             <div className="tbl-total">共 {filteredUsers.length} 人</div>
+            <Pager p={pgUsers} onPage={(pg) => goTablePage("users", pgUsers.sig, pg)} />
           </section>
 
           <section className={"view" + (view === "tagrules" ? " on" : "")} id="view-tagrules">
@@ -3335,10 +3392,10 @@ export default function AdminDashboard() {
             ) : null}
             <div className="tbl-wrap">
               <table>
-                <thead><tr><th scope="col" aria-sort={ariaSort("resources", "name")}>名称<SortButton label="名称" sortKey="name" tableId="resources" sort={sorts.resources} onToggle={toggleSort} /></th><th scope="col" className="col-cat">分类</th><th scope="col" className="col-city">城市</th><th scope="col" className="col-shop">店铺</th><th scope="col" className="num col-money" aria-sort={ariaSort("resources", "price")}>价格<SortButton label="价格" sortKey="price" tableId="resources" sort={sorts.resources} onToggle={toggleSort} /></th><th scope="col" className="num col-num" aria-sort={ariaSort("resources", "stock")}>库存<SortButton label="库存" sortKey="stock" tableId="resources" sort={sorts.resources} onToggle={toggleSort} /></th><th scope="col" className="col-state">状态</th><th scope="col" className="col-num-md">统计</th><th scope="col" className="col-actions-wide">操作</th></tr></thead>
+                <thead><tr><th scope="col" className="col-name" aria-sort={ariaSort("resources", "name")}>名称<SortButton label="名称" sortKey="name" tableId="resources" sort={sorts.resources} onToggle={toggleSort} /></th><th scope="col" className="col-cat">分类</th><th scope="col" className="col-city">城市</th><th scope="col" className="col-shop">店铺</th><th scope="col" className="num col-money" aria-sort={ariaSort("resources", "price")}>价格<SortButton label="价格" sortKey="price" tableId="resources" sort={sorts.resources} onToggle={toggleSort} /></th><th scope="col" className="num col-num" aria-sort={ariaSort("resources", "stock")}>库存<SortButton label="库存" sortKey="stock" tableId="resources" sort={sorts.resources} onToggle={toggleSort} /></th><th scope="col" className="col-state">状态</th><th scope="col" className="col-num-md">统计</th><th scope="col" className="col-actions-wide">操作</th></tr></thead>
                 <tbody id="resBody">
                   {resources.length
-                    ? (filteredResources.length ? sortedResources.map((r) => (
+                    ? (filteredResources.length ? pgResources.rows.map((r) => (
                       <Fragment key={r.id}>
                         <tr>
                           <td><span className="cell-ellipsis" title={r.name}>{r.name}</span>{resourceMarkLevel(r, lowStockIds, threshold) ? (<button type="button" className={"inline-mark " + resourceMarkLevel(r, lowStockIds, threshold)} title="库存不足，点击前往预警中心" aria-label="查看预警中心" onClick={() => changeView("alerts")}>!</button>) : null}</td><td>{catZh(r.category)}</td><td>{r.city}</td><td>{shopName(r.shop_id)}</td>
@@ -3401,7 +3458,7 @@ export default function AdminDashboard() {
                                           <td colSpan="4">
                                             {(tiersByPerf[pf.id] || []).length ? (
                                               <table>
-                                                <thead><tr><th scope="col">票种</th><th scope="col" className="col-money">票价</th><th scope="col" className="col-num-md">票数上限</th><th scope="col" className="col-datetime">截止时间</th><th scope="col" className="col-actions">操作</th></tr></thead>
+                                                <thead><tr><th scope="col" className="col-name">票种</th><th scope="col" className="col-money">票价</th><th scope="col" className="col-num-md">票数上限</th><th scope="col" className="col-datetime">截止时间</th><th scope="col" className="col-actions">操作</th></tr></thead>
                                                 <tbody>
                                                   {(tiersByPerf[pf.id] || []).map((tt) => (
                                                     <tr key={tt.id}>
@@ -3466,6 +3523,7 @@ export default function AdminDashboard() {
               </table>
             </div>
             <div className="tbl-total">共 {filteredResources.length} 项</div>
+            <Pager p={pgResources} onPage={(pg) => goTablePage("resources", pgResources.sig, pg)} />
           </section>
 
           <section className={"view" + (view === "shops" ? " on" : "")} id="view-shops">
@@ -3549,11 +3607,11 @@ export default function AdminDashboard() {
             ) : null}
             <div className="tbl-wrap">
               <table>
-                <thead><tr><th scope="col">模板名称</th><th scope="col" className="col-shop">店铺</th><th scope="col" className="col-num-md">颜色</th><th scope="col" className="col-state">默认</th><th scope="col" className="col-actions">操作</th></tr></thead>
+                <thead><tr><th scope="col" className="col-name">模板名称</th><th scope="col" className="col-shop">店铺</th><th scope="col" className="col-num-md">颜色</th><th scope="col" className="col-state">默认</th><th scope="col" className="col-actions">操作</th></tr></thead>
                 <tbody>
-                  {templates.length ? templates.map((t) => (
+                  {templates.length ? pgTemplates.rows.map((t) => (
                     <tr key={t.id}>
-                      <td className="cell-ellipsis" title={t.name}>{t.name}</td><td>{shopName(t.shop_id)}</td>
+                      <td className="cell-ellipsis" title={t.name}>{t.name}</td><td className="cell-ellipsis" title={shopName(t.shop_id)}>{shopName(t.shop_id)}</td>
                       <td><i style={{ display: "inline-block", width: 12, height: 12, background: t.color, borderRadius: 2, marginRight: 6, verticalAlign: "-1px" }} />{t.color}</td>
                       <td>{t.is_default ? "默认" : "—"}</td>
                       <td>
@@ -3567,15 +3625,16 @@ export default function AdminDashboard() {
               </table>
             </div>
             <div className="tbl-total">共 {templates.length} 个模板</div>
+            <Pager p={pgTemplates} onPage={(pg) => goTablePage("templates", pgTemplates.sig, pg)} />
             <div className="row-end" style={{ marginTop: 8 }}><button type="button" className="btn-export" onClick={() => openTemplateForm(null)}>添加票面模板</button></div>
             <div className="tbl-wrap">
               <table>
-                <thead><tr><th scope="col" aria-sort={ariaSort("shops", "name")}>名称<SortButton label="名称" sortKey="name" tableId="shops" sort={sorts.shops} onToggle={toggleSort} /></th><th scope="col">上级</th><th scope="col" className="col-person">店主</th><th scope="col" className="num col-num" aria-sort={ariaSort("shops", "resource_count")}>资源数<SortButton label="资源数" sortKey="resource_count" tableId="shops" sort={sorts.shops} onToggle={toggleSort} /></th><th scope="col" className="col-state">状态</th><th scope="col" className="col-actions-wide">操作</th></tr></thead>
+                <thead><tr><th scope="col" className="col-name" aria-sort={ariaSort("shops", "name")}>名称<SortButton label="名称" sortKey="name" tableId="shops" sort={sorts.shops} onToggle={toggleSort} /></th><th scope="col" className="col-name">上级</th><th scope="col" className="col-person">店主</th><th scope="col" className="num col-num" aria-sort={ariaSort("shops", "resource_count")}>资源数<SortButton label="资源数" sortKey="resource_count" tableId="shops" sort={sorts.shops} onToggle={toggleSort} /></th><th scope="col" className="col-state">状态</th><th scope="col" className="col-actions-wide">操作</th></tr></thead>
                 <tbody id="shopsBody">
                   {shops.length
-                    ? (filteredShops.length ? sortedShops.map((s) => (
+                    ? (filteredShops.length ? pgShops.rows.map((s) => (
                       <tr key={s.id}>
-                        <td className="cell-ellipsis" title={s.name}>{s.name}</td><td>{s.parent_id === null ? "—" : shopName(s.parent_id)}</td><td>{s.owner_name || "未指派"}</td>
+                        <td className="cell-ellipsis" title={s.name}>{s.name}</td><td className="cell-ellipsis" title={s.parent_id === null ? "—" : shopName(s.parent_id)}>{s.parent_id === null ? "—" : shopName(s.parent_id)}</td><td>{s.owner_name || "未指派"}</td>
                         <td className="num">{s.resource_count}</td><td>{s.status === "active" ? "启用" : "停用"}</td>
                         <td>
                           {(isPlatformAdmin || (me && me.shop_id === s.id)) ? (
@@ -3599,6 +3658,7 @@ export default function AdminDashboard() {
               </table>
             </div>
             <div className="tbl-total">共 {filteredShops.length} 家店铺</div>
+            <Pager p={pgShops} onPage={(pg) => goTablePage("shops", pgShops.sig, pg)} />
           </section>
 
           <section className={"view" + (view === "shows" ? " on" : "")} id="view-shows">
@@ -3637,10 +3697,10 @@ export default function AdminDashboard() {
             ) : null}
             <div className="tbl-wrap">
               <table>
-                <thead><tr><th scope="col" className="col-id">ID</th><th scope="col" aria-sort={ariaSort("shows", "title")}>名称<SortButton label="名称" sortKey="title" tableId="shows" sort={sorts.shows} onToggle={toggleSort} /></th><th scope="col">资源</th><th scope="col" className="col-shop">店铺</th><th scope="col" className="col-state">状态</th><th scope="col" className="col-num">场次</th><th scope="col" className="col-actions-xwide">操作</th></tr></thead>
+                <thead><tr><th scope="col" className="col-id">ID</th><th scope="col" className="col-name" aria-sort={ariaSort("shows", "title")}>名称<SortButton label="名称" sortKey="title" tableId="shows" sort={sorts.shows} onToggle={toggleSort} /></th><th scope="col" className="col-name">资源</th><th scope="col" className="col-shop">店铺</th><th scope="col" className="col-state">状态</th><th scope="col" className="col-num">场次</th><th scope="col" className="col-actions-xwide">操作</th></tr></thead>
                 <tbody id="showsBody">
                   {shows.length
-                    ? (filteredShows.length ? sortedShows.map((s) => (
+                    ? (filteredShows.length ? pgShows.rows.map((s) => (
                       <Fragment key={s.id}>
                         <tr>
                           <td>{s.id}</td><td className="cell-ellipsis" title={s.title}>{s.title}</td><td className="cell-ellipsis" title={resourceName(s.resource_id)}>{resourceName(s.resource_id)}</td>
@@ -3688,7 +3748,7 @@ export default function AdminDashboard() {
                                           <td colSpan="4">
                                             {(tiersByPerf[pf.id] || []).length ? (
                                               <table>
-                                                <thead><tr><th scope="col">票种</th><th scope="col" className="col-money">票价</th><th scope="col" className="col-num-md">票数上限</th><th scope="col" className="col-datetime">截止时间</th><th scope="col" className="col-actions">操作</th></tr></thead>
+                                                <thead><tr><th scope="col" className="col-name">票种</th><th scope="col" className="col-money">票价</th><th scope="col" className="col-num-md">票数上限</th><th scope="col" className="col-datetime">截止时间</th><th scope="col" className="col-actions">操作</th></tr></thead>
                                                 <tbody>
                                                   {(tiersByPerf[pf.id] || []).map((tt) => (
                                                     <tr key={tt.id}>
@@ -3743,7 +3803,7 @@ export default function AdminDashboard() {
                             <td colSpan="7">
                               {(pickupByShow[s.id] || []).length ? (
                                 <table>
-                                  <thead><tr><th scope="col">取票点</th><th scope="col">地址</th><th scope="col" className="col-actions">操作</th></tr></thead>
+                                  <thead><tr><th scope="col" className="col-name">取票点</th><th scope="col" className="col-wide">地址</th><th scope="col" className="col-actions">操作</th></tr></thead>
                                   <tbody>
                                     {(pickupByShow[s.id] || []).map((pt) => (
                                       <tr key={pt.id}>
@@ -3778,6 +3838,7 @@ export default function AdminDashboard() {
               </table>
             </div>
             <div className="tbl-total">共 {filteredShows.length} 场演出</div>
+            <Pager p={pgShows} onPage={(pg) => goTablePage("shows", pgShows.sig, pg)} />
             <p className="def-note">审核结果在操作审计中留痕；仅已通过演出的在售场次对顾客可见。</p>
           </section>
 
@@ -3819,10 +3880,10 @@ export default function AdminDashboard() {
             ) : null}
             <div className="tbl-wrap">
               <table>
-                <thead><tr><th scope="col">名称</th><th scope="col">地址</th><th scope="col" className="col-shop">店铺</th><th scope="col" className="num col-num">容量</th><th scope="col" className="col-hdr-lg">座位模板</th><th scope="col" className="col-actions-wide">操作</th></tr></thead>
+                <thead><tr><th scope="col" className="col-name">名称</th><th scope="col" className="col-wide">地址</th><th scope="col" className="col-shop">店铺</th><th scope="col" className="num col-num">容量</th><th scope="col" className="col-hdr-lg">座位模板</th><th scope="col" className="col-actions-wide">操作</th></tr></thead>
                 <tbody id="venuesBody">
                   {venues.length
-                    ? (filteredVenueList.length ? filteredVenueList.map((v) => (
+                    ? (filteredVenueList.length ? pgVenues.rows.map((v) => (
                       <Fragment key={v.id}>
                         <tr>
                           <td className="cell-ellipsis" title={v.name}>{v.name}</td><td className="cell-ellipsis" title={v.address || "—"}>{v.address || "—"}</td><td>{shopName(v.shop_id)}</td>
@@ -3841,7 +3902,7 @@ export default function AdminDashboard() {
                             <td colSpan="6">
                               {(templatesByVenue[v.id] || []).length ? (
                                 <table>
-                                  <thead><tr><th scope="col">模板</th><th scope="col">分区</th><th scope="col" className="col-actions">操作</th></tr></thead>
+                                  <thead><tr><th scope="col" className="col-name">模板</th><th scope="col" className="col-name">分区</th><th scope="col" className="col-actions">操作</th></tr></thead>
                                   <tbody>
                                     {(templatesByVenue[v.id] || []).map((tpl) => (
                                       <tr key={tpl.id}>
@@ -3890,6 +3951,7 @@ export default function AdminDashboard() {
               </table>
             </div>
             <div className="tbl-total">共 {filteredVenueList.length} 个场馆</div>
+            <Pager p={pgVenues} onPage={(pg) => goTablePage("venues", pgVenues.sig, pg)} />
           </section>
 
           <section className={"view" + (view === "tiers" ? " on" : "")} id="view-tiers">
@@ -3916,12 +3978,12 @@ export default function AdminDashboard() {
             ) : null}
             <div className="tbl-wrap">
               <table>
-                <thead><tr><th scope="col">等级</th><th scope="col" className="col-shop">店铺</th><th scope="col" className="num col-num-md">消费门槛（分）</th><th scope="col" className="num col-num">折扣</th><th scope="col">权益</th><th scope="col" className="col-actions-md">操作</th></tr></thead>
+                <thead><tr><th scope="col" className="col-name">等级</th><th scope="col" className="col-shop">店铺</th><th scope="col" className="num col-num-md">消费门槛（分）</th><th scope="col" className="num col-num">折扣</th><th scope="col" className="col-wide">权益</th><th scope="col" className="col-actions-md">操作</th></tr></thead>
                 <tbody id="tiersBody">
                   {memberTiers.length
-                    ? memberTiers.map((t) => (
+                    ? pgTiers.rows.map((t) => (
                       <tr key={t.id}>
-                        <td className="cell-ellipsis" title={t.name}>{t.name}</td><td>{shopName(t.shop_id)}</td>
+                        <td className="cell-ellipsis" title={t.name}>{t.name}</td><td className="cell-ellipsis" title={shopName(t.shop_id)}>{shopName(t.shop_id)}</td>
                         <td className="num">{t.min_spend_cents}</td>
                         <td className="num">{t.discount_pct}%</td>
                         <td className="cell-ellipsis" title={t.benefits || "—"}>{t.benefits || "—"}</td>
@@ -3937,6 +3999,7 @@ export default function AdminDashboard() {
               </table>
             </div>
             <div className="tbl-total">共 {memberTiers.length} 个等级</div>
+            <Pager p={pgTiers} onPage={(pg) => goTablePage("tiers", pgTiers.sig, pg)} />
           </section>
 
           <section className={"view" + (view === "coupons" ? " on" : "")} id="view-coupons">
@@ -3983,7 +4046,7 @@ export default function AdminDashboard() {
                 <thead><tr><th scope="col" className="col-code">券码</th><th scope="col" className="col-shop">店铺</th><th scope="col" className="col-num-md">类型</th><th scope="col" className="num col-money">减免</th><th scope="col" className="num col-num-md">最低消费（分）</th><th scope="col" className="col-range">有效期</th><th scope="col" className="num col-num-md">已用 / 总名额</th><th scope="col" className="num col-num">每人限次</th><th scope="col" className="col-state">状态</th><th scope="col" className="col-actions-md">操作</th></tr></thead>
                 <tbody id="couponsBody">
                   {coupons.length
-                    ? coupons.map((c) => (
+                    ? pgCoupons.rows.map((c) => (
                       <tr key={c.id}>
                         <td>{c.code}</td><td>{shopName(c.shop_id)}</td>
                         <td>{c.kind === "fixed" ? "固定金额" : "比例折扣"}</td>
@@ -4005,6 +4068,7 @@ export default function AdminDashboard() {
               </table>
             </div>
             <div className="tbl-total">共 {coupons.length} 张优惠券</div>
+            <Pager p={pgCoupons} onPage={(pg) => goTablePage("coupons", pgCoupons.sig, pg)} />
           </section>
 
           <section className={"view" + (view === "flashsales" ? " on" : "")} id="view-flashsales">
@@ -4052,10 +4116,10 @@ export default function AdminDashboard() {
             ) : null}
             <div className="tbl-wrap">
               <table>
-                <thead><tr><th scope="col">抢购名称</th><th scope="col" className="col-shop">店铺</th><th scope="col">场次</th><th scope="col" className="col-num-md">类型</th><th scope="col" className="num col-money">减免</th><th scope="col" className="col-range">时间窗口</th><th scope="col" className="num col-num-md">已售 / 总名额</th><th scope="col" className="col-state">状态</th><th scope="col" className="col-actions-md">操作</th></tr></thead>
+                <thead><tr><th scope="col" className="col-name">抢购名称</th><th scope="col" className="col-shop">店铺</th><th scope="col" className="col-name">场次</th><th scope="col" className="col-num-md">类型</th><th scope="col" className="num col-money">减免</th><th scope="col" className="col-range">时间窗口</th><th scope="col" className="num col-num-md">已售 / 总名额</th><th scope="col" className="col-state">状态</th><th scope="col" className="col-actions-md">操作</th></tr></thead>
                 <tbody id="flashSalesBody">
                   {flashSales.length
-                    ? flashSales.map((s) => (
+                    ? pgFlashSales.rows.map((s) => (
                       <tr key={s.id}>
                         <td className="cell-ellipsis" title={s.name}>{s.name}</td><td>{shopName(s.shop_id)}</td>
                         <td className="cell-ellipsis" title={flashPerfLabel(s.performance_id)}>{flashPerfLabel(s.performance_id)}</td>
@@ -4076,6 +4140,7 @@ export default function AdminDashboard() {
               </table>
             </div>
             <div className="tbl-total">共 {flashSales.length} 场抢购</div>
+            <Pager p={pgFlashSales} onPage={(pg) => goTablePage("flashsales", pgFlashSales.sig, pg)} />
           </section>
 
           <section className={"view" + (view === "autorules" ? " on" : "")} id="view-autorules">
@@ -4123,14 +4188,14 @@ export default function AdminDashboard() {
             ) : null}
             <div className="tbl-wrap">
               <table>
-                <thead><tr><th scope="col">规则名称</th><th scope="col" className="col-shop">店铺</th><th scope="col" className="col-num-md">触发条件</th><th scope="col">优惠券</th><th scope="col" className="num col-num-md">最低消费（分）</th><th scope="col" className="num col-num">已赠送</th><th scope="col" className="col-state">状态</th><th scope="col" className="col-actions-md">操作</th></tr></thead>
+                <thead><tr><th scope="col" className="col-name">规则名称</th><th scope="col" className="col-shop">店铺</th><th scope="col" className="col-num-md">触发条件</th><th scope="col" className="col-name">优惠券</th><th scope="col" className="num col-num-md">最低消费（分）</th><th scope="col" className="num col-num">已赠送</th><th scope="col" className="col-state">状态</th><th scope="col" className="col-actions-md">操作</th></tr></thead>
                 <tbody id="couponRulesBody">
                   {couponRules.length
-                    ? couponRules.map((r) => (
+                    ? pgCouponRules.rows.map((r) => (
                       <tr key={r.id}>
                         <td className="cell-ellipsis" title={r.name}>{r.name}</td><td>{shopName(r.shop_id)}</td>
                         <td>{r.trigger === "first_purchase" ? "首次购买" : "会员升级"}</td>
-                        <td>{r.coupon_code || couponRuleCouponLabel(r.coupon_id)}</td>
+                        <td className="cell-ellipsis" title={r.coupon_code || couponRuleCouponLabel(r.coupon_id)}>{r.coupon_code || couponRuleCouponLabel(r.coupon_id)}</td>
                         <td className="num">{r.conditions && r.conditions.min_spend_cents != null ? r.conditions.min_spend_cents : "不限"}</td>
                         <td className="num">{r.gift_count ?? 0}</td>
                         <td>{r.status === "active" ? "启用" : "停用"}</td>
@@ -4146,6 +4211,7 @@ export default function AdminDashboard() {
               </table>
             </div>
             <div className="tbl-total">共 {couponRules.length} 条规则</div>
+            <Pager p={pgCouponRules} onPage={(pg) => goTablePage("autorules", pgCouponRules.sig, pg)} />
           </section>
 
           <section className={"view" + (view === "smstasks" ? " on" : "")} id="view-smstasks">
@@ -4187,12 +4253,12 @@ export default function AdminDashboard() {
             ) : null}
             <div className="tbl-wrap">
               <table>
-                <thead><tr><th scope="col">任务名称</th><th scope="col" className="col-shop">店铺</th><th scope="col">短信模板</th><th scope="col" className="col-num-md">受众</th><th scope="col" className="num col-num">人数</th><th scope="col" className="col-state">状态</th><th scope="col" className="col-actions-md">操作</th></tr></thead>
+                <thead><tr><th scope="col" className="col-name">任务名称</th><th scope="col" className="col-shop">店铺</th><th scope="col" className="col-name">短信模板</th><th scope="col" className="col-num-md">受众</th><th scope="col" className="num col-num">人数</th><th scope="col" className="col-state">状态</th><th scope="col" className="col-actions-md">操作</th></tr></thead>
                 <tbody id="smsTasksBody">
                   {smsTasks.length
-                    ? smsTasks.map((t) => (
+                    ? pgSmsTasks.rows.map((t) => (
                       <tr key={t.id}>
-                        <td className="cell-ellipsis" title={t.name}>{t.name}</td><td>{shopName(t.shop_id)}</td>
+                        <td className="cell-ellipsis" title={t.name}>{t.name}</td><td className="cell-ellipsis" title={shopName(t.shop_id)}>{shopName(t.shop_id)}</td>
                         <td className="cell-ellipsis" title={t.template}>{t.template}</td>
                         <td>{smsAudienceLabel(t)}</td>
                         <td className="num">{t.audience_count ?? 0}</td>
@@ -4209,6 +4275,7 @@ export default function AdminDashboard() {
               </table>
             </div>
             <div className="tbl-total">共 {smsTasks.length} 条短信任务</div>
+            <Pager p={pgSmsTasks} onPage={(pg) => goTablePage("smstasks", pgSmsTasks.sig, pg)} />
           </section>
 
           <section className={"view" + (view === "licenses" ? " on" : "")} id="view-licenses">
@@ -4247,10 +4314,10 @@ export default function AdminDashboard() {
             ) : null}
             <div className="tbl-wrap">
               <table>
-                <thead><tr><th scope="col" className="col-id">ID</th><th scope="col">资源</th><th scope="col">授权方 → 被授权方</th><th scope="col" className="col-num">方向</th><th scope="col" className="num col-money">价格</th><th scope="col" className="col-state">状态</th><th scope="col" className="col-time-window">起止日期</th></tr></thead>
+                <thead><tr><th scope="col" className="col-id">ID</th><th scope="col" className="col-name">资源</th><th scope="col" className="col-wide">授权方 → 被授权方</th><th scope="col" className="col-num">方向</th><th scope="col" className="num col-money">价格</th><th scope="col" className="col-state">状态</th><th scope="col" className="col-time-window">起止日期</th></tr></thead>
                 <tbody id="licensesBody">
                   {licenses.length
-                    ? licenses.map((l) => (
+                    ? pgLicenses.rows.map((l) => (
                       <tr key={l.id}>
                         <td>{l.id}</td><td className="cell-ellipsis" title={l.resource_name}>{l.resource_name}</td>
                         <td className="cell-ellipsis" title={l.licensor + " → " + l.licensee}>{l.licensor} → {l.licensee}</td>
@@ -4265,6 +4332,7 @@ export default function AdminDashboard() {
               </table>
             </div>
             <div className="tbl-total">共 {licenses.length} 条授权</div>
+            <Pager p={pgLicenses} onPage={(pg) => goTablePage("licenses", pgLicenses.sig, pg)} />
           </section>
 
           <section className={"view" + (view === "storedvalue" ? " on" : "")} id="view-storedvalue">
@@ -4293,10 +4361,10 @@ export default function AdminDashboard() {
             ) : null}
             <div className="tbl-wrap">
               <table>
-                <thead><tr><th scope="col">套餐</th><th scope="col" className="col-shop">店铺</th><th scope="col" className="num col-money">充值金额</th><th scope="col" className="num col-money">赠送金额</th><th scope="col" className="col-state">状态</th><th scope="col" className="col-actions-md">操作</th></tr></thead>
+                <thead><tr><th scope="col" className="col-name">套餐</th><th scope="col" className="col-shop">店铺</th><th scope="col" className="num col-money">充值金额</th><th scope="col" className="num col-money">赠送金额</th><th scope="col" className="col-state">状态</th><th scope="col" className="col-actions-md">操作</th></tr></thead>
                 <tbody id="storedValuePlansBody">
                   {storedValuePlans.length
-                    ? storedValuePlans.map((pl) => (
+                    ? pgStoredPlans.rows.map((pl) => (
                       <tr key={pl.id}>
                         <td>充 ¥{(pl.amount_cents / 100).toString()} 送 ¥{(pl.bonus_cents / 100).toString()}</td><td>{shopName(pl.shop_id)}</td>
                         <td className="num">{fmtMoney(pl.amount_cents)}</td>
@@ -4314,6 +4382,7 @@ export default function AdminDashboard() {
               </table>
             </div>
             <div className="tbl-total">共 {storedValuePlans.length} 种储值方案</div>
+            <Pager p={pgStoredPlans} onPage={(pg) => goTablePage("stored-plans", pgStoredPlans.sig, pg)} />
             <fieldset className="tag-rule">
               <legend>发放平台补贴</legend>
               <label>用户编号 <input type="number" min={1} value={grantForm.user_id} onChange={(e) => setGrantForm((f) => ({ ...f, user_id: e.target.value }))} /></label>
@@ -4340,7 +4409,7 @@ export default function AdminDashboard() {
               {lookupResult ? (
                 <div className="tbl-wrap">
                   <table>
-                    <thead><tr><th scope="col">用户</th><th scope="col" className="num col-money">余额</th><th scope="col" className="num col-num-md">流水条数</th></tr></thead>
+                    <thead><tr><th scope="col" className="col-name">用户</th><th scope="col" className="num col-money">余额</th><th scope="col" className="num col-num-md">流水条数</th></tr></thead>
                     <tbody>
                       <tr>
                         <td>{lookupResult.user.name}（{lookupResult.user.username}）</td>
@@ -4351,9 +4420,9 @@ export default function AdminDashboard() {
                   </table>
                   {lookupResult.ledger.length ? (
                     <table>
-                      <thead><tr><th scope="col" className="col-num-md">类型</th><th scope="col" className="num col-money">金额</th><th scope="col" className="col-code">订单号</th><th scope="col">备注</th><th scope="col" className="col-datetime">时间</th></tr></thead>
+                      <thead><tr><th scope="col" className="col-num-md">类型</th><th scope="col" className="num col-money">金额</th><th scope="col" className="col-code">订单号</th><th scope="col" className="col-wide">备注</th><th scope="col" className="col-datetime">时间</th></tr></thead>
                       <tbody>
-                        {lookupResult.ledger.map((l) => (
+                        {pgSvLedger.rows.map((l) => (
                           <tr key={l.id}>
                             <td>{l.kind_label}</td>
                             <td className="num">{l.amount_cents >= 0 ? "+" : "−"}{fmtMoney(Math.abs(l.amount_cents))}</td>
@@ -4365,6 +4434,7 @@ export default function AdminDashboard() {
                       </tbody>
                     </table>
                   ) : <div className="empty">暂无储值记录</div>}
+                  <Pager p={pgSvLedger} onPage={(pg) => goTablePage("sv-ledger", pgSvLedger.sig, pg)} />
                 </div>
               ) : null}
             </fieldset>
@@ -4394,9 +4464,9 @@ export default function AdminDashboard() {
               {batchResults.length ? (
                 <div className="tbl-wrap">
                   <table>
-                    <thead><tr><th scope="col" className="col-code">票码</th><th scope="col" className="col-result">结果</th><th scope="col">资源</th></tr></thead>
+                    <thead><tr><th scope="col" className="col-code">票码</th><th scope="col" className="col-result">结果</th><th scope="col" className="col-name">资源</th></tr></thead>
                     <tbody>
-                      {batchResults.map((r, i) => (
+                      {pgBatch.rows.map((r, i) => (
                         <tr key={r.code + "-" + i}>
                           <td><span className="code">{r.code}</span></td>
                           <td>{batchResultText[r.result] || r.result}</td>
@@ -4405,6 +4475,7 @@ export default function AdminDashboard() {
                       ))}
                     </tbody>
                   </table>
+                  <Pager p={pgBatch} onPage={(pg) => goTablePage("batch", pgBatch.sig, pg)} />
                 </div>
               ) : null}
             </fieldset>
@@ -4455,10 +4526,10 @@ export default function AdminDashboard() {
             ) : null}
             <div className="tbl-wrap">
               <table>
-                <thead><tr><th scope="col" className="col-code">票码</th><th scope="col" className="col-result">结果</th><th scope="col">资源</th><th scope="col" className="col-datetime">时间</th><th scope="col" className="col-act-sm">打印</th></tr></thead>
+                <thead><tr><th scope="col" className="col-code">票码</th><th scope="col" className="col-result">结果</th><th scope="col" className="col-name">资源</th><th scope="col" className="col-datetime">时间</th><th scope="col" className="col-act-sm">打印</th></tr></thead>
                 <tbody id="verifyLogsBody">
                   {verifyHistory.length
-                    ? verifyHistory.map((h, i) => (
+                    ? pgVerifyHistory.rows.map((h, i) => (
                       <tr key={h.code + "-" + i}>
                         <td><span className="code">{h.code}</span></td>
                         <td>{h.ok ? "已核销" : h.result}</td>
@@ -4475,6 +4546,7 @@ export default function AdminDashboard() {
               </table>
             </div>
             <div className="tbl-total">共 {verifyHistory.length} 条核销记录</div>
+            <Pager p={pgVerifyHistory} onPage={(pg) => goTablePage("verify-history", pgVerifyHistory.sig, pg)} />
           </section>
 
           <section className={"view" + (view === "aicopy" ? " on" : "")} id="view-aicopy">
@@ -4533,10 +4605,10 @@ export default function AdminDashboard() {
             </div>
             <div className="tbl-wrap">
               <table>
-                <thead><tr><th scope="col" aria-sort={ariaSort("demands", "title")}>标题<SortButton label="标题" sortKey="title" tableId="demands" sort={sorts.demands} onToggle={toggleSort} /></th><th scope="col" className="col-cat">分类</th><th scope="col" className="num col-money" aria-sort={ariaSort("demands", "budget")}>预算<SortButton label="预算" sortKey="budget" tableId="demands" sort={sorts.demands} onToggle={toggleSort} /></th><th scope="col" className="col-city">城市</th><th scope="col" className="col-person">发布人</th><th scope="col" className="col-state">状态</th><th scope="col" className="col-actions-md">操作</th></tr></thead>
+                <thead><tr><th scope="col" className="col-name" aria-sort={ariaSort("demands", "title")}>标题<SortButton label="标题" sortKey="title" tableId="demands" sort={sorts.demands} onToggle={toggleSort} /></th><th scope="col" className="col-cat">分类</th><th scope="col" className="num col-money" aria-sort={ariaSort("demands", "budget")}>预算<SortButton label="预算" sortKey="budget" tableId="demands" sort={sorts.demands} onToggle={toggleSort} /></th><th scope="col" className="col-city">城市</th><th scope="col" className="col-person">发布人</th><th scope="col" className="col-state">状态</th><th scope="col" className="col-actions-md">操作</th></tr></thead>
                 <tbody id="demBody">
                   {demands.length
-                    ? (filteredDemands.length ? sortedDemands.map((d) => (
+                    ? (filteredDemands.length ? pgDemands.rows.map((d) => (
                       <tr key={d.id}>
                         <td className="cell-ellipsis" title={d.title}>{d.title}</td><td>{d.category}</td>
                         <td className="num">{fmtMoney(d.budget)}</td><td>{d.city}</td><td className="cell-ellipsis" title={d.user_name || ""}>{d.user_name || ""}</td>
@@ -4556,6 +4628,7 @@ export default function AdminDashboard() {
               </table>
             </div>
             <div className="tbl-total">共 {filteredDemands.length} 条</div>
+            <Pager p={pgDemands} onPage={(pg) => goTablePage("demands", pgDemands.sig, pg)} />
             <p className="def-note">审核结果会通知发布人，并在操作审计中留痕。</p>
           </section>
 
@@ -4575,7 +4648,7 @@ export default function AdminDashboard() {
                 <thead><tr><th scope="col" className="col-id">编号</th><th scope="col" className="col-name">资源</th><th scope="col" className="col-num">用户</th><th scope="col" className="col-num-md">评分</th><th scope="col" className="col-wide">评价内容</th><th scope="col" className="col-state">状态</th><th scope="col" className="col-actions-wide">操作</th></tr></thead>
                 <tbody id="cmtBody">
                   {comments.length
-                    ? comments.map((c) => (
+                    ? pgComments.rows.map((c) => (
                       <tr key={c.id}>
                         <td className="num">{c.id}</td><td className="cell-ellipsis" title={c.resource_name || ""}>{c.resource_name || ""}</td><td className="cell-ellipsis" title={c.user_name || ""}>{c.user_name || ""}</td>
                         <td className="num">{"★".repeat(c.rating)}{"☆".repeat(5 - c.rating)}</td>
@@ -4603,6 +4676,7 @@ export default function AdminDashboard() {
               </table>
             </div>
             <div className="tbl-total">共 {comments.length} 条评价</div>
+            <Pager p={pgComments} onPage={(pg) => goTablePage("comments", pgComments.sig, pg)} />
             <p className="def-note">通过后评价公开可见，资源评分与评价数随之更新；回复会通知评价作者。</p>
           </section>
 
@@ -4636,7 +4710,7 @@ export default function AdminDashboard() {
                   </div>
                   <div className="tbl-wrap">
                     <table>
-                      <thead><tr><th scope="col" aria-sort={ariaSort("trends", "label")}>周期<SortButton label="周期" sortKey="label" tableId="trends" sort={sorts.trends} onToggle={toggleSort} /></th><th scope="col" className="num" aria-sort={ariaSort("trends", "amount")}>金额<SortButton label="金额" sortKey="amount" tableId="trends" sort={sorts.trends} onToggle={toggleSort} /></th><th scope="col" className="num" aria-sort={ariaSort("trends", "count")}>订单量<SortButton label="订单量" sortKey="count" tableId="trends" sort={sorts.trends} onToggle={toggleSort} /></th></tr></thead>
+                      <thead><tr><th scope="col" className="col-name" aria-sort={ariaSort("trends", "label")}>周期<SortButton label="周期" sortKey="label" tableId="trends" sort={sorts.trends} onToggle={toggleSort} /></th><th scope="col" className="num col-money" aria-sort={ariaSort("trends", "amount")}>金额<SortButton label="金额" sortKey="amount" tableId="trends" sort={sorts.trends} onToggle={toggleSort} /></th><th scope="col" className="num col-num" aria-sort={ariaSort("trends", "count")}>订单量<SortButton label="订单量" sortKey="count" tableId="trends" sort={sorts.trends} onToggle={toggleSort} /></th></tr></thead>
                       <tbody>
                         {filteredSeries.length ? (sorts.trends ? sortedSeries.slice(0, 10) : filteredSeries.slice(-10).reverse()).map((s) => (
                           <tr key={s.date}><td>{s.label}</td><td className="num">{fmtMoney(s.amount)}</td><td className="num">{s.count}</td></tr>
@@ -4736,9 +4810,9 @@ export default function AdminDashboard() {
                   {(analysis.shows || []).length ? (<>
                     <div className="tbl-wrap">
                       <table>
-                        <thead><tr><th scope="col">演出</th><th scope="col" className="num col-num">场次</th><th scope="col" className="num col-num">订单</th><th scope="col" className="num col-money">收入</th><th scope="col" className="num col-num">上座率</th></tr></thead>
+                        <thead><tr><th scope="col" className="col-name">演出</th><th scope="col" className="num col-num">场次</th><th scope="col" className="num col-num">订单</th><th scope="col" className="num col-money">收入</th><th scope="col" className="num col-num">上座率</th></tr></thead>
                         <tbody>
-                          {(analysis.shows || []).map((s) => (
+                          {pgAnalysisShows.rows.map((s) => (
                             <tr key={s.show_id}>
                               <td className="cell-ellipsis" title={s.title}>{s.title}</td><td className="num">{s.performances}</td><td className="num">{s.orders}</td>
                               <td className="num">{fmtMoney(s.revenue_cents)}</td><td className="num">{s.occupancy === null ? "暂无座位样本" : s.occupancy + "%"}</td>
@@ -4747,7 +4821,8 @@ export default function AdminDashboard() {
                         </tbody>
                       </table>
                     </div>
-                    <div className="tbl-total">共 {(analysis.shows || []).length} 场演出</div></>
+                    <div className="tbl-total">共 {(analysis.shows || []).length} 场演出</div>
+                    <Pager p={pgAnalysisShows} onPage={(pg) => goTablePage("analysis-shows", pgAnalysisShows.sig, pg)} /></>
                   ) : <div className="empty">暂无演出</div>}
                   <p className="def-note">订单与收入只计有效已支付订单；上座率为已售座位 / 全部座位，无座位数据的演出显示“暂无座位样本”。</p>
                 </div>
@@ -4759,28 +4834,30 @@ export default function AdminDashboard() {
                       {(analysis.promos.coupons || []).length ? (<>
                         <div className="tbl-wrap">
                           <table>
-                            <thead><tr><th scope="col">优惠券</th><th scope="col" className="num col-num">核销数</th><th scope="col" className="num col-money">总折扣</th></tr></thead>
+                            <thead><tr><th scope="col" className="col-name">优惠券</th><th scope="col" className="num col-num">核销数</th><th scope="col" className="num col-money">总折扣</th></tr></thead>
                             <tbody>
-                              {(analysis.promos.coupons || []).map((c) => (
-                                <tr key={c.coupon_id}><td>{c.code}</td><td className="num">{c.redemptions}</td><td className="num">{fmtMoney(c.total_discount_cents)}</td></tr>
+                              {pgAnalysisCoupons.rows.map((c) => (
+                                <tr key={c.coupon_id}><td className="cell-ellipsis" title={c.code}>{c.code}</td><td className="num">{c.redemptions}</td><td className="num">{fmtMoney(c.total_discount_cents)}</td></tr>
                               ))}
                             </tbody>
                           </table>
                         </div>
-                        <div className="tbl-total">共 {(analysis.promos.coupons || []).length} 张优惠券</div></>
+                        <div className="tbl-total">共 {(analysis.promos.coupons || []).length} 张优惠券</div>
+                    <Pager p={pgAnalysisCoupons} onPage={(pg) => goTablePage("analysis-coupons", pgAnalysisCoupons.sig, pg)} /></>
                       ) : <div className="empty">暂无优惠券核销</div>}
                       {(analysis.promos.flash_sales || []).length ? (<>
                         <div className="tbl-wrap">
                           <table>
-                            <thead><tr><th scope="col">限时抢购</th><th scope="col" className="num col-num">已售</th><th scope="col" className="num col-money">收入</th><th scope="col" className="num col-money">总折扣</th></tr></thead>
+                            <thead><tr><th scope="col" className="col-name">限时抢购</th><th scope="col" className="num col-num">已售</th><th scope="col" className="num col-money">收入</th><th scope="col" className="num col-money">总折扣</th></tr></thead>
                             <tbody>
-                              {(analysis.promos.flash_sales || []).map((f) => (
+                              {pgAnalysisFlash.rows.map((f) => (
                                 <tr key={f.flash_sale_id}><td className="cell-ellipsis" title={f.name}>{f.name}</td><td className="num">{f.sold}</td><td className="num">{fmtMoney(f.revenue_cents)}</td><td className="num">{fmtMoney(f.total_discount_cents)}</td></tr>
                               ))}
                             </tbody>
                           </table>
                         </div>
-                        <div className="tbl-total">共 {(analysis.promos.flash_sales || []).length} 场抢购</div></>
+                        <div className="tbl-total">共 {(analysis.promos.flash_sales || []).length} 场抢购</div>
+                    <Pager p={pgAnalysisFlash} onPage={(pg) => goTablePage("analysis-flash", pgAnalysisFlash.sig, pg)} /></>
                       ) : <div className="empty">暂无限时抢购</div>}
                     </>
                   ) : <div className="empty">暂无促销数据</div>}
@@ -4793,15 +4870,16 @@ export default function AdminDashboard() {
                       {(analysis.members.tiers || []).length ? (<>
                         <div className="tbl-wrap">
                           <table>
-                            <thead><tr><th scope="col">等级</th><th scope="col" className="num">人数</th><th scope="col" className="num">流失人数</th><th scope="col" className="num">流失率</th></tr></thead>
+                            <thead><tr><th scope="col" className="col-name">等级</th><th scope="col" className="num col-num">人数</th><th scope="col" className="num col-num">流失人数</th><th scope="col" className="num col-num">流失率</th></tr></thead>
                             <tbody>
-                              {(analysis.members.tiers || []).map((t) => (
-                                <tr key={t.name}><td>{t.name}</td><td className="num">{t.users}</td><td className="num">{t.churned_users}</td><td className="num">{t.churn_rate}%</td></tr>
+                              {pgAnalysisTiers.rows.map((t) => (
+                                <tr key={t.name}><td className="cell-ellipsis" title={t.name}>{t.name}</td><td className="num">{t.users}</td><td className="num">{t.churned_users}</td><td className="num">{t.churn_rate}%</td></tr>
                               ))}
                             </tbody>
                           </table>
                         </div>
-                        <div className="tbl-total">共 {(analysis.members.tiers || []).length} 个等级</div></>
+                        <div className="tbl-total">共 {(analysis.members.tiers || []).length} 个等级</div>
+                    <Pager p={pgAnalysisTiers} onPage={(pg) => goTablePage("analysis-tiers", pgAnalysisTiers.sig, pg)} /></>
                       ) : <div className="empty">暂无会员等级</div>}
                       <p className="def-note">消费分档：{(analysis.members.buckets || []).map((b) => `${b.label} ${b.users} 人`).join(" · ")}</p>
                     </>
@@ -4934,13 +5012,13 @@ export default function AdminDashboard() {
               </fieldset>
               <div className="tbl-wrap">
                 <table>
-                  <thead><tr><th scope="col" className="col-num-md">类型</th><th scope="col" className="col-shop">店铺</th><th scope="col">配置</th><th scope="col" className="col-state">状态</th><th scope="col" className="col-actions-md">操作</th></tr></thead>
+                  <thead><tr><th scope="col" className="col-num-md">类型</th><th scope="col" className="col-shop">店铺</th><th scope="col" className="col-wide">配置</th><th scope="col" className="col-state">状态</th><th scope="col" className="col-actions-md">操作</th></tr></thead>
                   <tbody>
-                    {alertRules.length ? alertRules.map((r) => (
+                    {alertRules.length ? pgAlertRules.rows.map((r) => (
                       <tr key={r.id}>
                         <td>{r.kind_label || r.kind}</td>
                         <td>{r.shop_id === null || r.shop_id === undefined ? "平台级" : r.shop_id + "号店"}</td>
-                        <td>{JSON.stringify(r.config)}</td>
+                        <td className="cell-ellipsis" title={JSON.stringify(r.config)}>{JSON.stringify(r.config)}</td>
                         <td>{r.status === "active" ? "启用" : "停用"}</td>
                         <td><button type="button" className="btn-view" disabled={ruleBusy} onClick={() => doToggleRule(r)}>{ruleBusy ? "处理中…" : (r.status === "active" ? "停用" : "启用")}</button></td>
                       </tr>
@@ -4949,6 +5027,7 @@ export default function AdminDashboard() {
                 </table>
               </div>
               <div className="tbl-total">共 {alertRules.length} 条规则</div>
+              <Pager p={pgAlertRules} onPage={(pg) => goTablePage("alerts", pgAlertRules.sig, pg)} />
             </div>
             <div className="sec">
               <h2>操作审计</h2>
@@ -4957,7 +5036,7 @@ export default function AdminDashboard() {
                   <thead><tr><th scope="col" className="col-datetime" aria-sort={ariaSort("audit", "created_at")}>时间<SortButton label="时间" sortKey="created_at" tableId="audit" sort={sorts.audit} onToggle={toggleSort} /></th><th scope="col" className="col-person">操作人</th><th scope="col" className="col-num-md">操作</th><th scope="col" className="col-wide">详情</th></tr></thead>
                   <tbody>
                     {auditLogs.length
-                      ? (filteredAudit.length ? sortedAudit.map((l) => (
+                      ? (filteredAudit.length ? pgAudit.rows.map((l) => (
                         <tr key={l.id}>
                           <td className="audit-time">{String(l.created_at || "").slice(0, 16)}</td>
                           <td>{l.user_name || "—"}</td><td>{l.action}</td><td>{l.detail || ""}</td>
@@ -4968,6 +5047,7 @@ export default function AdminDashboard() {
                 </table>
               </div>
               <div className="tbl-total">共 {filteredAudit.length} 条审计记录</div>
+              <Pager p={pgAudit} onPage={(pg) => goTablePage("audit", pgAudit.sig, pg)} />
               <p className="def-note">仅显示最近 60 条，最新在前。每次导出、审核、触发与处理预警都会在此留痕。</p>
             </div>
           </section>
@@ -4995,14 +5075,14 @@ export default function AdminDashboard() {
             </div>
             <div className="tbl-wrap">
               <table>
-                <thead><tr><th scope="col" className="col-datetime">时段</th><th scope="col" className="col-num-md">事件类型</th><th scope="col">对象</th><th scope="col" className="col-num">次数</th><th scope="col" className="col-hdr-lg">总停留时长（毫秒）</th></tr></thead>
+                <thead><tr><th scope="col" className="col-datetime">时段</th><th scope="col" className="col-num-md">事件类型</th><th scope="col" className="col-name">对象</th><th scope="col" className="col-num">次数</th><th scope="col" className="col-hdr-lg">总停留时长（毫秒）</th></tr></thead>
                 <tbody>
                   {eventAggregates.length
-                    ? eventAggregates.map((a) => (
+                    ? pgEvents.rows.map((a) => (
                       <tr key={a.period + "-" + a.period_key + "-" + a.type + "-" + a.key}>
                         <td>{a.period_key}</td>
                         <td>{({ view: "浏览", click: "点击", search: "搜索", dwell: "停留" })[a.type] || a.type}</td>
-                        <td><span className="code">{a.key}</span></td>
+                        <td className="cell-ellipsis" title={a.key}><span className="code">{a.key}</span></td>
                         <td className="num">{a.count}</td>
                         <td className="num">{a.total_duration_ms}</td>
                       </tr>
@@ -5012,6 +5092,7 @@ export default function AdminDashboard() {
               </table>
             </div>
             <div className="tbl-total">共 {eventAggregates.length} 条聚合记录</div>
+            <Pager p={pgEvents} onPage={(pg) => goTablePage("events", pgEvents.sig, pg)} />
           </section>
 
           {/* R5-2 会员数据: per-shop member rows (spending = R3-1
@@ -5035,10 +5116,10 @@ export default function AdminDashboard() {
             {insightRules ? (<div className="note">当前规则：流失天数 {insightRules.churnDays} 天 · 可升级差距 {insightRules.upgradeGapPct}% · 回访天数 {insightRules.callbackDays} 天</div>) : null}
             <div className="tbl-wrap">
               <table>
-                <thead><tr><th scope="col" className="col-sugg">经营建议</th><th scope="col" className="col-sugg">对象</th><th scope="col">建议内容</th></tr></thead>
+                <thead><tr><th scope="col" className="col-sugg">经营建议</th><th scope="col" className="col-sugg">对象</th><th scope="col" className="col-wide">建议内容</th></tr></thead>
                 <tbody>
                   {memberInsights && memberInsights.suggestions.length
-                    ? memberInsights.suggestions.map((s, i) => (
+                    ? pgSuggestions.rows.map((s, i) => (
                       <tr key={s.type + "-" + (s.user_id || s.show_id || i)}>
                         <td>{{ upgrade: "可升级", callback: "回访", push_show: "推广演出" }[s.type] || s.type}</td>
                         <td className="cell-ellipsis" title={s.name || s.title || "—"}>{s.name || s.title || "—"}</td>
@@ -5050,20 +5131,21 @@ export default function AdminDashboard() {
               </table>
             </div>
             <div className="tbl-total">共 {memberInsights ? memberInsights.suggestions.length : 0} 条建议</div>
+            <Pager p={pgSuggestions} onPage={(pg) => goTablePage("suggestions", pgSuggestions.sig, pg)} />
             <div className="tbl-wrap">
               <table>
-                <thead><tr><th scope="col">会员</th><th scope="col" className="num">累计消费</th><th scope="col">等级</th><th scope="col">最近已付订单</th><th scope="col">流失</th><th scope="col">可升级</th><th scope="col">下一等级</th><th scope="col" className="num">还差</th></tr></thead>
+                <thead><tr><th scope="col" className="col-name">会员</th><th scope="col" className="num col-money">累计消费</th><th scope="col" className="col-name">等级</th><th scope="col" className="col-code">最近已付订单</th><th scope="col" className="col-state">流失</th><th scope="col" className="col-state">可升级</th><th scope="col" className="col-name">下一等级</th><th scope="col" className="num col-money">还差</th></tr></thead>
                 <tbody>
                   {memberInsights && memberInsights.users.length
-                    ? memberInsights.users.map((u) => (
+                    ? pgMemberUsers.rows.map((u) => (
                       <tr key={u.user_id}>
                         <td className="cell-ellipsis" title={u.name}>{u.name}</td>
                         <td className="num">{fmtMoney(u.spending_cents)}</td>
-                        <td>{u.tier || "—"}</td>
+                        <td className="cell-ellipsis" title={u.tier || "—"}>{u.tier || "—"}</td>
                         <td>{u.last_order_at ? u.last_order_at.slice(0, 10) : "—"}</td>
                         <td>{u.churn ? "流失" : "—"}</td>
                         <td>{u.upgrade_candidate ? "可升级" : "—"}</td>
-                        <td>{u.next_tier || "—"}</td>
+                        <td className="cell-ellipsis" title={u.next_tier || "—"}>{u.next_tier || "—"}</td>
                         <td className="num">{u.next_tier ? fmtMoney(u.remaining_cents) : "—"}</td>
                       </tr>
                     ))
@@ -5072,6 +5154,7 @@ export default function AdminDashboard() {
               </table>
             </div>
             <div className="tbl-total">共 {memberInsights ? memberInsights.users.length : 0} 位会员</div>
+            <Pager p={pgMemberUsers} onPage={(pg) => goTablePage("member-users", pgMemberUsers.sig, pg)} />
           </section>
 
           {/* R5-3 数据大屏: fullscreen BI layout — big KPI cards
@@ -5167,10 +5250,10 @@ export default function AdminDashboard() {
             </div>
             <div className="tbl-wrap">
               <table>
-                <thead><tr><th scope="col" className="col-id">流水号</th><th scope="col" className="col-datetime">时间</th><th scope="col" className="col-num">类型</th><th scope="col" className="num col-money">金额</th><th scope="col" className="col-code">订单号</th><th scope="col">备注</th><th scope="col" className="col-state">对账</th><th scope="col" className="col-act-sm">操作</th></tr></thead>
+                <thead><tr><th scope="col" className="col-id">流水号</th><th scope="col" className="col-datetime">时间</th><th scope="col" className="col-num">类型</th><th scope="col" className="num col-money">金额</th><th scope="col" className="col-code">订单号</th><th scope="col" className="col-wide">备注</th><th scope="col" className="col-state">对账</th><th scope="col" className="col-act-sm">操作</th></tr></thead>
                 <tbody>
                   {financeLedger.length
-                    ? financeLedger.map((l) => (
+                    ? pgFinance.rows.map((l) => (
                       <tr key={l.id}>
                         <td>{l.id}</td>
                         <td>{String(l.created_at || "").slice(0, 16)}</td>
@@ -5191,6 +5274,7 @@ export default function AdminDashboard() {
               </table>
             </div>
             <div className="tbl-total">共 {financeLedger.length} 条流水</div>
+            <Pager p={pgFinance} onPage={(pg) => goTablePage("finance", pgFinance.sig, pg)} />
           </section>
           <AppFooter />
         </main>
