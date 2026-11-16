@@ -199,10 +199,11 @@ test("admin redesign palette: signal tokens defined, accent is the primary actio
   );
 });
 
-test("admin redesign palette: header buttons are round/pill (Lam 2026-11-16 ~20:13)", () => {
-  // Header only: the AppHeader buttons override the 4px control
-  // pattern and are uniformly round/pill. Every other button, input
-  // and popup stays 4px (see inputs-radius-4px + the polish tests).
+test("admin redesign palette: header buttons stay 4px (pill is customer-web only, Lam 2026-11-16 ~20:13)", () => {
+  // Lam 2026-11-16 ~20:13 pill decision covers the CUSTOMER-web
+  // header only. The admin AppHeader buttons keep the 4px control
+  // pattern like every other admin button, input and popup, so this
+  // test pins 4px (and explicitly forbids pill) on all five rules.
   for (const rule of [
     ".app-header .home-link{",
     ".bell-btn{",
@@ -212,6 +213,7 @@ test("admin redesign palette: header buttons are round/pill (Lam 2026-11-16 ~20:
   ]) {
     const line = css.split("\n").find((l) => l.includes(rule));
     assert.ok(line, `header rule missing: ${rule}`);
-    assert.ok(line.includes("border-radius:999px"), `header button must be pill: ${rule}`);
+    assert.ok(line.includes("border-radius:4px"), `admin header button must stay 4px: ${rule}`);
+    assert.ok(!line.includes("border-radius:999px"), `admin header button must not be pill: ${rule}`);
   }
 });
