@@ -187,15 +187,19 @@ test("bell header: button + count badge + dropdown (alerts + audit, view-all) + 
 });
 
 test("bell header CSS: badge and dropdown use the signal tokens, inline marks exist", () => {
+  // D7 (dashboard redesign 2026-11-16): warning badge/mark text is
+  // INK #17171a on the warn fill (6.06:1) — white on warn is 2.95:1.
+  // The two warning rules therefore carry color:#17171a inside the
+  // same rule; the critical rules keep white text from the base rule.
   for (const snippet of [
     ".bell-btn",
     ".bell-badge.critical{background:var(--signal-red)}",
-    ".bell-badge.warning{background:var(--signal-yellow)}",
+    ".bell-badge.warning{background:var(--signal-yellow);color:#17171a}",
     ".bell-dropdown",
     ".bell-dot.critical{background:var(--signal-red)}",
     ".bell-dot.warning{background:var(--signal-yellow)}",
     ".inline-mark.critical{background:var(--signal-red)}",
-    ".inline-mark.warning{background:var(--signal-yellow)}",
+    ".inline-mark.warning{background:var(--signal-yellow);color:#17171a}",
   ]) {
     assert.ok(css.includes(snippet), `admin.css missing: ${snippet}`);
   }

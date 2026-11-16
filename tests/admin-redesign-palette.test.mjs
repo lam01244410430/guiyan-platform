@@ -198,3 +198,20 @@ test("admin redesign palette: signal tokens defined, accent is the primary actio
     "selected chips must use the accent tint + ring with ink text (never accent text on tint)",
   );
 });
+
+test("admin redesign palette: header buttons are round/pill (Lam 2026-11-16 ~20:13)", () => {
+  // Header only: the AppHeader buttons override the 4px control
+  // pattern and are uniformly round/pill. Every other button, input
+  // and popup stays 4px (see inputs-radius-4px + the polish tests).
+  for (const rule of [
+    ".app-header .home-link{",
+    ".bell-btn{",
+    ".theme-btn{",
+    ".op-card button{",
+    ".menu-btn{",
+  ]) {
+    const line = css.split("\n").find((l) => l.includes(rule));
+    assert.ok(line, `header rule missing: ${rule}`);
+    assert.ok(line.includes("border-radius:999px"), `header button must be pill: ${rule}`);
+  }
+});

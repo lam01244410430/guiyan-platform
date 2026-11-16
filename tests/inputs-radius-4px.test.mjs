@@ -75,7 +75,9 @@ test("customer number spinners are hidden globally, not just on the account page
 
 test("admin inputs: shared control system + login input use the 4px token", () => {
   assert.ok(
-    adminCss.includes("input,select,textarea{font:inherit;font-size:13.5px;color:var(--p-ink);background:var(--p-bg);border:1px solid var(--line2);border-radius:var(--input-r);outline:none}"),
+    // Redesign 2026-11-16 (prep §1): --p-bg split — inputs sit on
+    // the card token, so the shared base uses --p-card, not --p-bg.
+    adminCss.includes("input,select,textarea{font:inherit;font-size:13.5px;color:var(--p-ink);background:var(--p-card);border:1px solid var(--line2);border-radius:var(--input-r);outline:none}"),
     "admin shared control system is 4px",
   );
   assert.ok(
@@ -96,5 +98,5 @@ test("buttons and chips follow the 4px template, cards keep their own radius", (
   assert.ok(mainCss.includes(".chip{border:1px solid var(--line2);background:var(--surface);color:var(--ink2);border-radius:4px;"), "customer chips follow the 4px rule");
   assert.ok(mainCss.includes(".card{background:var(--surface);border:1px solid var(--line);border-radius:var(--r-lg);"), "customer cards keep their radius");
   assert.ok(adminCss.includes(".btn-export{margin-left:auto;border:0;border-radius:4px;"), "admin buttons follow the 4px template");
-  assert.ok(adminCss.includes(".chips button{border:1px solid var(--line2);background:var(--p-bg);border-radius:4px;"), "admin chips follow the 4px rule");
+  assert.ok(adminCss.includes(".chips button{border:1px solid var(--line2);background:var(--p-card);border-radius:4px;"), "admin chips follow the 4px rule");
 });

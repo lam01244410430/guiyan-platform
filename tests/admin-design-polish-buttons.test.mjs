@@ -38,15 +38,15 @@ test("buttons sizes: lg primary, md filter, sm row actions", () => {
   // lg + md are both 44px tall with a 4px radius, the dense row buttons
   // are 36px with the same 4px radius (was 9px radius, 40px md, 30px sm).
   assert.ok(css.includes(".btn-export{margin-left:auto;border:0;border-radius:4px;background:var(--p-action);color:var(--p-action-ink);font-weight:700;font-size:13.5px;padding:13px 18px;white-space:nowrap;min-height:44px}"), "btn-export is the lg primary (44px)");
-  assert.ok(css.includes(".btn-md{border:1px solid var(--line2);border-radius:4px;background:var(--p-bg);color:var(--p-ink);font-weight:700;font-size:13.5px;padding:10px 16px;white-space:nowrap;min-height:44px}"), "btn-md is the md secondary (44px)");
+  assert.ok(css.includes(".btn-md{border:1px solid var(--line2);border-radius:4px;background:var(--p-card);color:var(--p-ink);font-weight:700;font-size:13.5px;padding:10px 16px;white-space:nowrap;min-height:44px}"), "btn-md is the md secondary (44px)");
   for (const rule of [
-    ".btn-view,.mini{border:1px solid var(--line2);background:var(--p-bg);color:var(--p-ink);border-radius:4px;font-weight:700;font-size:12px;padding:6px 14px;white-space:nowrap;min-height:36px}",
+    ".btn-view,.mini{border:1px solid var(--line2);background:var(--p-card);color:var(--p-ink);border-radius:4px;font-weight:700;font-size:12px;padding:6px 14px;white-space:nowrap;min-height:36px}",
     ".btn-approve{border:0;border-radius:4px;background:var(--p-action);color:var(--p-action-ink);font-weight:700;font-size:12px;padding:6px 14px;min-height:36px}",
     ".btn-reject{border:1px solid var(--line2);background:var(--signal-red-soft);color:var(--signal-red-deep);border-radius:4px;font-weight:700;font-size:12px;padding:6px 14px;min-height:36px}",
   ]) {
     assert.ok(css.includes(rule), "sm row button must be 36px: " + rule.slice(0, 20));
   }
-  assert.ok(css.includes(".btn-resolve{border:1px solid var(--line2);background:var(--p-bg);border-radius:4px;padding:6px 14px;font-size:12px;font-weight:700;color:var(--p-ink);min-height:36px}"), "btn-resolve joins the sm size (was 13.5px)");
+  assert.ok(css.includes(".btn-resolve{border:1px solid var(--line2);background:var(--p-card);border-radius:4px;padding:6px 14px;font-size:12px;font-weight:700;color:var(--p-ink);min-height:36px}"), "btn-resolve joins the sm size (was 13.5px)");
 });
 
 test("buttons line-height: pinned to 1 so min-height governs the size", () => {

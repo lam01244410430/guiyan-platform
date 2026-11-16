@@ -3,7 +3,10 @@
    soft #f1f1ef, sidebar #f3f3f1; ink #17171a, muted #66666d; one accent
    #3e63dd + one money #0f7f57; warn/down only where they mean something.
    Font stays Funnel Display/Sans + DM Mono; order-status pills keep
-   their 7 approved pairs; controls stay 44px / 4px radius.
+   their 7 approved pairs; controls stay 44px / 4px radius — EXCEPT
+   the AppHeader buttons (menu / theme / bell / home-link / logout),
+   which are round/pill per Lam 2026-11-16 ~20:13 (header only; every
+   other button, input and popup stays 4px).
    Dark theme: :root[data-theme="dark"] below (toggle in AppHeader,
    shared key guiyan-theme with the customer web). Hex lives in :root
    blocks only; every other rule uses var(--…). */
@@ -206,7 +209,7 @@ select.field-sm{padding-right:28px}
 .app-header h1{font-family:var(--font-display);font-size:30px;font-weight:var(--display-weight);line-height:1.15;margin:0;min-width:0;letter-spacing:var(--display-tracking-xl)}
 .app-header h1 #pageTitle{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .app-header h1 .sub{display:block;font-family:var(--font-text);font-size:13.5px;font-weight:600;color:var(--p-muted);margin-top:6px}
-.app-header .home-link{display:flex;align-items:center;gap:8px;box-sizing:border-box;padding:11px 14px;border:1px solid var(--line2);border-radius:4px;background:var(--p-card);color:var(--p-ink);font-size:14px;font-weight:600;text-decoration:none;white-space:nowrap;align-self:center;flex-shrink:0}
+.app-header .home-link{display:flex;align-items:center;gap:8px;box-sizing:border-box;padding:11px 14px;border:1px solid var(--line2);border-radius:999px;background:var(--p-card);color:var(--p-ink);font-size:14px;font-weight:600;text-decoration:none;white-space:nowrap;align-self:center;flex-shrink:0}
 .app-header .home-link:hover{background:var(--p-surface)}
 .app-header .home-link .ic{width:16px;height:16px;flex:none}
 .app-header .home-link:focus-visible{outline:2px solid var(--p-action);outline-offset:2px}
@@ -215,9 +218,9 @@ select.field-sm{padding-right:28px}
    alert is critical, amber (--signal-yellow) when any unread alert is
    warning, hidden at zero. Dropdown scrolls with .thin-scroll. */
 .bell-wrap{position:relative;align-self:center;flex-shrink:0}
-.bell-btn{position:relative;display:flex;align-items:center;justify-content:center;width:40px;height:40px;border:1px solid var(--line2);border-radius:4px;background:var(--p-card);color:var(--p-ink);cursor:pointer}
+.bell-btn{position:relative;display:flex;align-items:center;justify-content:center;width:40px;height:40px;border:1px solid var(--line2);border-radius:999px;background:var(--p-card);color:var(--p-ink);cursor:pointer}
 .bell-btn:hover{background:var(--p-surface)}
-.theme-btn{position:relative;display:flex;align-items:center;justify-content:center;width:40px;height:40px;border:1px solid var(--line2);border-radius:4px;background:var(--p-card);color:var(--p-ink);cursor:pointer;align-self:center;flex-shrink:0}
+.theme-btn{position:relative;display:flex;align-items:center;justify-content:center;width:40px;height:40px;border:1px solid var(--line2);border-radius:999px;background:var(--p-card);color:var(--p-ink);cursor:pointer;align-self:center;flex-shrink:0}
 .theme-btn:hover{background:var(--p-surface)}
 .theme-btn:focus-visible{outline:2px solid var(--p-action);outline-offset:2px}
 .bell-btn:focus-visible{outline:2px solid var(--p-action);outline-offset:2px}
@@ -250,11 +253,11 @@ select.field-sm{padding-right:28px}
 .op-card{display:flex;align-items:center;gap:10px;flex-shrink:0;align-self:center}
 .op-card .nm{font-size:13.5px;font-weight:700;line-height:1.3;white-space:nowrap}
 .op-card .rl{font-size:12px;color:var(--p-muted)}
-.op-card button{border:1px solid var(--line2);background:transparent;color:var(--p-ink);border-radius:4px;padding:6px 12px;font-size:12px;font-weight:700;white-space:nowrap;min-height:36px}
+.op-card button{border:1px solid var(--line2);background:transparent;color:var(--p-ink);border-radius:999px;padding:6px 12px;font-size:12px;font-weight:700;white-space:nowrap;min-height:36px}
 .op-card button:hover{background:var(--p-surface)}
 .app-footer{margin-top:36px;padding:16px 0;border-top:1px solid var(--line);font-size:12px;color:var(--p-muted);text-align:center}
 .login-shell .app-footer{margin-top:0}
-.menu-btn{display:none;align-items:center;justify-content:center;flex:none;width:40px;height:40px;border:1px solid var(--line2);border-radius:4px;background:var(--p-card);color:var(--p-ink)}
+.menu-btn{display:none;align-items:center;justify-content:center;flex:none;width:40px;height:40px;border:1px solid var(--line2);border-radius:999px;background:var(--p-card);color:var(--p-ink)}
 .menu-btn:hover{background:var(--p-surface)}
 .drawer-backdrop{display:none}
 .view{display:none}

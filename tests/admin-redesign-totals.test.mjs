@@ -25,6 +25,10 @@ const css = fs.readFileSync(
 const serverPkg = JSON.parse(
   fs.readFileSync(path.join(repoDir, "server", "package.json"), "utf-8"),
 );
+const rankedListJsx = fs.readFileSync(
+  path.join(repoDir, "admin", "assets", "js", "RankedList.jsx"),
+  "utf-8",
+);
 
 // The 30 footer lines Item 3 adds (one directly under each list table,
 // bottom-left, outside the <table> element).
@@ -76,7 +80,8 @@ test("totals badge CSS: .badge rules gone, .bell-badge rules intact", () => {
   assert.ok(!css.includes(".badge{"), "admin.css must not define .badge anymore");
   assert.ok(!css.includes(".app-header .badge"), "admin.css must not style .app-header .badge anymore");
   assert.ok(css.includes(".bell-badge.critical{background:var(--signal-red)}"), "bell critical badge CSS must stay");
-  assert.ok(css.includes(".bell-badge.warning{background:var(--signal-yellow)}"), "bell warning badge CSS must stay");
+  // D7: warning badge text is ink #17171a on the warn fill (6.06:1).
+  assert.ok(css.includes(".bell-badge.warning{background:var(--signal-yellow);color:#17171a}"), "bell warning badge CSS must stay");
 });
 
 test("totals subtitle: pageSub carries no total, titles map carries no total", () => {
@@ -140,10 +145,16 @@ test("totals footer: every footer sits directly under its table, outside it", ()
   const placed = dashboardJsx.match(/<\/table>\s*<\/div>\s*<div className="tbl-total">/g) || [];
   assert.equal(placed.length, 29, "29 footers must sit directly under a table, found " + placed.length);
   // Going backwards from every footer, the nearest table tag must be
-  // its own table's </table> — never an unclosed <table>.
+  // its own table's </table> — never an unclosed <table>. The one
+  // footer whose segment holds a <RankedList> after the last table
+  // close is the channels footer (ranked rows, no table) — skip it
+  // here; the dedicated channels test below covers it.
   const parts = dashboardJsx.split('className="tbl-total"');
   for (let i = 1; i < parts.length; i++) {
     const before = parts[i - 1];
+    const lastTable = before.lastIndexOf("</table>");
+    const afterTable = lastTable === -1 ? before : before.slice(lastTable);
+    if (afterTable.includes("<RankedList")) continue;
     const tail = before.slice(before.lastIndexOf("</table>"));
     assert.ok(tail.includes("</div>"), "footer " + i + " must follow the tbl-wrap close");
     assert.ok(!tail.slice("</table>".length).includes("<table"), "footer " + i + " must not sit inside a table");
@@ -255,7 +266,6 @@ test("totals ellipsis: name cells carry ellipsis class + title tooltip", () => {
     '<td className="cell-ellipsis" title={v.name}>{v.name}</td>',
     '<td className="cell-ellipsis" title={v.address || "—"}>{v.address || "—"}</td>',
     '<td className="cell-ellipsis" title={r.name}>{r.name}</td>',
-    '<td className="cell-ellipsis" title={c.name}>{c.name}</td>',
     '<td className="cell-ellipsis" title={c.resource_name || ""}>{c.resource_name || ""}</td>',
     '<td className="cell-ellipsis" title={l.resource_name}>{l.resource_name}</td>',
     '<td className="cell-ellipsis" title={t.template}>{t.template}</td>',
@@ -264,6 +274,26 @@ test("totals ellipsis: name cells carry ellipsis class + title tooltip", () => {
   ]) {
     assert.ok(dashboardJsx.includes(snippet), `missing ellipsis name cell: ${snippet}`);
   }
+});
+
+test("totals ellipsis: ranked-list names keep ellipsis + title tooltip", () => {
+  // Dashboard redesign (D5): the 渠道复盘 + 资源销量 Top 10 tables
+  // became RankedList rows — the old channels name td
+  // (<td className="cell-ellipsis" title={c.name}>) is gone, but the
+  // name still truncates with a full-value title tooltip: the rows
+  // pass name through, and RankedList renders it as an ellipsis span.
+  assert.ok(
+    dashboardJsx.includes("name: c.name,"),
+    "channels ranked rows must pass the channel name through",
+  );
+  assert.ok(
+    dashboardJsx.includes("name: r.name,"),
+    "ranking ranked rows must pass the resource name through",
+  );
+  assert.ok(
+    rankedListJsx.includes('<span className="rk-name cell-ellipsis" title={r.name}>'),
+    "RankedList must render the name as an ellipsis span with a title tooltip",
+  );
 });
 
 test("totals ellipsis: resource name keeps its inline ! mark beside the truncated name", () => {

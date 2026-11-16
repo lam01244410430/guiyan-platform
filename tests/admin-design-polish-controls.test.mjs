@@ -24,8 +24,11 @@ const serverPkg = JSON.parse(
 );
 
 test("controls base: one shared rule for input/select/textarea at 44px", () => {
+  // Redesign 2026-11-16 (prep §1): --p-bg split into page #f8f8f6 /
+  // card #ffffff — inputs and buttons MUST sit on the card token,
+  // never the page token, so the shared base uses --p-card.
   assert.ok(
-    css.includes("input,select,textarea{font:inherit;font-size:13.5px;color:var(--p-ink);background:var(--p-bg);border:1px solid var(--line2);border-radius:var(--input-r);outline:none}"),
+    css.includes("input,select,textarea{font:inherit;font-size:13.5px;color:var(--p-ink);background:var(--p-card);border:1px solid var(--line2);border-radius:var(--input-r);outline:none}"),
     "shared control base must exist",
   );
   assert.ok(css.includes("input,select{height:44px;padding:0 12px}"), "base height must be 44px");
@@ -34,8 +37,10 @@ test("controls base: one shared rule for input/select/textarea at 44px", () => {
 });
 
 test("controls focus: one ring for every control, same as login/search had", () => {
+  // D2 (dashboard redesign 2026-11-16): the focus ring is the accent
+  // token now — rgba(35,35,35,0.12) was the old neutral ring.
   assert.ok(
-    css.includes("input:focus,select:focus,textarea:focus{border-color:var(--p-action);box-shadow:0 0 0 3px rgba(35,35,35,0.12)}"),
+    css.includes("input:focus,select:focus,textarea:focus{border-color:var(--p-action);box-shadow:0 0 0 3px var(--focus-ring)}"),
     "unified focus ring must exist",
   );
   // No control keeps its own divergent focus rule.
@@ -77,7 +82,7 @@ test("controls sm variant: 36px for dense rows, used on the venues filter row", 
 });
 
 test("controls cleanup: the five old scattered rules are folded, login keeps its look", () => {
-  assert.ok(css.includes(".login-card input{width:100%;border:1px solid var(--line2);border-radius:var(--input-r);padding:12px 14px;font-size:15px;background:var(--p-bg);color:var(--p-ink);margin-bottom:14px;outline:none;height:auto}"), "login input keeps its own look (height:auto preserves it under the 44px base)");
+  assert.ok(css.includes(".login-card input{width:100%;border:1px solid var(--line2);border-radius:var(--input-r);padding:12px 14px;font-size:15px;background:var(--p-card);color:var(--p-ink);margin-bottom:14px;outline:none;height:auto}"), "login input keeps its own look (height:auto preserves it under the 44px base)");
   assert.ok(css.includes(".modal-form input{width:100%;margin-top:4px}"), "modal form keeps only width + margin");
   assert.ok(css.includes(".tag-rule input[type=\"text\"],.tag-rule input[type=\"number\"],.tag-rule select{height:36px;max-width:220px}"), "fieldset editors use the sm geometry");
   assert.ok(css.includes(".op-row input{flex:1}"), "operator row keeps only flex:1");
