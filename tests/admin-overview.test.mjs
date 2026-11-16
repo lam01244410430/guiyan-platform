@@ -143,6 +143,14 @@ test("channels sum = kpis.revenue = stats revenue with refund_requested/disputed
   assert.equal(before.status, 200, JSON.stringify(before.data));
   const statsBefore = await req("/api/admin/stats", { token: adminToken });
   assert.equal(statsBefore.status, 200, JSON.stringify(statsBefore.data));
+  // Other test files in the chain may already have created
+  // disputed/refund_requested orders in this shared DB, so count the
+  // excluded statuses BEFORE this test creates its two orders and
+  // assert the count/total grow by exactly those two below.
+  const excludedBefore = await pool.query(
+    `SELECT COUNT(*) AS n, COALESCE(SUM(amount),0) AS total FROM orders
+       WHERE status IN ('disputed','refund_requested')`,
+  );
   const resource = await req("/api/admin/resources", {
     method: "POST",
     token: adminToken,
@@ -193,8 +201,8 @@ test("channels sum = kpis.revenue = stats revenue with refund_requested/disputed
     `SELECT COUNT(*) AS n, COALESCE(SUM(amount),0) AS total FROM orders
        WHERE status IN ('disputed','refund_requested')`,
   );
-  assert.equal(Number(excluded.rows[0].n), 2, "exactly the two test orders must be excluded");
-  assert.ok(Number(excluded.rows[0].total) > 0, `excluded statuses must hold money, got ${excluded.rows[0].total}`);
+  assert.equal(Number(excluded.rows[0].n), Number(excludedBefore.rows[0].n) + 2, "exactly the two new test orders must be excluded");
+  assert.ok(Number(excluded.rows[0].total) > Number(excludedBefore.rows[0].total), `the two new excluded orders must hold money, before ${excludedBefore.rows[0].total} after ${excluded.rows[0].total}`);
   const after = await req("/api/admin/analysis?period=day", { token: adminToken });
   assert.equal(after.status, 200, JSON.stringify(after.data));
   const statsAfter = await req("/api/admin/stats", { token: adminToken });
