@@ -10,9 +10,10 @@
 // POST /api/voice-order {text, dialect?, large_text?}
 // -> parses quantity + show + date (+ optional time) and creates a
 // DRAFT order (status pending, NOT paid). Payment happens only
-// after the user manually confirms, through the existing
-// simulated-payment flow (POST /api/orders/:id/confirm, then
-// /pay — payment is simulated, no real money moves).
+// after the SELLER confirms the draft, through the existing
+// simulated-payment flow (POST /api/orders/:id/confirm by the
+// resource's shop admin or a platform admin, then /pay by the buyer
+// — payment is simulated, no real money moves).
 // -> parse failure / show not found / no on-sale performance that
 // day / insufficient stock -> a clear 400/409, never a guessed
 // performance. No order row is written on any of those paths

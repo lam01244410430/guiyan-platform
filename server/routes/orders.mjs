@@ -408,7 +408,7 @@ export async function getOrder(ctx) {
 
 export async function transitionOrder(ctx) {
   const { p, req, b, send, needUser, get, all, run, transaction, notify, audit, cache, time } = ctx;
-  const m = p.match(/^\/api\/orders\/(\d+)\/(confirm|pay|complete|cancel|refund|approveRefund|rejectRefund|dispute|rejectDispute|resolve)$/);
+  const m = p.match(/^\/api\/orders\/(\d+)\/(confirm|reject|pay|complete|cancel|refund|approveRefund|rejectRefund|dispute|rejectDispute|resolve)$/);
   if (m && req.method === "POST") {
     const u = needUser(),
       [, id, action] = m,
@@ -420,16 +420,34 @@ export async function transitionOrder(ctx) {
     // Wave 4 #13 — two-layer permission (replaces the owner-only assert:
     // an admin could not approve anything under it).
     // Layer 1: owner or admin. Layer 2: the 4 after-sales decisions are
-    // admin-only. Old actions keep the owner-only rule — an admin calling
-    // confirm/pay/complete/cancel on someone else's order still gets 403.
+    // admin-only.
+    // Seller-confirm (Lam 2026-11-16): confirm/reject are SELLER-only —
+    // an admin-class user who is a platform admin (shop_id NULL, acting
+    // on behalf of the shop) or an admin of the shop that owns the
+    // resource (u.shop_id === o.shop_id — o.shop_id is the resource's
+    // shop from the JOIN above; orders has no shop_id column). The buyer
+    // calling confirm/reject gets 403, as does an admin of another shop.
+    // pay/complete/cancel keep the owner-only rule — an admin calling
+    // them on someone else's order still gets 403.
     const DECISIONS = ["approveRefund", "resolve", "rejectRefund", "rejectDispute"];
+    const SELLER_ACTIONS = ["confirm", "reject"];
     if (DECISIONS.includes(action))
       assert(isAdminRole(u.role), "仅管理员可处理售后", 403);
+    else if (SELLER_ACTIONS.includes(action))
+      assert(
+        isAdminRole(u.role) &&
+          (u.shop_id == null || u.shop_id === o.shop_id),
+        "仅卖方（资源所属店铺管理员或平台管理员）可确认订单",
+        403,
+      );
     else if (action === "refund" || action === "dispute")
       assert(o.user_id === u.id || isAdminRole(u.role), "无权操作此订单", 403);
     else assert(o.user_id === u.id, "无权操作此订单", 403);
     const transitions = {
       confirm: ["pending", "confirmed"],
+      // Seller-confirm: reject reuses the cancelled status — no new
+      // status, the 8-status map is untouched.
+      reject: ["pending", "cancelled"],
       pay: ["confirmed", "paid"],
       complete: ["paid", "completed"],
       cancel: [["pending", "confirmed"], "cancelled"],
@@ -548,6 +566,13 @@ export async function transitionOrder(ctx) {
     // admin's reason (Q6: missing reason -> 400 via text()). The user's
     // own reason stays in refund_reason.
     let decision = o.refund_decision || "";
+    // Seller-confirm: a reject reason is optional — when given it goes
+    // into the buyer notify + the audit detail only, never onto the
+    // order row (refund_decision belongs to after-sales).
+    const rejectReason =
+      action === "reject" && typeof b?.reason === "string"
+        ? b.reason.trim().slice(0, 500)
+        : "";
     // B-035: a fresh refund/dispute starts a new round — drop the
     // previous admin decision so a re-requested order does not carry
     // a stale one (refund_reason is overwritten with the new reason
@@ -853,6 +878,19 @@ export async function transitionOrder(ctx) {
           1,
           "order_status",
         );
+      } else if (action === "confirm" || action === "reject") {
+        // Seller-confirm: its own message, not the generic status
+        // branch — the buyer learns the seller acted and what to do
+        // next (confirm) or why the order was turned down (reject).
+        await notify(
+          o.user_id,
+          action === "confirm" ? "订单已确认" : "订单已被驳回",
+          action === "confirm"
+            ? `${o.code} · ${o.resource_name}：订单已确认，卖方已确认您的预约，请尽快完成支付。`
+            : `${o.code} · ${o.resource_name}：订单已被卖方驳回。${rejectReason ? "原因：" + rejectReason + "。" : ""}`,
+          1,
+          "order_status",
+        );
       } else {
         await notify(
           o.user_id,
@@ -864,10 +902,14 @@ export async function transitionOrder(ctx) {
       }
       // R4-4: a partial-refund request (auto or manual) audits as
       // "申请部分退款"; every other transition keeps the old text.
+      // Seller-confirm: a reject reason (when given) rides in the
+      // audit detail — the order row itself stores nothing for it.
       await audit(
         u,
         action === "refund" && partial ? "申请部分退款" : `订单操作 ${action}`,
-        o.code,
+        action === "reject" && rejectReason
+          ? `${o.code} 原因：${rejectReason}`
+          : o.code,
       );
       // R3-1: re-evaluate the order owner's stored main-shop tier when
       // spending can change — pay (up), complete (idempotent re-check),

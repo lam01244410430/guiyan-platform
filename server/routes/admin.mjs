@@ -67,7 +67,7 @@ export async function adminOrders(ctx) {
   if (p !== "/api/admin/orders" || req.method !== "GET") return false;
   assert(isAdminRole(session?.role), "无权访问管理后台", 403);
   const orders = await all(
-    `SELECT o.*,u.name AS user_name,r.name AS resource_name FROM orders o
+    `SELECT o.*,u.name AS user_name,r.name AS resource_name,r.shop_id AS shop_id FROM orders o
      JOIN users u ON u.id=o.user_id JOIN resources r ON r.id=o.resource_id
      ORDER BY o.id DESC LIMIT 200`,
   );
