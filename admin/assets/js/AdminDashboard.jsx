@@ -763,34 +763,59 @@ export default function AdminDashboard() {
     // opens (previously lazy). The alerts-view effect below keeps its
     // guard so opening that view does not refetch.
     loadAlerts(); loadAudit(); loadedRef.current.alerts = true;
-    Promise.all([
-      apiGet("/api/admin/stats"), apiGet("/api/admin/orders"), apiGet("/api/admin/users"),
-      apiGet("/api/admin/resources"), apiGet("/api/admin/demands"),
-      apiGet("/api/admin/shops"), apiGet("/api/admin/shows"),
-      apiGet("/api/venues"), apiGet("/api/admin/member-tiers"),
-      apiGet("/api/admin/coupons"), apiGet("/api/admin/flash-sales"),
-      apiGet("/api/admin/coupon-rules"), apiGet("/api/admin/sms-tasks"),
-      apiGet("/api/admin/stored-value-plans"),
-    ]).then(function (res) {
-      setStats(res[0]);
-      setOrders(res[1].orders || []);
-      setUsers(res[2].users || []);
-      setResources(res[3].resources || []);
-      setDemands(res[4].demands || []);
-      setShops(res[5].shops || []);
-      setShows(res[6].shows || []);
-      setVenues(res[7].venues || []);
-      setMemberTiers(res[8].member_tiers || []);
-      setCoupons(res[9].coupons || []);
-      setFlashSales(res[10].flash_sales || []);
-      setCouponRules(res[11].coupon_rules || []);
-      setSmsTasks(res[12].sms_tasks || []);
-      setStoredValuePlans(res[13].stored_value_plans || []);
+    // Mount batch: one slow/failed request must not zero the whole
+    // page. The old Promise.all rejected on the first failure (cold
+    // serverless + the 5s abort left stats/orders at 0/empty with a
+    // toast). allSettled + a per-request 10s timeout + one retry of
+    // the failed requests: state is set from every fulfilled result
+    // in the same order, setView("overview") still runs after the
+    // setters, and the toast fires only when nothing loaded at all.
+    // Auth failures keep the old behaviour (401 -> login, 403 ->
+    // forbidden) instead of the toast.
+    const mountPaths = [
+      "/api/admin/stats", "/api/admin/orders", "/api/admin/users",
+      "/api/admin/resources", "/api/admin/demands",
+      "/api/admin/shops", "/api/admin/shows",
+      "/api/venues", "/api/admin/member-tiers",
+      "/api/admin/coupons", "/api/admin/flash-sales",
+      "/api/admin/coupon-rules", "/api/admin/sms-tasks",
+      "/api/admin/stored-value-plans",
+    ];
+    function mountFetch() {
+      return Promise.allSettled(mountPaths.map(function (path) {
+        return apiGet(path, { timeoutMs: 10000 });
+      }));
+    }
+    mountFetch().then(function (results) {
+      const failed = results.map(function (r, i) { return r.status === "rejected" ? i : -1; }).filter(function (i) { return i >= 0; });
+      if (!failed.length) return results;
+      return Promise.allSettled(failed.map(function (i) {
+        return apiGet(mountPaths[i], { timeoutMs: 10000 });
+      })).then(function (retries) {
+        retries.forEach(function (r, k) { results[failed[k]] = r; });
+        return results;
+      });
+    }).then(function (results) {
+      const rejected = results.filter(function (r) { return r.status === "rejected"; });
+      if (rejected.some(function (r) { return r.reason && r.reason.status === 401; })) { clearToken(); location.href = "/admin/index.html"; return; }
+      if (rejected.some(function (r) { return r.reason && r.reason.status === 403; })) { setForbidden(true); return; }
+      if (rejected.length === results.length) { toast("加载失败，请稍后重试"); return; }
+      const res = results.map(function (r) { return r.status === "fulfilled" ? r.value : null; });
+      if (res[0]) setStats(res[0]);
+      if (res[1]) setOrders(res[1].orders || []);
+      if (res[2]) setUsers(res[2].users || []);
+      if (res[3]) setResources(res[3].resources || []);
+      if (res[4]) setDemands(res[4].demands || []);
+      if (res[5]) setShops(res[5].shops || []);
+      if (res[6]) setShows(res[6].shows || []);
+      if (res[7]) setVenues(res[7].venues || []);
+      if (res[8]) setMemberTiers(res[8].member_tiers || []);
+      if (res[9]) setCoupons(res[9].coupons || []);
+      if (res[10]) setFlashSales(res[10].flash_sales || []);
+      if (res[11]) setCouponRules(res[11].coupon_rules || []);
+      if (res[12]) setSmsTasks(res[12].sms_tasks || []);
+      if (res[13]) setStoredValuePlans(res[13].stored_value_plans || []);
       setView("overview");
-    }).catch(function (e) {
-      if (e && e.status === 401) { clearToken(); location.href = "/admin/index.html"; return; }
-      if (e && e.status === 403) { setForbidden(true); return; }
-      toast("加载失败，请稍后重试");
     });
     loadTemplates();
     // eslint-disable-next-line react-hooks/exhaustive-deps

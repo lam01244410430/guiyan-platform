@@ -45,7 +45,7 @@ export function apiFetch(path, opts) {
     })
     .catch(function (e) { if (timer) clearTimeout(timer); throw e; });
 }
-export function apiGet(path) { return apiFetch(path, { method: "GET" }); }
+export function apiGet(path, opts) { return apiFetch(path, { method: "GET", timeoutMs: opts && opts.timeoutMs }); }
 export function apiPost(path, body, opts) { return apiFetch(path, { method: "POST", body, timeoutMs: opts && opts.timeoutMs }); }
 export function apiPatch(path, body) { return apiFetch(path, { method: "PATCH", body }); }
 export function apiDelete(path) { return apiFetch(path, { method: "DELETE" }); }
