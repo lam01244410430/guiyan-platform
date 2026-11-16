@@ -23,10 +23,15 @@ const serverPkg = JSON.parse(
 const stripped = css.replace(/\/\*[\s\S]*?\*\//g, "");
 
 test("motion tokens: custom easings in :root, ease-out unchanged", () => {
+  // Redesign 2026-11-16 (prep §1.4): --ease-in-out was deleted — it
+  // had 0 var() uses (only the skeleton animation uses the literal
+  // ease-in-out keyword, not the token). The motion system keeps the
+  // two live easings, ease-out and ease-drawer, with the exact curves.
   assert.ok(
-    stripped.includes("--ease-out:cubic-bezier(0.23,1,0.32,1); --ease-in-out:cubic-bezier(0.77,0,0.175,1); --ease-drawer:cubic-bezier(0.32,0.72,0,1);"),
-    "all three custom easing tokens must exist with the exact curves",
+    stripped.includes("--ease-out:cubic-bezier(0.23,1,0.32,1); --ease-drawer:cubic-bezier(0.32,0.72,0,1);"),
+    "the two live custom easing tokens must exist with the exact curves",
   );
+  assert.ok(!stripped.includes("--ease-in-out:"), "the dead --ease-in-out token must stay deleted");
   assert.ok(stripped.includes("--duration-enter:200ms; --duration-exit:140ms;"), "enter/exit durations stay 200/140ms");
 });
 
