@@ -25,7 +25,7 @@ import {
 
 import { getEffectiveTheme, toggleTheme, subscribeTheme } from "./theme.mjs";
 
-export default function AppHeader({ viewLabel, title, whoName, onLogout, drawerOpen, onToggleDrawer, hamburgerRef, alerts, auditLogs, userId, onViewAlerts }) {
+export default function AppHeader({ viewLabel, crumbParent, title, whoName, onLogout, drawerOpen, onToggleDrawer, hamburgerRef, alerts, auditLogs, userId, onViewAlerts }) {
   const [bellOpen, setBellOpen] = useState(false);
   // Dashboard redesign (D3): the theme toggle. The effective theme
   // (light/dark) is subscribed from the shared theme module, so the
@@ -96,7 +96,7 @@ export default function AppHeader({ viewLabel, title, whoName, onLogout, drawerO
       </button>
       <div className="app-header-main">
         <nav className="crumbs" aria-label="面包屑">
-          {viewLabel === "总览" ? "总览" : (<>总览 <span aria-hidden="true">/</span> {viewLabel}</>)}
+          {crumbParent ? (<>{crumbParent} <span aria-hidden="true">/</span> {viewLabel}</>) : viewLabel}
         </nav>
         {title}
       </div>

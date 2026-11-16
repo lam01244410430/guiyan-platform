@@ -2785,6 +2785,15 @@ export default function AdminDashboard() {
     bi: ["数据大屏", "关键指标 · 近 30 天趋势 · 热门演出 / 场馆"],
     financeledger: ["财务账本", "订单收入 · 退款 · 储值 · 手工对账"],
   };
+  // Breadcrumb parent = the view's real sidebar group (Lam 2026-11-17):
+  // the 7 premium views sit under the 经营分析 group in Sidebar.jsx;
+  // main views are top-level and show no parent. The analysis view's
+  // own label IS the group name, so it shows no parent either
+  // (no duplicated parent — the label already is the group name).
+  // The overview crumb stays 总览 — that is the page's own name now,
+  // not a fake parent.
+  const PREMIUM_VIEWS = new Set(["trends", "analysis", "alerts", "events", "memberinsights", "bi", "financeledger"]);
+  const crumbParent = (view !== "analysis" && PREMIUM_VIEWS.has(view)) ? "经营分析" : "";
   const by = (stats && stats.orders_by_status) || {};
   // R1-1: the signed-in admin's scope (the sessionStorage user carries
   // shop_id since R1-1; NULL = platform admin, all shops).
@@ -2973,6 +2982,7 @@ export default function AdminDashboard() {
         <main className="main" id="top" tabIndex={-1}>
           <AppHeader
             viewLabel={titles[view][0]}
+            crumbParent={crumbParent}
             title={<h1><span id="pageTitle">{titles[view][0]}</span><span className="sub" id="pageSub">{titles[view][1]}</span></h1>}
             whoName={whoName}
             alerts={alerts}
