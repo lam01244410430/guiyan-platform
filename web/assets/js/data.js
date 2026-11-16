@@ -323,7 +323,16 @@ var DEMANDS = [
 [["文旅小团，寻找山歌与民俗体验资源","Đoàn văn–du nhỏ, tìm trải nghiệm sơn ca và dân tục","Small travel group seeks song & folk experiences"],"tourism",9000,"崇左",["Đoàn khoảng 20 người cần hành trình kết hợp sơn ca, trống đồng và thủ công.","约20人小团，需要山歌、铜鼓与手作结合的行程。","A group of about 20 wants an itinerary combining mountain songs, bronze drums and crafts."]]
 ];
 var money = function(n){ return "¥" + n.toLocaleString("zh-CN"); };
+/* Short showtime stamp for the booking popup: the API returns ISO
+   ("2026-12-20T19:30:00+08:00"); the raw 25-char string wraps the
+   156px first column of .perf-row to two lines, so the perf row grows
+   taller than the ticket-type row. Display date + hour:minute only
+   ("2026-12-20 19:30") — seconds and offset carry no booking value. */
+var shortDateTime = function(s){
+  var m = String(s || "").match(/^(\d{4}-\d{2}-\d{2})[T ](\d{2}:\d{2})/);
+  return m ? m[1] + " " + m[2] : String(s || "");
+};
 var state = { cat:"all", q:"", city:"all", sort:"hot", shown:12, favs:{}, orders:[], seq:137, pref:null, priceMin:"", priceMax:"", minRating:0, role:null };
 
 // ESM exports (React entries import this module; no globals anymore).
-export { I18N, t, fmt, CATS, catName, catZh, catBoth, CITYN, cityName, UNITN, unitName, CATIMG, RES, DEMANDS, money, state, li, L };
+export { I18N, t, fmt, CATS, catName, catZh, catBoth, CITYN, cityName, UNITN, unitName, CATIMG, RES, DEMANDS, money, shortDateTime, state, li, L };

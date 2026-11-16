@@ -6,7 +6,7 @@
    login gate and offline local fallback are unchanged. */
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
-  langState, t, fmt, money, CATS, RES, DEMANDS, CATIMG, CITYN,
+  langState, t, fmt, money, shortDateTime, CATS, RES, DEMANDS, CATIMG, CITYN,
   catName, catZh, catBoth, cityName, unitName, li, state as store,
 } from "./data.js";
 import {
@@ -1362,7 +1362,7 @@ export default function App() {
                         <div key={pf.id}>
                           <button type="button" className="perf-row" style={{ width: "100%", background: pf.id === perfSel ? "var(--sand)" : "transparent", border: "none", cursor: "pointer", textAlign: "left" }}
                             onClick={() => pickPerf(pf)}>
-                            <span>{pf.start_at}</span><span>{money(pf.price_cents / 100)}</span><span className="perf-status">{t("perfOnSale")}</span>
+                            <span>{shortDateTime(pf.start_at)}</span><span>{money(pf.price_cents / 100)}</span><span className="perf-status">{t("perfOnSale")}</span>
                           </button>
                           {pf.id === perfSel && (
                             <div className="tier-list">
