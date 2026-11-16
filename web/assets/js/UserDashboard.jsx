@@ -179,7 +179,7 @@ export default function UserDashboard() {
   // user + the delivery state returned by send-otp. Email is REAL when the
   // provider is configured (the server sends the code by email and answers
   // {sent:true} with no code — the UI shows the sent note instead); without
-  // a provider the server returns a demo code, shown labelled 模拟，未真实发送.
+  // a provider the server returns a demo code, shown labelled as not really sent.
   // Phone has no SMS provider, so it always shows the demo code. Email and
   // phone each keep their own copy.
   const [emailCode, setEmailCode] = useState("");

@@ -946,7 +946,7 @@ export async function transitionOrder(ctx) {
 
 
 // R6-6 — 交易保障 (xlsx row 73): escrow hold/release on a paid order.
-// Hold moves escrow 模拟托管中 -> 已托管 (owner or admin); release moves
+// Hold moves escrow from its held state to 已托管 (owner or admin); release moves
 // 已托管 -> 已释放 (admin only). A disputed order freezes escrow (both
 // actions -> 400 until the dispute is resolved via rejectDispute /
 // resolve; a refund_requested order is likewise non-paid, so it 400s

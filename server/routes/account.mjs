@@ -77,7 +77,7 @@ const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 // and simulated otherwise; phone has no SMS provider, so it is always
 // simulated. Real email: the code goes out by email and is NEVER returned
 // in the send-otp response. Simulated: the server returns the code in the
-// response and the UI shows it as a demo code labelled 模拟，未真实发送.
+// response and the UI shows it as a demo code, labelled as not really sent.
 // Never claim a real email/SMS was sent when it was simulated.
 // Registration stays unverified — OTP applies only to changing the email /
 // phone of a signed-in account.

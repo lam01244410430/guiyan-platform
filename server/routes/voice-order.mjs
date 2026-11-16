@@ -12,7 +12,7 @@
 // DRAFT order (status pending, NOT paid). Payment happens only
 // after the user manually confirms, through the existing
 // simulated-payment flow (POST /api/orders/:id/confirm, then
-// /pay — "模拟支付，未扣款"; no real money moves).
+// /pay — payment is simulated, no real money moves).
 // -> parse failure / show not found / no on-sale performance that
 // day / insufficient stock -> a clear 400/409, never a guessed
 // performance. No order row is written on any of those paths

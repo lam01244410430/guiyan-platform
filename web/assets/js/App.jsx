@@ -593,7 +593,7 @@ export default function App() {
   function handleOrderAction(act, oi) {
     const o = store.orders[+oi]; if (!o) return;
     // R6-6: escrow hold (owner or admin) — a separate endpoint, not a
-    // status transition: 模拟托管中 -> 已托管 on a paid order.
+    // status transition: escrow held -> 已托管 on a paid order.
     if (act === "escrowHold") {
       if (o.apiId != null && isApiAvailable() && getToken()) {
         apiPost("/api/orders/" + encodeURIComponent(o.apiId) + "/escrow", { action: "hold" }).then(function (d) {

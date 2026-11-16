@@ -957,7 +957,7 @@ export default function AdminDashboard() {
 
   /* Wave 4 #15 — simulated agreement per order (具体功能 #12, port of
      zhou Transactions.jsx): fetch the server-generated text and show it
-     in a modal; the .txt download is named <order-code>-模拟协议.txt. */
+     in a modal; the .txt download is named after the order code. */
   function openContract(o) {
     apiGet("/api/orders/" + encodeURIComponent(o.id) + "/contract").then(function (d) {
       setContract({ title: d.title, content: d.content, code: o.code });
@@ -1183,7 +1183,7 @@ export default function AdminDashboard() {
       setResources(function (rs) { return rs.map(function (x) { return x.id === saved.id ? saved : x; }); });
       loadAudit();
       // The server message states no external request was sent; the
-      // sync itself is simulated (syncResult carries （模拟）).
+      // the sync writes a local record only (no external request is sent).
       toast(d.message || "已模拟同步");
     }).catch(function (e) {
       if (e && e.status === 403) toast("无权管理资源");
@@ -2957,7 +2957,6 @@ export default function AdminDashboard() {
                 {analysis ? <DonutChart channels={analysis.channels} total={stats ? stats.revenue_cents : 0} /> : <div className="empty">加载中…</div>}
               </div>
             </div>
-            <div className="note">订单可在订单页处理售后；用户仅查看；资源可在资源页管理；需求可在需求页审核，操作留痕。支付与 AI 均为模拟。</div>
             <div className="sec">
               <h2>订单状态</h2>
               <div id="orderBreakdown">
@@ -3096,7 +3095,6 @@ export default function AdminDashboard() {
           </section>
 
           <section className={"view" + (view === "tagrules" ? " on" : "")} id="view-tagrules">
-            <div className="note">条件可组合，保存后立即重算。金额单位为<b>分</b>（¥10,000 = 1000000分）；未付费用户不会被默认划为潜力会员。浏览分类规则需要真实浏览数据（打开资源详情即记录）。</div>
             {tagRules === null ? <div className="empty">加载中…</div> : (
               <>
                 {tagRules.map((r, i) => (
@@ -3164,7 +3162,6 @@ export default function AdminDashboard() {
                   aria-pressed={resCatFilter === id ? "true" : "false"} onClick={() => setResCatFilter(id)}>{name}</button>
               ))}
             </div>
-            <div className="note">管理端写资源会改库存/容量/详情，直接影响档期余量、推荐与统计；操作留痕。价格输入元，保存时换算为分。图片只填静态路径（/images/…），不上传。</div>
             {resForm ? (
               <fieldset className="tag-rule">
                 <legend>{resForm.id === null ? "添加资源" : "编辑资源：" + resForm.name}</legend>
@@ -3335,7 +3332,6 @@ export default function AdminDashboard() {
                 value={query} onChange={setQuery} resultCount={q ? filteredShops.length : null} />
               {isPlatformAdmin ? (<button type="button" className="btn-export" onClick={() => openShopForm(null)}>添加店铺</button>) : null}
             </div>
-            <div className="note">总店“桂演平台总店”不可停用；子店店主须为管理员账号，且一位管理员只属于一家店铺。子店管理员仅可见、可改本店资源。</div>
             {shopForm ? (
               <fieldset className="tag-rule">
                 <legend>{shopForm.id === null ? "添加店铺" : "编辑店铺：" + shopForm.name}</legend>
@@ -3387,7 +3383,6 @@ export default function AdminDashboard() {
                 allowlist as theming; setting a default clears the
                 shop's old default. Tickets render with the shop's
                 default template (built-in when none is set). */}
-            <div className="note" style={{ marginTop: 16 }}>票面模板按店铺管理；设为默认时清除同店旧默认；未设默认时用内置默认票面（深松绿）。</div>
             {templateForm ? (
               <fieldset className="tag-rule">
                 <legend>{templateForm.id === null ? "添加票面模板" : "编辑票面模板：" + templateForm.name}</legend>
@@ -3476,7 +3471,6 @@ export default function AdminDashboard() {
               </select>
               <button type="button" className="btn-export" onClick={openShowForm}>添加演出</button>
             </div>
-            <div className="note">演出须关联本店的演出剧目类资源；新建为待审核，通过后才可创建场次、上架售票。子店管理员仅可见、可改本店演出。</div>
             {showForm ? (
               <fieldset className="tag-rule">
                 <legend>添加演出</legend>
@@ -3632,7 +3626,6 @@ export default function AdminDashboard() {
                               ) : (
                                 <div className="row-end" style={{ marginTop: 12 }}><button type="button" className="btn-view" onClick={() => openPickupForm(s)}>添加取票点</button></div>
                               )}
-                              <div className="note" style={{ marginTop: 8 }}>已有订单使用取票点不可删除；配置取票点后，顾客下单该演出须选择取票点。</div>
                             </td>
                           </tr>
                         ) : null}
@@ -3652,7 +3645,6 @@ export default function AdminDashboard() {
                 value={query} onChange={setQuery} resultCount={q ? filteredVenueList.length : null} />
               <button type="button" className="btn-export" onClick={() => openVenueForm(null)}>添加场馆</button>
             </div>
-            <div className="note">场馆须归属本店；资源表单可把资源挂到同店场馆，顾客详情页显示场馆名与地址。未配置座位模板的场馆显示“未配置座位模板”，其场次暂不可选座。</div>
             {/* R6-2: venue availability lookup — pick a date (and
                 optionally one venue) and see which venues are free
                 that day. Read-only; occupied venues list their shows. */}
@@ -3762,7 +3754,6 @@ export default function AdminDashboard() {
             <div className="search-row">
               <button type="button" className="btn-export" onClick={() => openMemberTierForm(null)}>添加会员等级</button>
             </div>
-            <div className="note">等级按店配置；顾客按累计消费自动升降级，消费额为已付款订单总额（分）。改门槛不追溯已有用户，下次付款/完成/退款批准时才按新门槛算。下单先按票种价算底价，再按等级折扣减。</div>
             {memberTierForm ? (
               <fieldset className="tag-rule">
                 <legend>{memberTierForm.id === null ? "添加会员等级" : "编辑会员等级：" + memberTierForm.name}</legend>
@@ -3810,7 +3801,6 @@ export default function AdminDashboard() {
             <div className="search-row">
               <button type="button" className="btn-export" onClick={() => openCouponForm(null)}>添加优惠券</button>
             </div>
-            <div className="note">券按店配置，顾客下单时输入券码使用。叠加顺序：底价 → 会员折扣 → 券在折后余款上算（固定金额取减额与余款较小者，比例券向下取整）。最低消费按折后余款算。订单取消/退款批准后核销自动释放，名额与每人计数恢复。券码与店铺建后不可改。</div>
             {couponForm ? (
               <fieldset className="tag-rule">
                 <legend>{couponForm.id === null ? "添加优惠券" : "编辑优惠券：" + couponForm.code}</legend>
@@ -3879,7 +3869,6 @@ export default function AdminDashboard() {
             <div className="search-row">
               <button type="button" className="btn-export" onClick={() => openFlashSaleForm(null)}>添加限时抢购</button>
             </div>
-            <div className="note">抢购按店配置，一场抢购只对一个场次；场次订单在抢购进行中时自动按抢购价计价（窗口外按原价，不报错）。叠加顺序：抢购价 → 会员折扣 → 券在折后余款上算。名额耗尽时订单仍按原价走单；订单取消/退款批准后名额自动释放。同一场次同一时间只能有一场启用的抢购。场次与店铺建后不可改。</div>
             {flashSaleForm ? (
               <fieldset className="tag-rule">
                 <legend>{flashSaleForm.id === null ? "添加限时抢购" : "编辑限时抢购：" + flashSaleForm.name}</legend>
@@ -3951,7 +3940,6 @@ export default function AdminDashboard() {
             <div className="search-row">
               <button type="button" className="btn-export" onClick={() => openCouponRuleForm(null)}>添加自动发券规则</button>
             </div>
-            <div className="note">规则按店配置：用户首次购买或会员升级时，系统自动把指定优惠券发到用户站内信（无后台定时任务，订单支付时同步判定）。同一规则同一用户同一触发只赠一次；生日触发本波不支持（无生日数据）。赠券与管理员发的券完全一样，下单时输券码使用，核销时计入券名额与每人限额。触发条件、优惠券与店铺建后不可改。</div>
             {couponRuleForm ? (
               <fieldset className="tag-rule">
                 <legend>{couponRuleForm.id === null ? "添加自动发券规则" : "编辑自动发券规则：" + couponRuleForm.name}</legend>
@@ -4022,7 +4010,6 @@ export default function AdminDashboard() {
             <div className="search-row">
               <button type="button" className="btn-export" onClick={() => openSmsTaskForm(null)}>添加短信任务</button>
             </div>
-            <div className="note">短信群发尚未接入服务商：任务只做到“未发送 — 等待服务商”为止，本波不发送任何短信、不花钱。模板只认 {"{{name}}"} 与 {"{{code}}"} 两个占位符；受众按规则算好人数后存下来，不在发送时重查（本波不发送）。内容只在草稿时可改；进入“未发送 — 等待服务商”后任务不可再改。</div>
             {smsTaskForm ? (
               <fieldset className="tag-rule">
                 <legend>{smsTaskForm.id === null ? "添加短信任务" : "编辑短信任务：" + smsTaskForm.name}</legend>
@@ -4086,7 +4073,6 @@ export default function AdminDashboard() {
             <div className="search-row">
               <button type="button" className="btn-export" onClick={() => openLicForm()}>登记版权</button>
             </div>
-            <div className="note">版权授权登记：选一个资源，填授权方、被授权方、方向与价格；版权方、授权类型与 IP 地区是资源的事实字段，随登记一起写入资源详情，不编造持有人。跨店铺的资源不能登记。</div>
             {licForm ? (
               <fieldset className="tag-rule">
                 <legend>登记版权</legend>
@@ -4143,7 +4129,6 @@ export default function AdminDashboard() {
             <div className="search-row">
               <button type="button" className="btn-export" onClick={() => openStoredValuePlanForm(null)}>添加储值套餐</button>
             </div>
-            <div className="note">文惠卡按店配置：顾客选套餐充值（充多少送多少，模拟充值，未产生真实扣款），下单支付时先扣卡内余额、余款走模拟支付，退款批准时先返还卡内已扣的部分。每账户余额上限 ¥5000。平台补贴是发到卡里的赠送余额，不是第二套卡。</div>
             {storedValuePlanForm ? (
               <fieldset className="tag-rule">
                 <legend>{storedValuePlanForm.id === null ? "添加储值套餐" : "编辑储值套餐"}</legend>
@@ -4244,7 +4229,6 @@ export default function AdminDashboard() {
           </section>
 
           <section className={"view" + (view === "verify" ? " on" : "")} id="view-verify">
-            <div className="note">扫票核销：输入票码（GY + 8 位字母数字，不区分大小写）后核销。核销只查票状态，不校验演出日期。每次核销尝试都会记入核销记录。</div>
             <fieldset className="tag-rule">
               <legend>核销一张票</legend>
               <div className="form-row">
@@ -4261,7 +4245,6 @@ export default function AdminDashboard() {
                 navigator.vibrate); the mini-program has no TTS. */}
             <fieldset className="tag-rule">
               <legend>批量核销</legend>
-              <div className="note">一次粘贴多个票码（每行一个，最多 50 个），一次调用全部核销；单个坏码不影响其余。语音播报与震动仅限本页（Web Speech API + navigator.vibrate），小程序无语音播报。</div>
               <label>票码 <textarea className="copy-prompt" aria-label="批量票码" placeholder={"每行一个票码，例如\nGY7K2Q9X4M\nGY00000000"} value={batchCodes} onChange={(e) => setBatchCodes(e.target.value)} /></label>
               <div className="row-end">
                 <button type="button" className="btn-export" disabled={batchBusy} onClick={() => doBatchVerify()}>{batchBusy ? "核销中…" : "批量核销"}</button>
@@ -4285,7 +4268,6 @@ export default function AdminDashboard() {
             </fieldset>
             <fieldset className="tag-rule">
               <legend>离线队列（{verifyQueue.length}）</legend>
-              <div className="note">批量核销失败的票码会存入本地队列；点“同步”重新发送，同步成功后才移出队列。</div>
               {verifyQueue.length ? (
                 <>
                   <div className="note">{verifyQueue.join("、")}</div>
@@ -4303,7 +4285,6 @@ export default function AdminDashboard() {
                 physical printer is connected. */}
             <fieldset className="tag-rule">
               <legend>打印纸质票</legend>
-              <div className="note">只记录打印事件；纸张由浏览器打印票面出票，不接实体打印机。已核销 / 已作废 / 退款审核中的票不能打印；已打印过的票可重打（卡纸重打）。</div>
               <div className="form-row">
                 <label>订单号 <input type="text" value={printOrderId} placeholder="例如 123" onChange={(e) => setPrintOrderId(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") doPrintOrder(); }} /></label>
                 <button type="button" className="btn-export" disabled={printBusy} onClick={() => doPrintOrder()}>{printBusy ? "打印中…" : "打印该单"}</button>
@@ -4355,7 +4336,6 @@ export default function AdminDashboard() {
           </section>
 
           <section className={"view" + (view === "aicopy" ? " on" : "")} id="view-aicopy">
-            <div className="note">AI 生成三渠道文案草稿；智能服务不可用时自动用本地模板。缺日期、价格、地点时只留占位符，不编造。请用中文输入主题。</div>
             <textarea className="copy-prompt" aria-label="文案主题" placeholder="例如：为《刘三姐》写一段小红书推送，地点：南宁剧场，票价280元"
               value={copyPrompt} onChange={(e) => setCopyPrompt(e.target.value)} />
             <div className="chips">
@@ -4387,7 +4367,6 @@ export default function AdminDashboard() {
               byte-identical. Setting a value here is what makes AiChat
               use it; clearing a field (empty) unsets it again. */}
           <section className={"view" + (view === "ipconfig" ? " on" : "")} id="view-ipconfig">
-            <div className="note">文小惠形象配置（设计未到，仅留配置入口）：名称、头像链接、问候语均可留空——留空即未设置，聊天保持原样，不编造任何形象、名字或问候语。头像须为 https:// 链接或站内路径（如 /uploads/ip.png）。</div>
             {ipConfig === null ? <div className="empty">加载中…</div> : (
               <>
                 <div className="search-row">
@@ -4745,7 +4724,6 @@ export default function AdminDashboard() {
           </section>
 
           <section className={"view" + (view === "alerts" ? " on" : "")} id="view-alerts">
-            <div className="note">以下预警中，库存/预约/售后为真实数据规则触发；标注（模拟事件）的是模拟演练事件，不代表真实故障。标注“自动”的预警由预警规则读时现算、不入库；停用规则或修好底层问题即可消警。</div>
             <p>库存预警阈值：{threshold}</p>
             <div className="sec">
               <h2>触发模拟预警</h2>
@@ -4854,7 +4832,6 @@ export default function AdminDashboard() {
               only; there is no cron/worker this wave) and is
               idempotent: running it twice changes nothing. */}
           <section className={"view" + (view === "events" ? " on" : "")} id="view-events">
-            <div className="note">埋点事件（浏览 / 点击 / 搜索 / 停留）按小时或天汇总。聚合按人工触发重算，无定时任务；重新聚合可重复执行，结果不变。</div>
             <div className="search-row">
               <label>周期 <select value={eventPeriod} onChange={(e) => setEventPeriod(e.target.value)}>
                 <option value="day">按天</option>
@@ -4898,7 +4875,6 @@ export default function AdminDashboard() {
               RULES, not AI — row 54's AI-personalized half stays in
               R7, and this view never claims otherwise. */}
           <section className={"view" + (view === "memberinsights" ? " on" : "")} id="view-memberinsights">
-            <div className="note">会员消费与经营建议（规则建议，非 AI）。流失 = 超过流失天数无已付订单（从未购买也算流失，但无消费的不进回访建议）；可升级 = 距下一等级门槛在差距百分比以内；推广演出 = 近 30 天本店收入最高的演出。</div>
             <div className="search-row">
               {isPlatformAdmin ? (
                 <label>店铺 <select value={insightShop} onChange={(e) => setInsightShop(e.target.value)}>
@@ -4963,7 +4939,6 @@ export default function AdminDashboard() {
               below prints via the browser ("浏览器打印另存为 PDF"),
               it never claims the server produced a PDF file. */}
           <section className={"view" + (view === "bi" ? " on" : "")} id="view-bi">
-            <div className="note">关键指标与 admin 统计同口径（已付 = 已支付 / 已完成）；近 30 天按日（北京时间）统计已付订单。PDF 不由服务端生成：点“打印/导出 PDF”后用浏览器打印另存为 PDF。</div>
             <div className="search-row bi-actions">
               <button type="button" className="btn-export" disabled={biBusy} onClick={() => doExportBi("xlsx")}>{biBusy ? "导出中…" : "导出 Excel（.xlsx）"}</button>
               <button type="button" className="btn-export" disabled={biBusy} onClick={() => doExportBi("csv")}>{biBusy ? "导出中…" : "导出 CSV"}</button>
@@ -5028,7 +5003,6 @@ export default function AdminDashboard() {
               row). Reconcile is manual (one row at a time); the CSV
               export carries the BOM like the orders CSV. */}
           <section className={"view" + (view === "financeledger" ? " on" : "")} id="view-financeledger">
-            <div className="note">账本与订单同事务记账：支付记订单收入、批准退款记退款支出（退回文惠卡的部分另记一行正数）、充值记储值充值。收入合计 + 退款合计 = 仍为已支付/已完成订单的金额合计。</div>
             <div className="search-row">
               <select aria-label="按类型筛选" value={ledgerKind} onChange={(e) => setLedgerKind(e.target.value)}>
                 <option value="">全部类型</option>
