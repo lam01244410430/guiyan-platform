@@ -153,7 +153,7 @@ function ExpandableCell({ value, mono }) {
   );
 }
 
-function OrderRow({ o, onContract, onReview, onEscrow, reviewBusyId, onViewAlerts }) {
+function OrderRow({ o, onContract, onReview, onEscrow, onSeller, sellerCanAct, reviewBusyId, onViewAlerts }) {
   const busy = reviewBusyId === o.id;
   const pending = pendingPartialInfo(o);
   const mark = orderMarkLevel(o);
@@ -168,7 +168,12 @@ function OrderRow({ o, onContract, onReview, onEscrow, reviewBusyId, onViewAlert
         <td>{o.escrow || ""}</td>
         <td><button type="button" className="btn-view" onClick={() => onContract(o)}>协议 / 权益</button></td>
         <td>
-          {o.status === "refund_requested" ? (
+          {o.status === "pending" && sellerCanAct ? (
+            <span className="row-actions">
+              <button type="button" className="btn-approve" disabled={busy} onClick={() => onSeller(o.id, "confirm")}>{busy ? "处理中…" : "确认"}</button>
+              <button type="button" className="btn-reject" disabled={busy} onClick={() => onSeller(o.id, "reject")}>{busy ? "处理中…" : "驳回"}</button>
+            </span>
+          ) : o.status === "refund_requested" ? (
             <span className="row-actions">
               <button type="button" className="btn-approve" disabled={busy} onClick={() => onReview(o.id, "approveRefund")}>{busy ? "处理中…" : "同意退款"}</button>
               <button type="button" className="btn-reject" disabled={busy} onClick={() => onReview(o.id, "rejectRefund")}>{busy ? "处理中…" : "拒绝退款"}</button>
@@ -1152,6 +1157,33 @@ export default function AdminDashboard() {
       apiGet("/api/admin/stats").then(setStats).catch(function () {});
       loadAudit();
       toast("已处理");
+    }).catch(function (e) {
+      if (e && e.status === 403) toast("无权处理");
+      else if (e && e.status === 400) toast((e.data && e.data.error) || "当前状态不允许该操作");
+      else if (e && e.status === 404) toast("订单不存在");
+      else toast("处理失败，请稍后重试");
+    }).finally(function () { setReviewBusyId(null); });
+  }
+
+  /* Seller-confirm (Lam 2026-11-16) — the seller confirms or rejects
+     a pending order. Same busy-id + reload pattern as doReviewOrder;
+     the server enforces seller-only (platform admin or admin of the
+     order's shop). A reject asks for a reason, but it is optional:
+     the reason goes into the buyer notify + audit log only, never
+     onto the order row. */
+  function doSellerOrder(id, action) {
+    if (reviewBusyId !== null) return;
+    let reason = "";
+    if (action === "reject") {
+      reason = window.prompt("请填写驳回原因（可选）", "") || "";
+    }
+    setReviewBusyId(id);
+    apiPost("/api/orders/" + id + "/" + action, reason.trim() ? { reason: reason.trim() } : {}).then(function (d) {
+      setOrders(function (os) { return os.map(function (o) { return o.id === id ? { ...o, status: d.status } : o; }); });
+      apiGet("/api/admin/orders").then(function (r) { setOrders(r.orders || []); }).catch(function () {});
+      apiGet("/api/admin/stats").then(setStats).catch(function () {});
+      loadAudit();
+      toast(action === "confirm" ? "订单已确认" : "订单已驳回");
     }).catch(function (e) {
       if (e && e.status === 403) toast("无权处理");
       else if (e && e.status === 400) toast((e.data && e.data.error) || "当前状态不允许该操作");
@@ -3224,7 +3256,7 @@ export default function AdminDashboard() {
                   <thead><tr><th scope="col" className="col-code" aria-sort={ariaSort("overview", "code")}>订单号<SortButton label="订单号" sortKey="code" tableId="overview" sort={sorts.overview} onToggle={toggleSort} /></th><th scope="col" className="col-name">用户</th><th scope="col" className="col-name">资源</th><th scope="col" className="num col-amount" aria-sort={ariaSort("overview", "amount")}>金额<SortButton label="金额" sortKey="amount" tableId="overview" sort={sorts.overview} onToggle={toggleSort} /></th><th scope="col" className="col-date" aria-sort={ariaSort("overview", "booking_date")}>预订日期<SortButton label="预订日期" sortKey="booking_date" tableId="overview" sort={sorts.overview} onToggle={toggleSort} /></th><th scope="col" className="col-status">状态</th><th scope="col" className="col-escrow">托管</th><th scope="col" className="col-contract">协议</th><th scope="col" className="col-actions-md">售后</th></tr></thead>
                   <tbody id="recentBody">
                     {orders.length
-                      ? (overviewMatches.length ? sortedOverview.slice(0, 8).map((o) => <OrderRow key={o.code} o={o} onContract={openContract} onReview={doReviewOrder} onEscrow={doEscrowOrder} reviewBusyId={reviewBusyId} />)
+                      ? (overviewMatches.length ? sortedOverview.slice(0, 8).map((o) => <OrderRow key={o.code} o={o} onContract={openContract} onReview={doReviewOrder} onEscrow={doEscrowOrder} onSeller={doSellerOrder} sellerCanAct={isPlatformAdmin || (!!me && me.shop_id != null && Number(me.shop_id) === Number(o.shop_id))} reviewBusyId={reviewBusyId} />)
                         : searchEmpty(9))
                       : <tr><td colSpan="9"><div className="empty">暂无订单</div></td></tr>}
                   </tbody>
@@ -3252,7 +3284,7 @@ export default function AdminDashboard() {
               <table className="orders-table">
                 <thead><tr><th scope="col" className="col-code" aria-sort={ariaSort("orders", "code")}>订单号<SortButton label="订单号" sortKey="code" tableId="orders" sort={sorts.orders} onToggle={toggleSort} /></th><th scope="col" className="col-name">用户</th><th scope="col" className="col-name">资源</th><th scope="col" className="num col-amount" aria-sort={ariaSort("orders", "amount")}>金额<SortButton label="金额" sortKey="amount" tableId="orders" sort={sorts.orders} onToggle={toggleSort} /></th><th scope="col" className="col-date" aria-sort={ariaSort("orders", "booking_date")}>预订日期<SortButton label="预订日期" sortKey="booking_date" tableId="orders" sort={sorts.orders} onToggle={toggleSort} /></th><th scope="col" className="col-status">状态</th><th scope="col" className="col-escrow">托管</th><th scope="col" className="col-contract">协议</th><th scope="col" className="col-actions-md">售后</th></tr></thead>
                 <tbody id="ordersBody">
-                  {filteredOrders.length ? pgOrders.rows.map((o) => <OrderRow key={o.code} o={o} onContract={openContract} onReview={doReviewOrder} onEscrow={doEscrowOrder} reviewBusyId={reviewBusyId} onViewAlerts={() => changeView("alerts")} />)
+                  {filteredOrders.length ? pgOrders.rows.map((o) => <OrderRow key={o.code} o={o} onContract={openContract} onReview={doReviewOrder} onEscrow={doEscrowOrder} onSeller={doSellerOrder} sellerCanAct={isPlatformAdmin || (!!me && me.shop_id != null && Number(me.shop_id) === Number(o.shop_id))} reviewBusyId={reviewBusyId} onViewAlerts={() => changeView("alerts")} />)
                     : (q ? searchEmpty(9) : <tr><td colSpan="9"><div className="empty">暂无订单</div></td></tr>)}
                 </tbody>
               </table>
