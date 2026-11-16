@@ -348,13 +348,28 @@ table{width:100%;border-collapse:collapse;font-size:13px;min-width:640px}
 .tbl-wrap table th.col-person{width:96px}
 .tbl-wrap table th.col-account{width:104px}
 /* Users-table round Q2(a): the users table's 操作 column fits its widest
-   row (root viewing a non-admin user: 编辑 54 + 授予管理 78 + 启用 54 +
-   2x8 gap = 202px content + 28px cell padding = 230px; +2px margin).
+   row (root viewing a non-admin user: 编辑 + 授予管理 + 启用). Measured
+   by CDP on my-llm: buttons render 44 + 59 + 44px + 2x8 gap = 163px
+   content + 28px cell padding = 191px minimum; 200px keeps 9px slack.
    The plan's ~90px assumed one button, but the role buttons stay, and
    .row-actions is nowrap flex — 90px would overflow. Scoped to the users
    table only: the shared .col-actions-wide (250px) still serves the
    other tables that use it (resources, shops, venues, comments...). */
-.tbl-wrap > table.users-table th.col-actions-wide{width:232px}
+.tbl-wrap > table.users-table th.col-actions-wide{width:200px}
+/* Users-table round, 375px fix (verify round 1): with table-layout:fixed
+   and the table min-width 640px, the four width-less columns (姓名/角色/
+   认证/标签) shared the 8px left after the fixed columns (640-632) and
+   each rendered 2px wide at 375px — 认证 stacked 1 char per line.
+   Giving 认证 alone a width would zero the other three instead, so
+   every users-table column now has an explicit width (total 1088px);
+   below 1088px the table scrolls horizontally inside .tbl-wrap, the
+   established pattern. Measured in a harness with the real admin.css:
+   375px every column keeps its width, 认证 1 line; 1440px the leftover
+   distributes and proportions stay sensible (认证 76px, 渠道 93px). */
+.tbl-wrap > table.users-table th.col-uname{width:160px}
+.tbl-wrap > table.users-table th.col-role{width:96px}
+.tbl-wrap > table.users-table th.col-verify{width:72px}
+.tbl-wrap > table.users-table th.col-tags{width:160px}
 .tbl-wrap table th.col-name{width:136px}
 .tbl-wrap table th.col-result{width:136px}
 .tbl-wrap table th.col-hdr-lg{width:128px}

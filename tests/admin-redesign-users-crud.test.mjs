@@ -449,10 +449,17 @@ test("root row locked + CRUD buttons and modals present in the users view", () =
     dashboardJsx.includes('<tr key={usr.username} className={isRootUser(usr) ? "row-locked" : undefined}>'),
     "root row must render with the row-locked class",
   );
-  // Edit/delete buttons exist, and only for plain users (never admin
-  // rows, never the caller's own row, never the root row).
+  // The row holds only the edit button for plain users (never admin
+  // rows, never the caller's own row, never the root row). Delete moved
+  // into the edit modal in the users-table round (2026-11-17): the row
+  // must NOT open the delete confirm directly any more.
   assert.ok(dashboardJsx.includes("onClick={() => openUserEditForm(usr)}>编辑</button>"), "edit button must exist");
-  assert.ok(dashboardJsx.includes("onClick={() => setUserDeleteTarget(usr)}>删除</button>"), "delete button must exist");
+  assert.ok(!dashboardJsx.includes("onClick={() => setUserDeleteTarget(usr)}>删除</button>"), "no direct delete button may remain on the row");
+  // The edit modal now holds the danger 删除 button, opening the same
+  // delete confirm for the stored user.
+  const editModalFull = dashboardJsx.slice(dashboardJsx.indexOf("<h3>编辑用户</h3>"), dashboardJsx.indexOf("<h3>新建用户</h3>"));
+  assert.ok(editModalFull.includes(">删除</button>"), "edit modal must hold a 删除 button");
+  assert.ok(editModalFull.includes("setUserDeleteTarget(t)"), "edit modal 删除 must open the delete confirm");
   assert.ok(dashboardJsx.includes('usr.role !== "admin"'), "edit/delete must be hidden on admin rows");
   assert.ok(dashboardJsx.includes("usr.id !== me.id && !isRootUser(usr)"), "action buttons must be hidden on self + root rows");
   // Create button + modal, edit modal (4 fields only), delete confirm.

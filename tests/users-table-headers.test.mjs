@@ -85,20 +85,43 @@ test("users-table Q2: the 操作 column width is scoped to the users table only"
     1,
     "exactly one users-table class (the 全部用户 table)",
   );
-  // Measured worst case (root viewing a non-admin user: 编辑 54 +
-  // 授予管理 78 + 启用 54 + 2x8 gap = 202px content + 28px cell padding
-  // = 230px; +2px margin). The plan's ~90px assumed one button, but the
-  // role buttons stay and .row-actions is nowrap flex — 90px would
-  // overflow the 3-button rows.
+  // Measured worst case by CDP on my-llm (verify round 1): the 3-button
+  // row renders 44 + 59 + 44px + 2x8 gap = 163px content + 28px cell
+  // padding = 191px minimum; 200px keeps 9px slack. The plan's ~90px
+  // assumed one button, but the role buttons stay and .row-actions is
+  // nowrap flex — 90px would overflow the 3-button rows.
   assert.ok(
-    css.includes(".tbl-wrap > table.users-table th.col-actions-wide{width:232px}"),
-    "admin.css missing: users-table scoped 操作 width 232px",
+    css.includes(".tbl-wrap > table.users-table th.col-actions-wide{width:200px}"),
+    "admin.css missing: users-table scoped 操作 width 200px",
   );
   // The shared class still serves the other tables that use it.
   assert.ok(
     css.includes(".tbl-wrap > table th.col-actions-wide{width:250px}"),
     "shared .col-actions-wide must stay 250px for the other tables",
   );
+});
+
+test("users-table 375px fix: every users-table column has an explicit width", () => {
+  // With table-layout:fixed and the 640px min-width, the four width-less
+  // columns shared the 8px left after the fixed columns (640-632) and
+  // each rendered 2px wide at 375px — 认证 stacked 1 char per line.
+  // Every column now has a width (total 1088px); below that the table
+  // scrolls horizontally inside .tbl-wrap, the established pattern.
+  // Measured in a harness with the real admin.css: at 375px every
+  // column keeps its width and 认证 is 1 line; at 1440px the leftover
+  // distributes and proportions stay sensible.
+  for (const rule of [
+    ".tbl-wrap > table.users-table th.col-uname{width:160px}",
+    ".tbl-wrap > table.users-table th.col-role{width:96px}",
+    ".tbl-wrap > table.users-table th.col-verify{width:72px}",
+    ".tbl-wrap > table.users-table th.col-tags{width:160px}",
+  ]) {
+    assert.ok(css.includes(rule), "admin.css missing: " + rule);
+  }
+  assert.ok(dashboardJsx.includes('className="col-uname"'), "姓名 header must carry col-uname");
+  assert.ok(dashboardJsx.includes('className="col-role"'), "角色 header must carry col-role");
+  assert.ok(dashboardJsx.includes('className="col-verify"'), "认证 header must carry col-verify");
+  assert.ok(dashboardJsx.includes('className="col-tags"'), "标签 header must carry col-tags");
 });
 
 test("users-table Q3: every admin table header (th) is centred, cells unchanged", () => {
