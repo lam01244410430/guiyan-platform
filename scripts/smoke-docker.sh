@@ -453,10 +453,12 @@ HASREC="$(has '"recognition":false' && echo yes || echo no)"
 CODE2="$(post /api/voice-order '{"text":"你好"}' "$DEMO_TOKEN")"
 if [ "$CODE" = "200" ] && [ "$N" = "4" ] && [ "$HASREC" = "yes" ] && [ "$CODE2" = "400" ]; then ok "67 GET /api/voice/dialects 200, 4 dialects, recognition false + voice-order gibberish 400"; else bad "67 voice dialects/order (dialects code=$CODE count=$N rec=$HASREC, voice code=$CODE2)"; fi
 
-# 68. ai-copy genre template — 200 as demo, genre 戏曲 for a 京剧 prompt
-# (R7-8; template only, mock: true, no model call)
+# 68. ai-copy real AI — 200 as demo, genre 戏曲 for a 京剧 prompt
+# (fix round 2026-11-16: the endpoint now returns live AI from the trial
+# agent — source "ai", mock false — when the agent answers; the old
+# mock:true assertion is the pre-AI contract)
 CODE="$(post /api/ai/copy '{"prompt":"为《京剧》写一段推送"}' "$DEMO_TOKEN")"
-if [ "$CODE" = "200" ] && has '"genre":"戏曲"' && has '"mock":true'; then ok "68 POST /api/ai/copy 京剧 prompt 200, genre 戏曲, mock"; else bad "68 POST /api/ai/copy genre (code=$CODE, body=$(cat "$TMP/body"))"; fi
+if [ "$CODE" = "200" ] && has '"genre":"戏曲"' && has '"source":"ai"' && has '"mock":false'; then ok "68 POST /api/ai/copy 京剧 prompt 200, genre 戏曲, source ai, mock false"; else bad "68 POST /api/ai/copy genre (code=$CODE, body=$(cat "$TMP/body"))"; fi
 
 # 69. brand site — 200, the brand page title + the brand entry script
 # (R9-1; served from the dist build by the Node server)

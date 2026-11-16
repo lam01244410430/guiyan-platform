@@ -245,7 +245,7 @@ path.join(repoDir, "admin", "assets", "js", "AdminDashboard.jsx"),
 "utf-8",
 );
 assert.ok(
-adminJsx.includes('aicopy: ["文案生成", copyResult? (copyResult.source === "ai"? "AI 生成": "本地模板 · 智能服务暂时不可用，已用模板生成"): "AI 生成 · 智能服务不可用时自动用模板"]'),
+adminJsx.includes('aicopy: ["文案生成", copyResult ? (copyResult.source === "ai" ? "AI 生成" : "本地模板 · 智能服务暂时不可用，已用模板生成") : "AI 生成 · 智能服务不可用时自动用模板"]'),
 "admin subtitle shows AI 生成 on success and the template fallback otherwise",
 );
 assert.ok(
@@ -253,4 +253,31 @@ adminJsx.includes("AI 生成三渠道文案草稿；智能服务不可用时自�
 "admin note describes AI-first with template fallback",
 );
 assert.ok(!adminJsx.includes("本地模板 · 未接入大模型"), "the old 'not connected to a model' label is gone");
+});
+
+test("ai copy UI: the admin client gives the copy call a 30s timeout", () => {
+  // The live agent answers in ~6s; the default 5s abort killed every UI
+  // generation before the model replied (fix round, 2026-11-16). The
+  // override is scoped to /api/ai/copy only — the global default stays 5s.
+  const repoDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
+  const adminApi = fs.readFileSync(
+    path.join(repoDir, "admin", "assets", "js", "adminApi.js"),
+    "utf-8",
+  );
+  assert.ok(
+    adminApi.includes("opts.timeoutMs") && adminApi.includes("? opts.timeoutMs : 5000"),
+    "apiFetch accepts a per-call opts.timeoutMs with a 5s default",
+  );
+  const adminJsx = fs.readFileSync(
+    path.join(repoDir, "admin", "assets", "js", "AdminDashboard.jsx"),
+    "utf-8",
+  );
+  assert.ok(
+    adminJsx.includes('apiPost("/api/ai/copy", { prompt }, { timeoutMs: 30000 })'),
+    "doCopyGenerate passes a 30s timeout to the ai/copy call",
+  );
+  assert.ok(
+    !adminJsx.includes('apiPost("/api/ai/copy", { prompt })'),
+    "no ai/copy call is left on the 5s default",
+  );
 });

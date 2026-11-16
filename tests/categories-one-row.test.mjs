@@ -1,8 +1,10 @@
-// Categories in one row (2026-11-16): home .catrail is 10 columns / 1 row
+// Categories in one row (2026-11-16): home .catrail is 11 columns / 1 row
 // on desktop (>=1240px; 5 cols <=1240, 3 <=900, 2 <=560), the #catFilters
 // chip row is one row with horizontal scroll instead of wrapping, and the
-// admin resources view gets a one-row category chip filter (All + 10)
+// admin resources view gets a one-row category chip filter (All + 11)
 // that filters on r.category like home. Tile/chip content is unchanged.
+// CATS has 11 entries (the 11th is show-license); the first version of
+// this file said 10 and the catrail wrapped the last tile — fixed 2026-11-16.
 // Source-grep assertions only, no server and no database needed.
 import test from "node:test";
 import assert from "node:assert/strict";
@@ -24,8 +26,8 @@ const adminJsx = fs.readFileSync(
   "utf-8",
 );
 
-test("home categories: 10 columns in one row on desktop", () => {
-  assert.ok(mainCss.includes(".catrail{display:grid;grid-template-columns:repeat(10,1fr);gap:12px}"), "catrail is 10 columns on desktop");
+test("home categories: 11 columns in one row on desktop", () => {
+  assert.ok(mainCss.includes(".catrail{display:grid;grid-template-columns:repeat(11,1fr);gap:12px}"), "catrail is 11 columns on desktop");
   assert.ok(mainCss.includes("@media(max-width:1240px){.catrail{grid-template-columns:repeat(5,1fr)}}"), "catrail drops to 5 columns at <=1240px");
   assert.ok(mainCss.includes("@media(max-width:900px){.catrail{grid-template-columns:repeat(3,1fr)}}"), "catrail drops to 3 columns at <=900px");
   assert.ok(mainCss.includes("@media(max-width:560px){.catrail{grid-template-columns:repeat(2,1fr)}}"), "catrail drops to 2 columns at <=560px");
@@ -48,7 +50,7 @@ test("admin resources: category chip filter state + logic", () => {
   assert.ok(adminJsx.includes('className="chips res-cat-row"'), "chip row reuses the admin .chips style in one row");
   assert.ok(adminJsx.includes('aria-label="按分类筛选"'), "chip row is labelled");
   assert.ok(adminJsx.includes('data-c="all"'), "All chip carries data-c=all");
-  assert.ok(adminJsx.includes("{CATS.map(([id, name]) => ("), "chip row renders all 10 categories from CATS");
+  assert.ok(adminJsx.includes("{CATS.map(([id, name]) => ("), "chip row renders all 11 categories from CATS");
   assert.ok(adminJsx.includes("onClick={() => setResCatFilter(id)}"), "a category chip sets the filter");
 });
 
