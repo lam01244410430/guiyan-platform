@@ -80,7 +80,9 @@ async function transition(token, orderId, action, body = {}) {
 }
 
 async function payThrough(token, orderId) {
-  assert.equal((await transition(token, orderId, "confirm")).status, 200);
+  // Seller-confirm: confirm goes through the platform admin; pay/
+  // complete stay with the buyer token.
+  assert.equal((await transition(adminToken, orderId, "confirm")).status, 200);
   assert.equal((await transition(token, orderId, "pay")).status, 200);
 }
 

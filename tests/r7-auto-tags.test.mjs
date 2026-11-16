@@ -307,7 +307,8 @@ test("R7-5: a paid show order grants an order_category auto rule", async () => {
     assert.equal(o.status, 200, JSON.stringify(o.data));
     assert.equal(o.data.amount, 28000);
     for (const action of ["confirm", "pay"]) {
-      const r = await req(`/api/orders/${o.data.id}/${action}`, { method: "POST", token });
+      // Seller-confirm: confirm goes through the platform admin.
+      const r = await req(`/api/orders/${o.data.id}/${action}`, { method: "POST", token: action === "confirm" ? adminToken : token });
       assert.equal(r.status, 200, `${action} -> ${r.status} ${JSON.stringify(r.data)}`);
     }
     const tags = await tagsOf(adminToken, id);

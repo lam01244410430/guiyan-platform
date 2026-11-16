@@ -137,7 +137,7 @@ test("channels sum = kpis.revenue = stats revenue with refund_requested/disputed
   // on the seed DB there are no disputed / refund_requested orders,
   // so the channels test above cannot tell the two scopes apart.
   // Drive two real orders through the API (probe2 flow: create as
-  // demo -> confirm -> pay -> refund / dispute) and assert the
+  // demo -> seller confirm -> pay -> refund / dispute) and assert the
   // excluded statuses move no revenue at all.
   const before = await req("/api/admin/analysis?period=day", { token: adminToken });
   assert.equal(before.status, 200, JSON.stringify(before.data));
@@ -168,7 +168,8 @@ test("channels sum = kpis.revenue = stats revenue with refund_requested/disputed
     assert.equal(created.status, 200, JSON.stringify(created.data));
     const orderId = created.data.order?.id ?? created.data.id;
     for (const action of ["confirm", "pay"]) {
-      const r = await req(`/api/orders/${orderId}/${action}`, { method: "POST", token: demoToken, body: {} });
+      // Seller-confirm: confirm goes through the platform admin.
+      const r = await req(`/api/orders/${orderId}/${action}`, { method: "POST", token: action === "confirm" ? adminToken : demoToken, body: {} });
       assert.equal(r.status, 200, `${action} -> ${r.status} ${JSON.stringify(r.data)}`);
     }
     return orderId;

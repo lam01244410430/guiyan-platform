@@ -249,6 +249,7 @@ test("orders require login", async () => {
 
 test("order happy path: create -> confirm -> pay (simulated) -> complete", async () => {
   const token = await login();
+  const admin = await adminLogin();
   const show = await pickShow(token);
   const created = await req("/api/orders", {
     method: "POST",
@@ -267,7 +268,8 @@ test("order happy path: create -> confirm -> pay (simulated) -> complete", async
 
   const confirm = await req(`/api/orders/${id}/confirm`, {
     method: "POST",
-    token,
+    // Seller-confirm: the platform admin confirms; the buyer cannot.
+    token: admin,
   });
   assert.equal(confirm.status, 200);
   assert.equal(confirm.json.status, "confirmed");
@@ -881,7 +883,8 @@ cacheTest("cache: admin analysis MISS then HIT, bust on order transition", async
   assert.deepEqual(second.json, first.json);
   const confirm = await req(`/api/orders/${created.json.id}/confirm`, {
     method: "POST",
-    token: demo,
+    // Seller-confirm: the platform admin confirms; the buyer cannot.
+    token: admin,
   });
   assert.equal(confirm.status, 200);
   const third = await req("/api/admin/analysis?period=day", { token: admin });

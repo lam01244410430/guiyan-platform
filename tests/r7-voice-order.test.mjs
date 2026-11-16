@@ -308,17 +308,18 @@ test("r7-voice-order: nothing is charged or turned paid before confirmation", as
   assert.equal(r.status, 200, JSON.stringify(r.json));
   const id = r.json.order.id;
   // Pay straight from pending is rejected — the draft cannot become
-  // paid without the manual confirm step.
+  // paid without the seller confirm step.
   const payEarly = await req(`/api/orders/${id}/pay`, {
     method: "POST",
     token,
   });
   assert.equal(payEarly.status, 400, JSON.stringify(payEarly.json));
   assert.equal((await getOrder(token, id)).status, "pending");
-  // The normal flow still works: confirm, then simulated pay.
+  // The normal flow still works: seller confirm, then simulated pay.
   const confirm = await req(`/api/orders/${id}/confirm`, {
     method: "POST",
-    token,
+    // Seller-confirm: the platform admin confirms; the buyer cannot.
+    token: adminToken,
   });
   assert.equal(confirm.status, 200, JSON.stringify(confirm.json));
   assert.equal(confirm.json.status, "confirmed");

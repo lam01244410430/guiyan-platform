@@ -110,9 +110,11 @@ async function createOrder(token, resourceId, quantity, bookingDate) {
 
 async function paidOrder(token, resourceId, quantity, bookingDate) {
   const created = await createOrder(token, resourceId, quantity, bookingDate);
+  // Seller-confirm: the platform admin confirms; pay stays with the buyer.
+  const admin = await adminLogin();
   const confirm = await req(`/api/orders/${created.id}/confirm`, {
     method: "POST",
-    token,
+    token: admin,
   });
   assert.equal(confirm.status, 200, JSON.stringify(confirm.json));
   const pay = await req(`/api/orders/${created.id}/pay`, {

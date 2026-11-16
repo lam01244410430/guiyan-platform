@@ -254,7 +254,8 @@ test("select -> held for 10 minutes; another order cannot take it", async () => 
 });
 
 test("pay -> sold; a paid order cannot select seats", async () => {
-  assert.equal((await transitionOrder(demoToken, order1, "confirm")).status, 200);
+  // Seller-confirm: the platform admin confirms; pay stays with the buyer.
+  assert.equal((await transitionOrder(adminToken, order1, "confirm")).status, 200);
   assert.equal((await transitionOrder(demoToken, order1, "pay")).status, 200);
   let seats = await listSeats();
   assert.equal(seatByPos(seats, 1, 1).status, "sold");

@@ -355,7 +355,8 @@ test("order pay -> inbox message typed order_status", async () => {
   assert.equal(o.status, 200, JSON.stringify(o.data));
   const confirmed = await req(`/api/orders/${o.data.id}/confirm`, {
     method: "POST",
-    token: orderUser.token,
+    // Seller-confirm: the platform admin confirms; the buyer cannot.
+    token: adminToken,
     body: {},
   });
   assert.equal(confirmed.status, 200, JSON.stringify(confirmed.data));

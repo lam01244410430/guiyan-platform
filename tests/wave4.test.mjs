@@ -366,7 +366,9 @@ test("wave4 #15: GET /api/resources/:id returns meta", async () => {
 
 async function paidOrder(token, resourceId, quantity, bookingDate) {
   const created = await createOrder(token, resourceId, quantity, bookingDate);
-  const confirm = await req(`/api/orders/${created.id}/confirm`, { method: "POST", token });
+  // Seller-confirm: the platform admin confirms; pay stays with the buyer.
+  const admin = await adminLogin();
+  const confirm = await req(`/api/orders/${created.id}/confirm`, { method: "POST", token: admin });
   assert.equal(confirm.status, 200, JSON.stringify(confirm.json));
   const pay = await req(`/api/orders/${created.id}/pay`, { method: "POST", token });
   assert.equal(pay.status, 200, JSON.stringify(pay.json));
@@ -546,14 +548,16 @@ test("wave4 #13: the four decisions are admin-only (owner gets 403)", async () =
   assert.equal((await req(`/api/orders/${o2.id}/resolve`, { method: "POST", token: admin })).status, 200);
 });
 
-test("wave4 #13: admin calling an old transition on someone else's order is still 403", async () => {
+test("wave4 #13: platform admin can confirm; admin pay/complete/cancel on someone else's order are still 403", async () => {
   const token = await login();
   const admin = await adminLogin();
   const s = await pickShow(1);
   const pending = await createOrder(token, s.id, 1, D4);
+  // Seller-confirm: the platform admin confirms; the buyer cannot.
   const confirm = await req(`/api/orders/${pending.id}/confirm`, { method: "POST", token: admin });
-  assert.equal(confirm.status, 403, JSON.stringify(confirm.json));
-  await req(`/api/orders/${pending.id}/confirm`, { method: "POST", token });
+  assert.equal(confirm.status, 200, JSON.stringify(confirm.json));
+  const buyerConfirm = await req(`/api/orders/${pending.id}/confirm`, { method: "POST", token });
+  assert.equal(buyerConfirm.status, 403, JSON.stringify(buyerConfirm.json));
   const pay = await req(`/api/orders/${pending.id}/pay`, { method: "POST", token: admin });
   assert.equal(pay.status, 403, JSON.stringify(pay.json));
   const paid = await paidOrder(token, s.id, 1, D5);
@@ -561,7 +565,9 @@ test("wave4 #13: admin calling an old transition on someone else's order is stil
   assert.equal(complete.status, 403, JSON.stringify(complete.json));
   const cancel = await req(`/api/orders/${pending.id}/cancel`, { method: "POST", token: admin });
   assert.equal(cancel.status, 403, JSON.stringify(cancel.json));
-  // The orders are untouched by the admin attempts.
+  // The admin pay/complete/cancel attempts changed nothing: the
+  // pending order is confirmed (by the seller confirm above) and the
+  // paid order is still paid.
   assert.equal((await myOrder(token, pending.id)).status, "confirmed");
   assert.equal((await myOrder(token, paid.id)).status, "paid");
 });
