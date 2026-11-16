@@ -23,8 +23,16 @@ import {
   BELL_AUDIT_LIMIT,
 } from "./bellUtils.js";
 
+import { getEffectiveTheme, toggleTheme, subscribeTheme } from "./theme.mjs";
+
 export default function AppHeader({ viewLabel, title, whoName, onLogout, drawerOpen, onToggleDrawer, hamburgerRef, alerts, auditLogs, userId, onViewAlerts }) {
   const [bellOpen, setBellOpen] = useState(false);
+  // Dashboard redesign (D3): the theme toggle. The effective theme
+  // (light/dark) is subscribed from the shared theme module, so the
+  // button always shows the current state — including a choice made
+  // on the customer site, which shares the guiyan-theme key.
+  const [theme, setTheme] = useState(() => getEffectiveTheme());
+  useEffect(() => subscribeTheme((effective) => setTheme(effective)), []);
   const [readKeys, setReadKeys] = useState(() => loadBellReadKeys(userId));
   const bellRef = useRef(null);
   const bellBtnRef = useRef(null);
@@ -92,6 +100,16 @@ export default function AppHeader({ viewLabel, title, whoName, onLogout, drawerO
         </nav>
         {title}
       </div>
+      <button type="button" className="theme-btn"
+        aria-label={theme === "dark" ? "切换到浅色" : "切换到深色"}
+        title={theme === "dark" ? "切换到浅色" : "切换到深色"}
+        onClick={() => toggleTheme()}>
+        {theme === "dark" ? (
+          <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="4" /><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4" /></svg>
+        ) : (
+          <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z" /></svg>
+        )}
+      </button>
       <div className="bell-wrap" ref={bellRef}>
         <button type="button" className="bell-btn" ref={bellBtnRef}
           aria-label="通知" aria-expanded={bellOpen ? "true" : "false"} aria-haspopup="true"

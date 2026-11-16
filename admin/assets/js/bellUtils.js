@@ -115,6 +115,11 @@ export function orderMarkLevel(o) {
   if (!o) return null;
   if (o.status === "disputed") return "critical";
   if (o.status === "refund_requested") return "warning";
+  // Dashboard redesign: pending orders await confirmation, so they
+  // get the same warning flag as refund_requested — the row mark is
+  // the attention flag, and the breakdown's 查看订单 action is the
+  // way to open them filtered.
+  if (o.status === "pending") return "warning";
   return null;
 }
 

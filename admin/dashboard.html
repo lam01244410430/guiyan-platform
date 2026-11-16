@@ -11,6 +11,18 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Funnel+Display:wght@400..700&family=Funnel+Sans:wght@400..600&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
 <link rel="icon" href="data:,">
+<script>
+/* Theme bootstrap (dashboard redesign, D3): set data-theme before
+   first paint so the page never flashes the wrong theme. Same key
+   (guiyan-theme) as the customer site, so the choice follows the
+   user; admin.css has no prefers-color-scheme fallback, so "system"
+   resolves here via matchMedia and the attribute is always set. */
+try {
+  var t = localStorage.getItem("guiyan-theme");
+  var dark = t === "dark" || (t === "system" && window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches);
+  document.documentElement.setAttribute("data-theme", dark ? "dark" : "light");
+} catch (e) {}
+</script>
 </head>
 <body>
 <div id="root"></div>

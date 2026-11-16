@@ -1,25 +1,36 @@
 /* Channel donut — pure SVG, no chart library. Props:
-   {channels: [{name, amount, orders}], total} (total = revenue_cents,
-   the same 交易总额 as the KPI card). One ring segment per channel,
-   sized by its share of total; the centre shows the total; the legend
-   lists name + % + amount in the same rank order. Colours are the
-   muted brand fills in fixed rank order (never a rainbow, never a
-   saturated fill): pine, cinnabar, gold, gray, ink, deep amber, light
-   gray. A channel with no paid orders never appears — the list comes
-   straight from the analysis `channelRows`, so every slice is real.
-   Hovering a slice (or its legend row) dims the rest. */
+   {channels: [{name, amount, orders}], total} (total = the windowed
+   交易总额, the same number as the KPI strip — D1). One ring segment
+   per channel, sized by its share of total; the centre shows the
+   total; the legend is ranked rows (rank + name + amount + %) with a
+   3px share bar on each row's bottom edge.
+   Colours (D4): one money hue, shade falling by rank
+   (var(--donut-1) .. var(--donut-4)), never the old 7 brand colours;
+   channel names are raw as the API returns them (H5 / 微信小程序 /
+   抖音 / 猫眼）. A share below 0.1% reads "<0.1%", never "0.0%".
+   Hovering a slice (or its legend row) dims the rest; the legend row
+   tooltip adds the order count. A channel with no paid orders never
+   appears — the list comes straight from the analysis `channelRows`,
+   so every slice is real. */
 import { useState } from "react";
 import { fmtMoney } from "./adminApi.js";
+import Tooltip from "./Tooltip.jsx";
 
-const DONUT_COLORS = [
-  "var(--brand-pine)",
-  "var(--brand-cinnabar)",
-  "var(--brand-gold)",
-  "var(--gray-600)",
-  "var(--p-ink)",
-  "var(--signal-yellow-deep)",
-  "var(--gray-400)",
+const DONUT_SHADES = [
+  "var(--donut-1)",
+  "var(--donut-2)",
+  "var(--donut-3)",
+  "var(--donut-4)",
 ];
+
+export { DONUT_SHADES };
+
+function pctText(share) {
+  if (share > 0 && share * 100 < 0.1) return "<0.1%";
+  return (share * 100).toFixed(1) + "%";
+}
+
+export { pctText };
 
 export default function DonutChart({ channels, total }) {
   const [hover, setHover] = useState(null);
@@ -41,12 +52,12 @@ export default function DonutChart({ channels, total }) {
         <circle cx="100" cy="100" r="80" fill="none" stroke="var(--gray-100)" strokeWidth="30" />
         {slices.map((s, i) => (
           <circle key={s.name} cx="100" cy="100" r="80" fill="none"
-            stroke={DONUT_COLORS[i % DONUT_COLORS.length]} strokeWidth={hover === i ? 36 : 30}
+            stroke={DONUT_SHADES[i % DONUT_SHADES.length]} strokeWidth={hover === i ? 36 : 30}
             pathLength="100" strokeDasharray={`${s.share * 100} ${100 - s.share * 100}`}
             strokeDashoffset={-s.start * 100} transform="rotate(-90 100 100)"
             opacity={hover === null || hover === i ? 1 : 0.35}
             onMouseEnter={() => setHover(i)} onMouseLeave={() => setHover(null)}>
-            <title>{`${s.name} ${fmtMoney(s.amount)} (${(s.share * 100).toFixed(1)}%)`}</title>
+            <title>{`${s.name} ${fmtMoney(s.amount)} (${pctText(s.share)})`}</title>
           </circle>
         ))}
         <text x="100" y="96" textAnchor="middle" className="donut-total">{fmtMoney(base)}</text>
@@ -56,10 +67,13 @@ export default function DonutChart({ channels, total }) {
         {slices.map((s, i) => (
           <li key={s.name} className={hover === i ? "on" : ""}
             onMouseEnter={() => setHover(i)} onMouseLeave={() => setHover(null)}>
-            <span className="donut-dot" style={{ background: DONUT_COLORS[i % DONUT_COLORS.length] }} />
-            <span className="donut-name">{s.name}</span>
-            <span className="donut-val">{fmtMoney(s.amount)}</span>
-            <span className="donut-pct">{(s.share * 100).toFixed(1)}%</span>
+            <Tooltip content={<><b>{s.name}</b><span className="tip-sub">{s.orders}单 · {fmtMoney(s.amount)} · {pctText(s.share)}</span></>}>
+              <span className="donut-rank">{i + 1}</span>
+              <span className="donut-name">{s.name}</span>
+              <span className="donut-val">{fmtMoney(s.amount)}</span>
+              <span className="donut-pct">{pctText(s.share)}</span>
+            </Tooltip>
+            <span className="donut-bar"><i style={{ width: (s.share * 100) + "%", background: DONUT_SHADES[i % DONUT_SHADES.length] }} /></span>
           </li>
         ))}
         {slices.length === 0 ? (<li className="donut-empty">暂无已付渠道收入</li>) : null}

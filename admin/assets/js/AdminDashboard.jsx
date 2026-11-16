@@ -13,10 +13,12 @@
    every write lands in audit_logs. Premium data loads lazily, only when its view opens. */
 import { Fragment, useEffect, useRef, useState } from "react";
 import {
-  apiGet, apiPost, apiPatch, apiDelete, apiDownloadCsv, apiDownloadFile, downloadText, clearToken, currentUser, getToken, fmtMoney, STATUS,
+  apiGet, apiPost, apiPatch, apiDelete, apiDownloadCsv, apiDownloadFile, downloadText, clearToken, currentUser, getToken, fmtMoney, formatDelta, STATUS,
 } from "./adminApi.js";
 import TrendChart from "./TrendChart.jsx";
-import DonutChart from "./DonutChart.jsx";
+import DonutChart, { DONUT_SHADES, pctText } from "./DonutChart.jsx";
+import Tooltip from "./Tooltip.jsx";
+import RankedList from "./RankedList.jsx";
 import SearchBox from "./SearchBox.jsx";
 import SortButton from "./SortButton.jsx";
 import { cycleDirection, sortRows } from "./sortUtils.js";
@@ -119,7 +121,11 @@ function pendingPartialInfo(o) {
    Inline warning mark (admin redesign Item 2): disputed orders get a
    red `!`, refund_requested a yellow `!` (orderMarkLevel, from the
    order's own status — no alert object carries an order id). Clicking
-   the mark goes to the alerts view (onViewAlerts). */
+   the mark goes to the alerts view (onViewAlerts). Dashboard redesign:
+   pending orders get the same yellow `!` — they await confirmation —
+   but the mark is a plain span, not a button: pending is not an alert,
+   and the way to open pending orders is the breakdown's 查看订单
+   action, not the alerts view. */
 // B-055: long order-row cells (code, user, resource) truncate with an
 // ellipsis and expand on click — Excel-style: click a truncated cell to
 // read the full value, click again to collapse. Keyboard: focus the cell,
@@ -155,7 +161,9 @@ function OrderRow({ o, onContract, onReview, onEscrow, reviewBusyId, onViewAlert
       <tr>
         <ExpandableCell value={o.code} mono /><ExpandableCell value={o.user_name} /><ExpandableCell value={o.resource_name} />
         <td className="num">{fmtMoney(o.amount)}</td><td>{o.booking_date || ""}</td>
-        <td><span className={"pill " + o.status}>{STATUS[o.status] || o.status}</span>{mark ? (<button type="button" className={"inline-mark " + mark} title={o.status === "disputed" ? "纠纷待处理，点击前往预警中心" : "售后待处理，点击前往预警中心"} aria-label="查看预警中心" onClick={onViewAlerts}>!</button>) : null}</td>
+        <td><span className={"pill " + o.status}>{STATUS[o.status] || o.status}</span>{mark ? (o.status === "pending"
+          ? (<span className={"inline-mark static " + mark} title="待确认订单" aria-label="待确认订单">!</span>)
+          : (<button type="button" className={"inline-mark " + mark} title={o.status === "disputed" ? "纠纷待处理，点击前往预警中心" : "售后待处理，点击前往预警中心"} aria-label="查看预警中心" onClick={onViewAlerts}>!</button>)) : null}</td>
         <td>{o.escrow || ""}</td>
         <td><button type="button" className="btn-view" onClick={() => onContract(o)}>协议 / 权益</button></td>
         <td>
@@ -192,6 +200,46 @@ function OrderRow({ o, onContract, onReview, onEscrow, reviewBusyId, onViewAlert
         </tr>
       ) : null}
     </>
+  );
+}
+
+/* KPI sparkline (dashboard redesign): the window's series as a tiny
+   area chart under the tile value — amount for the revenue tile,
+   count for the orders tile. Report-only tiles (resources/users) have
+   no series and render none; no series is invented for them. */
+function Sparkline({ series, metric }) {
+  const data = Array.isArray(series) ? series : [];
+  if (!data.length) return null;
+  const vals = data.map((s) => (metric === "amount" ? Number(s.amount || 0) : Number(s.count || 0)));
+  const max = Math.max(...vals, 1);
+  const w = 120;
+  const h = 28;
+  const pts = vals.map((v, i) => `${((i / Math.max(vals.length - 1, 1)) * w).toFixed(1)},${(h - 2 - (v / max) * (h - 4)).toFixed(1)}`).join(" ");
+  const area = `0,${h} ${pts} ${w},${h}`;
+  return (
+    <svg className="ov-spark" viewBox={`0 0 ${w} ${h}`} width="100%" height="28" aria-hidden="true">
+      <polygon points={area} fill={metric === "amount" ? "var(--money-tint)" : "var(--p-accent-tint)"} />
+      <polyline points={pts} stroke={metric === "amount" ? "var(--p-money)" : "var(--p-accent)"} />
+    </svg>
+  );
+}
+
+/* Sort chips for a ranked list (dashboard redesign): the breakdown
+   tables became ranked rows, but their sort stays — one chip per
+   sortable key, showing the current direction. `sort` is the sorts
+   entry for the table, `onToggle` is toggleSort(tableId, key). */
+function SortChips({ items, sort, onToggle }) {
+  return (
+    <div className="chips rk-sort">
+      {items.map(([key, label]) => (
+        <button key={key} type="button"
+          className={sort && sort.key === key ? "on" : ""}
+          aria-pressed={sort && sort.key === key ? "true" : "false"}
+          onClick={() => onToggle(key)}>
+          {label}{sort && sort.key === key ? (sort.dir === "asc" ? " ↑" : sort.dir === "desc" ? " ↓" : "") : ""}
+        </button>
+      ))}
+    </div>
   );
 }
 
@@ -254,6 +302,17 @@ export default function AdminDashboard() {
   // Premium state (lazy-loaded, see the effect below).
   const [period, setPeriod] = useState("day");
   const [seriesData, setSeriesData] = useState(null);
+  // Dashboard redesign: the chart metric lives here (not in
+  // TrendChart) so the two KPI tiles drive it; the trends view shares
+  // the same state. "amount" = 金额 (money green), "count" = 订单量.
+  const [chartMetric, setChartMetric] = useState("amount");
+  // D8: the client time the overview data finished loading (HH:mm),
+  // for the Updated pill. Null until the first successful load.
+  const [updatedAt, setUpdatedAt] = useState(null);
+  // Page-level load note for the overview (states spec): set when a
+  // refetch fails while old data is on screen (or on a first-load
+  // failure); cleared on the next success. Never a toast.
+  const [overviewError, setOverviewError] = useState("");
   const [analysis, setAnalysis] = useState(null);
   const [analysisStale, setAnalysisStale] = useState(false);
   const [analysisBusy, setAnalysisBusy] = useState(false);
@@ -875,16 +934,35 @@ export default function AdminDashboard() {
       // stayed on 加载中… until the period changed. The trends /
       // analysis flags were already success-only; overview now is too.
       function markOverviewLoaded() {
-        if (loadedRef.current.trends === period && loadedRef.current.analysis === period) loadedRef.current.overview = period;
+        if (loadedRef.current.trends === period && loadedRef.current.analysis === period) {
+          loadedRef.current.overview = period;
+          // Both fetches for this period succeeded — clear any
+          // earlier page-level load note.
+          setOverviewError("");
+        }
+      }
+      // D8: the Updated pill shows the client time the data finished
+      // loading (HH:mm), set on each successful fetch.
+      function markUpdated() {
+        setUpdatedAt(new Date().toLocaleTimeString("zh-CN", { hour: "2-digit", minute: "2-digit", hour12: false }));
+      }
+      // States spec: a failed overview fetch is ONE page-level note,
+      // never a toast (toasts stay for action errors). Auth failures
+      // keep the loadFail behaviour (redirect / forbidden).
+      function overviewFail(e) {
+        if (e && (e.status === 401 || e.status === 403)) { loadFail(e); return; }
+        setOverviewError(loadedRef.current.overview
+          ? "数据更新失败，显示的是上次成功加载的数据。"
+          : "数据加载失败，请稍后重试。");
       }
       lazyGet("/api/admin/stats?period=" + period, function (d) {
         if (seq !== requestSeqRef.current) return;
-        setSeriesData(d); loadedRef.current.trends = period; markOverviewLoaded();
-      }).catch(loadFail);
+        setSeriesData(d); loadedRef.current.trends = period; markOverviewLoaded(); markUpdated();
+      }).catch(overviewFail);
       lazyGet("/api/admin/analysis?period=" + period, function (d) {
         if (seq !== requestSeqRef.current) return;
-        setAnalysis(d); loadedRef.current.analysis = period; setAnalysisStale(false); markOverviewLoaded();
-      }).catch(loadFail);
+        setAnalysis(d); loadedRef.current.analysis = period; setAnalysisStale(false); markOverviewLoaded(); markUpdated();
+      }).catch(overviewFail);
     }
     if (view === "tagrules" && !loadedRef.current.tagrules) {
       loadedRef.current.tagrules = true;
@@ -2722,6 +2800,14 @@ export default function AdminDashboard() {
   // display-only here.
   const meRow = me ? users.find((x) => x.id === me.id) : null;
   const total = ORDER_STATUS.reduce(function (n, k) { return n + (by[k] || 0); }, 0);
+  // Dashboard redesign (D1): the KPI strip reads the WINDOWED totals
+  // of the selected period (seriesData.totals / .previous), never the
+  // cumulative mount stats. While a refetch for a new period is in
+  // flight the old data stays on screen, dimmed and unclickable
+  // (is-stale) — it never flashes zeros.
+  const overviewStale = (seriesData && seriesData.period !== period) || (analysis && analysis.period !== period);
+  const kpiTotals = seriesData ? seriesData.totals : null;
+  const kpiPrevious = seriesData ? seriesData.previous : null;
   // Search (redesign 2026-11-11): one query, client-side, substring match
   // (case-insensitive, trimmed; Chinese matches verbatim). No money/price/
   // stock/budget field is searched — a formatted number matches ambiguously.
@@ -2900,16 +2986,19 @@ export default function AdminDashboard() {
           />
 
           <section className={"view" + (view === "overview" ? " on" : "")} id="view-overview">
-            {/* Overview dashboard (2026-11-16): header + 4 KPI cards +
-                trend + channel donut, following the reference layout.
-                Every number comes from the live API — the reference
-                screenshot's figures are layout only, never data. */}
+            {/* Overview dashboard (2026-11-16): header pill group +
+                one KPI strip (windowed totals + deltas) + trend +
+                channel donut, following the reference layout. Every
+                number comes from the live API — the reference
+                screenshot's figures are layout only, never data.
+                The overview is wordless: no subtitle sentence, the
+                page title lives in the AppHeader. */}
+            {overviewError ? <div className="page-note" role="status">{overviewError}</div> : null}
             <div className="ov-head">
-              <div>
-                <h2 className="ov-title">运营总览</h2>
-                <p className="ov-sub">演艺资源与运营数据，一目了然</p>
-              </div>
               <div className="ov-head-actions">
+                <Tooltip content={<><b>数据更新时间</b><span className="tip-sub">数据最多每 60 秒更新一次（服务端缓存）</span></>}>
+                  <span className="pill-updated"><span className="live-dot" aria-hidden="true" />{updatedAt ? "更新于 " + updatedAt : "加载中…"}</span>
+                </Tooltip>
                 <div className="chips ov-period">
                   {PERIODS.map(([p, label]) => (
                     <button key={p} type="button" data-period={p} className={period === p ? "on" : ""}
@@ -2919,42 +3008,71 @@ export default function AdminDashboard() {
                 <button type="button" className="btn-export" disabled={csvBusy} onClick={doExportCsv}>{csvBusy ? "导出中…" : "导出当前统计"}</button>
               </div>
             </div>
-            <div className="ov-kpis">
-              <div className="ov-kpi">
-                <span className="ov-kpi-ic"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">{KPI_ICONS.revenue}</svg></span>
-                <span className="ov-kpi-label">交易总额</span>
-                <b id="ovKpiRevenue">{fmtMoney(stats ? stats.revenue_cents : 0)}</b>
-                <small>仅含已支付/已完成订单</small>
-              </div>
-              <div className="ov-kpi">
-                <span className="ov-kpi-ic"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">{KPI_ICONS.orders}</svg></span>
-                <span className="ov-kpi-label">预约订单</span>
-                <b id="ovKpiOrders">{stats ? stats.orders : 0}<span className="ov-unit">笔</span></b>
-                <small>历史全部订单，含取消和退款</small>
-              </div>
-              <div className="ov-kpi">
-                <span className="ov-kpi-ic"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">{KPI_ICONS.resources}</svg></span>
-                <span className="ov-kpi-label">上架资源</span>
-                <b id="ovKpiResources">{stats ? (stats.published_resources ?? 0) : 0}<span className="ov-unit">项</span></b>
-                <small>已上架资源，共 {stats ? stats.resources : 0} 项</small>
-              </div>
-              <div className="ov-kpi">
-                <span className="ov-kpi-ic"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">{KPI_ICONS.users}</svg></span>
-                <span className="ov-kpi-label">活跃用户</span>
-                <b id="ovKpiActiveUsers">{stats ? (stats.active_users_30d ?? 0) : 0}<span className="ov-unit">人</span></b>
-                <small>近30天下单去重用户</small>
-              </div>
+            <div className={"ov-kpis" + (overviewStale ? " is-stale" : "")}>
+              <Tooltip content={<><b>交易总额</b><span className="tip-sub">仅含已支付/已完成订单{seriesData ? ` · ${seriesData.window.start} — ${seriesData.window.end}` : ""}{kpiPrevious ? ` · 上期 ${fmtMoney(kpiPrevious.revenue_cents)}` : ""}</span></>}>
+                <button type="button" className={"ov-kpi" + (chartMetric === "amount" ? " sel-money" : "")} id="ovKpiRevenue"
+                  aria-pressed={chartMetric === "amount" ? "true" : "false"} onClick={() => setChartMetric("amount")}>
+                  <span className="ov-kpi-in">
+                    <span className="ov-kpi-ic"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">{KPI_ICONS.revenue}</svg></span>
+                    <span className="ov-kpi-label">交易总额</span>
+                    <b>{kpiTotals ? fmtMoney(kpiTotals.revenue_cents) : "—"}</b>
+                    {kpiTotals && kpiPrevious ? (() => {
+                      const d = formatDelta(kpiTotals.revenue_cents, kpiPrevious.revenue_cents, kpiPrevious.orders, fmtMoney, true);
+                      return d.text ? <span className={"ov-delta " + d.tone}>{d.text}</span> : null;
+                    })() : null}
+                    {seriesData ? <Sparkline series={seriesData.series} metric="amount" /> : null}
+                  </span>
+                </button>
+              </Tooltip>
+              <Tooltip content={<><b>预约订单</b><span className="tip-sub">全部状态，含取消和退款{seriesData ? ` · ${seriesData.window.start} — ${seriesData.window.end}` : ""}{kpiPrevious ? ` · 上期 ${kpiPrevious.orders}笔` : ""}</span></>}>
+                <button type="button" className={"ov-kpi" + (chartMetric === "count" ? " sel-accent" : "")} id="ovKpiOrders"
+                  aria-pressed={chartMetric === "count" ? "true" : "false"} onClick={() => setChartMetric("count")}>
+                  <span className="ov-kpi-in">
+                    <span className="ov-kpi-ic"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">{KPI_ICONS.orders}</svg></span>
+                    <span className="ov-kpi-label">预约订单</span>
+                    <b>{kpiTotals ? <>{kpiTotals.orders}<span className="ov-unit">笔</span></> : "—"}</b>
+                    {kpiTotals && kpiPrevious ? (() => {
+                      const d = formatDelta(kpiTotals.orders, kpiPrevious.orders, kpiPrevious.orders, (v) => v + "笔", true);
+                      return d.text ? <span className={"ov-delta " + d.tone}>{d.text}</span> : null;
+                    })() : null}
+                    {seriesData ? <Sparkline series={seriesData.series} metric="count" /> : null}
+                  </span>
+                </button>
+              </Tooltip>
+              <Tooltip content={<><b>上架资源</b><span className="tip-sub">已上架资源，共 {stats ? stats.resources : "—"} 项 · 当前数量，无上期对比</span></>}>
+                <div className="ov-kpi report-only" id="ovKpiResources">
+                  <span className="ov-kpi-in">
+                    <span className="ov-kpi-ic"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">{KPI_ICONS.resources}</svg></span>
+                    <span className="ov-kpi-label">上架资源</span>
+                    <b>{kpiTotals ? <>{kpiTotals.published_resources}<span className="ov-unit">项</span></> : "—"}</b>
+                  </span>
+                </div>
+              </Tooltip>
+              <Tooltip content={<><b>活跃用户</b><span className="tip-sub">{period === "day" ? "近30天下单去重用户" : "统计窗口内下单去重用户"}{seriesData ? ` · ${seriesData.window.start} — ${seriesData.window.end}` : ""}{kpiPrevious ? ` · 上期 ${kpiPrevious.active_users}人` : ""}</span></>}>
+                <div className="ov-kpi report-only" id="ovKpiActiveUsers">
+                  <span className="ov-kpi-in">
+                    <span className="ov-kpi-ic"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">{KPI_ICONS.users}</svg></span>
+                    <span className="ov-kpi-label">活跃用户</span>
+                    <b>{kpiTotals ? <>{kpiTotals.active_users}<span className="ov-unit">人</span></> : "—"}</b>
+                    {kpiTotals && kpiPrevious ? (() => {
+                      const d = formatDelta(kpiTotals.active_users, kpiPrevious.active_users, kpiPrevious.active_users, (v) => v + "人", null);
+                      return d.text ? <span className={"ov-delta " + d.tone}>{d.text}</span> : null;
+                    })() : null}
+                  </span>
+                </div>
+              </Tooltip>
             </div>
-            <div className="ov-charts">
+            <div className={"ov-charts" + (overviewStale ? " is-stale" : "")}>
               <div className="sec ov-chart">
-                <h2>交易趋势</h2>
+                <Tooltip className="block" content={<><b>交易趋势</b><span className="tip-sub">按订单创建时间（北京时间）归集，补齐零交易周期；无支付时间字段</span></>}>
+                  <h2>交易趋势</h2>
+                </Tooltip>
                 <p className="ov-range">{seriesData && seriesData.series && seriesData.series.length ? `${seriesData.series[0].date} — ${seriesData.series[seriesData.series.length - 1].date}` : "加载中…"}</p>
-                {seriesData ? <TrendChart series={seriesData.series} period={period} /> : <div className="empty">加载中…</div>}
-                <p className="def-note">按订单创建时间（北京时间）归集，补齐零交易周期；无支付时间字段</p>
+                {seriesData ? <TrendChart series={seriesData.series} prevSeries={seriesData.prevSeries} period={period} metric={chartMetric} onMetricChange={setChartMetric} /> : <div className="skel" style={{ height: 320 }} aria-label="加载中" />}
               </div>
               <div className="sec ov-chart ov-donut-card">
                 <h2>交易渠道分布</h2>
-                {analysis ? <DonutChart channels={analysis.channels} total={stats ? stats.revenue_cents : 0} /> : <div className="empty">加载中…</div>}
+                {analysis ? <DonutChart channels={analysis.channels} total={analysis ? analysis.kpis.revenue : 0} /> : <div className="skel" style={{ height: 320 }} aria-label="加载中" />}
               </div>
             </div>
             <div className="sec">
@@ -2963,16 +3081,31 @@ export default function AdminDashboard() {
                 {ORDER_STATUS.map((k) => {
                   const n = by[k] || 0;
                   const pct = total ? Math.round((n / total) * 100) : 0;
+                  // Problem rows (pending / refund_requested / disputed)
+                  // get a 查看订单 action that opens the orders view
+                  // filtered to that status (setFilter survives
+                  // changeView, which resets query/sorts but not the
+                  // status filter).
+                  const isProblem = k === "pending" || k === "refund_requested" || k === "disputed";
                   return (
                     <div key={k} className="bd-row">
-                      <span className="bd-label">{STATUS[k]}</span>
-                      <span className="bd-track"><span className={"bd-fill " + k} style={{ width: pct + "%" }}></span></span>
-                      <span className="bd-num">{n}</span>
+                      <div className="bd-row-top">
+                        <span className="bd-label">{STATUS[k]}</span>
+                        <span className="bd-num">{n}</span>
+                        {isProblem && n > 0 ? (
+                          <button type="button" className="btn-view bd-action" onClick={() => { setFilter(k); changeView("orders"); }}>查看订单</button>
+                        ) : null}
+                      </div>
+                      <div className="bd-track"><span className={"bd-fill " + k} style={{ width: pct + "%" }}></span></div>
                     </div>
                   );
                 })}
                 <div className="bd-total">共 {total} 单</div>
               </div>
+              {/* The breakdown is an attention queue, not a windowed
+                  KPI: it counts ALL historical orders by status, so it
+                  does not change with the period above. */}
+              <p className="def-note">历史全部订单，不随上方周期变化。</p>
             </div>
             <div className="sec">
               <h2>最近订单</h2>
@@ -4472,8 +4605,7 @@ export default function AdminDashboard() {
               </div>
               <button type="button" className="btn-export" disabled={csvBusy} onClick={doExportCsv}>{csvBusy ? "导出中…" : "导出订单CSV"}</button>
             </div>
-            <p className="cache-note">数据最多每 60 秒更新一次（服务端缓存）。</p>
-            {seriesData ? <TrendChart series={seriesData.series} period={period} /> : <div className="empty">加载中…</div>}
+            {seriesData ? <TrendChart series={seriesData.series} prevSeries={seriesData.prevSeries} period={period} metric={chartMetric} onMetricChange={setChartMetric} /> : <div className="empty">加载中…</div>}
             {seriesData ? (
               <>
                 <div className="src-chips">
@@ -4481,7 +4613,9 @@ export default function AdminDashboard() {
                     <span key={name} className="src-chip">{name} {state}</span>
                   ))}
                 </div>
-                <p className="def-note">按订单创建时间（北京时间）归集，补齐零交易周期；无支付时间字段</p>
+                {/* The series definition lives in the overview chart
+                    title tooltip now (dashboard redesign); the trends
+                    view stays wordless under the chart. */}
                 <div className="sec">
                   <h2>最近周期</h2>
                   <div className="search-row">
@@ -4515,10 +4649,10 @@ export default function AdminDashboard() {
                 <h2 className="report-title">{reportTitle}</h2>
                 <div className="stats">
                   <div className="stat hero"><span>总收入</span><b>{heroMoney(analysis.kpis.revenue)}</b><small className="def">{analysis.definitions.revenue}</small></div>
-                  <div className="stat"><span>历史订单</span><b>{analysis.kpis.orders}</b><small className="def">{analysis.definitions.orders}</small></div>
+                  <div className="stat"><span>窗口内订单</span><b>{analysis.kpis.orders}</b><small className="def">{analysis.definitions.orders}</small></div>
                   <div className="stat"><span>有效付费订单</span><b>{analysis.kpis.paidOrders}</b></div>
                   <div className="stat"><span>在售资源</span><b>{analysis.kpis.resources}</b></div>
-                  <div className="stat"><span>近30天活跃用户</span><b>{analysis.kpis.users}</b><small className="def">{analysis.definitions.users}</small></div>
+                  <div className="stat"><span>活跃用户</span><b>{analysis.kpis.users}</b><small className="def">{analysis.definitions.users}</small></div>
                 </div>
                 <p className="series-sum">本周期有效交易额 {fmtMoney(analysisSeriesAmount)}，共 {analysisSeriesCount} 笔
                   <button type="button" className="link-btn" onClick={() => changeView("trends")}>查看趋势图 →</button>
@@ -4533,36 +4667,38 @@ export default function AdminDashboard() {
                 </div>
                 <div className="sec">
                   <h2>渠道复盘</h2>
-                  <div className="tbl-wrap">
-                    <table>
-                      <thead><tr><th scope="col">渠道</th><th scope="col" className="num" aria-sort={ariaSort("channels", "amount")}>成交额<SortButton label="成交额" sortKey="amount" tableId="channels" sort={sorts.channels} onToggle={toggleSort} /></th><th scope="col" className="num" aria-sort={ariaSort("channels", "orders")}>订单量<SortButton label="订单量" sortKey="orders" tableId="channels" sort={sorts.channels} onToggle={toggleSort} /></th><th scope="col" className="num" aria-sort={ariaSort("channels", "share")}>占比<SortButton label="占比" sortKey="share" tableId="channels" sort={sorts.channels} onToggle={toggleSort} /></th></tr></thead>
-                      <tbody>
-                        {filteredChannels.length ? sortedChannels.map((c) => (
-                          <tr key={c.name}>
-                            <td className="cell-ellipsis" title={c.name}>{c.name}</td><td className="num">{fmtMoney(c.amount)}</td><td className="num">{c.orders}</td>
-                            <td className="num">{analysis.kpis.revenue ? ((c.amount / analysis.kpis.revenue) * 100).toFixed(1) + "%" : "—"}</td>
-                          </tr>
-                        )) : (q ? searchEmpty(4) : <tr><td colSpan="4"><div className="empty">暂无渠道</div></td></tr>)}
-                      </tbody>
-                    </table>
-                  </div>
+                  {/* Dashboard redesign (D5): the table becomes ranked
+                      rows (share bar 3px); the text, sort and search
+                      stay — the sort chips drive the same sorts state
+                      the table headers used. */}
+                  <SortChips items={[["amount", "成交额"], ["orders", "订单量"], ["share", "占比"]]} sort={sorts.channels} onToggle={(key) => toggleSort("channels", key)} />
+                  {filteredChannels.length ? (
+                    <RankedList rows={sortedChannels.map((c, i) => ({
+                      key: c.name,
+                      name: c.name,
+                      value: fmtMoney(c.amount),
+                      sub: c.orders + "单",
+                      pct: pctText(analysis.kpis.revenue ? c.amount / analysis.kpis.revenue : 0),
+                      share: sortedChannels.length ? c.amount / Math.max(...sortedChannels.map((x) => x.amount), 0) : 0,
+                      fill: DONUT_SHADES[i % DONUT_SHADES.length],
+                    }))} />
+                  ) : (q ? (<div className="empty">没有找到匹配的结果<br /><button type="button" className="link-btn" onClick={() => setQuery("")}>清除搜索</button></div>) : <div className="empty">暂无渠道</div>)}
                   <div className="tbl-total">共 {filteredChannels.length} 条渠道</div>
                   <p className="def-note">{analysis.insights[4] || ""}</p>
                 </div>
                 <div className="sec">
                   <h2>资源销量 Top 10</h2>
-                  <div className="tbl-wrap">
-                    <table>
-                      <thead><tr><th scope="col">排名</th><th scope="col">资源</th><th scope="col" className="num" aria-sort={ariaSort("ranking", "sales")}>销量<SortButton label="销量" sortKey="sales" tableId="ranking" sort={sorts.ranking} onToggle={toggleSort} /></th><th scope="col" className="num" aria-sort={ariaSort("ranking", "quantity")}>数量<SortButton label="数量" sortKey="quantity" tableId="ranking" sort={sorts.ranking} onToggle={toggleSort} /></th><th scope="col" className="num" aria-sort={ariaSort("ranking", "revenue")}>交易额<SortButton label="交易额" sortKey="revenue" tableId="ranking" sort={sorts.ranking} onToggle={toggleSort} /></th></tr></thead>
-                      <tbody>
-                        {filteredRanking.length ? sortedRanking.slice(0, 10).map((r) => (
-                          <tr key={r.id} className={r.rank === 1 ? "top1" : ""}>
-                            <td>{r.rank}</td><td className="cell-ellipsis" title={r.name}>{r.name}</td><td className="num">{r.sales}</td><td className="num">{r.quantity}</td><td className="num">{fmtMoney(r.revenue)}</td>
-                          </tr>
-                        )) : (q ? searchEmpty(5) : <tr><td colSpan="5"><div className="empty">暂无资源</div></td></tr>)}
-                      </tbody>
-                    </table>
-                  </div>
+                  <SortChips items={[["sales", "销量"], ["quantity", "数量"], ["revenue", "交易额"]]} sort={sorts.ranking} onToggle={(key) => toggleSort("ranking", key)} />
+                  {filteredRanking.length ? (
+                    <RankedList rows={sortedRanking.slice(0, 10).map((r, i) => ({
+                      key: r.id,
+                      name: r.name,
+                      value: fmtMoney(r.revenue),
+                      sub: r.sales + "单 · " + r.quantity + "件",
+                      share: sortedRanking.length ? r.revenue / Math.max(...sortedRanking.slice(0, 10).map((x) => x.revenue), 0) : 0,
+                      fill: DONUT_SHADES[i % DONUT_SHADES.length],
+                    }))} />
+                  ) : (q ? (<div className="empty">没有找到匹配的结果<br /><button type="button" className="link-btn" onClick={() => setQuery("")}>清除搜索</button></div>) : <div className="empty">暂无资源</div>)}
                   <p className="def-note">共 {q ? filteredRanking.length : analysis.ranking.length} 项资源</p>
                 </div>
                 {analysis.cold.length ? (

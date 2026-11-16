@@ -134,8 +134,11 @@ test("totals footer: exactly 30 footer lines, one per list table", () => {
 test("totals footer: every footer sits directly under its table, outside it", () => {
   // Each footer must follow its table's close + the tbl-wrap close,
   // i.e. it is a sibling of the .tbl-wrap div, never inside <table>.
+  // Dashboard redesign: 29 of the 30 footers still sit under a table;
+  // the channels footer sits under the ranked list instead (the
+  // 渠道复盘 table became ranked rows — see the test below).
   const placed = dashboardJsx.match(/<\/table>\s*<\/div>\s*<div className="tbl-total">/g) || [];
-  assert.equal(placed.length, 30, "all 30 footers must sit directly under a table, found " + placed.length);
+  assert.equal(placed.length, 29, "29 footers must sit directly under a table, found " + placed.length);
   // Going backwards from every footer, the nearest table tag must be
   // its own table's </table> — never an unclosed <table>.
   const parts = dashboardJsx.split('className="tbl-total"');
@@ -145,6 +148,23 @@ test("totals footer: every footer sits directly under its table, outside it", ()
     assert.ok(tail.includes("</div>"), "footer " + i + " must follow the tbl-wrap close");
     assert.ok(!tail.slice("</table>".length).includes("<table"), "footer " + i + " must not sit inside a table");
   }
+});
+
+test("totals footer: the channels count line sits under the ranked list, not a table", () => {
+  // Dashboard redesign (D5): the 渠道复盘 table became ranked rows
+  // (RankedList) with sort chips; its count line stays a tbl-total
+  // div so the total stays 30, but it follows the list, not a table.
+  const channelsSec = dashboardJsx.split("渠道复盘")[1].split("资源销量")[0];
+  assert.ok(channelsSec.includes("<RankedList"), "channels breakdown must render a RankedList");
+  assert.ok(channelsSec.includes('className="tbl-total"'), "channels count line must exist");
+  assert.ok(
+    channelsSec.indexOf("<RankedList") < channelsSec.indexOf('className="tbl-total"'),
+    "channels count line must come after the ranked list",
+  );
+  assert.ok(
+    !channelsSec.includes("<table"),
+    "channels breakdown must not render a table anymore",
+  );
 });
 
 test("totals report lines kept: breakdown, series sum, ranking note, alerts summary, promo discount", () => {

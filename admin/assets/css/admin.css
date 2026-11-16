@@ -243,6 +243,7 @@ select.field-sm{padding-right:28px}
    (low-stock resource, refund_requested order). Clicking the mark
    goes to the alerts view. */
 .inline-mark{display:inline-flex;align-items:center;justify-content:center;width:18px;height:18px;margin-left:6px;border:0;border-radius:99px;color:#fff;font-size:12px;font-weight:800;line-height:1;cursor:pointer;vertical-align:middle}
+.inline-mark.static{cursor:default}
 .inline-mark.critical{background:var(--signal-red)}
 .inline-mark.warning{background:var(--signal-yellow);color:#17171a}
 .inline-mark:focus-visible{outline:2px solid var(--p-action);outline-offset:2px}
@@ -477,6 +478,7 @@ th .sort-btn:focus-visible{outline:2px solid var(--p-action);outline-offset:1px}
 .donut-total-label{font-size:12px;fill:var(--p-muted);font-family:var(--font-text)}
 .donut-legend{list-style:none;margin:8px 0 0;padding:0;width:100%}
 .donut-legend li{position:relative;display:flex;align-items:baseline;gap:8px;min-height:44px;padding:10px 12px 9px;font-size:13.5px;cursor:default}
+.donut-rank{flex:none;width:20px;color:var(--p-muted);font-variant-numeric:tabular-nums}
 .donut-legend li.on{background:var(--p-surface)}
 .donut-name{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:600}
 .donut-val{color:var(--p-muted);font-variant-numeric:tabular-nums;white-space:nowrap}
@@ -484,9 +486,13 @@ th .sort-btn:focus-visible{outline:2px solid var(--p-action);outline-offset:1px}
 .donut-bar{position:absolute;left:12px;right:12px;bottom:0;height:3px;border-radius:99px;background:var(--line)}
 .donut-bar i{display:block;height:100%;border-radius:99px}
 .donut-legend li.donut-empty{display:block;color:var(--p-muted)}
+/* The legend row tooltip wraps the row's spans: the wrapper is the
+   li's flex item and lays the spans out the same way the li did. */
+.donut-legend .tooltip-wrap{display:flex;flex:1;align-items:baseline;gap:8px;min-width:0}
 /* Ranked breakdown list (shared by the analysis channel/resource
    rows): name + value + share, 3px share bar on the row's bottom edge. */
 .rk-list{margin:0;padding:0;list-style:none}
+.rk-sort{margin-bottom:8px;justify-content:flex-end}
 .rk-head{display:flex;gap:8px;padding:0 12px 6px;font-size:12px;color:var(--p-muted);font-weight:700}
 .rk-row{position:relative;display:flex;align-items:baseline;gap:8px;min-height:44px;padding:10px 12px 9px}
 .rk-row:hover{background:var(--p-surface)}
@@ -502,6 +508,8 @@ th .sort-btn:focus-visible{outline:2px solid var(--p-action);outline-offset:1px}
    the viewport; shows on hover and on keyboard focus, hides on
    scroll / Escape / re-render. */
 .tooltip{position:fixed;z-index:150;background:var(--p-tip);color:#fff;font-size:12px;line-height:1.5;padding:8px 12px;border-radius:9px;box-shadow:var(--shadow-menu);pointer-events:none;max-width:320px}
+.tooltip-wrap{display:inline-block;max-width:100%}
+.tooltip-wrap.block{display:block}
 .tooltip b{display:block;font-size:13px;color:#fff}
 .tooltip .tip-sub{display:block;color:rgba(255,255,255,0.72)}
 /* Loading / stale / error states: skeleton blocks the size of the
@@ -617,11 +625,20 @@ th .sort-btn:focus-visible{outline:2px solid var(--p-action);outline-offset:1px}
 .chart-box .grid{stroke:var(--chart-grid);stroke-width:1}
 .chart-box .axis{fill:var(--p-muted);font-size:12px}
 .chart-box .line{fill:none;stroke:var(--chart-metric,var(--p-action));stroke-width:2.5;stroke-linejoin:round;stroke-linecap:round}
+.chart-box .line-tail{fill:none;stroke:var(--chart-metric,var(--p-action));stroke-width:2.5;stroke-dasharray:2 4;stroke-linecap:round}
 .chart-box .prev-line{fill:none;stroke:var(--p-muted);stroke-width:1.5;stroke-dasharray:5 4;stroke-linejoin:round;stroke-linecap:round}
 .chart-box .dot-partial{fill:var(--p-card);stroke:var(--chart-metric,var(--p-action));stroke-width:2}
+.chart-box .dot-partial.prev{stroke:var(--p-muted)}
+/* Chart metric colours (D2): 金额 = money green, 订单量 = accent
+   blue; the area tint follows the metric. Set as a class on the
+   .chart-box so both themes pick the right token values. */
+.chart-box.metric-amount{--chart-metric:var(--p-money);--chart-area-tint:var(--money-tint)}
+.chart-box.metric-count{--chart-metric:var(--p-accent);--chart-area-tint:var(--p-accent-tint)}
 .chart-box .area{fill:var(--chart-area-tint,var(--chart-area));stroke:none}
 .chart-box .dot{fill:var(--chart-metric,var(--p-action))}
 .chart-box .bar{fill:var(--chart-metric,var(--p-action))}
+.chart-box .bar-prev{fill:var(--p-card);stroke:var(--p-muted);stroke-width:1.5;stroke-dasharray:4 3}
+.chart-box .dot-prev{fill:var(--p-muted)}
 .chart-box .bar-partial{fill:var(--chart-area-tint,var(--chart-area));stroke:var(--chart-metric,var(--p-action));stroke-width:1.5;stroke-dasharray:4 3}
 .chart-box .bar-val{fill:var(--p-muted);font-size:12px;font-weight:700}
 .chart-box .hover-line{stroke:var(--line2);stroke-width:1;stroke-dasharray:3 3}
@@ -663,14 +680,18 @@ tr.top1 td{background:var(--p-surface)}
   .sidebar .nav-div{margin:6px 4px}
   .sidebar .nav-group{padding:0 12px 4px}
   .chart-tip{font-size:12px;padding:6px 9px}
+  .search-clear{width:44px;height:44px}
+}
+
+/* Chart legend (current vs previous) + summary chips under the chart.
+   These must live OUTSIDE the 860px media block above (a pass-3 edit
+   nested them inside it by mistake, so they only applied on mobile). */
 .chart-legend{display:flex;gap:16px;align-items:center;font-size:12px;color:var(--p-muted);margin-bottom:8px}
 .chart-legend .lg-line{display:inline-block;width:20px;height:0;border-top:2.5px solid var(--chart-metric,var(--p-action));vertical-align:middle;margin-right:6px}
 .chart-legend .lg-prev{border-top:2px dashed var(--p-muted)}
 .chart-chips{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
 .chart-chip{font-size:12px;font-weight:700;color:var(--p-muted);background:var(--p-surface);border:1px solid var(--line);border-radius:99px;padding:5px 12px;font-variant-numeric:tabular-nums}
 .chart-chip b{color:var(--p-ink);font-weight:700}
-  .search-clear{width:44px;height:44px}
-}
 
 /* ================= SearchBox (redesign 2026-11-11) ================= */
 .search-row{margin-bottom:14px;display:flex;gap:var(--btn-gap);align-items:flex-end;flex-wrap:wrap}
