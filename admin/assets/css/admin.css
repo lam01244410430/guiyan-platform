@@ -540,6 +540,13 @@ tr.top1 td{background:var(--p-surface)}
 .row-end{display:flex;justify-content:flex-end;gap:12px}
 .form-row{display:flex;gap:12px;align-items:flex-end;flex-wrap:wrap}
 .form-row .btn-export{margin-left:0}
+/* Admin-overview fix round (2026-11-16): a .tag-rule label carries
+   margin-right:10px, which stacked on top of .form-row's 12px gap and
+   made the measured input→button gap 22px in the stored-value lookup
+   and the two verify toolbars. Neutralise only that margin inside a
+   .form-row so the real gap is the 12px token; the .tag-rule label
+   margin is untouched everywhere else. */
+.tag-rule .form-row label{margin-right:0}
 .report-head{display:flex;align-items:center;gap:12px}
 .search-box{max-width:340px}
 .search-box label{display:block;font-size:13.5px;font-weight:700;color:var(--p-muted);margin:0 0 6px}
