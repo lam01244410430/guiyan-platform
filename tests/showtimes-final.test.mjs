@@ -437,7 +437,12 @@ test("flash sale on a direct performance: create 200 (shop via resource); cross-
   });
   assert.equal(cross.status, 400, JSON.stringify(cross.data));
   assert.equal(cross.data.error, "场次不属于该店铺");
-  const o = await orderAs(demoToken, {
+  // Member-tier discount: demo paid ¥100 in the refund test above, so
+  // demo now holds a 15%-off tier and this flash order would price at
+  // 7650, not 9000. A fresh account has no tier, so the flash price
+  // is asserted cleanly here.
+  const fresh = await register("sfflash", "sfflash123");
+  const o = await orderAs(fresh.token, {
     resourceId: resId, quantity: 1, booking_date: "2026-12-08",
     performance_id: p3.data.performance.id,
     ticket_type_id: p3.data.ticket_type.id,
@@ -503,9 +508,15 @@ test("showtimes-final Q2a: honesty markers intact in data + admin", async () => 
   const admin = fs.readFileSync(
     path.resolve(repoDir, "admin", "assets", "js", "AdminDashboard.jsx"), "utf8",
   );
-  for (const s of ["模拟支付", "模拟托管中", "下载模拟协议", "最近模拟同步", "模拟点播", "押金（元，模拟）", "草稿订单已创建，请确认后支付（模拟支付，未扣款）"]) {
+  const app = fs.readFileSync(
+    path.resolve(repoDir, "web", "assets", "js", "App.jsx"), "utf8",
+  );
+  for (const s of ["模拟支付", "下载模拟协议", "最近模拟同步", "模拟点播", "押金（元，模拟）", "草稿订单已创建，请确认后支付（模拟支付，未扣款）"]) {
     assert.ok(h5.includes(s) || mini.includes(s), `honesty marker missing: ${s}`);
   }
+  // 模拟托管中 is not an i18n string — it is a literal escrow value
+  // in the web order list and the admin dashboard (kept, Q2a).
+  assert.ok(app.includes("模拟托管中"), "web honesty marker missing: 模拟托管中");
   assert.ok(mini.includes('simPay: "模拟支付"'), "mini simPay missing");
   for (const s of ["模拟托管中", "下载模拟协议", "最近模拟同步", "模拟经营分析报告", "已触发模拟预警", "已模拟同步", "（模拟事件）"]) {
     assert.ok(admin.includes(s), `admin honesty marker missing: ${s}`);
