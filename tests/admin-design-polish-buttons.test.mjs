@@ -2,6 +2,9 @@
 // 4 variants (primary / secondary / danger-soft / ghost), one gap token
 // for every button group, and a scale press feedback instead of the old
 // translateY jump. The five old class names stay so no call site changes.
+// Lam 2026-11-16 16:45 (admin-overview round, plan §1.6, Q4(a)): the
+// sizes/radii below follow the one template — 44px standard (36px dense),
+// 4px radius, one focus ring — for every button and input.
 // Source-grep assertions only, no server and no database needed.
 import test from "node:test";
 import assert from "node:assert/strict";
@@ -31,28 +34,35 @@ test("buttons gap tokens: one sm token and one md/lg token", () => {
 });
 
 test("buttons sizes: lg primary, md filter, sm row actions", () => {
-  assert.ok(css.includes(".btn-export{margin-left:auto;border:0;border-radius:9px;background:var(--p-action);color:var(--p-action-ink);font-weight:700;font-size:13.5px;padding:13px 18px;white-space:nowrap;min-height:44px}"), "btn-export is the lg primary (44px)");
-  assert.ok(css.includes(".btn-md{border:1px solid var(--line2);border-radius:9px;background:var(--p-bg);color:var(--p-ink);font-weight:700;font-size:13.5px;padding:10px 16px;white-space:nowrap;min-height:40px}"), "btn-md is the md secondary (40px)");
+  // Lam 2026-11-16 16:45 (plan §1.6, Q4(a)): one 44px / 4px template —
+  // lg + md are both 44px tall with a 4px radius, the dense row buttons
+  // are 36px with the same 4px radius (was 9px radius, 40px md, 30px sm).
+  assert.ok(css.includes(".btn-export{margin-left:auto;border:0;border-radius:4px;background:var(--p-action);color:var(--p-action-ink);font-weight:700;font-size:13.5px;padding:13px 18px;white-space:nowrap;min-height:44px}"), "btn-export is the lg primary (44px)");
+  assert.ok(css.includes(".btn-md{border:1px solid var(--line2);border-radius:4px;background:var(--p-bg);color:var(--p-ink);font-weight:700;font-size:13.5px;padding:10px 16px;white-space:nowrap;min-height:44px}"), "btn-md is the md secondary (44px)");
   for (const rule of [
-    ".btn-view{border:1px solid var(--line2);background:var(--p-bg);color:var(--p-ink);border-radius:9px;font-weight:700;font-size:12px;padding:6px 14px;white-space:nowrap;min-height:30px}",
-    ".btn-approve{border:0;border-radius:9px;background:var(--p-action);color:var(--p-action-ink);font-weight:700;font-size:12px;padding:6px 14px;min-height:30px}",
-    ".btn-reject{border:1px solid var(--line2);background:var(--signal-red-soft);color:var(--signal-red-deep);border-radius:9px;font-weight:700;font-size:12px;padding:6px 14px;min-height:30px}",
+    ".btn-view,.mini{border:1px solid var(--line2);background:var(--p-bg);color:var(--p-ink);border-radius:4px;font-weight:700;font-size:12px;padding:6px 14px;white-space:nowrap;min-height:36px}",
+    ".btn-approve{border:0;border-radius:4px;background:var(--p-action);color:var(--p-action-ink);font-weight:700;font-size:12px;padding:6px 14px;min-height:36px}",
+    ".btn-reject{border:1px solid var(--line2);background:var(--signal-red-soft);color:var(--signal-red-deep);border-radius:4px;font-weight:700;font-size:12px;padding:6px 14px;min-height:36px}",
   ]) {
-    assert.ok(css.includes(rule), "sm row button must be 30px: " + rule.slice(0, 20));
+    assert.ok(css.includes(rule), "sm row button must be 36px: " + rule.slice(0, 20));
   }
-  assert.ok(css.includes(".btn-resolve{border:1px solid var(--line2);background:var(--p-bg);border-radius:9px;padding:6px 14px;font-size:12px;font-weight:700;color:var(--p-ink);min-height:30px}"), "btn-resolve joins the sm size (was 13.5px)");
+  assert.ok(css.includes(".btn-resolve{border:1px solid var(--line2);background:var(--p-bg);border-radius:4px;padding:6px 14px;font-size:12px;font-weight:700;color:var(--p-ink);min-height:36px}"), "btn-resolve joins the sm size (was 13.5px)");
 });
 
 test("buttons line-height: pinned to 1 so min-height governs the size", () => {
+  // Lam 2026-11-16 16:45 (plan §1.6, Q4(a)): the pin now also covers
+  // .mini, which shares the .btn-view rule in the one template.
   assert.ok(
-    css.includes(".btn-export,.btn-md,.btn-ghost,.btn-view,.btn-approve,.btn-reject,.btn-resolve{line-height:1}"),
+    css.includes(".btn-export,.btn-md,.btn-ghost,.btn-view,.mini,.btn-approve,.btn-reject,.btn-resolve{line-height:1}"),
     "button line-height must be pinned to 1 — body 1.6 pushed lg to 48px",
   );
 });
 
 test("buttons variants: primary / secondary / danger-soft / ghost all defined", () => {
   assert.ok(css.includes(".btn-md:hover{background:var(--p-surface)}"), "md secondary hovers grayer");
-  assert.ok(css.includes(".btn-ghost{border:0;border-radius:9px;background:transparent;color:var(--p-ink);font-weight:700;font-size:13.5px;padding:10px 16px;white-space:nowrap;min-height:40px}"), "ghost variant exists for subtle inline actions");
+  // Lam 2026-11-16 16:45 (plan §1.6, Q4(a)): ghost follows the one
+  // template — 4px radius, 44px tall (was 9px radius, 40px).
+  assert.ok(css.includes(".btn-ghost{border:0;border-radius:4px;background:transparent;color:var(--p-ink);font-weight:700;font-size:13.5px;padding:10px 16px;white-space:nowrap;min-height:44px}"), "ghost variant exists for subtle inline actions");
   assert.ok(css.includes(".btn-reject:hover{background:var(--signal-red-soft-deep)}"), "danger-soft keeps its deeper hover");
   assert.ok(css.includes(".btn-export:disabled{opacity:.6;cursor:default}"), "disabled primary dims to .6");
 });

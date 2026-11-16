@@ -202,10 +202,18 @@ test("totals action columns: explicit widths so buttons never overflow", () => {
   }
   // The widest action column is the shows table (4 buttons).
   assert.ok(dashboardJsx.includes('className="col-actions-xwide"'), "shows table needs the xwide action column");
+  // Lam 2026-11-16 (admin-overview round, CDP-sized columns): 6 tables
+  // use col-actions-wide — users, resources, shops, venues, comments
+  // plus the nested performances table inside resources (was 4: the
+  // users table and the nested performances table were re-measured).
   const wide = dashboardJsx.split('className="col-actions-wide"').length - 1;
-  assert.equal(wide, 4, "resources/shops/venues/comments need the wide action column, found " + wide);
+  assert.equal(wide, 6, "users/resources/shops/venues/comments + nested performances need the wide action column, found " + wide);
+  // Lam 2026-11-16 (admin-overview round, CDP-sized columns): only 4
+  // tables still use the plain col-actions — the small nested tables
+  // (seat templates, ticket tiers, pickup points, nested seat templates);
+  // the rest moved to col-actions-md/-wide/-xwide in the same round.
   const narrow = dashboardJsx.split('className="col-actions"').length - 1;
-  assert.ok(narrow >= 10, "single/double-button action columns need col-actions, found " + narrow);
+  assert.equal(narrow, 4, "single/double-button action columns need col-actions, found " + narrow);
   // SortButton headers are untouched: still inside <th>, still wired.
   assert.ok(dashboardJsx.includes('aria-sort={ariaSort("orders", "code")}'), "sortable headers must stay");
   assert.ok(dashboardJsx.includes('<SortButton label="订单号" sortKey="code" tableId="orders"'), "SortButton must stay in the orders header");

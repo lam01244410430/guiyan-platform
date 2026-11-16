@@ -1,7 +1,9 @@
 // Inputs restyle (2026-11-16): ONE input radius token for both webs —
 // 4px, applied to EVERY input/select/textarea (rectangle with only
-// slightly rounded corners). Buttons, cards and chips keep their own
-// radii. Number spinners are hidden GLOBALLY on the customer side
+// slightly rounded corners). Lam 2026-11-16 16:45 (plan §1.6, Q4(a) +
+// Q6(a)): buttons and chips/tags now follow the same one 44px / 4px
+// template instead of keeping their own radii; cards keep --r-lg.
+// Number spinners are hidden GLOBALLY on the customer side
 // (same as admin) — keyboard entry still works. --r-sm / --radius-sm
 // are NOT changed (they are also used by non-inputs).
 // Source-grep assertions only, no server and no database needed.
@@ -71,10 +73,13 @@ test("admin inputs: shared control system + login input use the 4px token", () =
   );
 });
 
-test("buttons, cards and chips keep their own radii", () => {
-  assert.ok(mainCss.includes(".btn{display:inline-flex;align-items:center;gap:8px;border-radius:99px;"), "customer buttons stay pills");
-  assert.ok(mainCss.includes(".chip{border:1px solid var(--line2);background:var(--surface);color:var(--ink2);border-radius:99px;"), "customer chips stay pills");
+test("buttons and chips follow the 4px template, cards keep their own radius", () => {
+  // Lam 2026-11-16 16:45 (plan §1.6, Q4(a) + Q6(a)): customer buttons
+  // and chips are 4px now (were 99px pills); admin buttons and chips
+  // are 4px now (were 9px); only cards keep their own radius.
+  assert.ok(mainCss.includes(".btn{display:inline-flex;align-items:center;gap:8px;border-radius:4px;"), "customer buttons follow the 4px template");
+  assert.ok(mainCss.includes(".chip{border:1px solid var(--line2);background:var(--surface);color:var(--ink2);border-radius:4px;"), "customer chips follow the 4px rule");
   assert.ok(mainCss.includes(".card{background:var(--surface);border:1px solid var(--line);border-radius:var(--r-lg);"), "customer cards keep their radius");
-  assert.ok(adminCss.includes(".btn-export{margin-left:auto;border:0;border-radius:9px;"), "admin buttons keep 9px");
-  assert.ok(adminCss.includes(".chips button{border:1px solid var(--line2);background:var(--p-bg);border-radius:9px;"), "admin chips keep 9px");
+  assert.ok(adminCss.includes(".btn-export{margin-left:auto;border:0;border-radius:4px;"), "admin buttons follow the 4px template");
+  assert.ok(adminCss.includes(".chips button{border:1px solid var(--line2);background:var(--p-bg);border-radius:4px;"), "admin chips follow the 4px rule");
 });

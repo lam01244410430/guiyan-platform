@@ -48,7 +48,10 @@ test("account tabs: still 10 tabs, logic untouched", () => {
 });
 
 test("account layout CSS: vertical nav 240px, no separators, black active", () => {
-  assert.ok(mainCss.includes(".acct-layout{display:flex;gap:24px;align-items:flex-start}"), "layout is a 2-column flex row");
+  // Lam 2026-11-16 16:45 (plan §1.7): the account page tightens its
+  // spacing to the 8/12px tokens — layout gap 24px→12px, content frame
+  // padding 24px→12px.
+  assert.ok(mainCss.includes(".acct-layout{display:flex;gap:12px;align-items:flex-start}"), "layout is a 2-column flex row");
   assert.ok(
     mainCss.includes(".acct-tabs{display:flex;flex-direction:column;gap:2px;flex:none;width:240px;margin:0}"),
     "tabs are a vertical 240px column",
@@ -60,7 +63,7 @@ test("account layout CSS: vertical nav 240px, no separators, black active", () =
   assert.ok(mainCss.includes(".acct-tab.on{background:var(--ink);color:var(--bg)}"), "active tab keeps the black fill");
   assert.ok(mainCss.includes(".acct-tab .pill{margin-left:auto}"), "inbox badge is pushed to the row's right edge");
   assert.ok(
-    mainCss.includes(".acct-frame{flex:1;min-width:0;background:var(--surface);border:1px solid var(--line);border-radius:4px;padding:24px}"),
+    mainCss.includes(".acct-frame{flex:1;min-width:0;background:var(--surface);border:1px solid var(--line);border-radius:4px;padding:12px}"),
     "content frame is a bordered square on the right",
   );
   assert.ok(mainCss.includes(".acct-tab:hover{background:var(--surface2)}"), "tab hover is the light grey surface");
@@ -92,12 +95,14 @@ test("white design: accents and the dark hero are kept", () => {
 
 test("account layout responsive: nav becomes a scrollable row at <=860px", () => {
   assert.ok(mainCss.includes("@media(max-width:860px){"), "an 860px breakpoint exists");
-  assert.ok(mainCss.includes(".acct-layout{flex-direction:column;gap:16px}"), "layout stacks below 860px");
+  // Lam 2026-11-16 16:45 (plan §1.7): the stacked layout keeps the same
+  // tightened 12px spacing — gap 16px→12px, frame padding 20px→12px.
+  assert.ok(mainCss.includes(".acct-layout{flex-direction:column;gap:12px}"), "layout stacks below 860px");
   assert.ok(
     mainCss.includes(".acct-tabs{flex-direction:row;flex-wrap:nowrap;overflow-x:auto;width:100%}"),
     "tabs become one horizontal scrollable row below 860px",
   );
-  assert.ok(mainCss.includes(".acct-frame{width:100%;box-sizing:border-box;padding:20px}"), "frame goes full-width below 860px");
+  assert.ok(mainCss.includes(".acct-frame{width:100%;box-sizing:border-box;padding:12px}"), "frame goes full-width below 860px");
 });
 
 test("dark mode tokens are untouched by the white design", () => {

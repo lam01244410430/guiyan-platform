@@ -82,11 +82,16 @@ test("account large-text: elderly large-text mode still wins", () => {
   );
 });
 
-test("account radius: auth, booking, home search share the 4px input radius (theme toggle untouched)", () => {
-  assert.ok(mainCss.includes(".theme-seg{display:inline-flex;gap:4px;background:var(--surface2);border:1px solid var(--line);border-radius:99px;padding:4px}"), "theme toggle untouched");
+test("account radius: auth, booking, home search share the 4px input radius (theme toggle follows the 4px chip rule)", () => {
+  // Lam 2026-11-16 16:45 (Q6(a)): chips/tags go to a 4px radius, so the
+  // theme segmented control follows the same rule (was a 99px pill).
+  assert.ok(mainCss.includes(".theme-seg{display:inline-flex;gap:4px;background:var(--surface2);border:1px solid var(--line);border-radius:4px;padding:4px}"), "theme toggle follows the 4px chip rule");
   assert.ok(mainCss.includes(".auth-card input,.auth-card select,.auth-card textarea{width:100%;box-sizing:border-box;border:1px solid var(--line2);border-radius:var(--input-r);padding:11px 13px;font-size:14px;background:var(--surface);color:var(--ink);font-family:inherit}"), "auth card shares the 4px input radius");
-  assert.ok(mainCss.includes(".bookrow input,.bookrow select{border:1px solid var(--line2);border-radius:var(--input-r);padding:11px 12px;background:var(--surface);color:var(--ink);width:100%}"), "booking form shares the 4px input radius");
-  assert.ok(mainCss.includes(".filters .q{flex:1;min-width:170px;border:1px solid var(--line2);background:var(--surface);color:var(--ink);border-radius:var(--input-r);padding:9px 16px;font-size:13.5px;outline:none}"), "home search shares the 4px input radius");
+  // Lam 2026-11-16 16:45 (plan §1.6, Q6(a)): home inputs follow the one
+  // 44px template too — booking + home search are 44px tall now
+  // (height:44px + horizontal-only padding, was 11px/9px vertical).
+  assert.ok(mainCss.includes(".bookrow input,.bookrow select{border:1px solid var(--line2);border-radius:var(--input-r);height:44px;padding:0 12px;background:var(--surface);color:var(--ink);width:100%}"), "booking form shares the 4px input radius");
+  assert.ok(mainCss.includes(".filters .q{flex:1;min-width:170px;border:1px solid var(--line2);background:var(--surface);color:var(--ink);border-radius:var(--input-r);height:44px;padding:0 16px;font-size:13.5px;outline:none}"), "home search shares the 4px input radius");
 });
 
 test("account test file is wired into the npm test chain", () => {

@@ -86,13 +86,19 @@ test("b055 expandable cell: only the three plain-text cells expand; action cells
 });
 
 test("b055 narrow columns: width rules present in CSS", () => {
+  // Lam 2026-11-16 (admin-overview round, item 4): every admin table's
+  // columns were re-sized from real content measured by CDP at 1440/1249
+  // (measure2.json) — the orders table min-width grows 880px→1000px, the
+  // five narrow columns take their CDP widths, and the selector is the
+  // descendant `.tbl-wrap table th` (not `>`) so the same classes also
+  // size the nested tables.
   for (const snippet of [
-    ".tbl-wrap > table.orders-table{min-width:880px}",
-    ".tbl-wrap > table th.col-status{width:88px}",
-    ".tbl-wrap > table th.col-escrow{width:100px}",
-    ".tbl-wrap > table th.col-contract{width:140px}",
-    ".tbl-wrap > table th.col-amount{width:96px}",
-    ".tbl-wrap > table th.col-date{width:112px}",
+    ".tbl-wrap > table.orders-table{min-width:1000px}",
+    ".tbl-wrap table th.col-status{width:120px}",
+    ".tbl-wrap table th.col-escrow{width:96px}",
+    ".tbl-wrap table th.col-contract{width:140px}",
+    ".tbl-wrap table th.col-amount{width:88px}",
+    ".tbl-wrap table th.col-date{width:104px}",
     "td.cell-ellipsis.expandable{cursor:pointer}",
     "td.cell-ellipsis.expanded{white-space:normal;word-break:break-all;overflow:visible}",
   ]) {
@@ -127,12 +133,14 @@ test("b055 narrow columns: both orders table headers carry the classes", () => {
     assert.equal(found, 2, `expected 2 headers with ${pattern}, found ${found}`);
   }
   // Sort buttons and the action column are untouched in both headers.
+  // Lam 2026-11-16 (admin-overview round, item 4): the 售后 column is
+  // now col-actions-md (200px, CDP-measured) instead of col-actions.
   for (const snippet of [
     '<SortButton label="订单号" sortKey="code" tableId="overview"',
     '<SortButton label="订单号" sortKey="code" tableId="orders"',
     '<SortButton label="金额" sortKey="amount" tableId="overview"',
     '<SortButton label="金额" sortKey="amount" tableId="orders"',
-    '<th scope="col" className="col-actions">售后</th>',
+    '<th scope="col" className="col-actions-md">售后</th>',
   ]) {
     assert.ok(dashboardJsx.includes(snippet), `orders header must keep: ${snippet}`);
   }
