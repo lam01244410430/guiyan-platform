@@ -160,8 +160,11 @@ section{padding:76px 0}
 .sec-head p{margin:0 0 4px auto;max-width:380px;color:var(--ink2);font-size:14px}
 @media(max-width:760px){.sec-head p{margin:0}}
 
-/* categories */
-.catrail{display:grid;grid-template-columns:repeat(5,1fr);gap:12px}
+/* categories — one row (2026-11-16): 10 tiles in one row on desktop
+   (>=1240px); 5 columns <=1240, 3 <=900, 2 <=560. Tile content is
+   unchanged — only the grid changes. */
+.catrail{display:grid;grid-template-columns:repeat(10,1fr);gap:12px}
+@media(max-width:1240px){.catrail{grid-template-columns:repeat(5,1fr)}}
 .cat{position:relative;text-align:left;background:var(--surface);border:1px solid var(--line);border-radius:var(--r-md);padding:18px 16px 14px;transition:transform .18s,border-color .18s,box-shadow .18s;color:var(--ink)}
 .cat:hover{transform:translateY(-3px);border-color:var(--red);box-shadow:var(--shadow)}
 .cat .zh{font-size:21px;font-weight:900;display:block}
@@ -178,6 +181,10 @@ section{padding:76px 0}
 .chip.on{background:var(--ink);color:var(--bg);border-color:var(--ink)}
 .filters select{margin-left:auto;border:1px solid var(--line2);background:var(--surface);color:var(--ink);border-radius:99px;padding:8px 13px;font-size:13px;font-weight:600}
 .filters .q{flex:1;min-width:170px;border:1px solid var(--line2);background:var(--surface);color:var(--ink);border-radius:99px;padding:9px 16px;font-size:13.5px;outline:none}
+/* Category chip row (2026-11-16): one row, horizontal scroll on narrow
+   screens instead of wrapping. */
+#catFilters{flex-wrap:nowrap;overflow-x:auto}
+#catFilters .chip{flex:none}
 .resultline{color:var(--ink3);font-size:13px;margin:6px 2px 18px}
 .grid{display:grid;grid-template-columns:repeat(4,1fr);gap:16px}
 @media(max-width:1020px){.grid{grid-template-columns:repeat(3,1fr)}}

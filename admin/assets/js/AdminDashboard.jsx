@@ -326,6 +326,9 @@ export default function AdminDashboard() {
   const [shopForm, setShopForm] = useState(null);
   const [shopBusyId, setShopBusyId] = useState(null);
   const [resShopFilter, setResShopFilter] = useState("");
+  // resCatFilter is the resources view's category chip filter
+  // ("all" = all categories; filters on r.category, like home).
+  const [resCatFilter, setResCatFilter] = useState("all");
   // R1-3 shop theming: the open theme editor draft (null = closed;
   // {shopId, shopName, banner, primaryColor, sections[]}) + the shop
   // id whose theme save is in flight (same pattern as shopBusyId).
@@ -2635,7 +2638,7 @@ export default function AdminDashboard() {
     return (!tagFilter || (u.tags || []).indexOf(tagFilter) !== -1) && (!q || userMatch(u));
   });
   const filteredResources = resources.filter(function (r) {
-    return (resShopFilter === "" || String(r.shop_id) === resShopFilter) && (!q || resourceMatch(r));
+    return (resShopFilter === "" || String(r.shop_id) === resShopFilter) && (resCatFilter === "all" || r.category === resCatFilter) && (!q || resourceMatch(r));
   });
   const filteredShops = q ? shops.filter(shopMatch) : shops;
   const filteredShows = shows.filter(function (s) {
@@ -2968,6 +2971,14 @@ export default function AdminDashboard() {
                 </select>
               ) : null}
               <button type="button" className="btn-export" onClick={() => openResForm(null)}>添加资源</button>
+            </div>
+            <div className="chips res-cat-row" role="group" aria-label="按分类筛选">
+              <button type="button" data-c="all" className={resCatFilter === "all" ? "on" : ""}
+                aria-pressed={resCatFilter === "all" ? "true" : "false"} onClick={() => setResCatFilter("all")}>全部</button>
+              {CATS.map(([id, name]) => (
+                <button key={id} type="button" data-c={id} className={resCatFilter === id ? "on" : ""}
+                  aria-pressed={resCatFilter === id ? "true" : "false"} onClick={() => setResCatFilter(id)}>{name}</button>
+              ))}
             </div>
             <div className="note">管理端写资源会改库存/容量/详情，直接影响档期余量、推荐与统计；操作留痕。价格输入元，保存时换算为分。图片只填静态路径（/images/…），不上传。</div>
             {resForm ? (
