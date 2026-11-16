@@ -1,9 +1,19 @@
 // Admin redesign palette tests (Item 1: palette + tokens + scrollbar) —
 // pure source-grep assertions, no server and no database needed. The
-// admin dashboard is pure white + neutral gray scale with a mint accent
-// used sparingly; the old cream / orange / dark-green brand tokens must
-// be gone from admin CSS. Customer web + mini-program keep their own
-// brand and are not covered here.
+// admin dashboard is pure white + neutral gray scale with one accent
+// (#3e63dd, the primary action colour) and one money green (#0f7f57);
+// the old cream / orange / dark-green brand tokens must be gone from
+// admin CSS. Customer web + mini-program keep their own brand and are
+// not covered here.
+//
+// 2026-11-16 dashboard redesign (Lam-approved, D2 + prep §1 token
+// mapping): the dealt palette of the 2026-11-15 design-polish round
+// was replaced — mint #a1ffcb is gone as the accent, black #232323 is
+// gone as the action colour, --p-bg split into page #f8f8f6 / card
+// #ffffff, --p-inv-bg split into sidebar side #f3f3f1 / toast+skip-link
+// tip #1f2530, and the dead tokens (--p-inv-surface, --p-inv-action,
+// --p-inv-action-ink, --p-inv-accent-ink, --ly-scale) were deleted.
+// The expectations below pin the NEW palette, not the old one.
 import test from "node:test";
 import assert from "node:assert/strict";
 import path from "node:path";
@@ -23,18 +33,30 @@ const FONT_LINK =
   "css2?family=Funnel+Display:wght@400..700&family=Funnel+Sans:wght@400..600&family=DM+Mono:wght@400;500&display=swap";
 
 test("admin redesign palette: dealt :root tokens present verbatim", () => {
+  // Dashboard redesign palette (2026-11-16, Lam-approved): page/card
+  // split, ink #17171a, accent #3e63dd as the action colour, tip
+  // #1f2530 for toast/skip-link. The 2026-11-15 values (page #ffffff,
+  // ink #232323, mint accent #a1ffcb, black action #232323, inverse
+  // #232323/#303030) are superseded — see the header comment.
   const lines = [
-    "--p-bg: #ffffff; --p-surface: #f3f3f3; --p-ink: #232323; --p-muted: #686868;",
-    "--p-accent: #a1ffcb; --p-accent-ink: #232323; --p-action: #232323; --p-action-ink: #ffffff;",
-    "--p-inv-bg: #232323; --p-inv-surface: #303030; --p-inv-ink: #ffffff; --p-inv-muted: #a4a4a4;",
-    "--p-inv-accent: #a1ffcb; --p-inv-accent-ink: #232323; --p-inv-action: #a1ffcb; --p-inv-action-ink: #232323;",
+    "--p-bg: #f8f8f6; --p-card: #ffffff; --p-surface: #f1f1ef;",
+    "--p-ink: #17171a; --p-ink-2: #48484d; --p-muted: #66666d;",
+    "--p-accent: #3e63dd; --p-accent-ink: #17171a;",
+    "--p-money: #0f7f57; --p-up: #0f7f57; --p-down: #d23f45; --p-warn: #c98a00;",
+    "--p-tip: #1f2530; --p-live: #12a150;",
+    "--p-action: #3e63dd; --p-action-ink: #ffffff;",
+    "--p-inv-bg: #1f2530; --p-inv-ink: #ffffff;",
+    "--p-inv-accent: #3e63dd;",
     '--font-display: "Funnel Display", system-ui, sans-serif;',
     '--font-text: "Funnel Sans", system-ui, sans-serif;',
     '--font-mono: "DM Mono", ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;',
     "--display-weight: 400; --display-tracking: -0.03em; --display-tracking-xl: -0.04em;",
-    "--ly-scale: 0.98;",
   ];
   for (const line of lines) assert.ok(css.includes(line), `missing :root line: ${line}`);
+  // Dead tokens deleted by the redesign (prep §1.4) must stay gone.
+  for (const dead of ["--ly-scale", "--p-inv-surface", "--p-inv-action", "--p-inv-accent-ink"]) {
+    assert.ok(!css.includes(dead), `dead token remains in admin.css: ${dead}`);
+  }
 });
 
 test("admin redesign palette: no forbidden brand tokens remain in admin CSS", () => {
@@ -119,17 +141,25 @@ test("admin redesign palette: Funnel font link in admin HTML, no Noto Serif SC",
   assert.ok(!css.includes("Noto Sans SC"), "Noto Sans SC remains in admin.css");
 });
 
-test("admin redesign palette: admin type uses the dealt fonts, sidebar is inverse", () => {
+test("admin redesign palette: admin type uses the dealt fonts, sidebar is a light side panel", () => {
   assert.ok(css.includes("font-family:var(--font-display)"), "headings must use --font-display");
   assert.ok(css.includes("font-family:var(--font-text)"), "body must use --font-text");
   assert.ok(css.includes("font-family:var(--font-mono)"), "codes must use --font-mono");
+  // Redesign 2026-11-16 (prep §1): --p-inv-bg split — the sidebar is
+  // NO LONGER the dark inverse panel (#232323); it is a light side
+  // panel #f3f3f1, and its selected state is an accent tint with INK
+  // text (never accent text on tint — contrast rule #5).
   assert.ok(
-    css.includes("--sidebar-bg:var(--p-inv-bg)"),
-    "sidebar background must be the inverse token --p-inv-bg (#232323)",
+    css.includes("--sidebar-bg:#f3f3f1"),
+    "sidebar background must be the light side token #f3f3f1",
   );
   assert.ok(
-    css.includes("--sidebar-active-bg:var(--p-inv-surface)"),
-    "sidebar active background must be the inverse token --p-inv-surface (#303030)",
+    css.includes("--sidebar-active-bg:rgba(62,99,221,0.08)"),
+    "sidebar active background must be the accent tint",
+  );
+  assert.ok(
+    css.includes(".sidebar nav button.on{background:var(--sidebar-active-bg);color:var(--sidebar-text)}"),
+    "sidebar selected item must use ink text on the accent tint",
   );
 });
 
@@ -154,16 +184,17 @@ test("admin redesign palette: thin scrollbar CSS present and wired to the sideba
   );
 });
 
-test("admin redesign palette: signal tokens defined, mint used sparingly", () => {
-  assert.ok(css.includes("--signal-red:#d92d20"), "plain-red signal token missing");
-  assert.ok(css.includes("--signal-yellow:#f59e0b"), "plain-amber signal token missing");
-  // Mint is the selected/active accent only: the chips selected state
-  // (background + border) is its single use on light surfaces.
-  // (Match with the closing paren so --p-accent-ink is not counted.)
-  const mintUses = (css.match(/var\(--p-accent\)/g) || []).length;
-  assert.equal(mintUses, 2, `mint --p-accent must be used exactly twice, found ${mintUses}`);
+test("admin redesign palette: signal tokens defined, accent is the primary action colour (D2)", () => {
+  // Signal tokens follow the down/warn tokens of the redesign palette.
+  assert.ok(css.includes("--signal-red:#d23f45"), "plain-red signal token missing");
+  assert.ok(css.includes("--signal-yellow:#c98a00"), "plain-amber signal token missing");
+  // Mint is gone as the accent: #3e63dd is now the primary action
+  // colour (D2) — used for buttons, focus, sort active and checkbox
+  // accent-color via --p-action, not sparingly.
+  const actionUses = (css.match(/var\(--p-action\)/g) || []).length;
+  assert.ok(actionUses >= 10, `accent action --p-action must be used widely, found ${actionUses}`);
   assert.ok(
-    css.includes(".chips button.on{background:var(--p-accent);border-color:var(--p-accent);"),
-    "mint must be the selected-chip accent",
+    css.includes(".chips button.on{background:var(--p-accent-tint);border-color:var(--p-accent-ring);color:var(--p-accent-ink)}"),
+    "selected chips must use the accent tint + ring with ink text (never accent text on tint)",
   );
 });
