@@ -2,7 +2,8 @@
 // (1) GET /api/admin/stats carries published_resources + active_users_30d
 //     and both match the same definition computed directly in SQL;
 // (2) GET /api/admin/analysis channels match the real paid orders grouped
-//     by channel; (3) source-grep: the 4 KPI cards, the trend + donut,
+//     by channel in the selected window (D1: windowed, default 近30天);
+// (3) source-grep: the 4 KPI cards, the trend + donut,
 //     the lazy overview load, and no screenshot figures anywhere.
 // Server part mirrors tests/r5-bi.test.mjs (spawn server.mjs on TEST_PORT,
 // fresh disposable DB — npm test is NOT idempotent on a reused DB).
@@ -107,15 +108,18 @@ test("analysis channels match the real paid orders grouped by channel", async ()
   assert.equal(r.status, 200, JSON.stringify(r.data));
   assert.ok(Array.isArray(r.data.channels));
   // Same paid scope as the stats KPI (adminStatsTotals revenue_cents)
-  // and the analysis revenue: paid + completed ONLY. Disputed /
-  // refund_requested orders are under after-sales handling and stay
-  // out of revenue, so the donut (channels) sums to the KPI total.
-  // (The R5 analysis sections — shows / promos / venues — keep the
-  // wider 4-status PAID_STATUSES; only revenue + channels use this
+  // and the analysis revenue: paid + completed ONLY, inside the
+  // selected window (D1: the day period is the last 30 Beijing days).
+  // Disputed / refund_requested orders are under after-sales handling
+  // and stay out of revenue, so the donut (channels) sums to the KPI
+  // total. (The R5 analysis sections — shows / promos / venues — keep
+  // the wider 4-status PAID_STATUSES; only revenue + channels use this
   // scope, see admin-insights.mjs REVENUE_STATUSES.)
   const rows = await pool.query(
     `SELECT channel AS name, SUM(amount)::bigint AS amount, COUNT(*)::bigint AS orders
        FROM orders WHERE status IN ('paid','completed')
+         AND DATE(created_at::timestamptz AT TIME ZONE 'Asia/Shanghai') >= ((now() AT TIME ZONE 'Asia/Shanghai')::date - 29)
+         AND DATE(created_at::timestamptz AT TIME ZONE 'Asia/Shanghai') <= ((now() AT TIME ZONE 'Asia/Shanghai')::date)
        GROUP BY channel ORDER BY amount DESC`,
   );
   assert.equal(r.data.channels.length, rows.rows.length, "channel count must match the DB");
@@ -177,26 +181,41 @@ test("channels sum = kpis.revenue = stats revenue with refund_requested/disputed
   });
   assert.equal(dispute.status, 200, JSON.stringify(dispute.data));
   assert.equal(dispute.data.status, "disputed");
-  // The two excluded orders really hold money (2 x ¥280): under the
-  // old 4-status scope the donut would exceed the KPI by exactly this.
+  // The two excluded orders really hold money: under the old
+  // 4-status scope the donut would exceed the KPI by exactly this.
+  // NOTE the two orders do NOT both cost ¥280: paying the first order
+  // moves demo's stored main-shop tier to 钻石会员 (15% off, min
+  // spend ¥10,000 — demo crosses it on that payment), so the second
+  // order prices at ¥238 (discountForOrder in computePricing). The
+  // assertion therefore checks the two orders exist and hold money
+  // instead of assuming 2 x ¥280.
   const excluded = await pool.query(
-    `SELECT COALESCE(SUM(amount),0) AS total FROM orders
+    `SELECT COUNT(*) AS n, COALESCE(SUM(amount),0) AS total FROM orders
        WHERE status IN ('disputed','refund_requested')`,
   );
-  assert.ok(Number(excluded.rows[0].total) >= 56000, `excluded statuses must hold >= 56000 cents, got ${excluded.rows[0].total}`);
+  assert.equal(Number(excluded.rows[0].n), 2, "exactly the two test orders must be excluded");
+  assert.ok(Number(excluded.rows[0].total) > 0, `excluded statuses must hold money, got ${excluded.rows[0].total}`);
   const after = await req("/api/admin/analysis?period=day", { token: adminToken });
   assert.equal(after.status, 200, JSON.stringify(after.data));
   const statsAfter = await req("/api/admin/stats", { token: adminToken });
   assert.equal(statsAfter.status, 200, JSON.stringify(statsAfter.data));
+  const windowedAfter = await req("/api/admin/stats?period=day", { token: adminToken });
+  assert.equal(windowedAfter.status, 200, JSON.stringify(windowedAfter.data));
   const channelSum = after.data.channels.reduce((a, c) => a + Number(c.amount), 0);
   assert.equal(channelSum, Number(after.data.kpis.revenue), "channel amounts must sum to analysis revenue");
   assert.equal(Number(after.data.kpis.revenue), Number(before.data.kpis.revenue), "refund_requested/disputed orders must not move analysis revenue");
   assert.equal(Number(statsAfter.data.revenue_cents), Number(statsBefore.data.revenue_cents), "refund_requested/disputed orders must not move stats revenue");
-  assert.equal(Number(after.data.kpis.revenue), Number(statsAfter.data.revenue_cents), "analysis revenue must equal stats revenue_cents (donut centre = KPI)");
+  // D1: the donut centre is the WINDOWED revenue, so analysis revenue
+  // must equal the windowed stats total — not the cumulative stats
+  // revenue (which counts the whole history, including months before
+  // the window). The cumulative total stays unchanged too.
+  assert.equal(Number(after.data.kpis.revenue), Number(windowedAfter.data.totals.revenue_cents), "analysis revenue must equal the windowed stats revenue (donut centre = KPI)");
   const sql = await pool.query(
-    "SELECT COALESCE(SUM(amount),0) AS total FROM orders WHERE status IN ('paid','completed')",
+    `SELECT COALESCE(SUM(amount),0) AS total FROM orders WHERE status IN ('paid','completed')
+       AND DATE(created_at::timestamptz AT TIME ZONE 'Asia/Shanghai') >= ((now() AT TIME ZONE 'Asia/Shanghai')::date - 29)
+       AND DATE(created_at::timestamptz AT TIME ZONE 'Asia/Shanghai') <= ((now() AT TIME ZONE 'Asia/Shanghai')::date)`,
   );
-  assert.equal(Number(after.data.kpis.revenue), Number(sql.rows[0].total), "analysis revenue must match direct paid/completed SQL");
+  assert.equal(Number(after.data.kpis.revenue), Number(sql.rows[0].total), "analysis revenue must match direct windowed paid/completed SQL");
 });
 
 // ---- source-grep checks (no server needed) ----
@@ -215,15 +234,21 @@ const css = fs.readFileSync(
   "utf-8",
 );
 
-test("overview header: title + subtitle + period chips + real export button", () => {
-  assert.ok(dashboardJsx.includes("运营总览"), "header title must exist");
-  assert.ok(dashboardJsx.includes("演艺资源与运营数据，一目了然"), "header subtitle must exist");
+test("overview header: one row, title left, pill group right, no subtitle sentence", () => {
+  // D1 redesign: the overview is wordless — the .ov-sub sentence is
+  // gone and the section has no h2 of its own; the page title lives
+  // in the AppHeader (titles map: overview = "总览").
+  assert.ok(dashboardJsx.includes('overview: ["总览"'), "the AppHeader title for the overview must be 总览");
+  assert.ok(!dashboardJsx.includes("运营总览"), "the old overview h2 must be gone");
+  assert.ok(!dashboardJsx.includes("演艺资源与运营数据，一目了然"), "the old subtitle sentence must be gone");
+  assert.ok(!dashboardJsx.includes("ov-sub"), "the .ov-sub element must be gone");
   assert.ok(dashboardJsx.includes("ov-period"), "period chips must live in the overview header");
+  assert.ok(dashboardJsx.includes("pill-updated"), "the Updated pill must exist");
   assert.ok(dashboardJsx.includes("导出当前统计"), "export button must exist");
   assert.ok(dashboardJsx.includes("onClick={doExportCsv}"), "export must reuse the existing CSV export");
 });
 
-test("overview KPI cards: four cards, real fields, honest sub-notes", () => {
+test("overview KPI cards: four tiles in one strip, windowed totals + deltas", () => {
   for (const [id, label] of [
     ["ovKpiRevenue", "交易总额"],
     ["ovKpiOrders", "预约订单"],
@@ -233,17 +258,26 @@ test("overview KPI cards: four cards, real fields, honest sub-notes", () => {
     assert.ok(dashboardJsx.includes(`id="${id}"`), `KPI card ${id} must exist`);
     assert.ok(dashboardJsx.includes(label), `KPI label ${label} must exist`);
   }
-  assert.ok(dashboardJsx.includes("stats.revenue_cents"), "revenue must come from stats");
-  assert.ok(dashboardJsx.includes("stats.published_resources"), "published count must come from stats");
-  assert.ok(dashboardJsx.includes("stats.active_users_30d"), "active users must come from stats");
-  assert.ok(dashboardJsx.includes("仅含已支付/已完成订单"), "revenue sub-note must state the paid/completed scope");
-  assert.ok(dashboardJsx.includes("近30天下单去重用户"), "active-users sub-note must state the 30-day window");
+  // D1: the strip reads the windowed totals of the selected period
+  // (seriesData.totals / .previous), never the cumulative stats.
+  assert.ok(dashboardJsx.includes("seriesData.totals"), "revenue/orders/users must come from the windowed totals");
+  assert.ok(dashboardJsx.includes("seriesData.previous"), "KPI deltas must come from the previous window");
+  assert.ok(dashboardJsx.includes("formatDelta"), "KPI deltas must go through the shared formatDelta helper");
+  assert.ok(!dashboardJsx.includes("stats.revenue_cents"), "the KPI strip must not read the cumulative stats revenue");
+  assert.ok(!dashboardJsx.includes("stats.active_users_30d"), "the KPI strip must not read the cumulative active-users field");
+  assert.ok(dashboardJsx.includes("仅含已支付/已完成订单"), "revenue scope must be stated in the tile tooltip");
+  assert.ok(dashboardJsx.includes("近30天下单去重用户"), "active-users window must be stated in the tile tooltip");
+  assert.ok(dashboardJsx.includes("ov-delta"), "KPI delta badges must exist");
+  assert.ok(dashboardJsx.includes("—"), "KPI loading state must show —, not a flashing 0");
 });
 
 test("overview charts: trend reuses TrendChart with the real date range; donut is new", () => {
-  assert.ok(dashboardJsx.includes('import DonutChart from "./DonutChart.jsx"'), "DonutChart must be imported");
+  assert.ok(dashboardJsx.includes('import DonutChart, { DONUT_SHADES, pctText } from "./DonutChart.jsx"'), "DonutChart must be imported (with the shared shades + pct helper)");
   assert.ok(dashboardJsx.includes("<DonutChart channels={analysis.channels}"), "donut must take the real analysis channels");
-  assert.ok(dashboardJsx.includes("total={stats ? stats.revenue_cents : 0}"), "donut centre must be the real revenue total");
+  // D1: the donut centre is the windowed analysis revenue — the same
+  // number the KPI strip shows — never the cumulative stats revenue.
+  assert.ok(dashboardJsx.includes("total={analysis ? analysis.kpis.revenue : 0}"), "donut centre must be the windowed analysis revenue");
+  assert.ok(!dashboardJsx.includes("total={stats ? stats.revenue_cents : 0}"), "donut centre must not use the cumulative stats revenue");
   assert.ok(dashboardJsx.includes("<TrendChart series={seriesData.series}"), "trend must reuse TrendChart");
   assert.ok(
     dashboardJsx.includes("seriesData.series[0].date") && dashboardJsx.includes("seriesData.series[seriesData.series.length - 1].date"),
@@ -251,7 +285,9 @@ test("overview charts: trend reuses TrendChart with the real date range; donut i
   );
   assert.ok(donutJsx.includes("交易总额"), "donut centre must label the total");
   assert.ok(donutJsx.includes("donut-legend"), "donut legend must exist");
-  assert.ok(donutJsx.includes("toFixed(1)}%"), "legend must show a percentage");
+  assert.ok(donutJsx.includes("pctText(s.share)"), "legend must show a percentage via the shared pctText helper");
+  assert.ok(donutJsx.includes("(share * 100).toFixed(1)"), "pctText must format one decimal");
+  assert.ok(donutJsx.includes('"<0.1%"'), "a share below 0.1% must read <0.1%, never 0.0%");
 });
 
 test("overview lazy load: trend + analysis fetch when the overview opens", () => {
@@ -329,14 +365,18 @@ test("overview loaded flag: set only when both fetches succeed, never before the
   );
 });
 
-test("donut palette: muted brand tokens only, no hex literals in the component", () => {
-  const colors = donutJsx.match(/DONUT_COLORS = \[([\s\S]*?)\];/);
-  assert.ok(colors, "DONUT_COLORS must exist");
-  assert.ok(!/#[0-9a-fA-F]{3,6}/.test(colors[1]), "donut colours must be CSS tokens, never hex literals");
-  assert.ok(colors[1].includes("var(--brand-pine)"), "first rank must be pine");
-  assert.ok(colors[1].includes("var(--brand-cinnabar)"), "second rank must be cinnabar");
-  assert.ok(css.includes("--brand-pine:#0b3d36"), "pine token must exist in :root");
-  assert.ok(css.includes("--brand-cinnabar:#b03a1e"), "cinnabar token must exist in :root");
+test("donut palette: one money hue, shade falling by rank, no hex literals", () => {
+  // D4: the donut drops the 7 brand colours for one money hue whose
+  // shade falls by rank (var(--donut-1) .. var(--donut-4)).
+  const shades = donutJsx.match(/DONUT_SHADES = \[([\s\S]*?)\];/);
+  assert.ok(shades, "DONUT_SHADES must exist");
+  assert.ok(!/#[0-9a-fA-F]{3,6}/.test(shades[1]), "donut shades must be CSS tokens, never hex literals");
+  assert.ok(shades[1].includes("var(--donut-1)"), "first rank must be the darkest money shade");
+  assert.ok(shades[1].includes("var(--donut-4)"), "fourth rank must be the lightest money shade");
+  assert.ok(!donutJsx.includes("DONUT_COLORS"), "the old 7-colour brand array must be gone");
+  assert.ok(css.includes("--donut-1:"), "donut-1 token must exist in :root");
+  assert.ok(css.includes("--donut-4:"), "donut-4 token must exist in :root");
+  assert.ok(!donutJsx.includes("--brand-"), "the donut must not reference any brand token (the --brand-* tokens stay only for the status pills)");
 });
 
 test("no screenshot figures: the reference numbers never enter the code", () => {
@@ -371,10 +411,31 @@ function contrastRatio(fg, bg) {
   return (hi + 0.05) / (lo + 0.05);
 }
 
+// D3: remove the dark theme from the CSS text so light-mode checks
+// read light values only. The `:root[data-theme="dark"]{...}` block
+// closes on its own line, and the one-line `:root[data-theme="dark"]
+// .x{...}` overrides that follow it are dropped line by line.
+function stripDarkBlock(cssText) {
+  const start = cssText.indexOf(':root[data-theme="dark"]{');
+  assert.ok(start !== -1, "the dark block must exist");
+  const end = cssText.indexOf("\n}", start);
+  assert.ok(end !== -1, "the dark block must close on its own line");
+  const withoutBlock = cssText.slice(0, start) + cssText.slice(end + 2);
+  return withoutBlock
+    .split("\n")
+    .filter((l) => !l.startsWith(':root[data-theme="dark"] '))
+    .join("\n");
+}
+
 test("status pills: all 8 statuses styled, 7 distinct colours, contrast >= 4.5:1", () => {
+  // D3: the dark block redefines tokens and overrides a few rules, so
+  // this light-mode check must read the CSS with the dark block
+  // removed — NOT sliced at the dark block, because the pill/bar
+  // rules live AFTER it in the file.
+  const lightCss = stripDarkBlock(css);
   // Resolve :root tokens to hex (only hex-valued tokens are collected).
   const tokens = new Map();
-  for (const m of css.matchAll(/--([a-z0-9-]+):\s*(#[0-9a-f]{6})/gi)) {
+  for (const m of lightCss.matchAll(/--([a-z0-9-]+):\s*(#[0-9a-f]{6})/gi)) {
     tokens.set(m[1], m[2].toLowerCase());
   }
   const resolve = (v) => {
@@ -385,7 +446,7 @@ test("status pills: all 8 statuses styled, 7 distinct colours, contrast >= 4.5:1
     return hex;
   };
   const pillRules = new Map();
-  for (const m of css.matchAll(/\.pill\.([a-z0-9_,.-]+)\{([^}]*)\}/g)) {
+  for (const m of lightCss.matchAll(/\.pill\.([a-z0-9_,.-]+)\{([^}]*)\}/g)) {
     for (const sel of m[1].split(",")) {
       const status = sel.replace(/^\.pill\./, "");
       const bg = /background:([^;}]+);?/.exec(m[2]);
@@ -414,8 +475,11 @@ test("status pills: all 8 statuses styled, 7 distinct colours, contrast >= 4.5:1
 });
 
 test("status bars: all 8 statuses styled, bar matches the pill dark colour", () => {
+  // D3: read the light rules only — the dark block overrides .bd-fill
+  // colours with lighter hex values for the dark background.
+  const lightCss = stripDarkBlock(css);
   const tokens = new Map();
-  for (const m of css.matchAll(/--([a-z0-9-]+):\s*(#[0-9a-f]{6})/gi)) {
+  for (const m of lightCss.matchAll(/--([a-z0-9-]+):\s*(#[0-9a-f]{6})/gi)) {
     tokens.set(m[1], m[2].toLowerCase());
   }
   const resolve = (v) => {
@@ -424,7 +488,7 @@ test("status bars: all 8 statuses styled, bar matches the pill dark colour", () 
     return tokens.get(m[1]);
   };
   const barRules = new Map();
-  for (const m of css.matchAll(/\.bd-fill\.([a-z0-9_,.-]+)\{([^}]*)\}/g)) {
+  for (const m of lightCss.matchAll(/\.bd-fill\.([a-z0-9_,.-]+)\{([^}]*)\}/g)) {
     for (const sel of m[1].split(",")) {
       const status = sel.replace(/^\.bd-fill\./, "");
       const bg = /background:([^;}]+);?/.exec(m[2]);
@@ -432,7 +496,7 @@ test("status bars: all 8 statuses styled, bar matches the pill dark colour", () 
     }
   }
   const pillRules = new Map();
-  for (const m of css.matchAll(/\.pill\.([a-z0-9_,.-]+)\{([^}]*)\}/g)) {
+  for (const m of lightCss.matchAll(/\.pill\.([a-z0-9_,.-]+)\{([^}]*)\}/g)) {
     for (const sel of m[1].split(",")) {
       const status = sel.replace(/^\.pill\./, "");
       const bg = /background:([^;}]+);?/.exec(m[2]);

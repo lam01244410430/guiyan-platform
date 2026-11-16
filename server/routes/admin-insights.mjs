@@ -103,33 +103,92 @@ function nextBucket(key, period) {
   return shiftDay(key, 1);
 }
 
-function buildSeries(rows, period, today) {
-  const byKey = new Map(rows.map((r) => [bucketKey(r.bucket, period), r]));
-  const start = rows.length
-    ? bucketKey(rows.map((r) => r.bucket).sort()[0], period)
-    : bucketKey(shiftDay(today, -29), period);
-  const endKey = bucketKey(today, period);
-  const series = new Map();
-  for (let key = start; key <= endKey; key = nextBucket(key, period)) {
-    if (!series.has(key)) {
-      const found = byKey.get(key);
-      series.set(key, {
-        date: key,
-        label: bucketLabel(key, period),
-        amount: found ? Number(found.amount) : 0,
-        count: found ? Number(found.count) : 0,
-      });
-    }
+// Dashboard redesign D1 (Lam-approved 2026-11-16): fixed windows per
+// period, shared by stats + analysis so one number is the same
+// everywhere. Current window ends at "now" (Beijing today); the
+// previous window is the same length immediately before it, cut to the
+// time elapsed so far (prevEnd = prevStart + (now - curStart)) so a
+// partial current period compares against the same elapsed slice,
+// never a full one. day = last 30 days (daily buckets), week = last
+// 12 Mon-start weeks, month = last 12 months, quarter = last 4
+// quarters. (D1 decision: the KPI strip + donut centre are windowed
+// totals, not cumulative — the old cumulative totals stay on
+// GET /api/admin/stats without ?period=.)
+function startOfWeek(d) {
+  const n = (new Date(d + "T00:00:00Z").getUTCDay() + 6) % 7;
+  return shiftDay(d, -n);
+}
+function addMonths(d, n) {
+  const [y, m] = d.split("-").map(Number);
+  const t = new Date(Date.UTC(y, m - 1 + n, 1));
+  return `${t.getUTCFullYear()}-${String(t.getUTCMonth() + 1).padStart(2, "0")}-01`;
+}
+function daysBetween(a, b) {
+  return Math.round(
+    (new Date(b + "T00:00:00Z") - new Date(a + "T00:00:00Z")) / 86400000,
+  );
+}
+export function windowBounds(period, today) {
+  let curStart;
+  let prevStart;
+  if (period === "week") {
+    curStart = shiftDay(startOfWeek(today), -77);
+    prevStart = shiftDay(curStart, -84);
+  } else if (period === "month") {
+    curStart = addMonths(today.slice(0, 8) + "01", -11);
+    prevStart = addMonths(curStart, -12);
+  } else if (period === "quarter") {
+    const m = Number(today.slice(5, 7));
+    const thisQ = `${today.slice(0, 5)}${String(Math.floor((m - 1) / 3) * 3 + 1).padStart(2, "0")}-01`;
+    curStart = addMonths(thisQ, -9);
+    prevStart = addMonths(curStart, -12);
+  } else {
+    curStart = shiftDay(today, -29);
+    prevStart = shiftDay(today, -59);
   }
-  return [...series.values()];
+  const prevEnd = shiftDay(prevStart, daysBetween(curStart, today));
+  return { start: curStart, end: today, prevStart, prevEnd };
+}
+const WINDOW_LABEL = {
+  day: "近30天",
+  week: "近12周",
+  month: "近12个月",
+  quarter: "近4个季度",
+};
+
+// Zero-filled buckets from startKey through endKey (inclusive), in
+// chronological order. The last bucket is the current (unfinished)
+// bucket — for the current window it holds today, for the previous
+// window it is cut by the elapsed time — so it always carries
+// `partial: true` and the chart draws its tail dotted.
+function buildWindowSeries(rows, period, startKey, endKey) {
+  const byKey = new Map(rows.map((r) => [bucketKey(r.bucket, period), r]));
+  const series = [];
+  for (let key = startKey; key <= endKey; key = nextBucket(key, period)) {
+    const found = byKey.get(key);
+    series.push({
+      date: key,
+      label: bucketLabel(key, period),
+      amount: found ? Number(found.amount) : 0,
+      count: found ? Number(found.count) : 0,
+      partial: key === endKey,
+    });
+  }
+  return series;
 }
 
-async function seriesFor(ctx, period) {
+// Windowed series (D1): paid/completed orders grouped by bucket,
+// restricted to the Beijing-date window [start, end] and zero-filled
+// across it. `start`/`end` are YYYY-MM-DD Beijing dates.
+async function seriesFor(ctx, period, start, end) {
 const { all} = ctx;
 const rows = await all(
 `SELECT TO_CHAR(DATE_TRUNC(?, (created_at::timestamptz AT TIME ZONE 'Asia/Shanghai')), 'YYYY-MM-DD') AS bucket,
 SUM(amount) AS amount, COUNT(*) AS count
-FROM orders WHERE status IN ('paid','completed') GROUP BY 1 ORDER BY 1`,
+FROM orders WHERE status IN ('paid','completed')
+AND (created_at::timestamptz AT TIME ZONE 'Asia/Shanghai')::date >= ?
+AND (created_at::timestamptz AT TIME ZONE 'Asia/Shanghai')::date <= ?
+GROUP BY 1 ORDER BY 1`,
 period === "week"
 ? "week"
 : period === "month"
@@ -137,8 +196,39 @@ period === "week"
 : period === "quarter"
 ? "quarter"
 : "day",
+start,
+end,
 );
-return buildSeries(rows, period, todayBeijing());
+return buildWindowSeries(rows, period, bucketKey(start, period), bucketKey(end, period));
+}
+
+// Windowed KPI totals (D1): revenue = paid/completed in the window;
+// orders = all statuses in the window; active users = distinct
+// non-admin users with >=1 order (any status) in the window — the
+// same definition as adminStatsTotals' active_users_30d, just for an
+// arbitrary window. Published resources are a point-in-time count
+// and have no "previous" (previous.published_resources is null).
+async function windowTotals(ctx, start, end) {
+const { get} = ctx;
+const bj = "(created_at::timestamptz AT TIME ZONE 'Asia/Shanghai')::date";
+const row = await get(
+`SELECT
+(SELECT COALESCE(SUM(amount),0) FROM orders WHERE status IN ('paid','completed')
+AND ${bj} >= ? AND ${bj} <= ?) AS revenue_cents,
+(SELECT COUNT(*) FROM orders WHERE ${bj} >= ? AND ${bj} <= ?) AS orders,
+(SELECT COUNT(DISTINCT user_id) FROM orders WHERE ${bj} >= ? AND ${bj} <= ?
+AND user_id IN (SELECT id FROM users WHERE role <> 'admin')) AS active_users`,
+start, end, start, end, start, end,
+);
+const pub = await get(
+"SELECT COUNT(*) AS n FROM resources WHERE status = 'published'",
+);
+return {
+revenue_cents: Number(row.revenue_cents),
+orders: Number(row.orders),
+active_users: Number(row.active_users),
+published_resources: Number(pub.n),
+};
 }
 
 function requireAdmin(session) {
@@ -164,7 +254,25 @@ send(hit);
 return true;
 }
 }
-const payload = { period, series: await seriesFor(ctx, period), sources: SOURCES};
+const today = todayBeijing();
+const w = windowBounds(period, today);
+// D1: the stats payload is windowed now — series + prevSeries cover
+// the same buckets, totals/previous are the same window/previous
+// window, and the KPI strip + donut read these (never the cumulative
+// GET /api/admin/stats without ?period=, which stays unchanged).
+const series = await seriesFor(ctx, period, w.start, w.end);
+const prevSeries = await seriesFor(ctx, period, w.prevStart, w.prevEnd);
+const totals = await windowTotals(ctx, w.start, w.end);
+const prevTotals = await windowTotals(ctx, w.prevStart, w.prevEnd);
+const payload = {
+period,
+window: { start: w.start, end: w.end, prev_start: w.prevStart, prev_end: w.prevEnd },
+series,
+prevSeries,
+totals,
+previous: { ...prevTotals, published_resources: null },
+sources: SOURCES,
+};
 if (cache?.enabled) {
 res.setHeader("X-Cache", "MISS");
 await cache.set(CACHE_KEYS.adminStats(period), payload, CACHE_TTLS.adminStats);
@@ -293,7 +401,23 @@ await loadAnalysisData(ctx);
 const resourcesById = new Map(resources.map((r) => [r.id, r]));
 const paid = orders.filter((o) => PAID_STATUSES.includes(o.status));
 const revenueOrders = orders.filter((o) => REVENUE_STATUSES.includes(o.status));
-const series = await seriesFor(ctx, period);
+// D1: series + kpis + channels are windowed (same window as stats, so
+// the donut centre = analysis kpis.revenue = stats windowed revenue).
+// Ranking / shows / promos / members / venues / cold stay cumulative
+// (they have no windowed definition in D1); insights[7] pending /
+// abnormal counts stay cumulative too — they are attention flags,
+// like the overview breakdown, not windowed KPIs.
+const w = windowBounds(period, today);
+const inWindow = (o) => {
+const d = dayOfBeijing(o.created_at);
+return d >= w.start && d <= w.end;
+};
+const inPrevWindow = (o) => {
+const d = dayOfBeijing(o.created_at);
+return d >= w.prevStart && d <= w.prevEnd;
+};
+const series = await seriesFor(ctx, period, w.start, w.end);
+const prevSeries = await seriesFor(ctx, period, w.prevStart, w.prevEnd);
 
 // User profiles (tags, portrait, suggestion) come from the shared
 // module, so GET /api/admin/users tags and this userSummary always agree.
@@ -621,13 +745,13 @@ byMonth.set(k, (byMonth.get(k) || 0) + o.amount);
 }
 const seasons = [...byMonth].sort((a, b) => b[1] - a[1]);
 const channels = new Map();
-for (const o of revenueOrders)
+for (const o of revenueOrders.filter(inWindow))
 channels.set(o.channel, (channels.get(o.channel) || 0) + o.amount);
 const channelRows = [...channels]
 .map(([name, amount]) => ({
 name,
 amount,
-orders: revenueOrders.filter((o) => o.channel === name).length,
+orders: revenueOrders.filter(inWindow).filter((o) => o.channel === name).length,
 }))
 .sort((a, b) => b.amount - a.amount);
 
@@ -637,7 +761,15 @@ const active = new Set(
 orders
 .filter(
 (o) =>
-profileIds.has(o.user_id) && dayOfBeijing(o.created_at) >= monthStart,
+profileIds.has(o.user_id) && inWindow(o),
+)
+.map((o) => o.user_id),
+);
+const prevActive = new Set(
+orders
+.filter(
+(o) =>
+profileIds.has(o.user_id) && inPrevWindow(o),
 )
 .map((o) => o.user_id),
 );
@@ -659,17 +791,28 @@ const insights = [
 `用户运营：高价值用户${high}人、沉默用户${silent}人；优先分群触达并观察复购。`,
 `预约跟进：${pending}笔待确认，${abnormal}笔售后待处理。`,
 ];
+const revenueOrdersW = revenueOrders.filter(inWindow);
+const ordersW = orders.filter(inWindow);
+const revenueOrdersP = revenueOrders.filter(inPrevWindow);
+const ordersP = orders.filter(inPrevWindow);
 const kpis = {
-revenue: sum(revenueOrders, "amount"),
-orders: orders.length,
-paidOrders: revenueOrders.length,
+revenue: sum(revenueOrdersW, "amount"),
+orders: ordersW.length,
+paidOrders: revenueOrdersW.length,
 resources: resources.filter((r) => r.status === "published").length,
 users: active.size,
 };
+const previous = {
+revenue: sum(revenueOrdersP, "amount"),
+orders: ordersP.length,
+paidOrders: revenueOrdersP.length,
+resources: null,
+users: prevActive.size,
+};
 const report = [
 "模拟经营分析报告",
-`生成日期：${today}；金额按有效已支付订单统计，仅含已支付/已完成订单。`,
-`交易总额：${(kpis.revenue / 100).toFixed(2)}元；历史订单：${kpis.orders}笔；有效付费订单：${kpis.paidOrders}笔。`,
+`生成日期：${today}；统计窗口：${w.start}—${w.end}（${WINDOW_LABEL[period]}）；金额按有效已支付订单统计，仅含已支付/已完成订单。`,
+`交易总额：${(kpis.revenue / 100).toFixed(2)}元；窗口内订单：${kpis.orders}笔；有效付费订单：${kpis.paidOrders}笔。`,
 ...venues.map(
 (v) =>
 `${v.name}：未来30天档期占用${v.occupancy}%，闲置${v.idleRate}%，热门预约星期${v.peak}；关联剧目${v.performances}场，上座率${v.seatOccupancy === null? "暂无关联售票样本": v.seatOccupancy + "%"}，场均票房${v.averageRevenue === null? "暂无": (v.averageRevenue / 100).toFixed(2) + "元"}。`,
@@ -688,8 +831,11 @@ events,
 const payload = {
 period,
 today,
+window: { start: w.start, end: w.end, prev_start: w.prevStart, prev_end: w.prevEnd },
 kpis,
+previous,
 series,
+prevSeries,
 channels: channelRows,
 ranking,
 alerts,
@@ -712,10 +858,10 @@ silent,
 },
 definitions: {
 revenue: "有效已支付金额（仅含已支付/已完成订单）",
-orders: "历史全部订单，包含取消与退款",
+orders: "窗口内全部订单，包含取消与退款",
 series:
 "按订单创建时间（北京时间）归集，补齐零交易周期；无支付时间字段",
-users: "近30天提交订单的去重用户数",
+users: "统计窗口内提交订单的去重用户数",
 },
 };
 return payload;

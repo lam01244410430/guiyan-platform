@@ -130,3 +130,74 @@ export function downloadText(text, filename) {
 
 export function fmtMoney(cents) { return "¥" + ((typeof cents === "number" ? cents : 0) / 100).toLocaleString("zh-CN"); }
 export const STATUS = { pending: "待确认", confirmed: "已确认", paid: "已支付", completed: "已完成", cancelled: "已取消", refunded: "已退款", refund_requested: "退款申请中", disputed: "纠纷处理中" };
+
+/* Dashboard redesign (D1, 2026-11-16) — pure helpers, no DOM, so they
+   are unit-tested in tests/admin-dashboard-windowed.test.mjs. */
+
+/* Delta badge (D1): compare the current windowed value against the
+   previous window (same elapsed time). `prevBase` is the base the
+   small-base rule judges (orders for the orders tile, paid-order
+   count for the revenue tile). A zero previous or a base under 5
+   never shouts a percent — it reads grey "was N". `goodWhenUp`:
+   true = up is good (revenue/orders), false = up is bad (lower is
+   better), null = neutral (users/resources: grey either way).
+   Returns { text, tone } with tone in "up" | "down" | "neutral". */
+export function formatDelta(cur, prev, prevBase, formatPrev, goodWhenUp) {
+  const fmt = typeof formatPrev === "function" ? formatPrev : function (v) { return String(v); };
+  if (prev === null || prev === undefined) return { text: "", tone: "neutral" };
+  if (prev === 0 || (typeof prevBase === "number" && prevBase < 5)) {
+    return { text: "was " + fmt(prev), tone: "neutral" };
+  }
+  const pct = ((cur - prev) / prev) * 100;
+  if (pct === 0) return { text: "±0%", tone: "neutral" };
+  const up = pct > 0;
+  const text = up
+    ? "▲ " + (pct > 999 ? "10×+" : pct.toFixed(1) + "%")
+    : "▼ " + (pct < -99 ? "99%" : Math.abs(pct).toFixed(1) + "%");
+  const tone = goodWhenUp === null || goodWhenUp === undefined
+    ? "neutral"
+    : (up === goodWhenUp ? "up" : "down");
+  return { text, tone };
+}
+
+/* Compact Y-axis tick: 1k / ¥4k (never 2,103). */
+export function fmtCompactTick(v, money) {
+  const n = Math.round(v);
+  if (Math.abs(n) >= 1000) {
+    const k = (n / 1000).toFixed(1).replace(/\.0$/, "");
+    return (money ? "¥" : "") + k + "k";
+  }
+  return (money ? "¥" : "") + String(n);
+}
+
+/* Summary chips under the main chart, computed client-side from the
+   series already loaded (same window as the chart). `metric` is
+   "amount" (cents) or "count". Returns { avg, best: {label, value} |
+   null, weekdayAvg, weekendAvg } — the weekday/weekend split only
+   exists for period=day (other periods cannot split it), so the
+   other two are null there. */
+export function summarizeSeries(series, period, metric) {
+  const data = Array.isArray(series) ? series : [];
+  const val = (s) => (metric === "amount" ? Number(s.amount || 0) : Number(s.count || 0));
+  if (!data.length) return { avg: 0, best: null, weekdayAvg: null, weekendAvg: null };
+  const total = data.reduce((n, s) => n + val(s), 0);
+  const avg = total / data.length;
+  let best = data[0];
+  for (const s of data) if (val(s) > val(best)) best = s;
+  let weekdayAvg = null;
+  let weekendAvg = null;
+  if (period === "day") {
+    let wdSum = 0;
+    let wdN = 0;
+    let weSum = 0;
+    let weN = 0;
+    for (const s of data) {
+      const dow = new Date(String(s.date) + "T00:00:00Z").getUTCDay();
+      if (dow === 0 || dow === 6) { weSum += val(s); weN += 1; }
+      else { wdSum += val(s); wdN += 1; }
+    }
+    weekdayAvg = wdN ? wdSum / wdN : 0;
+    weekendAvg = weN ? weSum / weN : 0;
+  }
+  return { avg, best: { label: best.label, value: val(best) }, weekdayAvg, weekendAvg };
+}
