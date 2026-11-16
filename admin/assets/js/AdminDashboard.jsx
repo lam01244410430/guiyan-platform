@@ -2893,7 +2893,7 @@ export default function AdminDashboard() {
               </div>
               <div className="tbl-wrap">
                 <table className="orders-table">
-                  <thead><tr><th scope="col" aria-sort={ariaSort("overview", "code")}>订单号<SortButton label="订单号" sortKey="code" tableId="overview" sort={sorts.overview} onToggle={toggleSort} /></th><th scope="col">用户</th><th scope="col">资源</th><th scope="col" className="num col-amount" aria-sort={ariaSort("overview", "amount")}>金额<SortButton label="金额" sortKey="amount" tableId="overview" sort={sorts.overview} onToggle={toggleSort} /></th><th scope="col" className="col-date" aria-sort={ariaSort("overview", "booking_date")}>预订日期<SortButton label="预订日期" sortKey="booking_date" tableId="overview" sort={sorts.overview} onToggle={toggleSort} /></th><th scope="col" className="col-status">状态</th><th scope="col" className="col-escrow">托管</th><th scope="col" className="col-contract">协议</th><th scope="col" className="col-actions">售后</th></tr></thead>
+                  <thead><tr><th scope="col" className="col-code" aria-sort={ariaSort("overview", "code")}>订单号<SortButton label="订单号" sortKey="code" tableId="overview" sort={sorts.overview} onToggle={toggleSort} /></th><th scope="col">用户</th><th scope="col">资源</th><th scope="col" className="num col-amount" aria-sort={ariaSort("overview", "amount")}>金额<SortButton label="金额" sortKey="amount" tableId="overview" sort={sorts.overview} onToggle={toggleSort} /></th><th scope="col" className="col-date" aria-sort={ariaSort("overview", "booking_date")}>预订日期<SortButton label="预订日期" sortKey="booking_date" tableId="overview" sort={sorts.overview} onToggle={toggleSort} /></th><th scope="col" className="col-status">状态</th><th scope="col" className="col-escrow">托管</th><th scope="col" className="col-contract">协议</th><th scope="col" className="col-actions-md">售后</th></tr></thead>
                   <tbody id="recentBody">
                     {orders.length
                       ? (overviewMatches.length ? sortedOverview.slice(0, 8).map((o) => <OrderRow key={o.code} o={o} onContract={openContract} onReview={doReviewOrder} onEscrow={doEscrowOrder} reviewBusyId={reviewBusyId} />)
@@ -2922,7 +2922,7 @@ export default function AdminDashboard() {
             </div>
             <div className="tbl-wrap">
               <table className="orders-table">
-                <thead><tr><th scope="col" aria-sort={ariaSort("orders", "code")}>订单号<SortButton label="订单号" sortKey="code" tableId="orders" sort={sorts.orders} onToggle={toggleSort} /></th><th scope="col">用户</th><th scope="col">资源</th><th scope="col" className="num col-amount" aria-sort={ariaSort("orders", "amount")}>金额<SortButton label="金额" sortKey="amount" tableId="orders" sort={sorts.orders} onToggle={toggleSort} /></th><th scope="col" className="col-date" aria-sort={ariaSort("orders", "booking_date")}>预订日期<SortButton label="预订日期" sortKey="booking_date" tableId="orders" sort={sorts.orders} onToggle={toggleSort} /></th><th scope="col" className="col-status">状态</th><th scope="col" className="col-escrow">托管</th><th scope="col" className="col-contract">协议</th><th scope="col" className="col-actions">售后</th></tr></thead>
+                <thead><tr><th scope="col" className="col-code" aria-sort={ariaSort("orders", "code")}>订单号<SortButton label="订单号" sortKey="code" tableId="orders" sort={sorts.orders} onToggle={toggleSort} /></th><th scope="col">用户</th><th scope="col">资源</th><th scope="col" className="num col-amount" aria-sort={ariaSort("orders", "amount")}>金额<SortButton label="金额" sortKey="amount" tableId="orders" sort={sorts.orders} onToggle={toggleSort} /></th><th scope="col" className="col-date" aria-sort={ariaSort("orders", "booking_date")}>预订日期<SortButton label="预订日期" sortKey="booking_date" tableId="orders" sort={sorts.orders} onToggle={toggleSort} /></th><th scope="col" className="col-status">状态</th><th scope="col" className="col-escrow">托管</th><th scope="col" className="col-contract">协议</th><th scope="col" className="col-actions-md">售后</th></tr></thead>
                 <tbody id="ordersBody">
                   {filteredOrders.length ? sortedOrders.map((o) => <OrderRow key={o.code} o={o} onContract={openContract} onReview={doReviewOrder} onEscrow={doEscrowOrder} reviewBusyId={reviewBusyId} onViewAlerts={() => changeView("alerts")} />)
                     : (q ? searchEmpty(9) : <tr><td colSpan="9"><div className="empty">暂无订单</div></td></tr>)}
@@ -2963,12 +2963,12 @@ export default function AdminDashboard() {
             </div>
             <div className="tbl-wrap">
               <table>
-                <thead><tr><th scope="col" aria-sort={ariaSort("users", "id")}>ID<SortButton label="ID" sortKey="id" tableId="users" sort={sorts.users} onToggle={toggleSort} /></th><th scope="col" aria-sort={ariaSort("users", "name")}>姓名<SortButton label="姓名" sortKey="name" tableId="users" sort={sorts.users} onToggle={toggleSort} /></th><th scope="col" aria-sort={ariaSort("users", "username")}>账号<SortButton label="账号" sortKey="username" tableId="users" sort={sorts.users} onToggle={toggleSort} /></th><th scope="col">角色</th><th scope="col">城市</th><th scope="col">渠道</th><th scope="col">认证</th><th scope="col">标签</th><th scope="col">状态</th><th scope="col" className="col-actions">操作</th></tr></thead>
+                <thead><tr><th scope="col" className="col-id" aria-sort={ariaSort("users", "id")}>ID<SortButton label="ID" sortKey="id" tableId="users" sort={sorts.users} onToggle={toggleSort} /></th><th scope="col" aria-sort={ariaSort("users", "name")}>姓名<SortButton label="姓名" sortKey="name" tableId="users" sort={sorts.users} onToggle={toggleSort} /></th><th scope="col" className="col-account" aria-sort={ariaSort("users", "username")}>账号<SortButton label="账号" sortKey="username" tableId="users" sort={sorts.users} onToggle={toggleSort} /></th><th scope="col">角色</th><th scope="col" className="col-city">城市</th><th scope="col" className="col-shop">渠道</th><th scope="col">认证</th><th scope="col">标签</th><th scope="col" className="col-state">状态</th><th scope="col" className="col-actions-wide">操作</th></tr></thead>
                 <tbody id="usersBody">
                   {users.length
                     ? (filteredUsers.length ? sortedUsers.map((usr) => (
                       <tr key={usr.username} className={isRootUser(usr) ? "row-locked" : undefined}>
-                        <td className="id">{usr.id}</td><td className="cell-ellipsis" title={usr.name || ""}>{usr.name || ""}</td><td>{usr.username}</td><td>{usr.role}</td>
+                        <td className="id">{usr.id}</td><td className="cell-ellipsis" title={usr.name || ""}>{usr.name || ""}</td><td className="cell-ellipsis" title={usr.username}>{usr.username}</td><td>{usr.role}</td>
                         <td>{usr.city || ""}</td><td>{usr.channel || ""}</td><td>{usr.verified ? "已认证" : "未认证"}</td>
                         <td>{(usr.tags || []).map((tg) => (<span key={tg} className="pill tag">{tg}</span>))}</td>
                         <td>{usr.status === "disabled" ? "停用" : "启用"}</td>
@@ -3102,7 +3102,7 @@ export default function AdminDashboard() {
             ) : null}
             <div className="tbl-wrap">
               <table>
-                <thead><tr><th scope="col" aria-sort={ariaSort("resources", "name")}>名称<SortButton label="名称" sortKey="name" tableId="resources" sort={sorts.resources} onToggle={toggleSort} /></th><th scope="col">分类</th><th scope="col">城市</th><th scope="col">店铺</th><th scope="col" className="num" aria-sort={ariaSort("resources", "price")}>价格<SortButton label="价格" sortKey="price" tableId="resources" sort={sorts.resources} onToggle={toggleSort} /></th><th scope="col" className="num" aria-sort={ariaSort("resources", "stock")}>库存<SortButton label="库存" sortKey="stock" tableId="resources" sort={sorts.resources} onToggle={toggleSort} /></th><th scope="col">状态</th><th scope="col">统计</th><th scope="col" className="col-actions-wide">操作</th></tr></thead>
+                <thead><tr><th scope="col" aria-sort={ariaSort("resources", "name")}>名称<SortButton label="名称" sortKey="name" tableId="resources" sort={sorts.resources} onToggle={toggleSort} /></th><th scope="col" className="col-cat">分类</th><th scope="col" className="col-city">城市</th><th scope="col" className="col-shop">店铺</th><th scope="col" className="num col-money" aria-sort={ariaSort("resources", "price")}>价格<SortButton label="价格" sortKey="price" tableId="resources" sort={sorts.resources} onToggle={toggleSort} /></th><th scope="col" className="num col-num" aria-sort={ariaSort("resources", "stock")}>库存<SortButton label="库存" sortKey="stock" tableId="resources" sort={sorts.resources} onToggle={toggleSort} /></th><th scope="col" className="col-state">状态</th><th scope="col" className="col-num-md">统计</th><th scope="col" className="col-actions-wide">操作</th></tr></thead>
                 <tbody id="resBody">
                   {resources.length
                     ? (filteredResources.length ? sortedResources.map((r) => (
@@ -3236,7 +3236,7 @@ export default function AdminDashboard() {
             ) : null}
             <div className="tbl-wrap">
               <table>
-                <thead><tr><th scope="col">模板名称</th><th scope="col">店铺</th><th scope="col">颜色</th><th scope="col">默认</th><th scope="col" className="col-actions">操作</th></tr></thead>
+                <thead><tr><th scope="col">模板名称</th><th scope="col" className="col-shop">店铺</th><th scope="col" className="col-num-md">颜色</th><th scope="col" className="col-state">默认</th><th scope="col" className="col-actions">操作</th></tr></thead>
                 <tbody>
                   {templates.length ? templates.map((t) => (
                     <tr key={t.id}>
@@ -3257,7 +3257,7 @@ export default function AdminDashboard() {
             <div style={{ marginTop: 8 }}><button type="button" className="btn-export" onClick={() => openTemplateForm(null)}>添加票面模板</button></div>
             <div className="tbl-wrap">
               <table>
-                <thead><tr><th scope="col" aria-sort={ariaSort("shops", "name")}>名称<SortButton label="名称" sortKey="name" tableId="shops" sort={sorts.shops} onToggle={toggleSort} /></th><th scope="col">上级</th><th scope="col">店主</th><th scope="col" className="num" aria-sort={ariaSort("shops", "resource_count")}>资源数<SortButton label="资源数" sortKey="resource_count" tableId="shops" sort={sorts.shops} onToggle={toggleSort} /></th><th scope="col">状态</th><th scope="col" className="col-actions-wide">操作</th></tr></thead>
+                <thead><tr><th scope="col" aria-sort={ariaSort("shops", "name")}>名称<SortButton label="名称" sortKey="name" tableId="shops" sort={sorts.shops} onToggle={toggleSort} /></th><th scope="col">上级</th><th scope="col" className="col-person">店主</th><th scope="col" className="num col-num" aria-sort={ariaSort("shops", "resource_count")}>资源数<SortButton label="资源数" sortKey="resource_count" tableId="shops" sort={sorts.shops} onToggle={toggleSort} /></th><th scope="col" className="col-state">状态</th><th scope="col" className="col-actions-wide">操作</th></tr></thead>
                 <tbody id="shopsBody">
                   {shops.length
                     ? (filteredShops.length ? sortedShops.map((s) => (
@@ -3325,7 +3325,7 @@ export default function AdminDashboard() {
             ) : null}
             <div className="tbl-wrap">
               <table>
-                <thead><tr><th scope="col">ID</th><th scope="col" aria-sort={ariaSort("shows", "title")}>名称<SortButton label="名称" sortKey="title" tableId="shows" sort={sorts.shows} onToggle={toggleSort} /></th><th scope="col">资源</th><th scope="col">店铺</th><th scope="col">状态</th><th scope="col">场次</th><th scope="col" className="col-actions-xwide">操作</th></tr></thead>
+                <thead><tr><th scope="col" className="col-id">ID</th><th scope="col" aria-sort={ariaSort("shows", "title")}>名称<SortButton label="名称" sortKey="title" tableId="shows" sort={sorts.shows} onToggle={toggleSort} /></th><th scope="col">资源</th><th scope="col" className="col-shop">店铺</th><th scope="col" className="col-state">状态</th><th scope="col" className="col-num">场次</th><th scope="col" className="col-actions-xwide">操作</th></tr></thead>
                 <tbody id="showsBody">
                   {shows.length
                     ? (filteredShows.length ? sortedShows.map((s) => (
@@ -3352,7 +3352,7 @@ export default function AdminDashboard() {
                             <td colSpan="7">
                               {(s.performances || []).length ? (
                                 <table>
-                                  <thead><tr><th scope="col">开演时间</th><th scope="col">票价</th><th scope="col">状态</th><th scope="col">操作</th></tr></thead>
+                                  <thead><tr><th scope="col" className="col-datetime">开演时间</th><th scope="col" className="col-money">票价</th><th scope="col" className="col-state">状态</th><th scope="col" className="col-actions-wide">操作</th></tr></thead>
                                   <tbody>
                                     {(s.performances || []).map((pf) => (
                                       <Fragment key={pf.id}>
@@ -3376,7 +3376,7 @@ export default function AdminDashboard() {
                                           <td colSpan="4">
                                             {(tiersByPerf[pf.id] || []).length ? (
                                               <table>
-                                                <thead><tr><th scope="col">票种</th><th scope="col">票价</th><th scope="col">票数上限</th><th scope="col">截止时间</th><th scope="col">操作</th></tr></thead>
+                                                <thead><tr><th scope="col">票种</th><th scope="col" className="col-money">票价</th><th scope="col" className="col-num-md">票数上限</th><th scope="col" className="col-datetime">截止时间</th><th scope="col" className="col-actions">操作</th></tr></thead>
                                                 <tbody>
                                                   {(tiersByPerf[pf.id] || []).map((tt) => (
                                                     <tr key={tt.id}>
@@ -3431,7 +3431,7 @@ export default function AdminDashboard() {
                             <td colSpan="7">
                               {(pickupByShow[s.id] || []).length ? (
                                 <table>
-                                  <thead><tr><th scope="col">取票点</th><th scope="col">地址</th><th scope="col">操作</th></tr></thead>
+                                  <thead><tr><th scope="col">取票点</th><th scope="col">地址</th><th scope="col" className="col-actions">操作</th></tr></thead>
                                   <tbody>
                                     {(pickupByShow[s.id] || []).map((pt) => (
                                       <tr key={pt.id}>
@@ -3509,7 +3509,7 @@ export default function AdminDashboard() {
             ) : null}
             <div className="tbl-wrap">
               <table>
-                <thead><tr><th scope="col">名称</th><th scope="col">地址</th><th scope="col">店铺</th><th scope="col" className="num">容量</th><th scope="col">座位模板</th><th scope="col" className="col-actions-wide">操作</th></tr></thead>
+                <thead><tr><th scope="col">名称</th><th scope="col">地址</th><th scope="col" className="col-shop">店铺</th><th scope="col" className="num col-num">容量</th><th scope="col" className="col-hdr-lg">座位模板</th><th scope="col" className="col-actions-wide">操作</th></tr></thead>
                 <tbody id="venuesBody">
                   {venues.length
                     ? (filteredVenueList.length ? filteredVenueList.map((v) => (
@@ -3531,7 +3531,7 @@ export default function AdminDashboard() {
                             <td colSpan="6">
                               {(templatesByVenue[v.id] || []).length ? (
                                 <table>
-                                  <thead><tr><th scope="col">模板</th><th scope="col">分区</th><th scope="col">操作</th></tr></thead>
+                                  <thead><tr><th scope="col">模板</th><th scope="col">分区</th><th scope="col" className="col-actions">操作</th></tr></thead>
                                   <tbody>
                                     {(templatesByVenue[v.id] || []).map((tpl) => (
                                       <tr key={tpl.id}>
@@ -3607,7 +3607,7 @@ export default function AdminDashboard() {
             ) : null}
             <div className="tbl-wrap">
               <table>
-                <thead><tr><th scope="col">等级</th><th scope="col">店铺</th><th scope="col" className="num">消费门槛（分）</th><th scope="col" className="num">折扣</th><th scope="col">权益</th><th scope="col" className="col-actions">操作</th></tr></thead>
+                <thead><tr><th scope="col">等级</th><th scope="col" className="col-shop">店铺</th><th scope="col" className="num col-num-md">消费门槛（分）</th><th scope="col" className="num col-num">折扣</th><th scope="col">权益</th><th scope="col" className="col-actions-md">操作</th></tr></thead>
                 <tbody id="tiersBody">
                   {memberTiers.length
                     ? memberTiers.map((t) => (
@@ -3672,7 +3672,7 @@ export default function AdminDashboard() {
             ) : null}
             <div className="tbl-wrap">
               <table>
-                <thead><tr><th scope="col">券码</th><th scope="col">店铺</th><th scope="col">类型</th><th scope="col" className="num">减免</th><th scope="col" className="num">最低消费（分）</th><th scope="col">有效期</th><th scope="col" className="num">已用 / 总名额</th><th scope="col" className="num">每人限次</th><th scope="col">状态</th><th scope="col" className="col-actions">操作</th></tr></thead>
+                <thead><tr><th scope="col" className="col-code">券码</th><th scope="col" className="col-shop">店铺</th><th scope="col" className="col-num-md">类型</th><th scope="col" className="num col-money">减免</th><th scope="col" className="num col-num-md">最低消费（分）</th><th scope="col" className="col-range">有效期</th><th scope="col" className="num col-num-md">已用 / 总名额</th><th scope="col" className="num col-num">每人限次</th><th scope="col" className="col-state">状态</th><th scope="col" className="col-actions-md">操作</th></tr></thead>
                 <tbody id="couponsBody">
                   {coupons.length
                     ? coupons.map((c) => (
@@ -3745,7 +3745,7 @@ export default function AdminDashboard() {
             ) : null}
             <div className="tbl-wrap">
               <table>
-                <thead><tr><th scope="col">抢购名称</th><th scope="col">店铺</th><th scope="col">场次</th><th scope="col">类型</th><th scope="col" className="num">减免</th><th scope="col">时间窗口</th><th scope="col" className="num">已售 / 总名额</th><th scope="col">状态</th><th scope="col" className="col-actions">操作</th></tr></thead>
+                <thead><tr><th scope="col">抢购名称</th><th scope="col" className="col-shop">店铺</th><th scope="col">场次</th><th scope="col" className="col-num-md">类型</th><th scope="col" className="num col-money">减免</th><th scope="col" className="col-range">时间窗口</th><th scope="col" className="num col-num-md">已售 / 总名额</th><th scope="col" className="col-state">状态</th><th scope="col" className="col-actions-md">操作</th></tr></thead>
                 <tbody id="flashSalesBody">
                   {flashSales.length
                     ? flashSales.map((s) => (
@@ -3817,7 +3817,7 @@ export default function AdminDashboard() {
             ) : null}
             <div className="tbl-wrap">
               <table>
-                <thead><tr><th scope="col">规则名称</th><th scope="col">店铺</th><th scope="col">触发条件</th><th scope="col">优惠券</th><th scope="col" className="num">最低消费（分）</th><th scope="col" className="num">已赠送</th><th scope="col">状态</th><th scope="col" className="col-actions">操作</th></tr></thead>
+                <thead><tr><th scope="col">规则名称</th><th scope="col" className="col-shop">店铺</th><th scope="col" className="col-num-md">触发条件</th><th scope="col">优惠券</th><th scope="col" className="num col-num-md">最低消费（分）</th><th scope="col" className="num col-num">已赠送</th><th scope="col" className="col-state">状态</th><th scope="col" className="col-actions-md">操作</th></tr></thead>
                 <tbody id="couponRulesBody">
                   {couponRules.length
                     ? couponRules.map((r) => (
@@ -3882,7 +3882,7 @@ export default function AdminDashboard() {
             ) : null}
             <div className="tbl-wrap">
               <table>
-                <thead><tr><th scope="col">任务名称</th><th scope="col">店铺</th><th scope="col">短信模板</th><th scope="col">受众</th><th scope="col" className="num">人数</th><th scope="col">状态</th><th scope="col" className="col-actions">操作</th></tr></thead>
+                <thead><tr><th scope="col">任务名称</th><th scope="col" className="col-shop">店铺</th><th scope="col">短信模板</th><th scope="col" className="col-num-md">受众</th><th scope="col" className="num col-num">人数</th><th scope="col" className="col-state">状态</th><th scope="col" className="col-actions-md">操作</th></tr></thead>
                 <tbody id="smsTasksBody">
                   {smsTasks.length
                     ? smsTasks.map((t) => (
@@ -3943,7 +3943,7 @@ export default function AdminDashboard() {
             ) : null}
             <div className="tbl-wrap">
               <table>
-                <thead><tr><th scope="col">ID</th><th scope="col">资源</th><th scope="col">授权方 → 被授权方</th><th scope="col">方向</th><th scope="col" className="num">价格</th><th scope="col">状态</th><th scope="col">起止日期</th></tr></thead>
+                <thead><tr><th scope="col" className="col-id">ID</th><th scope="col">资源</th><th scope="col">授权方 → 被授权方</th><th scope="col" className="col-num">方向</th><th scope="col" className="num col-money">价格</th><th scope="col" className="col-state">状态</th><th scope="col" className="col-time-window">起止日期</th></tr></thead>
                 <tbody id="licensesBody">
                   {licenses.length
                     ? licenses.map((l) => (
@@ -3990,7 +3990,7 @@ export default function AdminDashboard() {
             ) : null}
             <div className="tbl-wrap">
               <table>
-                <thead><tr><th scope="col">套餐</th><th scope="col">店铺</th><th scope="col" className="num">充值金额</th><th scope="col" className="num">赠送金额</th><th scope="col">状态</th><th scope="col" className="col-actions">操作</th></tr></thead>
+                <thead><tr><th scope="col">套餐</th><th scope="col" className="col-shop">店铺</th><th scope="col" className="num col-money">充值金额</th><th scope="col" className="num col-money">赠送金额</th><th scope="col" className="col-state">状态</th><th scope="col" className="col-actions-md">操作</th></tr></thead>
                 <tbody id="storedValuePlansBody">
                   {storedValuePlans.length
                     ? storedValuePlans.map((pl) => (
@@ -4037,7 +4037,7 @@ export default function AdminDashboard() {
               {lookupResult ? (
                 <div className="tbl-wrap">
                   <table>
-                    <thead><tr><th scope="col">用户</th><th scope="col" className="num">余额</th><th scope="col" className="num">流水条数</th></tr></thead>
+                    <thead><tr><th scope="col">用户</th><th scope="col" className="num col-money">余额</th><th scope="col" className="num col-num-md">流水条数</th></tr></thead>
                     <tbody>
                       <tr>
                         <td>{lookupResult.user.name}（{lookupResult.user.username}）</td>
@@ -4048,7 +4048,7 @@ export default function AdminDashboard() {
                   </table>
                   {lookupResult.ledger.length ? (
                     <table>
-                      <thead><tr><th scope="col">类型</th><th scope="col" className="num">金额</th><th scope="col">订单号</th><th scope="col">备注</th><th scope="col">时间</th></tr></thead>
+                      <thead><tr><th scope="col" className="col-num-md">类型</th><th scope="col" className="num col-money">金额</th><th scope="col" className="col-code">订单号</th><th scope="col">备注</th><th scope="col" className="col-datetime">时间</th></tr></thead>
                       <tbody>
                         {lookupResult.ledger.map((l) => (
                           <tr key={l.id}>
@@ -4093,7 +4093,7 @@ export default function AdminDashboard() {
               {batchResults.length ? (
                 <div className="tbl-wrap">
                   <table>
-                    <thead><tr><th scope="col">票码</th><th scope="col">结果</th><th scope="col">资源</th></tr></thead>
+                    <thead><tr><th scope="col" className="col-code">票码</th><th scope="col" className="col-result">结果</th><th scope="col">资源</th></tr></thead>
                     <tbody>
                       {batchResults.map((r, i) => (
                         <tr key={r.code + "-" + i}>
@@ -4156,7 +4156,7 @@ export default function AdminDashboard() {
             ) : null}
             <div className="tbl-wrap">
               <table>
-                <thead><tr><th scope="col">票码</th><th scope="col">结果</th><th scope="col">资源</th><th scope="col">时间</th><th scope="col" className="col-actions">打印</th></tr></thead>
+                <thead><tr><th scope="col" className="col-code">票码</th><th scope="col" className="col-result">结果</th><th scope="col">资源</th><th scope="col" className="col-datetime">时间</th><th scope="col" className="col-act-sm">打印</th></tr></thead>
                 <tbody id="verifyLogsBody">
                   {verifyHistory.length
                     ? verifyHistory.map((h, i) => (
@@ -4235,7 +4235,7 @@ export default function AdminDashboard() {
             </div>
             <div className="tbl-wrap">
               <table>
-                <thead><tr><th scope="col" aria-sort={ariaSort("demands", "title")}>标题<SortButton label="标题" sortKey="title" tableId="demands" sort={sorts.demands} onToggle={toggleSort} /></th><th scope="col">分类</th><th scope="col" className="num" aria-sort={ariaSort("demands", "budget")}>预算<SortButton label="预算" sortKey="budget" tableId="demands" sort={sorts.demands} onToggle={toggleSort} /></th><th scope="col">城市</th><th scope="col">发布人</th><th scope="col">状态</th><th scope="col" className="col-actions">操作</th></tr></thead>
+                <thead><tr><th scope="col" aria-sort={ariaSort("demands", "title")}>标题<SortButton label="标题" sortKey="title" tableId="demands" sort={sorts.demands} onToggle={toggleSort} /></th><th scope="col" className="col-cat">分类</th><th scope="col" className="num col-money" aria-sort={ariaSort("demands", "budget")}>预算<SortButton label="预算" sortKey="budget" tableId="demands" sort={sorts.demands} onToggle={toggleSort} /></th><th scope="col" className="col-city">城市</th><th scope="col" className="col-person">发布人</th><th scope="col" className="col-state">状态</th><th scope="col" className="col-actions-md">操作</th></tr></thead>
                 <tbody id="demBody">
                   {demands.length
                     ? (filteredDemands.length ? sortedDemands.map((d) => (
@@ -4274,7 +4274,7 @@ export default function AdminDashboard() {
             </div>
             <div className="tbl-wrap">
               <table>
-                <thead><tr><th scope="col">编号</th><th scope="col">资源</th><th scope="col">用户</th><th scope="col">评分</th><th scope="col" className="col-wide">评价内容</th><th scope="col">状态</th><th scope="col" className="col-actions-wide">操作</th></tr></thead>
+                <thead><tr><th scope="col" className="col-id">编号</th><th scope="col" className="col-name">资源</th><th scope="col" className="col-num">用户</th><th scope="col" className="col-num-md">评分</th><th scope="col" className="col-wide">评价内容</th><th scope="col" className="col-state">状态</th><th scope="col" className="col-actions-wide">操作</th></tr></thead>
                 <tbody id="cmtBody">
                   {comments.length
                     ? comments.map((c) => (
@@ -4435,7 +4435,7 @@ export default function AdminDashboard() {
                   {(analysis.shows || []).length ? (<>
                     <div className="tbl-wrap">
                       <table>
-                        <thead><tr><th scope="col">演出</th><th scope="col" className="num">场次</th><th scope="col" className="num">订单</th><th scope="col" className="num">收入</th><th scope="col" className="num">上座率</th></tr></thead>
+                        <thead><tr><th scope="col">演出</th><th scope="col" className="num col-num">场次</th><th scope="col" className="num col-num">订单</th><th scope="col" className="num col-money">收入</th><th scope="col" className="num col-num">上座率</th></tr></thead>
                         <tbody>
                           {(analysis.shows || []).map((s) => (
                             <tr key={s.show_id}>
@@ -4458,7 +4458,7 @@ export default function AdminDashboard() {
                       {(analysis.promos.coupons || []).length ? (<>
                         <div className="tbl-wrap">
                           <table>
-                            <thead><tr><th scope="col">优惠券</th><th scope="col" className="num">核销数</th><th scope="col" className="num">总折扣</th></tr></thead>
+                            <thead><tr><th scope="col">优惠券</th><th scope="col" className="num col-num">核销数</th><th scope="col" className="num col-money">总折扣</th></tr></thead>
                             <tbody>
                               {(analysis.promos.coupons || []).map((c) => (
                                 <tr key={c.coupon_id}><td>{c.code}</td><td className="num">{c.redemptions}</td><td className="num">{fmtMoney(c.total_discount_cents)}</td></tr>
@@ -4471,7 +4471,7 @@ export default function AdminDashboard() {
                       {(analysis.promos.flash_sales || []).length ? (<>
                         <div className="tbl-wrap">
                           <table>
-                            <thead><tr><th scope="col">限时抢购</th><th scope="col" className="num">已售</th><th scope="col" className="num">收入</th><th scope="col" className="num">总折扣</th></tr></thead>
+                            <thead><tr><th scope="col">限时抢购</th><th scope="col" className="num col-num">已售</th><th scope="col" className="num col-money">收入</th><th scope="col" className="num col-money">总折扣</th></tr></thead>
                             <tbody>
                               {(analysis.promos.flash_sales || []).map((f) => (
                                 <tr key={f.flash_sale_id}><td className="cell-ellipsis" title={f.name}>{f.name}</td><td className="num">{f.sold}</td><td className="num">{fmtMoney(f.revenue_cents)}</td><td className="num">{fmtMoney(f.total_discount_cents)}</td></tr>
@@ -4634,7 +4634,7 @@ export default function AdminDashboard() {
               </fieldset>
               <div className="tbl-wrap">
                 <table>
-                  <thead><tr><th scope="col">类型</th><th scope="col">店铺</th><th scope="col">配置</th><th scope="col">状态</th><th scope="col" className="col-actions">操作</th></tr></thead>
+                  <thead><tr><th scope="col" className="col-num-md">类型</th><th scope="col" className="col-shop">店铺</th><th scope="col">配置</th><th scope="col" className="col-state">状态</th><th scope="col" className="col-actions-md">操作</th></tr></thead>
                   <tbody>
                     {alertRules.length ? alertRules.map((r) => (
                       <tr key={r.id}>
@@ -4654,7 +4654,7 @@ export default function AdminDashboard() {
               <h2>操作审计</h2>
               <div className="tbl-wrap">
                 <table>
-                  <thead><tr><th scope="col" aria-sort={ariaSort("audit", "created_at")}>时间<SortButton label="时间" sortKey="created_at" tableId="audit" sort={sorts.audit} onToggle={toggleSort} /></th><th scope="col">操作人</th><th scope="col">操作</th><th scope="col" className="col-wide">详情</th></tr></thead>
+                  <thead><tr><th scope="col" className="col-datetime" aria-sort={ariaSort("audit", "created_at")}>时间<SortButton label="时间" sortKey="created_at" tableId="audit" sort={sorts.audit} onToggle={toggleSort} /></th><th scope="col" className="col-person">操作人</th><th scope="col" className="col-num-md">操作</th><th scope="col" className="col-wide">详情</th></tr></thead>
                   <tbody>
                     {auditLogs.length
                       ? (filteredAudit.length ? sortedAudit.map((l) => (
@@ -4696,7 +4696,7 @@ export default function AdminDashboard() {
             </div>
             <div className="tbl-wrap">
               <table>
-                <thead><tr><th scope="col">时段</th><th scope="col">事件类型</th><th scope="col">对象</th><th scope="col">次数</th><th scope="col">总停留时长（毫秒）</th></tr></thead>
+                <thead><tr><th scope="col" className="col-datetime">时段</th><th scope="col" className="col-num-md">事件类型</th><th scope="col">对象</th><th scope="col" className="col-num">次数</th><th scope="col" className="col-hdr-lg">总停留时长（毫秒）</th></tr></thead>
                 <tbody>
                   {eventAggregates.length
                     ? eventAggregates.map((a) => (
@@ -4737,7 +4737,7 @@ export default function AdminDashboard() {
             {insightRules ? (<div className="note">当前规则：流失天数 {insightRules.churnDays} 天 · 可升级差距 {insightRules.upgradeGapPct}% · 回访天数 {insightRules.callbackDays} 天</div>) : null}
             <div className="tbl-wrap">
               <table>
-                <thead><tr><th scope="col">经营建议</th><th scope="col">对象</th><th scope="col" className="col-wide">建议内容</th></tr></thead>
+                <thead><tr><th scope="col" className="col-sugg">经营建议</th><th scope="col" className="col-sugg">对象</th><th scope="col">建议内容</th></tr></thead>
                 <tbody>
                   {memberInsights && memberInsights.suggestions.length
                     ? memberInsights.suggestions.map((s, i) => (
@@ -4871,7 +4871,7 @@ export default function AdminDashboard() {
             </div>
             <div className="tbl-wrap">
               <table>
-                <thead><tr><th scope="col">流水号</th><th scope="col">时间</th><th scope="col">类型</th><th scope="col" className="num">金额</th><th scope="col">订单号</th><th scope="col">备注</th><th scope="col">对账</th><th scope="col" className="col-actions">操作</th></tr></thead>
+                <thead><tr><th scope="col" className="col-id">流水号</th><th scope="col" className="col-datetime">时间</th><th scope="col" className="col-num">类型</th><th scope="col" className="num col-money">金额</th><th scope="col" className="col-code">订单号</th><th scope="col">备注</th><th scope="col" className="col-state">对账</th><th scope="col" className="col-act-sm">操作</th></tr></thead>
                 <tbody>
                   {financeLedger.length
                     ? financeLedger.map((l) => (

@@ -214,12 +214,43 @@ table{width:100%;border-collapse:collapse;font-size:13.5px;min-width:640px}
    short-content columns fixed narrow widths so the long columns
    (order code, user, resource) keep room to read; the table min-width
    grows so the fixed columns never squeeze the long ones to nothing. */
-.tbl-wrap > table.orders-table{min-width:880px}
-.tbl-wrap > table th.col-status{width:88px}
-.tbl-wrap > table th.col-escrow{width:100px}
-.tbl-wrap > table th.col-contract{width:140px}
-.tbl-wrap > table th.col-amount{width:96px}
-.tbl-wrap > table th.col-date{width:112px}
+/* Admin-overview round, item 4 (2026-11-16): every admin table's columns
+   sized from real content measured by CDP at 1440/1249 (measure2.json):
+   short-content columns (code, money, date, status, counts) get a fixed
+   narrow width that fits their longest value; long-content columns
+   (names, titles, notes) stay flexible and truncate with ellipsis +
+   title tooltip as before. The orders table min-width grows to 1000px so
+   its fixed columns never crush the flexible ones to nothing at 1249 —
+   the wrap scrolls horizontally instead (established .tbl-wrap pattern).
+   Selector is the descendant `.tbl-wrap table th` (not `>`) so the same
+   classes also size the nested tables (shows performances/tiers/pickups,
+   venue seat templates). */
+.tbl-wrap > table.orders-table{min-width:1000px}
+.tbl-wrap table th.col-status{width:120px}
+.tbl-wrap table th.col-escrow{width:96px}
+.tbl-wrap table th.col-contract{width:140px}
+.tbl-wrap table th.col-amount{width:88px}
+.tbl-wrap table th.col-date{width:104px}
+.tbl-wrap table th.col-id{width:72px}
+.tbl-wrap table th.col-code{width:132px}
+.tbl-wrap table th.col-datetime{width:144px}
+.tbl-wrap table th.col-actions-md{width:200px}
+.tbl-wrap table th.col-act-sm{width:104px}
+.tbl-wrap table th.col-money{width:88px}
+.tbl-wrap table th.col-num{width:72px}
+.tbl-wrap table th.col-num-md{width:104px}
+.tbl-wrap table th.col-shop{width:88px}
+.tbl-wrap table th.col-cat{width:88px}
+.tbl-wrap table th.col-city{width:64px}
+.tbl-wrap table th.col-state{width:72px}
+.tbl-wrap table th.col-person{width:96px}
+.tbl-wrap table th.col-account{width:148px}
+.tbl-wrap table th.col-name{width:136px}
+.tbl-wrap table th.col-result{width:136px}
+.tbl-wrap table th.col-hdr-lg{width:128px}
+.tbl-wrap table th.col-sugg{width:120px}
+.tbl-wrap table th.col-time-window{width:176px}
+.tbl-wrap table th.col-range{width:160px}
 /* B-055: a truncated cell expands on click (Excel-style) to show the
    full value; click again (or Enter/Space when focused) to collapse. */
 td.cell-ellipsis.expandable{cursor:pointer}
