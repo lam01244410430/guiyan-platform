@@ -20,8 +20,8 @@
 // search / detail / chat / orders / account) is hand-translated per
 // language — never bulk machine-translated. Full per-language translation
 // is an open item per language. The 80 keys are the same on both sides,
-// so H5 zh/vi/en stay 482 keys and th/ms/id carry the 82-key core set
-// (80 keys + quicks + flow); miniprogram zh/vi/en stay 269, th/ms/id 82.
+// so H5 zh/vi/en stay 483 keys and th/ms/id carry the 82-key core set
+// (80 keys + quicks + flow); miniprogram zh/vi/en stay 270, th/ms/id 82.
 import test, { before, after } from "node:test";
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
@@ -176,15 +176,15 @@ function loadMiniI18n() {
   return sandbox.module.exports;
 }
 
-test("r7-asean H5 LANGS is zh/vi/en/th/ms/id; zh/vi/en 482 keys, th/ms/id 82 keys", async () => {
+test("r7-asean H5 LANGS is zh/vi/en/th/ms/id; zh/vi/en 483 keys, th/ms/id 82 keys", async () => {
   const data = await import(
     path.resolve(repoDir, "web", "assets", "js", "data.js")
   );
   assert.deepEqual(data.LANGS, ["zh", "vi", "en", "th", "ms", "id"]);
   const counts = data.LANGS.map((l) => Object.keys(data.I18N[l]).length);
-  // zh/vi/en keep the full 482-key set; th/ms/id translate the 80-key
+  // zh/vi/en keep the full 483-key set; th/ms/id translate the 80-key
   // core set + quicks + flow = 82 keys (partial translation by design).
-  assert.deepEqual(counts, [482, 482, 482, 82, 82, 82]);
+  assert.deepEqual(counts, [483, 483, 483, 82, 82, 82]);
   const sets = data.LANGS.map((l) => new Set(Object.keys(data.I18N[l])));
   assert.ok(
     [...sets[0]].every((k) => sets[1].has(k) && sets[2].has(k)) &&
@@ -202,7 +202,7 @@ test("r7-asean H5 LANGS is zh/vi/en/th/ms/id; zh/vi/en 482 keys, th/ms/id 82 key
       assert.ok(k in data.I18N[l], `${k} missing in H5 ${l}`);
 });
 
-test("r7-asean miniprogram LANGS matches H5; zh/vi/en 269 keys, th/ms/id 82 keys", async () => {
+test("r7-asean miniprogram LANGS matches H5; zh/vi/en 270 keys, th/ms/id 82 keys", async () => {
   const data = await import(
     path.resolve(repoDir, "web", "assets", "js", "data.js")
   );
@@ -220,7 +220,7 @@ test("r7-asean miniprogram LANGS matches H5; zh/vi/en 269 keys, th/ms/id 82 keys
   );
   const blocks = miniI18nBlocks();
   for (const lang of ["zh", "vi", "en"]) {
-    assert.equal(blocks[lang].length, 269, `${lang} key count`);
+    assert.equal(blocks[lang].length, 270, `${lang} key count`);
   }
   for (const lang of ["th", "ms", "id"]) {
     assert.equal(blocks[lang].length, 82, `${lang} key count`);

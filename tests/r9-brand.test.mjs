@@ -7,7 +7,7 @@
 // (title/description/keywords/OG/canonical) + brandMain.jsx mount;
 // Brand.jsx has exactly one <h1> and NO buy/pay/book action (no
 // apiPost("/api/orders", no bookNow); the 13 brand* i18n keys exist in
-// zh/vi/en and H5 totals 482; static.mjs serves /brand.html, /robots.txt
+// zh/vi/en and H5 totals 483; static.mjs serves /brand.html, /robots.txt
 // and /sitemap.xml; robots.txt + sitemap.xml list the 3 URLs; only the
 // client's existing channels (Damai / WeChat Pay / 北京银行） are listed;
 // live: /brand.html + /robots.txt + /sitemap.xml -> 200, the 6 seeded
@@ -86,7 +86,7 @@ test("r9-brand: Brand.jsx has exactly one h1 and no buy/pay/book action", () => 
   for (const k of BRAND_KEYS) assert.ok(src.includes(`t("${k}")`), `Brand.jsx uses ${k}`);
 });
 
-test("r9-brand: the 13 brand keys exist in zh/vi/en, H5 totals 482", () => {
+test("r9-brand: the 13 brand keys exist in zh/vi/en, H5 totals 483", () => {
   for (const lang of ["zh", "vi", "en"]) {
     for (const k of BRAND_KEYS) {
       assert.ok(k in I18N[lang], `${k} present in ${lang}`);
@@ -95,8 +95,8 @@ test("r9-brand: the 13 brand keys exist in zh/vi/en, H5 totals 482", () => {
   }
   assert.deepEqual(
     ["zh", "vi", "en", "th", "ms", "id"].map((l) => Object.keys(I18N[l]).length),
-    [482, 482, 482, 82, 82, 82],
-    "i18n counts: H5 482 (467 + 13 brand keys), mini stays 269 + 82",
+    [483, 483, 483, 82, 82, 82],
+    "i18n counts: H5 483 (482 + 1 perfPick key), mini stays 270 + 82",
   );
   // The mission line is the project's own stated goal, not a new slogan.
   assert.equal(I18N.zh.brandHeroSub, "一站式文化消费入口 · 产业服务枢纽");

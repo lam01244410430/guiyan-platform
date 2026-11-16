@@ -163,12 +163,12 @@ test("r7-voice: GET /api/assistant?q= empty -> 400", async () => {
   assert.equal(r.status, 400, JSON.stringify(r.json));
 });
 
-test("r7-voice i18n: H5 482 keys/language in zh/vi/en + 82 in th/ms/id, miniprogram 269 + 82, voice keys present", async () => {
+test("r7-voice i18n: H5 483 keys/language in zh/vi/en + 82 in th/ms/id, miniprogram 270 + 82, voice keys present", async () => {
   const data = await import(
     path.resolve(repoDir, "web", "assets", "js", "data.js")
   );
   const counts = data.LANGS.map((l) => Object.keys(data.I18N[l]).length);
-  assert.deepEqual(counts, [482, 482, 482, 82, 82, 82]);
+  assert.deepEqual(counts, [483, 483, 483, 82, 82, 82]);
   for (const k of ["voiceMic", "voiceListening", "voiceUnsupported", "voiceFailed"]) {
     for (const l of ["zh", "vi", "en"]) // full languages only: th/ms/id carry the 82-key core set (R7-8), these keys fall back to zh there
       assert.ok(k in data.I18N[l], `${k} missing in H5 ${l}`);
@@ -188,7 +188,7 @@ test("r7-voice i18n: H5 482 keys/language in zh/vi/en + 82 in th/ms/id, miniprog
     ].map((m) => m[1]);
   }
   for (const lang of ["zh", "vi", "en"]) {
-    assert.equal(blocks[lang].length, 269, `${lang} key count`);
+    assert.equal(blocks[lang].length, 270, `${lang} key count`);
     for (const k of ["voiceMic", "voiceRecording", "voiceRecordFailed", "voiceNotConnected", "voiceTypeInstead"])
       assert.ok(blocks[lang].includes(k), `${k} missing in mini ${lang}`);
   }

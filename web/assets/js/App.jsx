@@ -1349,10 +1349,12 @@ export default function App() {
                 )}
                 {/* R2-1: on-sale performances of the resource's approved
                     shows (avail.performances, already fetched with the
-                    availability above). Only for show resources.
+                    availability above). Showtimes-final: direct
+                    performances of a non-show resource list here too;
+                    for a show resource the empty state still shows.
                     R2-2: pick a performance, then a ticket type — the
                     total and the order follow the tier price. */}
-                {cur[1] === "show" && avail && (
+                {avail && (cur[1] === "show" || (avail.performances && avail.performances.length > 0)) && (
                   <div className="perf-list">
                     <h4>{t("perfTitle")}</h4>
                     {avail.performances && avail.performances.length ? (
@@ -1465,6 +1467,7 @@ export default function App() {
                 <div className="totalrow"><span>{t("totalLabel")}</span><b id="bkTotal">{money((selTier ? (selTier.flash_sale ? selTier.flash_sale.sale_price_cents : selTier.price_cents) / 100 : cur[3]) * bkQty)}</b></div>
                 <div className="acts">
                   <button type="button" className="btn red" id="bkGo" disabled={pickupRequired && !pickupSel} onClick={() => {
+                    if (avail && avail.performances && avail.performances.length > 0 && !selTier) { toast(t("perfPick")); return; }
                     if (pickupRequired && !pickupSel) { toast(t("pickupPick")); return; }
                     bookResource(detailIdx, bkQty, selTier ? selPf.start_at.slice(0, 10) : (bkDate || "2026-12-05"), selTier ? { performance_id: selPf.id, ticket_type_id: selTier.id, price_cents: selTier.price_cents, start_at: selPf.start_at } : null, selTier ? selPickup : null, selTier ? seatSel : [], couponCode.trim() || null);
                   }}>{t("bookNow")}</button>

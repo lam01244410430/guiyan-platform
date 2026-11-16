@@ -332,13 +332,15 @@ Page({
   // best-effort like the theme fetch on the home page): a failed
   // fetch just leaves the list hidden (offline fallback keeps the
   // local behaviour, no error is ever shown).
+  // Showtimes-final: direct performances of a non-show resource
+  // load here too (the server returns them in availability).
   // R2-2: each performance carries its ticket_types (id, name, price,
   // quota, sold, available); picking a performance then a tier drives
   // the total and the order (performance_id + ticket_type_id).
   loadPerformances: function () {
     var self = this;
     var r = api.resourceByIdx(this.data.idx);
-    if (!r || r.cat !== 'show') return;
+    if (!r) return;
     var apiId = api.apiIdForIdx(this.data.idx);
     if (apiId == null || !api.getBase()) return;
     api.get('/api/resources/' + apiId + '/availability', {}, false).then(function (d) {
@@ -609,6 +611,14 @@ Page({
     // mirrors that with the tier price + performance date.
     var tier = this.selectedTier();
     var perf = this.selectedPerf();
+    // Showtimes-final: when the resource has on-sale performances, a
+    // performance + ticket type must be picked first — same rule as
+    // the H5 detail (the server also refuses a bare order with 400).
+    var perfs = this.data.perfs || [];
+    if (perfs.length > 0 && !tier) {
+      wx.showToast({ title: i18n.t('perfPick'), icon: 'none' });
+      return;
+    }
     var orderDate = tier ? perf.start_at.slice(0, 10) : this.data.date;
     var orderTotal = this.unitPriceYuan() * this.data.qty;
     // R2-3: a tier order against a show with pickup points must name

@@ -11,9 +11,9 @@
 // block is gone, .pill.confirmed dark override exists in data-theme form,
 // .themebtn / .theme-seg / .set-link rules exist; (3) dark contrast —
 // every text pair parsed from the dark token block measures >= 4.5:1,
-// borders >= 3:1 (WCAG, computed, not guessed); (4) i18n — H5 482 keys
+// borders >= 3:1 (WCAG, computed, not guessed); (4) i18n — H5 483 keys
 // in zh/vi/en + 82 in th/ms/id, the 12 new settings/theme keys present
-// in zh/vi/en (mini-program 269 + 82); (5) bootstrap — both HTML
+// in zh/vi/en (mini-program 270 + 82); (5) bootstrap — both HTML
 // entries carry the inline script that sets data-theme before first
 // paint; (6) wiring — chrome.jsx has the header toggle (id themeBtn,
 // useTheme), UserDashboard.jsx has the settings tab (?tab=settings),
@@ -191,10 +191,10 @@ test("css: dark text pairs measure >= 4.5:1, borders >= 3:1 (parsed from the tok
   }
 });
 
-test("i18n: H5 482 keys/language in zh/vi/en + 82 in th/ms/id, equal sets in zh/vi/en, the 12 theme/settings keys present in zh/vi/en", async () => {
+test("i18n: H5 483 keys/language in zh/vi/en + 82 in th/ms/id, equal sets in zh/vi/en, the 12 theme/settings keys present in zh/vi/en", async () => {
   const data = await import(path.resolve(repoDir, "web", "assets", "js", "data.js"));
   const counts = data.LANGS.map((l) => Object.keys(data.I18N[l]).length);
-  assert.deepEqual(counts, [482, 482, 482, 82, 82, 82]);
+  assert.deepEqual(counts, [483, 483, 483, 82, 82, 82]);
   for (const k of THEME_KEYS) {
     // theme keys live in zh/vi/en only (R7-8: th/ms/id carry the 82-key core
     // set; t() falls back to zh for the rest).
@@ -208,7 +208,7 @@ test("i18n: H5 482 keys/language in zh/vi/en + 82 in th/ms/id, equal sets in zh/
     assert.ok(start >= 0, `no ${lang} block in miniprogram i18n`);
     const block = mini.slice(start, mini.indexOf("\n  }", start));
     const keys = [...block.matchAll(/^    ([A-Za-z0-9_]+):/gm)].map((m) => m[1]);
-    assert.equal(keys.length, 269, `${lang} mini key count (R7: 236 -> 269)`);
+    assert.equal(keys.length, 270, `${lang} mini key count (R7: 236 -> 269)`);
   }
 });
 

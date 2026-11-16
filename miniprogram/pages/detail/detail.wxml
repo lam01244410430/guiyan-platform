@@ -91,7 +91,8 @@
     </view>
   </block>
 
-  <!-- R2-1: on-sale performances of the resource's approved shows.
+  <!-- R2-1: on-sale performances of the resource's approved shows,
+       or its direct performances (showtimes-final).
        R2-2: tap a performance, then a ticket type — the total and the
        order follow the tier price. -->
   <block wx:if="{{perfs}}">
