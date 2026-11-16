@@ -45,17 +45,20 @@
      Lam-approved exception to the grayscale rule, scoped to those two
      surfaces. --brand-gold is a fill only, never text (pill text uses
      --brand-gold-deep, 4.83:1). The donut no longer uses these (D4:
-     one money hue, shades below). */
+     one colour per channel, tokens below). */
   --brand-pine:#0b3d36; --brand-pine-soft:#dcefe9;
   --brand-gold:#a97e1c; --brand-gold-soft:#f1e5c3; --brand-gold-deep:#7c5e14;
   --brand-gold-soft-deep:#e9d8a6; --brand-gold-deepest:#6b5312;
   --brand-cinnabar:#b03a1e; --brand-cinnabar-soft:#f6e3d8;
-  /* Donut (D4): one money hue, intensity falling with rank. Light
-     ramp is all >= 3:1 against the white card (5.01 / 4.29 / 3.44 /
-     3.28:1); ranks 3–4 are close in lightness but differ in hue
-     (green vs teal) and are disambiguated by hover + the ranked
-     legend. Dark ramp is all >= 3:1 against the dark card. */
-  --donut-1:#0f7f57; --donut-2:#238a66; --donut-3:#3f9a78; --donut-4:#2f9e8f;
+  /* Donut (D4): one muted colour per channel, by rank — rank 1 money
+     green, rank 2 accent blue, rank 3 gold, rank 4 warm grey; rank 5+
+     cycles the four (DONUT_SHADES[i % 4]). Light vs the white card:
+     5.01 / 5.21 / 2.40 / 4.18:1 — the gold is a non-text fill below
+     3:1, told apart by hue + hover + the ranked legend, like ranks
+     1–2 which are close in lightness but far apart in hue (green vs
+     blue). Dark ramp is all >= 3:1 against the dark card
+     (8.24 / 6.70 / 8.19 / 6.64:1). */
+  --donut-1:#0f7f57; --donut-2:#3e63dd; --donut-3:#c9a24b; --donut-4:#8a7a5c;
   --sidebar-bg:#f3f3f1; --sidebar-text:#17171a; --sidebar-text-dim:#66666d;
   --sidebar-active-bg:rgba(62,99,221,0.08);
   --sidebar-hover-bg:#f1f1ef;
@@ -104,7 +107,7 @@
   --focus-ring:rgba(123,150,255,0.30);
   --signal-red:#ff6b70; --signal-red-deep:#ff8589; --signal-red-soft:#3a1f22; --signal-red-soft-deep:#4a2428;
   --signal-yellow:#f6b100;
-  --donut-1:#34c48b; --donut-2:#2aa87a; --donut-3:#1f8a64; --donut-4:#177050;
+  --donut-1:#34c48b; --donut-2:#7b96ff; --donut-3:#d9a521; --donut-4:#a89a7d;
   --sidebar-bg:#101013; --sidebar-text:#f3f3f5; --sidebar-text-dim:#8c8c95;
   --sidebar-active-bg:rgba(123,150,255,0.12);
   --sidebar-hover-bg:#1c1c20;
@@ -461,8 +464,24 @@ th .sort-btn:focus-visible{outline:2px solid var(--p-action);outline-offset:1px}
 .live-dot{width:8px;height:8px;border-radius:99px;background:var(--p-live);flex:none}
 .ov-head-actions .chips{margin-bottom:0}
 .ov-kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:1px;margin-bottom:24px;background:var(--line);border:1px solid var(--line);border-radius:var(--radius-md);box-shadow:var(--shadow-card);overflow:hidden}
-.ov-kpi{display:block;width:100%;text-align:left;background:var(--p-card);border:0;border-radius:0;padding:6px}
-.ov-kpi-in{display:block;padding:12px 12px 10px;border-radius:12px}
+/* KPI tiles fill the grid row (dashboard-fix1, measured
+   2026-11-16 by CDP at 1440px: tiles 1-2 were 197px tall, tile 3
+   only 135px and tile 4 161px, while the grid row is 197px — the
+   short tiles ended early inside their stretched, transparent
+   .tooltip-wrap and the grid's --line background showed through
+   as a flat grey block at the bottom (67px under tile 3, 42px
+   under tile 4). height:100% on the tile + the inner block makes
+   all four tiles the row height, so the bottom zone is the tile's
+   own card background, empty, never grey. Label / value / delta y
+   already matched across tiles (272 / 293 / 332 at 1440px) and stay
+   top-aligned. Report-only tiles keep no sparkline — no series is
+   invented for them. min-height keeps the four tiles equal even in
+   the 1-column layout (375px), where there is no shared row to
+   stretch against: 185px is the measured full-content height
+   (icon 36 + gaps + label + value + delta + sparkline + padding),
+   a floor only — taller content still grows. */
+.ov-kpi{display:block;width:100%;height:100%;text-align:left;background:var(--p-card);border:0;border-radius:0;padding:6px}
+.ov-kpi-in{display:block;height:100%;min-height:185px;padding:12px 12px 10px;border-radius:12px}
 .ov-kpi:hover .ov-kpi-in{background:var(--p-surface)}
 .ov-kpi.report-only{cursor:default}
 .ov-kpi.sel-money .ov-kpi-in{background:var(--money-tint);box-shadow:inset 0 0 0 1px var(--money-ring)}

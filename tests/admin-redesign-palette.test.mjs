@@ -80,9 +80,11 @@ test("admin redesign palette: no forbidden hex values remain in admin CSS", () =
   // palette reuses the customer brand pine/gold/cinnabar, but ONLY as
   // --brand-* tokens in :root — never as raw hex anywhere else. Strip the
   // token lines before the ban check so the exception stays scoped.
+  // Same scoping for the donut (D4, dashboard-fix1): the per-channel
+  // gold / warm-grey live ONLY as --donut-* tokens in :root.
   const withoutBrandTokens = lower
     .split("\n")
-    .filter((line) => !line.trimStart().startsWith("--brand-"))
+    .filter((line) => !line.trimStart().startsWith("--brand-") && !line.trimStart().startsWith("--donut-"))
     .join("\n");
   for (const hex of [
     "#f3ecdf",
@@ -123,6 +125,25 @@ test("admin redesign palette: status-palette brand hexes occur only in :root --b
         assert.ok(
           line.trimStart().startsWith("--brand-"),
           `status hex ${hex} outside a --brand-* token line: ${line.trim()}`,
+        );
+      }
+    }
+  }
+});
+
+test("admin redesign palette: donut hexes occur only in :root --donut-* tokens", () => {
+  // Scope guard for the donut exception above (D4, dashboard-fix1):
+  // the per-channel gold / warm-grey hexes must live on a --donut-*
+  // token line, never scattered in a rule. (#0f7f57 / #3e63dd are the
+  // shared money / accent tokens and #d9a521 is also a --fill-* token,
+  // so only the donut-unique hexes are guarded here.)
+  const lines = css.toLowerCase().split("\n");
+  for (const hex of ["#c9a24b", "#8a7a5c", "#a89a7d"]) {
+    for (const line of lines) {
+      if (line.includes(hex)) {
+        assert.ok(
+          line.trimStart().startsWith("--donut-"),
+          `donut hex ${hex} outside a --donut-* token line: ${line.trim()}`,
         );
       }
     }

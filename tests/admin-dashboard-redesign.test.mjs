@@ -208,23 +208,25 @@ test("accent / money / down / warn / tip contrasts in both themes", () => {
   check(dark("p-action-ink"), dark("p-action"), 4.5, "dark action ink on action");
 });
 
-test("donut shades: one money hue, 4 distinct shades, lightness falling by rank", () => {
+test("donut palette: one muted colour per channel, 4 distinct hues, rank order pinned", () => {
   const lightShades = [1, 2, 3, 4].map((i) => lightTokens.get("donut-" + i));
   const darkShades = [1, 2, 3, 4].map((i) => darkTokens.get("donut-" + i));
-  assert.equal(new Set(lightShades).size, 4, "light donut shades must be 4 distinct colours");
-  assert.equal(new Set(darkShades).size, 4, "dark donut shades must be 4 distinct colours");
-  const lightLum = lightShades.map(luminance);
-  const darkLum = darkShades.map(luminance);
-  for (let i = 1; i < 4; i++) {
-    assert.ok(lightLum[i] > lightLum[i - 1], `light donut shade ${i + 1} must be lighter than shade ${i}`);
-    assert.ok(darkLum[i] < darkLum[i - 1], `dark donut shade ${i + 1} must be darker than shade ${i}`);
-  }
-  // Recorded (2026-11-16): light ramp vs white 5.01/4.29/3.44/3.28,
-  // dark ramp vs #141417 8.24/6.11/4.27/3.04. Ranks 3-4 are close in
-  // lightness and differ in hue (green vs teal); the hover + ranked
+  assert.equal(new Set(lightShades).size, 4, "light donut colours must be 4 distinct colours");
+  assert.equal(new Set(darkShades).size, 4, "dark donut colours must be 4 distinct colours");
+  assert.deepEqual(lightShades, ["#0f7f57", "#3e63dd", "#c9a24b", "#8a7a5c"],
+    "light donut colours by rank: money green, accent blue, gold, warm grey");
+  assert.deepEqual(darkShades, ["#34c48b", "#7b96ff", "#d9a521", "#a89a7d"],
+    "dark donut colours by rank: money green, accent blue, gold, warm grey");
+  // Recorded (2026-11-16): light vs white 5.01/5.21/2.40/4.18,
+  // dark vs #141417 8.24/6.70/8.19/6.64. The gold is a non-text
+  // fill below 3:1 on white; ranks 1-2 are close in lightness but
+  // far apart in hue (green vs blue) — hover + the ranked
   // legend disambiguate them.
-  assert.ok(contrastRatio(lightShades[0], "#ffffff") >= 4.5, "rank 1 light shade must read on white");
-  assert.ok(contrastRatio(darkShades[0], "#141417") >= 4.5, "rank 1 dark shade must read on dark card");
+  assert.ok(contrastRatio(lightShades[0], "#ffffff") >= 4.5, "rank 1 light colour must read on white");
+  assert.ok(contrastRatio(darkShades[0], "#141417") >= 4.5, "rank 1 dark colour must read on dark card");
+  assert.ok(contrastRatio(lightShades[1], "#ffffff") >= 4.5, "rank 2 light colour must read on white");
+  assert.ok(contrastRatio(lightShades[3], "#ffffff") >= 3, "rank 4 light colour must read on white");
+  for (const s of darkShades) assert.ok(contrastRatio(s, "#141417") >= 3, "every dark donut colour must read on the dark card");
 });
 
 // ---- source-grep: the new components and their wiring ----
@@ -269,7 +271,7 @@ test("TrendChart: previous line, partial tail, compact ticks, chips, keyboard", 
   assert.ok(dashboardJsx.includes("metric={chartMetric}"), "overview + trends must pass the lifted metric");
 });
 
-test("DonutChart: money shades, ranked legend, <0.1% shares", () => {
+test("DonutChart: per-channel colours, ranked legend, <0.1% shares", () => {
   for (const needle of ["DONUT_SHADES", "pctText", '"<0.1%"', "donut-rank", "donut-bar", "var(--donut-1)", "var(--donut-4)"]) {
     assert.ok(donutJsx.includes(needle), `DonutChart must contain ${needle}`);
   }

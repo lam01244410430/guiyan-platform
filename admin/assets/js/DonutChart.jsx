@@ -4,8 +4,10 @@
    per channel, sized by its share of total; the centre shows the
    total; the legend is ranked rows (rank + name + amount + %) with a
    3px share bar on each row's bottom edge.
-   Colours (D4): one money hue, shade falling by rank
-   (var(--donut-1) .. var(--donut-4)), never the old 7 brand colours;
+   Colours (D4): one muted colour per channel, by rank
+   (var(--donut-1) .. var(--donut-4)) — rank 1 money green, rank 2
+   accent blue, rank 3 gold, rank 4 warm grey; rank 5+ cycles the
+   four; never the old 7 brand colours;
    channel names are raw as the API returns them (H5 / 微信小程序 /
    抖音 / 猫眼）. A share below 0.1% reads "<0.1%", never "0.0%".
    Hovering a slice (or its legend row) dims the rest; the legend row

@@ -279,6 +279,33 @@ test("overview KPI cards: four tiles in one strip, windowed totals + deltas", ()
   assert.ok(dashboardJsx.includes("—"), "KPI loading state must show —, not a flashing 0");
 });
 
+test("overview KPI tiles fill the grid row: no grey block under report-only tiles", () => {
+  // Dashboard-fix1 (measured 2026-11-16 by CDP at 1440px): tiles 1-2
+  // were 197px tall, tile 3 only 135px and tile 4 161px, while the grid
+  // row is 197px — the short tiles ended early inside their stretched,
+  // transparent .tooltip-wrap and the grid's --line background showed
+  // through as a flat grey block at the bottom (67px under tile 3,
+  // 42px under tile 4). The tile + its inner block are height:100%, so
+  // all four tiles are the row height and the bottom zone is the tile's
+  // own card background, empty, never grey.
+  const kpiRule = css.match(/\.ov-kpi\{([^}]*)\}/);
+  assert.ok(kpiRule, ".ov-kpi rule must exist");
+  assert.ok(kpiRule[1].includes("height:100%"), ".ov-kpi must fill the grid row (height:100%)");
+  const inRule = css.match(/\.ov-kpi-in\{([^}]*)\}/);
+  assert.ok(inRule, ".ov-kpi-in rule must exist");
+  assert.ok(inRule[1].includes("height:100%"), ".ov-kpi-in must fill the tile (height:100%)");
+  assert.ok(inRule[1].includes("min-height:185px"), ".ov-kpi-in must keep the full-content height in the 1-column layout (min-height:185px)");
+  // Report-only tiles keep no sparkline: the two KPIs have no series,
+  // so no series is invented for them — their bottom zone stays empty.
+  const resourcesTile = dashboardJsx.slice(
+    dashboardJsx.indexOf('id="ovKpiResources"'),
+    dashboardJsx.indexOf('id="ovKpiActiveUsers"'),
+  );
+  assert.ok(!resourcesTile.includes("<Sparkline"), "resources tile must not render a sparkline");
+  const usersTile = dashboardJsx.slice(dashboardJsx.indexOf('id="ovKpiActiveUsers"'));
+  assert.ok(!usersTile.slice(0, usersTile.indexOf("</Tooltip>")).includes("<Sparkline"), "active-users tile must not render a sparkline");
+});
+
 test("overview charts: trend reuses TrendChart with the real date range; donut is new", () => {
   assert.ok(dashboardJsx.includes('import DonutChart, { DONUT_SHADES, pctText } from "./DonutChart.jsx"'), "DonutChart must be imported (with the shared shades + pct helper)");
   assert.ok(dashboardJsx.includes("<DonutChart channels={analysis.channels}"), "donut must take the real analysis channels");
@@ -373,14 +400,16 @@ test("overview loaded flag: set only when both fetches succeed, never before the
   );
 });
 
-test("donut palette: one money hue, shade falling by rank, no hex literals", () => {
-  // D4: the donut drops the 7 brand colours for one money hue whose
-  // shade falls by rank (var(--donut-1) .. var(--donut-4)).
+test("donut palette: one muted colour per channel, by rank, no hex literals", () => {
+  // D4: the donut drops the 7 brand colours for one muted colour per
+  // channel, by rank (var(--donut-1) .. var(--donut-4)); rank 5+
+  // cycles the four (DONUT_SHADES[i % 4]).
   const shades = donutJsx.match(/DONUT_SHADES = \[([\s\S]*?)\];/);
   assert.ok(shades, "DONUT_SHADES must exist");
   assert.ok(!/#[0-9a-fA-F]{3,6}/.test(shades[1]), "donut shades must be CSS tokens, never hex literals");
-  assert.ok(shades[1].includes("var(--donut-1)"), "first rank must be the darkest money shade");
-  assert.ok(shades[1].includes("var(--donut-4)"), "fourth rank must be the lightest money shade");
+  assert.ok(shades[1].includes("var(--donut-1)"), "rank 1 must be the money-green token");
+  assert.ok(shades[1].includes("var(--donut-4)"), "rank 4 must be the warm-grey token");
+  assert.ok(donutJsx.includes("i % DONUT_SHADES.length"), "rank 5+ must cycle the four colours");
   assert.ok(!donutJsx.includes("DONUT_COLORS"), "the old 7-colour brand array must be gone");
   assert.ok(css.includes("--donut-1:"), "donut-1 token must exist in :root");
   assert.ok(css.includes("--donut-4:"), "donut-4 token must exist in :root");
