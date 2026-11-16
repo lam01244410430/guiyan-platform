@@ -256,10 +256,19 @@ th .sort-btn.active{color:var(--p-action)}
 th .sort-btn:focus-visible{outline:2px solid var(--p-action);outline-offset:1px}
 .empty{text-align:center;color:var(--p-muted);padding:36px 10px;font-size:13.5px}
 .pill{font-size:12px;font-weight:800;padding:3px 10px;border-radius:99px;white-space:nowrap}
-.pill.pending{background:var(--gray-100);color:var(--p-muted)}
+/* Order-status pills — one colour per status, each with a semantic reason
+   (admin-overview round, Lam-approved; the deliberate exception to the
+   redesign-2 grayscale rule, scoped to order statuses only): paid money
+   received = pine; waiting = gold; refund asked = deeper gold (same
+   family, darker than waiting); dispute = muted cinnabar; done = ink;
+   neutral = gray; ended = muted gray. Soft background + dark text,
+   text/background contrast >= 4.5:1 (measured in tests). */
+.pill.pending{background:var(--brand-gold-soft);color:var(--brand-gold-deep)}
 .pill.confirmed{background:var(--gray-300);color:var(--p-ink)}
-.pill.paid{background:var(--gray-400);color:var(--p-ink)}
+.pill.paid{background:var(--brand-pine-soft);color:var(--brand-pine)}
 .pill.completed{background:var(--p-ink);color:var(--p-inv-ink)}
+.pill.refund_requested{background:var(--brand-gold-soft-deep);color:var(--brand-gold-deepest)}
+.pill.disputed{background:var(--brand-cinnabar-soft);color:var(--brand-cinnabar)}
 .pill.cancelled,.pill.refunded{background:var(--gray-100);color:var(--p-muted)}
 .pill.tag{background:var(--p-surface);color:var(--p-muted);margin:0 4px 4px 0;display:inline-block}
 /* Wave 3 #9 tag-rule editor: plain fieldset form, same tokens as the rest. */
@@ -300,10 +309,14 @@ th .sort-btn:focus-visible{outline:2px solid var(--p-action);outline-offset:1px}
 .bd-label{font-size:13.5px;font-weight:600;color:var(--p-muted)}
 .bd-track{height:10px;border-radius:99px;background:var(--p-surface);overflow:hidden}
 .bd-fill{display:block;height:100%;border-radius:99px;min-width:2px}
-.bd-fill.pending{background:var(--gray-400)}
+/* Breakdown bars use the same dark colour as the matching pill text
+   (kept statuses keep their pre-existing grey/ink bar). */
+.bd-fill.pending{background:var(--brand-gold-deep)}
 .bd-fill.confirmed{background:var(--gray-600)}
-.bd-fill.paid{background:var(--gray-700)}
+.bd-fill.paid{background:var(--brand-pine)}
 .bd-fill.completed{background:var(--p-ink)}
+.bd-fill.refund_requested{background:var(--brand-gold-deepest)}
+.bd-fill.disputed{background:var(--brand-cinnabar)}
 .bd-fill.cancelled,.bd-fill.refunded{background:var(--gray-500)}
 .bd-num{text-align:right;font-variant-numeric:tabular-nums;font-weight:700;font-size:13.5px}
 .bd-total{margin-top:10px;font-size:13.5px;color:var(--p-muted)}

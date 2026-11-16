@@ -205,3 +205,122 @@ test("no screenshot figures: the reference numbers never enter the code", () => 
     assert.ok(!donutJsx.includes(needle), `DonutChart must not contain ${needle}`);
   }
 });
+
+// ---- order-status colours (commit 2): WCAG contrast + coverage ----
+
+const STATUSES = [
+  "pending",
+  "confirmed",
+  "paid",
+  "completed",
+  "cancelled",
+  "refunded",
+  "refund_requested",
+  "disputed",
+];
+
+function luminance(hex) {
+  const rgb = [1, 3, 5].map((i) => {
+    const v = parseInt(hex.slice(i, i + 2), 16) / 255;
+    return v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4);
+  });
+  return 0.2126 * rgb[0] + 0.7152 * rgb[1] + 0.0722 * rgb[2];
+}
+function contrastRatio(fg, bg) {
+  const [hi, lo] = [luminance(fg), luminance(bg)].sort((a, b) => b - a);
+  return (hi + 0.05) / (lo + 0.05);
+}
+
+test("status pills: all 8 statuses styled, 7 distinct colours, contrast >= 4.5:1", () => {
+  // Resolve :root tokens to hex (only hex-valued tokens are collected).
+  const tokens = new Map();
+  for (const m of css.matchAll(/--([a-z0-9-]+):\s*(#[0-9a-f]{6})/gi)) {
+    tokens.set(m[1], m[2].toLowerCase());
+  }
+  const resolve = (v) => {
+    const m = /^var\(--([a-z0-9-]+)\)$/.exec(v.trim());
+    assert.ok(m, `pill/bar colour must be a token, got ${v}`);
+    const hex = tokens.get(m[1]);
+    assert.ok(hex, `token --${m[1]} must be defined in :root`);
+    return hex;
+  };
+  const pillRules = new Map();
+  for (const m of css.matchAll(/\.pill\.([a-z0-9_,.-]+)\{([^}]*)\}/g)) {
+    for (const sel of m[1].split(",")) {
+      const status = sel.replace(/^\.pill\./, "");
+      const bg = /background:([^;}]+);?/.exec(m[2]);
+      const fg = /color:([^;}]+);?/.exec(m[2]);
+      if (bg && fg) pillRules.set(status, { bg: bg[1], fg: fg[1] });
+    }
+  }
+  const pairs = new Map();
+  for (const status of STATUSES) {
+    const rule = pillRules.get(status);
+    assert.ok(rule, `.pill.${status} rule must exist (no status falls back to unstyled)`);
+    const fg = resolve(rule.fg);
+    const bg = resolve(rule.bg);
+    const ratio = contrastRatio(fg, bg);
+    assert.ok(
+      ratio >= 4.5,
+      `.pill.${status} contrast ${ratio.toFixed(2)}:1 < 4.5:1 (${fg} on ${bg})`,
+    );
+    pairs.set(status, `${bg}/${fg}`);
+  }
+  // 7 distinct pairs for 8 statuses: cancelled + refunded share the muted
+  // grey by design (both mean "ended, do not emphasise"); every other
+  // status has its own colour.
+  assert.equal(pairs.get("cancelled"), pairs.get("refunded"), "cancelled/refunded must share one pair");
+  assert.equal(new Set(pairs.values()).size, 7, `expected 7 distinct pill pairs, got ${new Set(pairs.values()).size}`);
+});
+
+test("status bars: all 8 statuses styled, bar matches the pill dark colour", () => {
+  const tokens = new Map();
+  for (const m of css.matchAll(/--([a-z0-9-]+):\s*(#[0-9a-f]{6})/gi)) {
+    tokens.set(m[1], m[2].toLowerCase());
+  }
+  const resolve = (v) => {
+    const m = /^var\(--([a-z0-9-]+)\)$/.exec(v.trim());
+    assert.ok(m, `bar colour must be a token, got ${v}`);
+    return tokens.get(m[1]);
+  };
+  const barRules = new Map();
+  for (const m of css.matchAll(/\.bd-fill\.([a-z0-9_,.-]+)\{([^}]*)\}/g)) {
+    for (const sel of m[1].split(",")) {
+      const status = sel.replace(/^\.bd-fill\./, "");
+      const bg = /background:([^;}]+);?/.exec(m[2]);
+      if (bg) barRules.set(status, bg[1]);
+    }
+  }
+  const pillRules = new Map();
+  for (const m of css.matchAll(/\.pill\.([a-z0-9_,.-]+)\{([^}]*)\}/g)) {
+    for (const sel of m[1].split(",")) {
+      const status = sel.replace(/^\.pill\./, "");
+      const bg = /background:([^;}]+);?/.exec(m[2]);
+      const fg = /color:([^;}]+);?/.exec(m[2]);
+      if (bg && fg) pillRules.set(status, { bg: bg[1], fg: fg[1] });
+    }
+  }
+  // Recoloured statuses: the bar is the same dark colour as the pill text.
+  for (const status of ["paid", "pending", "refund_requested", "disputed"]) {
+    assert.ok(barRules.has(status), `.bd-fill.${status} rule must exist`);
+    assert.equal(
+      resolve(barRules.get(status)),
+      resolve(pillRules.get(status).fg),
+      `.bd-fill.${status} must match the .pill.${status} text colour`,
+    );
+  }
+  // Kept statuses: the bar keeps its pre-existing grey/ink value.
+  for (const [status, token] of [
+    ["confirmed", "--gray-600"],
+    ["completed", "--p-ink"],
+    ["cancelled", "--gray-500"],
+    ["refunded", "--gray-500"],
+  ]) {
+    assert.ok(barRules.has(status), `.bd-fill.${status} rule must exist`);
+    assert.equal(
+      barRules.get(status).trim(),
+      `var(${token})`,
+      `.bd-fill.${status} must keep ${token}`,
+    );
+  }
+});
