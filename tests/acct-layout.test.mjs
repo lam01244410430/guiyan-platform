@@ -57,7 +57,7 @@ test("account layout CSS: vertical nav 240px, no separators, black active", () =
     "tabs are a vertical 240px column",
   );
   assert.ok(
-    mainCss.includes(".acct-tab{display:flex;align-items:center;gap:8px;width:100%;box-sizing:border-box;text-align:left;border:0;background:transparent;color:var(--ink);border-radius:4px;padding:11px 14px;font-size:13.5px;font-weight:700;cursor:pointer;white-space:nowrap}"),
+    mainCss.includes(".acct-tab{display:flex;align-items:center;gap:8px;width:100%;box-sizing:border-box;text-align:left;border:0;background:transparent;color:var(--ink);border-radius:4px;padding:8px 14px;font-size:13.5px;font-weight:700;cursor:pointer;white-space:nowrap}"),
     "tabs are full-width left-aligned rows with no border",
   );
   assert.ok(mainCss.includes(".acct-tab.on{background:var(--ink);color:var(--bg)}"), "active tab keeps the black fill");
@@ -103,6 +103,35 @@ test("account layout responsive: nav becomes a scrollable row at <=860px", () =>
     "tabs become one horizontal scrollable row below 860px",
   );
   assert.ok(mainCss.includes(".acct-frame{width:100%;box-sizing:border-box;padding:12px}"), "frame goes full-width below 860px");
+});
+
+test("account sections: .db-sec opts out of the global 76px section padding", () => {
+  // Fix2 (2026-11-16, CDP-measured on the real account page at
+  // 1440/1249/1919): the global `section{padding:76px 0}` (homepage
+  // rhythm) also hit every account section, so each .db-sec carried
+  // 76px top + 76px bottom — avatar card bottom to the 修改资料
+  // heading measured 176px (12 profile mb + 76 sec pb + 12 sec mb +
+  // 76 next sec pt). .db-sec must reset that padding to 0 and keep
+  // only the 12px bottom margin (dashboard token); the homepage's
+  // bare <section> elements keep their 76px rhythm.
+  assert.ok(
+    mainCss.includes(".db-sec{margin-bottom:12px;padding:0}"),
+    ".db-sec resets the global section padding and keeps the 12px bottom margin",
+  );
+  assert.ok(mainCss.includes("section{padding:76px 0}"), "the homepage section rhythm itself is untouched");
+});
+
+test("account tabs: 8px vertical padding (fix2 tab pitch 45px -> ~39px)", () => {
+  // Fix2 (2026-11-16, CDP-measured): the tab pitch was 45px (11px
+  // padding + ~22px text line), which read as "~48px between tabs"
+  // on live. Tabs now use the 8px dashboard token for vertical
+  // padding. The 44px/4px control template is untouched — tabs are
+  // nav items, not buttons/inputs — and the tab gap stays 2px.
+  assert.ok(
+    mainCss.includes("padding:8px 14px;font-size:13.5px;font-weight:700;cursor:pointer;white-space:nowrap}"),
+    "tabs use 8px vertical padding",
+  );
+  assert.ok(mainCss.includes(".acct-tabs{display:flex;flex-direction:column;gap:2px;"), "tab gap stays 2px");
 });
 
 test("dark mode tokens are untouched by the white design", () => {

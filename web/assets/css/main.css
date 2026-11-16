@@ -422,7 +422,15 @@ footer ul{list-style:none;margin:0;padding:0;display:grid;gap:6px}
 .db-stat b.red{color:var(--red)}
 .db-stat span{font-size:12.5px;color:var(--ink2);font-weight:600}
 @media(max-width:560px){.db-stats{grid-template-columns:repeat(2,1fr)}}
-.db-sec{margin-bottom:12px}
+.db-sec{margin-bottom:12px;padding:0}
+/* Fix2 (2026-11-16, CDP-measured): the global `section{padding:76px 0}`
+   above (homepage section rhythm) also hit every account section, so
+   each .db-sec carried 76px top + 76px bottom — the true source of the
+   ~180px gap between the avatar card and 修改资料 (card bottom to next
+   h3: 12 profile mb + 76 sec pb + 12 sec mb + 76 next sec pt = 176px)
+   and of the 70–80px gaps between the sections below. The dashboard
+   sections keep only the 12px bottom margin (dashboard token); the
+   homepage's bare <section> elements keep their 76px rhythm. */
 .db-sec h3{font-family:"Noto Serif SC",serif;font-size:22px;font-weight:900;margin:0 0 8px}
 .db-group{font-family:"Noto Serif SC",serif;font-size:16px;font-weight:700;margin:12px 0 8px}
 .db-group:first-child{margin-top:4px}
@@ -439,7 +447,11 @@ footer ul{list-style:none;margin:0;padding:0;display:grid;gap:6px}
    Red/gold/pine accents and the dark hero stay as they are. */
 .acct-layout{display:flex;gap:12px;align-items:flex-start}
 .acct-tabs{display:flex;flex-direction:column;gap:2px;flex:none;width:240px;margin:0}
-.acct-tab{display:flex;align-items:center;gap:8px;width:100%;box-sizing:border-box;text-align:left;border:0;background:transparent;color:var(--ink);border-radius:4px;padding:11px 14px;font-size:13.5px;font-weight:700;cursor:pointer;white-space:nowrap}
+/* Fix2 (2026-11-16, CDP-measured): tab padding 11px→8px (the 8px
+   dashboard token) — the tab pitch was 45px, which read as the
+   "~48px between tabs" on live; it is now ~39px. The 44px/4px control
+   template is untouched: tabs are nav items, not buttons/inputs. */
+.acct-tab{display:flex;align-items:center;gap:8px;width:100%;box-sizing:border-box;text-align:left;border:0;background:transparent;color:var(--ink);border-radius:4px;padding:8px 14px;font-size:13.5px;font-weight:700;cursor:pointer;white-space:nowrap}
 .acct-tab:hover{background:var(--surface2)}
 .acct-tab.on{background:var(--ink);color:var(--bg)}
 .acct-tab.on:hover{background:var(--ink)}
