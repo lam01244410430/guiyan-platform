@@ -284,12 +284,9 @@ export default function AdminDashboard() {
   const [ipForm, setIpForm] = useState({ ip_name: "", ip_avatar_url: "", ip_greeting: "" });
   const [ipBusy, setIpBusy] = useState(false);
   // R5-3 数据大屏: the BI payload (KPIs + top shows/venues +
-  // 30-day series), the export in-flight flag, and the fullscreen
-  // toggle (CSS class on the section; Esc closes it — see the
-  // keydown effect below).
+  // 30-day series) and the export in-flight flag.
   const [biData, setBiData] = useState(null);
   const [biBusy, setBiBusy] = useState(false);
-  const [biFullscreen, setBiFullscreen] = useState(false);
   // R5-5 财务账本: the ledger page + kind/reconciled filters, the
   // id of the row being reconciled, and the alert rules + the
   // create-rule form (config fields follow the chosen kind).
@@ -882,11 +879,8 @@ export default function AdminDashboard() {
   }, [view, insightShop]);
 
   // R5-3 数据大屏: load the BI payload when the view opens.
-  // Fullscreen is per-view: leaving the view exits fullscreen, so
-  // the next view never inherits the fixed overlay; Esc also exits.
   useEffect(() => {
     if (view === "bi") loadBi();
-    else if (biFullscreen) setBiFullscreen(false);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [view]);
 
@@ -908,13 +902,6 @@ export default function AdminDashboard() {
     if (view === "comments") loadComments();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [view, cmtFilter]);
-  useEffect(() => {
-    if (!biFullscreen) return;
-    function onKey(e) { if (e.key === "Escape") setBiFullscreen(false); }
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [biFullscreen]);
-
   function doLogout() {
     apiPost("/api/auth/logout", {}).catch(function () {});
     clearToken();
@@ -4799,13 +4786,12 @@ export default function AdminDashboard() {
               files this wave (no CJK font dependency) — the button
               below prints via the browser ("浏览器打印另存为 PDF"),
               it never claims the server produced a PDF file. */}
-          <section className={"view" + (view === "bi" ? " on" : "") + (biFullscreen ? " bi-fullscreen" : "")} id="view-bi">
+          <section className={"view" + (view === "bi" ? " on" : "")} id="view-bi">
             <div className="note">关键指标与 admin 统计同口径（已付 = 已支付 / 已完成）；近 30 天按日（北京时间）统计已付订单。PDF 不由服务端生成：点“打印/导出 PDF”后用浏览器打印另存为 PDF。</div>
             <div className="search-row bi-actions">
               <button type="button" className="btn-export" disabled={biBusy} onClick={() => doExportBi("xlsx")}>{biBusy ? "导出中…" : "导出 Excel（.xlsx）"}</button>
               <button type="button" className="btn-export" disabled={biBusy} onClick={() => doExportBi("csv")}>{biBusy ? "导出中…" : "导出 CSV"}</button>
               <button type="button" className="btn-export" onClick={doPrintBi}>打印 / 导出 PDF（浏览器打印另存为 PDF）</button>
-              <button type="button" className="btn-export" onClick={() => setBiFullscreen(function (f) { return !f; })}>{biFullscreen ? "退出全屏" : "全屏"}</button>
               <button type="button" className="btn-export" onClick={loadBi}>刷新</button>
             </div>
             {biData ? (

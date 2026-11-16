@@ -520,9 +520,6 @@ tr.top1 td{background:var(--p-surface)}
 .bi-bar-track{display:block;height:14px;background:var(--p-surface);border-radius:99px;overflow:hidden}
 .bi-bar-fill{display:block;height:100%;background:var(--p-action);border-radius:99px}
 .bi-bar-val{font-size:13px;color:var(--p-muted);font-variant-numeric:tabular-nums;white-space:nowrap}
-/* Fullscreen: the BI section becomes a fixed overlay (Esc or the
-   button exits; leaving the view exits too — see AdminDashboard). */
-.view.bi-fullscreen{display:block;position:fixed;inset:0;z-index:60;background:var(--p-bg);overflow:auto;padding:34px 36px 60px}
 @media(max-width:860px){
   .bi-stats{grid-template-columns:repeat(2,1fr)}
   .bi-bar-row{grid-template-columns:minmax(90px,140px) 1fr auto}
@@ -537,6 +534,5 @@ tr.top1 td{background:var(--p-surface)}
   .main{margin-left:0;padding:0}
   .view{display:none !important}
   .view#view-bi{display:block !important}
-  .view.bi-fullscreen{position:static;padding:0}
   .bi-stats{grid-template-columns:repeat(4,1fr)}
 }
