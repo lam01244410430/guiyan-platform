@@ -111,7 +111,11 @@ test("fix1b Q5: ONLY the 最近订单 table on the overview is centred", () => {
   );
   // No global centring rule that would also move the other 39 admin tables.
   assert.ok(!css.includes(".orders-table th{text-align:center}"), "no global orders-table centring");
-  assert.ok(!css.includes("table.orders-table th"), "no global orders-table centring rule");
+  // Any orders-table th rule that centres text is banned, however it is
+  // written — but width-only rules (e.g. the pagination-fit F3 trims)
+  // are allowed: the guard is about centring, not about widths.
+  assert.ok(!/table\.orders-table th[^{]*\{[^}]*text-align:\s*center/.test(css),
+    "no global orders-table centring rule");
   assert.ok(!css.includes(".tbl-wrap table th,.tbl-wrap table td{text-align:center}"),
     "no all-tables centring rule");
 });
