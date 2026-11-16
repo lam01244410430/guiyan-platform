@@ -324,7 +324,7 @@ export async function createDirectPerformance(ctx) {
   const priceCents = int(b.price_cents, "票价", 0);
   assert(resource.status === "published", "资源未上架，不可创建场次", 400);
   const result = await run(
-    "INSERT INTO performances(show_id,resource_id,start_at,price_cents,status,created_at) VALUES(NULL,?,?,?,?,'on_sale',?)",
+    "INSERT INTO performances(show_id,resource_id,start_at,price_cents,status,created_at) VALUES(NULL,?,?,?,'on_sale',?)",
     resource.id,
     startAt,
     priceCents,
