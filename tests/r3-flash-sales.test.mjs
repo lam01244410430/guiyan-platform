@@ -15,7 +15,7 @@
 // -> original price (200, never 409), cancel frees the quota; an
 // order created inside the window keeps its snapshot price when paid
 // after the window ends; old-flow orders never get a flash price;
-// i18n key counts (H5 481 + 82 th/ms/id, miniprogram 269 + 82, equal sets).
+// i18n key counts (H5 482 + 82 th/ms/id, miniprogram 269 + 82, equal sets).
 import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
@@ -625,7 +625,7 @@ test("cross-shop: create/patch in shop 1 -> 403; shop-B performance in shop 1 ->
   assert.equal(ob2.data.flash_cents, 5600);
 });
 
-test("old-flow order never gets a flash price; i18n 481+82/269+82", async () => {
+test("old-flow order never gets a flash price; i18n 482+82/269+82", async () => {
   // A live sale on a performance does not touch the plain old-flow
   // order on the same shop.
   const { perfId } = await makePerf();
@@ -647,7 +647,7 @@ test("old-flow order never gets a flash price; i18n 481+82/269+82", async () => 
     path.resolve(repoDir, "web", "assets", "js", "data.js")
   );
   const counts = data.LANGS.map((l) => Object.keys(data.I18N[l]).length);
-  assert.deepEqual(counts, [481, 481, 481, 82, 82, 82]);
+  assert.deepEqual(counts, [482, 482, 482, 82, 82, 82]);
   for (const k of ["flashSale", "flashSaleLeft", "flashSaleSaved"]) {
     for (const l of ["zh", "vi", "en"])
       assert.ok(k in data.I18N[l], `${k} missing in H5 ${l}`);

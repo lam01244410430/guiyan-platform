@@ -300,12 +300,12 @@ test("create seat template -> zones stored; patch template -> 200", async () => 
   })).status, 404);
 });
 
-test("r2-venues i18n: H5 481 keys/language in zh/vi/en + 82 in th/ms/id, miniprogram 269 + 82, equal sets", async () => {
+test("r2-venues i18n: H5 482 keys/language in zh/vi/en + 82 in th/ms/id, miniprogram 269 + 82, equal sets", async () => {
   const data = await import(
     path.resolve(repoDir, "web", "assets", "js", "data.js")
   );
   const counts = data.LANGS.map((l) => Object.keys(data.I18N[l]).length);
-  assert.deepEqual(counts, [481, 481, 481, 82, 82, 82]);
+  assert.deepEqual(counts, [482, 482, 482, 82, 82, 82]);
   for (const k of ["venueTitle"]) {
     for (const l of data.LANGS)
       assert.ok(k in data.I18N[l], `${k} missing in H5 ${l}`);

@@ -147,7 +147,7 @@ test("ses-email: UI shows the sent note for email, keeps the demo note for phone
   }
   assert.deepEqual(
     ["zh", "vi", "en"].map((l) => Object.keys(data.I18N[l]).length),
-    [481, 481, 481],
+    [482, 482, 482],
   );
 });
 

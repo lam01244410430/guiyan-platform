@@ -186,12 +186,18 @@ export default function UserDashboard() {
   const [emailDemo, setEmailDemo] = useState(null);
   const [emailSent, setEmailSent] = useState(false);
   const [emailOtpBusy, setEmailOtpBusy] = useState(false);
+  // OTP resend countdown (2026-11-16, Lam): after a code is sent
+  // successfully the send button counts down 60s before it can be pressed
+  // again — the UI mirrors the server's 60s resend rule (a too-early
+  // send answers 429 and shows its wait message instead).
+  const [emailOtpLeft, setEmailOtpLeft] = useState(0);
   // OTP phone tab (2026-11-12): mirrors the email tab exactly.
   const [phoneForm, setPhoneForm] = useState("");
   const [phoneMsg, setPhoneMsg] = useState("");
   const [phoneCode, setPhoneCode] = useState("");
   const [phoneDemo, setPhoneDemo] = useState(null);
   const [phoneOtpBusy, setPhoneOtpBusy] = useState(false);
+  const [phoneOtpLeft, setPhoneOtpLeft] = useState(0);
   // Account tabs step 5: social-links form state. The server stores the
   // links as one JSON string (user.social_links); parse defensively.
   const [socialForm, setSocialForm] = useState({ douyin: "", wechat: "", xiaohongshu: "", maoyan: "" });
@@ -203,6 +209,20 @@ export default function UserDashboard() {
     } catch { return {}; }
   }
   const toastTimer = useRef(null);
+  const otpTimers = useRef({});
+  // Clear any running resend countdown when the dashboard unmounts.
+  useEffect(() => () => { Object.values(otpTimers.current).forEach((id) => clearInterval(id)); }, []);
+  function startOtpCountdown(channel) {
+    if (otpTimers.current[channel]) clearInterval(otpTimers.current[channel]);
+    const setLeft = channel === "email" ? setEmailOtpLeft : setPhoneOtpLeft;
+    setLeft(60);
+    otpTimers.current[channel] = setInterval(() => {
+      setLeft((prev) => {
+        if (prev <= 1) { clearInterval(otpTimers.current[channel]); delete otpTimers.current[channel]; return 0; }
+        return prev - 1;
+      });
+    }, 1000);
+  }
 
   const toast = useCallback((msg) => {
     setToastMsg(msg);
@@ -484,9 +504,11 @@ export default function UserDashboard() {
         setEmailDemo(res && res.code ? String(res.code) : null);
         setEmailSent(Boolean(res && res.sent));
         setEmailOtpBusy(false);
+        startOtpCountdown("email");
       } else {
         setPhoneDemo(res && res.code ? String(res.code) : null);
         setPhoneOtpBusy(false);
+        startOtpCountdown("phone");
       }
     }).catch(function (e) {
       if (channel === "email") {
@@ -887,7 +909,7 @@ export default function UserDashboard() {
                   <div className="db-profile">
                     <div className="row"><span className="k">{t("emailCurrent")}</span><span className="v">{user.email || t("emailNone")}</span></div>
                     <div className="row"><span className="k">{t("emailNew")}</span><span className="v"><input type="email" value={emailForm} placeholder={user.email || "example@mail.com"} onChange={(e) => setEmailForm(e.target.value)} /></span></div>
-                    <div className="row"><span className="k">{t("otpCode")}</span><span className="v"><input type="text" inputMode="numeric" maxLength={6} value={emailCode} placeholder={t("otpCodePh")} onChange={(e) => setEmailCode(e.target.value)} /> <button type="button" className="btn" disabled={emailOtpBusy} onClick={() => doSendOtp("email")}>{t("otpSend")}</button></span></div>
+                    <div className="row"><span className="k">{t("otpCode")}</span><span className="v"><input type="text" inputMode="numeric" maxLength={6} value={emailCode} placeholder={t("otpCodePh")} onChange={(e) => setEmailCode(e.target.value)} /> <button type="button" className="btn" disabled={emailOtpBusy || emailOtpLeft > 0} onClick={() => doSendOtp("email")}>{emailOtpLeft > 0 ? fmt(t("otpResendIn"), { n: emailOtpLeft }) : t("otpSend")}</button></span></div>
                     {emailDemo ? <div className="row"><span className="k"></span><span className="v"><span className="acct-note">{fmt(t("otpDemoNote"), { code: emailDemo })}</span></span></div> : null}
                     {emailSent ? <div className="row"><span className="k"></span><span className="v"><span className="acct-note">{t("otpSentNote")}</span></span></div> : null}
                     <div className="row"><span className="k"></span><span className="v"><button type="button" className="btn red" onClick={doChangeEmail}>{t("admResSave")}</button>{emailMsg ? <span style={{ color: "var(--red)", marginLeft: 12 }}>{emailMsg}</span> : null}</span></div>
@@ -901,7 +923,7 @@ export default function UserDashboard() {
                   <div className="db-profile">
                     <div className="row"><span className="k">{t("phoneCurrent")}</span><span className="v">{user.phone || t("phoneNone")}</span></div>
                     <div className="row"><span className="k">{t("phoneNew")}</span><span className="v"><input type="tel" value={phoneForm} placeholder="+84 912 345 678" onChange={(e) => setPhoneForm(e.target.value)} /></span></div>
-                    <div className="row"><span className="k">{t("otpCode")}</span><span className="v"><input type="text" inputMode="numeric" maxLength={6} value={phoneCode} placeholder={t("otpCodePh")} onChange={(e) => setPhoneCode(e.target.value)} /> <button type="button" className="btn" disabled={phoneOtpBusy} onClick={() => doSendOtp("phone")}>{t("otpSend")}</button></span></div>
+                    <div className="row"><span className="k">{t("otpCode")}</span><span className="v"><input type="text" inputMode="numeric" maxLength={6} value={phoneCode} placeholder={t("otpCodePh")} onChange={(e) => setPhoneCode(e.target.value)} /> <button type="button" className="btn" disabled={phoneOtpBusy || phoneOtpLeft > 0} onClick={() => doSendOtp("phone")}>{phoneOtpLeft > 0 ? fmt(t("otpResendIn"), { n: phoneOtpLeft }) : t("otpSend")}</button></span></div>
                     {phoneDemo ? <div className="row"><span className="k"></span><span className="v"><span className="acct-note">{fmt(t("otpDemoNote"), { code: phoneDemo })}</span></span></div> : null}
                     <div className="row"><span className="k"></span><span className="v"><button type="button" className="btn red" onClick={doChangePhone}>{t("admResSave")}</button>{phoneMsg ? <span style={{ color: "var(--red)", marginLeft: 12 }}>{phoneMsg}</span> : null}</span></div>
                   </div>
