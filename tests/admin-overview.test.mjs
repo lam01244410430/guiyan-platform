@@ -416,6 +416,38 @@ test("donut palette: one muted colour per channel, by rank, no hex literals", ()
   assert.ok(!donutJsx.includes("--brand-"), "the donut must not reference any brand token (the --brand-* tokens stay only for the status pills)");
 });
 
+test("analysis palette: 渠道复盘 + Top 10 bars use the donut shades by rank", () => {
+  // Dashboard-fix1 follow-up (Lam 23:59): the 经营分析 view must use
+  // the same per-rank palette as the overview donut - same channel,
+  // same hue, in both views. Both breakdowns already pass
+  // DONUT_SHADES[i % 4] as the RankedList fill; this test pins that,
+  // and that no single-hue tint (money / accent / chart-area) is used
+  // as a ranked-bar fill anywhere in the analysis view. The two lists
+  // share the donut's source order: the donut takes analysis.channels
+  // and the channel breakdown maps the same array (amount desc from
+  // the API - see the analysis-channels test above), so rank i is the
+  // same channel in both views until the user re-sorts.
+  const start = dashboardJsx.indexOf('id="view-analysis"');
+  const end = dashboardJsx.indexOf('id="view-alerts"', start);
+  assert.ok(start !== -1 && end !== -1, "the analysis section must exist");
+  const analysisJsx = dashboardJsx.slice(start, end);
+  const shadeFills = analysisJsx.match(/fill: DONUT_SHADES\[i % DONUT_SHADES\.length\]/g) || [];
+  assert.equal(shadeFills.length, 2, "exactly two ranked fills in the analysis view (channels + Top 10), both DONUT_SHADES");
+  assert.ok(analysisJsx.includes("sortedChannels.map((c, i)"), "the channel breakdown must map the sorted channels");
+  assert.ok(analysisJsx.includes("sortedRanking.slice(0, 10).map((r, i)"), "the Top 10 breakdown must map the top-10 ranking");
+  assert.ok(dashboardJsx.includes("<DonutChart channels={analysis.channels}"), "the donut must take the same analysis.channels array");
+  assert.ok(dashboardJsx.includes("const filteredChannels = analysis && q"), "the channel breakdown must filter the same analysis.channels");
+  for (const tint of ["--money-tint", "--p-accent-tint", "--chart-area"]) {
+    assert.ok(!analysisJsx.includes(tint), `the analysis view must not use ${tint} as a ranked-bar fill`);
+  }
+  const rankedJsx = fs.readFileSync(
+    path.join(repoDir, "admin", "assets", "js", "RankedList.jsx"),
+    "utf-8",
+  );
+  assert.ok(rankedJsx.includes("background: r.fill"), "RankedList must paint the bar with the row fill");
+  assert.ok(!rankedJsx.includes("accent/money"), "the stale RankedList comment must not describe the old accent/money fills");
+});
+
 test("no screenshot figures: the reference numbers never enter the code", () => {
   for (const needle of ["148,703", "148703", "210笔"]) {
     assert.ok(!dashboardJsx.includes(needle), `AdminDashboard must not contain ${needle}`);

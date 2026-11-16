@@ -3,8 +3,10 @@
    channel + resource breakdowns. Rows are plain data —
    { key, name, value (node), sub (node, optional), pct (string),
      share (0..1 of the max value), fill (CSS colour) } — so the same
-   component renders channels (fill = money shade by rank) and
-   resources (fill = accent/money). The name keeps its title attribute
+   component renders channels and resources with the same fill:
+   DONUT_SHADES by rank - the same four per-rank colours as the
+   overview donut (rank 1 money green, rank 2 accent blue, rank 3
+   gold, rank 4 warm grey, cycling past 4). The name keeps its title attribute
    (full value on hover) like .cell-ellipsis elsewhere. */
 export default function RankedList({ rows }) {
   const data = Array.isArray(rows) ? rows : [];
