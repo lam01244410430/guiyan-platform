@@ -1,5 +1,5 @@
 // tests/showtimes-final.test.mjs: showtimes-final (Q1a + Q2a + Q3a,
-// 2026-11-16) — direct performances for non-show resources.
+// 2026-11-16) — direct performances for any resource (show-category included).
 // Spawns server/server.mjs on TEST_PORT (default 3351) and talks to it
 // over HTTP. DATABASE_URL must point at a FRESH disposable database
 // (npm test is NOT idempotent on a reused DB).
@@ -574,4 +574,72 @@ test("showtimes-final Q2a: internal .note blocks + 模拟/演示 code comments g
     }
     return out;
   }
+});
+
+test("show-perf-ui: resource rows render 场次管理 for show-category resources too", async () => {
+  const admin = fs.readFileSync(
+    path.resolve(repoDir, "admin", "assets", "js", "AdminDashboard.jsx"), "utf8",
+  );
+  // The old gate hid the button on show rows (r.category !== "show");
+  // the button is now unconditional, reusing the same inline manager
+  // (toggleResPerfManager + resPerfResId panel) for every resource row.
+  assert.ok(!admin.includes('r.category !== "show"'), "show gate on 场次管理 still present");
+  assert.ok(
+    admin.includes("onClick={() => toggleResPerfManager(r)}"),
+    "resource-row 场次管理 button missing",
+  );
+  assert.ok(admin.includes("收起场次"), "场次管理 toggle label missing");
+  // The reused panel also carries the per-performance cancel control
+  // (doResPerfStatus -> PATCH /api/admin/performances/:id), so a show
+  // row gets create AND cancel, not create only.
+  assert.ok(
+    admin.includes('doResPerfStatus(pf, r.id, "cancelled")'),
+    "resource-row panel cancel control missing",
+  );
+  // 同步渠道 stays show-only (a different feature, untouched).
+  assert.ok(admin.includes("同步渠道"), "同步渠道 button missing");
+  assert.ok(
+    admin.includes('{r.category === "show" ? ('),
+    "同步渠道 lost its show-only gate",
+  );
+});
+
+test("show-perf-ui: create direct performance on a show-category resource -> 200, on_sale, default tier", async () => {
+  const c = await createDirectPerf(adminToken, showResId, {
+    start_at: "2026-12-07T19:30:00", price_cents: 28000,
+  });
+  assert.equal(c.status, 200, JSON.stringify(c.data));
+  assert.equal(c.data.performance.status, "on_sale");
+  assert.equal(c.data.performance.show_id, null);
+  assert.equal(c.data.performance.resource_id, showResId);
+  assert.equal(c.data.performance.start_at, "2026-12-07T19:30:00");
+  assert.equal(c.data.performance.price_cents, 28000);
+  assert.equal(c.data.ticket_type.name, "标准票");
+  assert.equal(c.data.ticket_type.price_cents, 28000);
+  assert.equal(c.data.ticket_type.quota, 10);
+  const a = await availability(showResId);
+  assert.equal(a.status, 200, JSON.stringify(a.data));
+  assert.ok(
+    a.data.performances.some((x) => x.id === c.data.performance.id && x.status === "on_sale"),
+    "new direct perf missing from availability",
+  );
+  // Cancel it the way the panel does (PATCH .../cancelled): it leaves
+  // the on-sale list, and a cancelled performance never goes back.
+  const cx = await req(`/api/admin/performances/${c.data.performance.id}`, {
+    method: "PATCH", token: adminToken, body: { status: "cancelled" },
+  });
+  assert.equal(cx.status, 200, JSON.stringify(cx.data));
+  assert.equal(cx.data.performance.status, "cancelled");
+  const a2 = await availability(showResId);
+  assert.equal(a2.status, 200, JSON.stringify(a2.data));
+  assert.equal(
+    a2.data.performances.some((x) => x.id === c.data.performance.id),
+    false,
+  );
+  assert.equal(
+    (await req(`/api/admin/performances/${c.data.performance.id}`, {
+      method: "PATCH", token: adminToken, body: { status: "on_sale" },
+    })).status,
+    400,
+  );
 });

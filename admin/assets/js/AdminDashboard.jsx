@@ -359,7 +359,7 @@ export default function AdminDashboard() {
   const [perfShowId, setPerfShowId] = useState(null);
   const [perfForm, setPerfForm] = useState(null);
   const [perfBusyId, setPerfBusyId] = useState(null);
-  // Showtimes-final: direct performances of a non-show resource —
+  // Showtimes-final: direct performances of a resource (any category, show included) —
   // the resource whose manager is open (resPerfResId) + its
   // performances loaded on demand (resPerfsByRes, from availability,
   // tiers included) + the open create draft (null = closed). Status
@@ -3210,9 +3210,7 @@ export default function AdminDashboard() {
                               {r.category === "show" ? (
                                 <button type="button" className="btn-view" disabled={resBusyId !== null} onClick={() => doSyncRes(r)}>{resBusyId === r.id ? "处理中…" : "同步渠道"}</button>
                               ) : null}
-                              {r.category !== "show" ? (
-                                <button type="button" className="btn-view" onClick={() => toggleResPerfManager(r)}>{resPerfResId === r.id ? "收起场次" : "场次管理"}</button>
-                              ) : null}
+                              <button type="button" className="btn-view" onClick={() => toggleResPerfManager(r)}>{resPerfResId === r.id ? "收起场次" : "场次管理"}</button>
                             </span>
                           </td>
                         </tr>
@@ -3228,7 +3226,7 @@ export default function AdminDashboard() {
                           </tr>
                         ) : null}
                         {/* Showtimes-final: direct performances of a
-                            non-show resource (same manager shape as the
+                            resource (same manager shape as the
                             shows view; the tier sub-table is shared). */}
                         {resPerfResId === r.id ? (
                           <tr>
