@@ -3092,11 +3092,13 @@ export default function AdminDashboard() {
                       <div className="bd-row-top">
                         <span className="bd-label">{STATUS[k]}</span>
                         <span className="bd-num">{n}</span>
-                        {isProblem && n > 0 ? (
-                          <button type="button" className="btn-view bd-action" onClick={() => { setFilter(k); changeView("orders"); }}>查看订单</button>
-                        ) : null}
                       </div>
                       <div className="bd-track"><span className={"bd-fill " + k} style={{ width: pct + "%" }}></span></div>
+                      {isProblem && n > 0 ? (
+                        <div className="bd-row-action">
+                          <button type="button" className="btn-view bd-action" onClick={() => { setFilter(k); changeView("orders"); }}>查看订单</button>
+                        </div>
+                      ) : null}
                     </div>
                   );
                 })}
@@ -3115,7 +3117,7 @@ export default function AdminDashboard() {
                   resultCount={q ? overviewMatches.length : null}
                   countText={q ? (overviewMatches.length > 8 ? `找到 ${overviewMatches.length} 条（显示前 8 条）` : `找到 ${overviewMatches.length} 条`) : undefined} />
               </div>
-              <div className="tbl-wrap">
+              <div className="tbl-wrap ov-recent">
                 <table className="orders-table">
                   <thead><tr><th scope="col" className="col-code" aria-sort={ariaSort("overview", "code")}>订单号<SortButton label="订单号" sortKey="code" tableId="overview" sort={sorts.overview} onToggle={toggleSort} /></th><th scope="col">用户</th><th scope="col">资源</th><th scope="col" className="num col-amount" aria-sort={ariaSort("overview", "amount")}>金额<SortButton label="金额" sortKey="amount" tableId="overview" sort={sorts.overview} onToggle={toggleSort} /></th><th scope="col" className="col-date" aria-sort={ariaSort("overview", "booking_date")}>预订日期<SortButton label="预订日期" sortKey="booking_date" tableId="overview" sort={sorts.overview} onToggle={toggleSort} /></th><th scope="col" className="col-status">状态</th><th scope="col" className="col-escrow">托管</th><th scope="col" className="col-contract">协议</th><th scope="col" className="col-actions-md">售后</th></tr></thead>
                   <tbody id="recentBody">

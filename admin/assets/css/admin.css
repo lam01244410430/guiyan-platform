@@ -308,6 +308,11 @@ table{width:100%;border-collapse:collapse;font-size:13px;min-width:640px}
    classes also size the nested tables (shows performances/tiers/pickups,
    venue seat templates). */
 .tbl-wrap > table.orders-table{min-width:1000px}
+/* Dashboard fix1 Q5 (2026-11-16): ONLY the 最近订单 table on the
+   overview centres its columns — the wrap carries .ov-recent, so the
+   orders view table (same orders-table class) and the other admin
+   tables stay left-aligned. Specificity (0,2,2) beats td.num/th.num. */
+.tbl-wrap.ov-recent table th,.tbl-wrap.ov-recent table td{text-align:center}
 .tbl-wrap table th.col-status{width:120px}
 .tbl-wrap table th.col-escrow{width:96px}
 .tbl-wrap table th.col-contract{width:140px}
@@ -419,10 +424,11 @@ th .sort-btn:focus-visible{outline:2px solid var(--p-action);outline-offset:1px}
 .sec>.tbl-wrap{border:0;border-radius:0;background:transparent}
 
 /* order status breakdown (dashboard redesign): ranked rows — label +
-   count + action on the row, share bar 3px along the row's bottom edge. */
+   count on the row, share bar 3px below, problem-row action on its own
+   right-aligned row under the bar (dashboard fix1, 2026-11-16). */
 .bd-row{display:block;padding:8px 4px 7px}
 .bd-row-top{display:flex;align-items:center;gap:12px}
-.bd-label{font-size:13.5px;font-weight:600;color:var(--p-muted);flex:none;width:64px}
+.bd-label{font-size:13.5px;font-weight:600;color:var(--p-muted);flex:none;width:72px;white-space:nowrap}
 .bd-track{height:3px;border-radius:99px;background:var(--line);overflow:hidden;margin-top:7px}
 .bd-fill{display:block;height:100%;border-radius:99px;min-width:2px}
 /* Breakdown bars use the same dark colour as the matching pill text
@@ -436,6 +442,7 @@ th .sort-btn:focus-visible{outline:2px solid var(--p-action);outline-offset:1px}
 .bd-fill.cancelled,.bd-fill.refunded{background:var(--gray-500)}
 .bd-num{text-align:right;font-variant-numeric:tabular-nums;font-weight:700;font-size:13.5px;margin-left:auto}
 .bd-action{margin-left:4px}
+.bd-row-action{display:flex;justify-content:flex-end;margin-top:8px}
 .bd-total{margin-top:10px;font-size:13.5px;color:var(--p-muted)}
 
 /* Overview dashboard (2026-11-16): header + 4 KPI cards + charts row
