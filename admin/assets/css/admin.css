@@ -321,6 +321,13 @@ table{width:100%;border-collapse:collapse;font-size:13px;min-width:640px}
    orders view table (same orders-table class) and the other admin
    tables stay left-aligned. Specificity (0,2,2) beats td.num/th.num. */
 .tbl-wrap.ov-recent table th,.tbl-wrap.ov-recent table td{text-align:center}
+/* Users-table round (2026-11-17, Lam 2026-11-16 23:53 Q3(a)): every admin
+   table header (th) is centred; data cells stay as they were (left, or
+   right for td.num) per the 16:45 decision. Specificity (0,1,2) beats the
+   th.num right-align rule (0,1,1) below, so numeric headers centre too;
+   td.num is untouched. The 最近订单 table stays fully centred via
+   .ov-recent above. */
+.tbl-wrap table th{text-align:center}
 .tbl-wrap table th.col-status{width:120px}
 .tbl-wrap table th.col-escrow{width:96px}
 .tbl-wrap table th.col-contract{width:140px}
@@ -339,7 +346,15 @@ table{width:100%;border-collapse:collapse;font-size:13px;min-width:640px}
 .tbl-wrap table th.col-city{width:64px}
 .tbl-wrap table th.col-state{width:72px}
 .tbl-wrap table th.col-person{width:96px}
-.tbl-wrap table th.col-account{width:148px}
+.tbl-wrap table th.col-account{width:104px}
+/* Users-table round Q2(a): the users table's 操作 column fits its widest
+   row (root viewing a non-admin user: 编辑 54 + 授予管理 78 + 启用 54 +
+   2x8 gap = 202px content + 28px cell padding = 230px; +2px margin).
+   The plan's ~90px assumed one button, but the role buttons stay, and
+   .row-actions is nowrap flex — 90px would overflow. Scoped to the users
+   table only: the shared .col-actions-wide (250px) still serves the
+   other tables that use it (resources, shops, venues, comments...). */
+.tbl-wrap > table.users-table th.col-actions-wide{width:232px}
 .tbl-wrap table th.col-name{width:136px}
 .tbl-wrap table th.col-result{width:136px}
 .tbl-wrap table th.col-hdr-lg{width:128px}

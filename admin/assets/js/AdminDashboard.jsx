@@ -3198,7 +3198,7 @@ export default function AdminDashboard() {
               ) : null}
             </div>
             <div className="tbl-wrap">
-              <table>
+              <table className="users-table">
                 <thead><tr><th scope="col" className="col-id" aria-sort={ariaSort("users", "id")}>ID<SortButton label="ID" sortKey="id" tableId="users" sort={sorts.users} onToggle={toggleSort} /></th><th scope="col" aria-sort={ariaSort("users", "name")}>姓名<SortButton label="姓名" sortKey="name" tableId="users" sort={sorts.users} onToggle={toggleSort} /></th><th scope="col" className="col-account" aria-sort={ariaSort("users", "username")}>账号<SortButton label="账号" sortKey="username" tableId="users" sort={sorts.users} onToggle={toggleSort} /></th><th scope="col">角色</th><th scope="col" className="col-city">城市</th><th scope="col" className="col-shop">渠道</th><th scope="col">认证</th><th scope="col">标签</th><th scope="col" className="col-state">状态</th><th scope="col" className="col-actions-wide">操作</th></tr></thead>
                 <tbody id="usersBody">
                   {users.length
@@ -3214,7 +3214,6 @@ export default function AdminDashboard() {
                               {usr.role !== "admin" ? (
                                 <>
                                   <button type="button" className="btn-view" disabled={userCrudBusyId !== null} onClick={() => openUserEditForm(usr)}>编辑</button>
-                                  <button type="button" className="btn-view" disabled={userCrudBusyId !== null} onClick={() => setUserDeleteTarget(usr)}>删除</button>
                                 </>
                               ) : null}
                               {isRoot ? (
@@ -5213,6 +5212,11 @@ export default function AdminDashboard() {
             <div className="contract-actions">
               <button type="button" className="btn-approve" disabled={userCrudBusyId !== null} onClick={saveUserEdit}>{userCrudBusyId !== null ? "保存中…" : "保存"}</button>
               <button type="button" className="btn-reject" onClick={() => setUserEditForm(null)}>取消</button>
+              {/* Users-table round Q2(a): 删除 moved here from the row —
+                  opens the existing delete confirmation for this user.
+                  The edit form stays open underneath (the confirm paints
+                  on top); cancelling returns to it with edits intact. */}
+              <button type="button" className="btn-reject" disabled={userCrudBusyId !== null} onClick={() => { const t = users.find((u) => u.id === userEditForm.id); if (t) setUserDeleteTarget(t); }}>删除</button>
             </div>
           </div>
         </div>
