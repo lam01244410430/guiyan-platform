@@ -102,6 +102,25 @@ test("r9-brand: the 13 brand keys exist in zh/vi/en, H5 totals 484", () => {
   assert.equal(I18N.zh.brandHeroSub, "一站式文化消费入口 · 产业服务枢纽");
 });
 
+test("r9-brand: hero 资源目录 ghost button is white on the dark hero", () => {
+  const css = read("web/assets/css/main.css");
+  // Scoped to the brand hero only — the shared .btn.ghost rule keeps its
+  // dark text for the light customer pages (UserDashboard / App.jsx).
+  assert.ok(
+    css.includes(".brand-hero .btn.ghost{color:#ffffff;border-color:rgba(255,255,255,.55)}"),
+    "brand hero ghost button is white with a light border",
+  );
+  assert.ok(
+    css.includes(".brand-hero .btn.ghost:hover{background:rgba(255,255,255,.14);color:#ffffff}"),
+    "brand hero ghost button stays white on hover",
+  );
+  assert.ok(css.includes(".btn.ghost{border-color:var(--line2)}"), "shared .btn.ghost rule unchanged (no color)");
+  const brand = read("web/assets/js/Brand.jsx");
+  assert.ok(brand.includes('className="btn ghost"'), "hero still uses the ghost button");
+  assert.ok(brand.includes('{t("navCatalog")}'), "hero button still renders navCatalog");
+  assert.equal(I18N.zh.navCatalog, "资源目录", "i18n value unchanged — only the colour changed");
+});
+
 test("r9-brand: only the client's existing channels are listed", () => {
   const src = read("web/assets/js/Brand.jsx");
   for (const c of ["大麦", "微信支付", "北京银行"]) assert.ok(src.includes(`"${c}"`), `channel listed: ${c}`);

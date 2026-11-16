@@ -618,6 +618,13 @@ html.large-text input,html.large-text select,html.large-text textarea{font-size:
    (deep pine #0b3d36, cinnabar, gold, paper) — never the admin palette. */
 .brand-hero .hero-in{padding-bottom:72px}
 .brand-cta{margin-top:28px;display:flex;gap:12px;flex-wrap:wrap}
+/* Brand hero 资源目录 button (2026-11-16): the ghost button sits on the
+   dark hero image + shade, but the shared .btn keeps --ink (#1c1710) text,
+   so it was invisible (contrast 1.07:1). Scoped to .brand-hero only —
+   the shared .btn.ghost rule stays untouched, so ghost buttons on the
+   light customer pages keep their dark text. */
+.brand-hero .btn.ghost{color:#ffffff;border-color:rgba(255,255,255,.55)}
+.brand-hero .btn.ghost:hover{background:rgba(255,255,255,.14);color:#ffffff}
 .brand-sec{padding:64px 0 8px}
 .brand-sec:last-of-type{padding-bottom:72px}
 .brand-about{max-width:860px;font-size:17px;line-height:1.9;color:var(--ink2);margin:0}
