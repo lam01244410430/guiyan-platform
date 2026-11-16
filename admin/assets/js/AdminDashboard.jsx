@@ -4014,7 +4014,7 @@ export default function AdminDashboard() {
               </fieldset>
             ) : null}
             <div className="tbl-wrap">
-              <table>
+              <table className="tiers-table">
                 <thead><tr><th scope="col" className="col-name">等级</th><th scope="col" className="col-shop">店铺</th><th scope="col" className="num col-num-md">消费门槛（分）</th><th scope="col" className="num col-num">折扣</th><th scope="col" className="col-wide">权益</th><th scope="col" className="col-actions-md">操作</th></tr></thead>
                 <tbody id="tiersBody">
                   {memberTiers.length

@@ -389,6 +389,17 @@ table{width:100%;border-collapse:collapse;font-size:13px;min-width:640px}
 .tbl-wrap > table.users-table th.col-role{width:96px}
 .tbl-wrap > table.users-table th.col-verify{width:72px}
 .tbl-wrap > table.users-table th.col-tags{width:160px}
+/* Tiers shop-col round (2026-11-17, Lam-approved plan): the 会员等级 shop
+   cell showed "桂演平…" on live — truncated in all 4 rows. The shared
+   .col-shop (88px) serves ~10 tables and must NOT be widened; this rule
+   is scoped to the tiers table only. Width is CDP-measured, not guessed:
+   6 CJK chars at 13px ≈ 78px text + 28px cell padding (14px each side)
+   = 106px minimum; 112px keeps 6px slack. Legibility was verified by
+   asserting textContent === "桂演平台总店" AND scrollWidth <= clientWidth
+   on the text cell itself (the previous round's sw==cw column-width check
+   cannot tell ellipsis truncation from a fit — that is how this defect
+   shipped). Ellipsis + title stay as fallback for longer shop names. */
+.tbl-wrap > table.tiers-table th.col-shop{width:112px}
 .tbl-wrap table th.col-name{width:136px}
 .tbl-wrap table th.col-result{width:136px}
 .tbl-wrap table th.col-hdr-lg{width:128px}
