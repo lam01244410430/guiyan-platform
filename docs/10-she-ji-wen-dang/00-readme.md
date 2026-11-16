@@ -22,7 +22,7 @@ n+3. 技术风险与成本告知
 
 | 文件 | 框架位置 | 内容 | 来源 | 状态 |
 |---|---|---|---|---|
-| `01-xiang-mu-gai-shu.md` | 1. 项目概述 | 1.1 背景与建设目标（原文）；其余小节待补充 | Lam 发来的 1.1 原文 | 已写 1.1 |
+| `01-xiang-mu-gai-shu.md` | 1. 项目概述 | 1.1 背景与建设目标（原文）；1.2 建设内容、1.3 用户与角色（按 repo 现状写，main `161a8c4`，2026-11-16） | Lam 发来的 1.1 原文 + repo 现状 | 已写 1.1–1.3 |
 | `02-xi-tong-zong-ti-jia-gou.md` | 2. 系统总体架构 | 当前已建架构（React + Node + Postgres + Redis）+ 三阶段演进 | repo 现状（已验证） | 已写 |
 | `03-xiang-mu-jie-duan.md` | 项目阶段 | 三阶段部署（原文）+ 本项目顺序路线图现状 | `upload.docx` §1.4；`myown/bao-gia-loi-di.md` | 已写 |
 | `04-an-quan-yu-wen-ding-xing.md` | n. 安全与稳定性 | 现状 + 缺口（正式安全专章待小组补充） | repo 现状（已验证） | 已写现状 |
@@ -30,7 +30,7 @@ n+3. 技术风险与成本告知
 | `06-ce-shi-yu-bu-shu.md` | n+2. 系统测试与部署 | **原文转录** + 现状对照 | `upload.docx` 第 1 章 | 已写 |
 | `07-ji-shu-feng-xian-yu-cheng-ben-gao-zhi.md` | n+3. 技术风险与成本告知 | **原文转录** + 现状对照 | `upload.docx` 第 2 章 | 已写 |
 
-待补充的章节（功能设计 / 数据库设计 / 接口设计）等小组发来内容后再写，
+功能设计 / 数据库设计 / 接口设计等章节等小组发来内容后再写，
 届时插入为新文件并更新本表。现有可对照的资料：数据库见 `02-ky-thuat/database.md`（14 张表，2026-11-13 刷新），
 API 见 `02-ky-thuat/api.md`，功能对照 29 个模块见 `~/workspace/_work/bao-gia-assessment.md`
 （对照 main `30c6737` 时的结果：1 已完成 / 20 部分完成 / 8 未做；Waves 3–5、rebuild、P3 之后覆盖已变，未重新逐项核对；以代码为准）。
