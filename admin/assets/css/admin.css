@@ -457,7 +457,7 @@ th .sort-btn:focus-visible{outline:2px solid var(--p-action);outline-offset:1px}
 .contract-sheet h3{font-family:var(--font-display);font-size:20px;font-weight:var(--display-weight);margin:0 0 14px}
 .contract-text{white-space:pre-wrap;word-break:break-word;font:inherit;font-size:13.5px;line-height:1.8;margin:0 0 16px}
 .contract-actions{display:flex;gap:var(--btn-gap);flex-wrap:wrap}
-.cache-note{font-size:12px;color:var(--p-muted);margin:0 0 14px}
+.cache-note{font-size:12px;color:var(--p-muted);margin:0 0 14px;display:flex;align-items:center;gap:12px;flex-wrap:wrap}
 .def-note{font-size:12px;color:var(--p-muted);margin:10px 0 0}
 .stat small{display:block;font-size:12px;color:var(--p-muted);margin-top:6px;line-height:1.5;font-weight:400}
 .series-sum{font-size:13.5px;margin:0 0 8px}
@@ -523,6 +523,17 @@ tr.top1 td{background:var(--p-surface)}
 /* ================= SearchBox (redesign 2026-11-11) ================= */
 .search-row{margin-bottom:14px;display:flex;gap:var(--btn-gap);align-items:flex-end;flex-wrap:wrap}
 .search-row .search-box{flex:0 1 340px;min-width:0}
+
+/* Admin-overview round, item 5 (2026-11-16): Lam's toolbar rule.
+   (1) A button that belongs to an input sits immediately right of it
+   (.form-row — the button's own margin-left:auto is cancelled there).
+   (2) A standalone button (add / create / export / save) goes to the
+   far right edge (.row-end). .report-head does the same for the report
+   download; .cache-note is flex so its refresh button rides right. */
+.row-end{display:flex;justify-content:flex-end;gap:12px}
+.form-row{display:flex;gap:12px;align-items:flex-end;flex-wrap:wrap}
+.form-row .btn-export{margin-left:0}
+.report-head{display:flex;align-items:center;gap:12px}
 .search-box{max-width:340px}
 .search-box label{display:block;font-size:13.5px;font-weight:700;color:var(--p-muted);margin:0 0 6px}
 .search-input{position:relative;display:flex;align-items:center}

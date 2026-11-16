@@ -3254,7 +3254,7 @@ export default function AdminDashboard() {
               </table>
             </div>
             <div className="tbl-total">共 {templates.length} 个模板</div>
-            <div style={{ marginTop: 8 }}><button type="button" className="btn-export" onClick={() => openTemplateForm(null)}>添加票面模板</button></div>
+            <div className="row-end" style={{ marginTop: 8 }}><button type="button" className="btn-export" onClick={() => openTemplateForm(null)}>添加票面模板</button></div>
             <div className="tbl-wrap">
               <table>
                 <thead><tr><th scope="col" aria-sort={ariaSort("shops", "name")}>名称<SortButton label="名称" sortKey="name" tableId="shops" sort={sorts.shops} onToggle={toggleSort} /></th><th scope="col">上级</th><th scope="col" className="col-person">店主</th><th scope="col" className="num col-num" aria-sort={ariaSort("shops", "resource_count")}>资源数<SortButton label="资源数" sortKey="resource_count" tableId="shops" sort={sorts.shops} onToggle={toggleSort} /></th><th scope="col" className="col-state">状态</th><th scope="col" className="col-actions-wide">操作</th></tr></thead>
@@ -3402,7 +3402,7 @@ export default function AdminDashboard() {
                                                 <button type="button" className="btn-view" onClick={() => setTierForm(null)}>取消</button>
                                               </div>
                                             ) : (
-                                              <div style={{ marginTop: 12 }}><button type="button" className="btn-view" onClick={() => openTierForm(pf, null)}>添加票种</button></div>
+                                              <div className="row-end" style={{ marginTop: 12 }}><button type="button" className="btn-view" onClick={() => openTierForm(pf, null)}>添加票种</button></div>
                                             )}
                                           </td>
                                         </tr>
@@ -3419,7 +3419,7 @@ export default function AdminDashboard() {
                                   <button type="button" className="btn-export" disabled={perfBusyId !== null} onClick={savePerfForm}>{perfBusyId !== null ? "保存中…" : "创建场次"}</button>
                                 </div>
                               ) : s.status === "approved" ? (
-                                <div style={{ marginTop: 12 }}><button type="button" className="btn-view" onClick={() => setPerfForm({ showId: s.id, start_at: "", price: "" })}>添加场次</button></div>
+                                <div className="row-end" style={{ marginTop: 12 }}><button type="button" className="btn-view" onClick={() => setPerfForm({ showId: s.id, start_at: "", price: "" })}>添加场次</button></div>
                               ) : (
                                 <div className="note" style={{ marginTop: 12 }}>演出未通过审核，不可创建场次。</div>
                               )}
@@ -3454,7 +3454,7 @@ export default function AdminDashboard() {
                                   <button type="button" className="btn-view" onClick={() => setPickupForm(null)}>取消</button>
                                 </div>
                               ) : (
-                                <div style={{ marginTop: 12 }}><button type="button" className="btn-view" onClick={() => openPickupForm(s)}>添加取票点</button></div>
+                                <div className="row-end" style={{ marginTop: 12 }}><button type="button" className="btn-view" onClick={() => openPickupForm(s)}>添加取票点</button></div>
                               )}
                               <div className="note" style={{ marginTop: 8 }}>已有订单使用取票点不可删除；配置取票点后，顾客下单该演出须选择取票点。</div>
                             </td>
@@ -3568,7 +3568,7 @@ export default function AdminDashboard() {
                                   </div>
                                 </fieldset>
                               ) : (
-                                <button type="button" className="btn-export" onClick={() => openTplForm(v, null)}>添加座位模板</button>
+                                <div className="row-end"><button type="button" className="btn-export" onClick={() => openTplForm(v, null)}>添加座位模板</button></div>
                               )}
                             </td>
                           </tr>
@@ -4021,15 +4021,15 @@ export default function AdminDashboard() {
                   {shops.map((s) => (<option key={s.id} value={String(s.id)}>{s.name}</option>))}
                 </select></label>
               ) : null}
-              <div>
+              <div className="row-end">
                 <button type="button" className="btn-export" disabled={grantBusy} onClick={doGrantStoredValue}>{grantBusy ? "发放中…" : "发放补贴"}</button>
               </div>
             </fieldset>
             <fieldset className="tag-rule">
               <legend>按用户查储值账户</legend>
-              <label>用户编号 <input type="number" min={1} value={lookupUserId} onChange={(e) => setLookupUserId(e.target.value)} /></label>
-              <div>
-                <button type="button" className="btn-export" onClick={doLookupStoredValue}>查询</button>{" "}
+              <div className="form-row">
+                <label>用户编号 <input type="number" min={1} value={lookupUserId} onChange={(e) => setLookupUserId(e.target.value)} /></label>
+                <button type="button" className="btn-export" onClick={doLookupStoredValue}>查询</button>
                 {lookupResult && lookupResult.account ? (
                   <button type="button" className="btn-view" onClick={() => apiDownloadCsv("/api/admin/stored-value/" + lookupResult.user.id + "?format=csv", "guiyan-stored-value.csv")}>导出流水 CSV</button>
                 ) : null}
@@ -4071,8 +4071,8 @@ export default function AdminDashboard() {
             <div className="note">扫票核销：输入票码（GY + 8 位字母数字，不区分大小写）后核销。核销只查票状态，不校验演出日期。每次核销尝试都会记入核销记录。</div>
             <fieldset className="tag-rule">
               <legend>核销一张票</legend>
-              <label>票码 <input type="text" value={verifyCode} maxLength={10} placeholder="例如 GY7K2Q9X4M" onChange={(e) => setVerifyCode(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") doVerify(); }} /></label>
-              <div>
+              <div className="form-row">
+                <label>票码 <input type="text" value={verifyCode} maxLength={10} placeholder="例如 GY7K2Q9X4M" onChange={(e) => setVerifyCode(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") doVerify(); }} /></label>
                 <button type="button" className="btn-export" disabled={verifyBusy} onClick={doVerify}>{verifyBusy ? "核销中…" : "核销"}</button>
               </div>
             </fieldset>
@@ -4087,7 +4087,7 @@ export default function AdminDashboard() {
               <legend>批量核销</legend>
               <div className="note">一次粘贴多个票码（每行一个，最多 50 个），一次调用全部核销；单个坏码不影响其余。语音播报与震动仅限本页（Web Speech API + navigator.vibrate），小程序无语音播报。</div>
               <label>票码 <textarea className="copy-prompt" aria-label="批量票码" placeholder={"每行一个票码，例如\nGY7K2Q9X4M\nGY00000000"} value={batchCodes} onChange={(e) => setBatchCodes(e.target.value)} /></label>
-              <div>
+              <div className="row-end">
                 <button type="button" className="btn-export" disabled={batchBusy} onClick={() => doBatchVerify()}>{batchBusy ? "核销中…" : "批量核销"}</button>
               </div>
               {batchResults.length ? (
@@ -4113,7 +4113,7 @@ export default function AdminDashboard() {
               {verifyQueue.length ? (
                 <>
                   <div className="note">{verifyQueue.join("、")}</div>
-                  <div>
+                  <div className="row-end">
                     <button type="button" className="btn-export" disabled={batchBusy} onClick={syncVerifyQueue}>{batchBusy ? "同步中…" : "同步"}</button>
                     <button type="button" className="btn-export" onClick={() => saveVerifyQueue([])}>清空队列</button>
                   </div>
@@ -4128,8 +4128,8 @@ export default function AdminDashboard() {
             <fieldset className="tag-rule">
               <legend>打印纸质票</legend>
               <div className="note">只记录打印事件；纸张由浏览器打印票面出票，不接实体打印机。已核销 / 已作废 / 退款审核中的票不能打印；已打印过的票可重打（卡纸重打）。</div>
-              <label>订单号 <input type="text" value={printOrderId} placeholder="例如 123" onChange={(e) => setPrintOrderId(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") doPrintOrder(); }} /></label>
-              <div>
+              <div className="form-row">
+                <label>订单号 <input type="text" value={printOrderId} placeholder="例如 123" onChange={(e) => setPrintOrderId(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") doPrintOrder(); }} /></label>
                 <button type="button" className="btn-export" disabled={printBusy} onClick={() => doPrintOrder()}>{printBusy ? "打印中…" : "打印该单"}</button>
               </div>
             </fieldset>
@@ -4560,7 +4560,7 @@ export default function AdminDashboard() {
                   ))}
                 </div>
                 <div className="sec">
-                  <h2>完整报告 <button type="button" className="btn-export" onClick={downloadReport}>下载报告</button></h2>
+                  <h2 className="report-head">完整报告 <button type="button" className="btn-export" onClick={downloadReport}>下载报告</button></h2>
                   <div className="report"><pre>{reportBody}</pre></div>
                 </div>
                 <p className="def-note">{analysis.definitions.revenue}；{analysis.definitions.orders}；{analysis.definitions.series}；{analysis.definitions.users}。</p>
@@ -4628,7 +4628,7 @@ export default function AdminDashboard() {
                 </>) : (
                   <label>库存阈值 <input type="number" min={0} max={100000} value={ruleForm.stock_lt} onChange={(e) => setRuleForm(function (f) { return { ...f, stock_lt: e.target.value }; })} /></label>
                 )}
-                <div>
+                <div className="row-end">
                   <button type="button" className="btn-export" disabled={ruleBusy} onClick={doCreateRule}>{ruleBusy ? "保存中…" : "新增规则"}</button>
                 </div>
               </fieldset>
