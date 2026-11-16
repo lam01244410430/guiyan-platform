@@ -35,7 +35,7 @@
   --text-xs:12px; --text-sm:13.5px; --text-base:15px; --text-lg:18px; --text-xl:22px; --text-2xl:28px; --text-3xl:34px;
   --leading-body:1.6; --leading-tight:1.15;
   --space-1:4px; --space-2:8px; --space-3:12px; --space-4:14px; --space-5:16px; --space-6:18px; --space-7:20px; --space-8:24px; --space-9:28px; --space-10:34px; --space-11:36px;
-  --radius-sm:9px; --radius-md:14px; --radius-lg:20px; --radius-chip:99px;
+  --radius-sm:9px; --radius-md:14px; --radius-lg:20px; --radius-chip:99px; --input-r:4px;
   --btn-gap-sm:8px; --btn-gap:12px;
   --shadow-hover:0 2px 16px rgba(35,35,35,0.06);
   --shadow-menu:0 8px 24px rgba(35,35,35,0.12);
@@ -48,11 +48,12 @@ a{color:var(--p-ink)}
 button{font:inherit;cursor:pointer}
 /* Design polish (Step 1): one shared control system for every text /
    number / date / select / textarea control in the admin console —
-   44px base, one focus ring, custom select chevron, hidden number
-   spinners, styled date indicator. The login card keeps its own look
-   (its more-specific rule below wins, plus height:auto). Checkboxes
-   keep a native 16px box with the action accent. */
-input,select,textarea{font:inherit;font-size:13.5px;color:var(--p-ink);background:var(--p-bg);border:1px solid var(--line2);border-radius:9px;outline:none}
+   44px base, 4px input radius (2026-11-16), one focus ring, custom
+   select chevron, hidden number spinners, styled date indicator. The
+   login card keeps its own look (its more-specific rule below wins,
+   plus height:auto). Checkboxes keep a native 16px box with the
+   action accent. */
+input,select,textarea{font:inherit;font-size:13.5px;color:var(--p-ink);background:var(--p-bg);border:1px solid var(--line2);border-radius:var(--input-r);outline:none}
 input,select{height:44px;padding:0 12px}
 textarea{height:auto;min-height:88px;padding:10px 12px;resize:vertical}
 input:focus,select:focus,textarea:focus{border-color:var(--p-action);box-shadow:0 0 0 3px rgba(35,35,35,0.12)}
@@ -78,7 +79,7 @@ select.field-sm{padding-right:28px}
 .login-card h1{font-family:var(--font-display);font-size:22px;font-weight:var(--display-weight);margin:10px 0 2px}
 .login-card .sub{color:var(--p-muted);font-size:13.5px;margin:0 0 24px}
 .login-card label{display:block;font-size:13.5px;font-weight:700;color:var(--p-muted);margin:0 0 6px}
-.login-card input{width:100%;border:1px solid var(--line2);border-radius:9px;padding:12px 14px;font-size:15px;background:var(--p-bg);color:var(--p-ink);margin-bottom:14px;outline:none;height:auto}
+.login-card input{width:100%;border:1px solid var(--line2);border-radius:var(--input-r);padding:12px 14px;font-size:15px;background:var(--p-bg);color:var(--p-ink);margin-bottom:14px;outline:none;height:auto}
 .login-card .err{color:var(--signal-red);font-size:13.5px;min-height:20px;margin:0 0 6px}
 .login-btn{width:100%;border:0;border-radius:9px;background:var(--p-action);color:var(--p-action-ink);font-weight:700;font-size:15px;padding:13px 20px}
 .login-btn:hover{background:var(--action-hover)}

@@ -8,7 +8,7 @@
   --jade:#0d6e5f; --jade-soft:#dcefe9; --jade-solid:#0d6e5f;
   --night:#12100d; --night2:#1d1a15; --cream:#f5eedd; --cream2:#cbbfa5;
   --shadow:0 18px 44px rgba(60,40,10,.14);
-  --r-lg:20px; --r-md:14px; --r-sm:9px;
+  --r-lg:20px; --r-md:14px; --r-sm:9px; --input-r:4px;
   color-scheme:light;
 }
 /* Manual theme override: [data-theme] wins over the system setting.
@@ -45,6 +45,14 @@ body{margin:0;background:var(--bg);color:var(--ink);font-family:"Be Vietnam Pro"
 img{display:block;max-width:100%}
 button{font:inherit;cursor:pointer}
 input,select{font:inherit}
+/* One input radius (2026-11-16): every input/select/textarea is a
+   rectangle with only slightly rounded corners (4px). Buttons, cards
+   and chips keep their own radii. Number spinners are hidden globally
+   (same as admin) — keyboard entry still works. */
+input,select,textarea{border-radius:var(--input-r)}
+input[type="number"]{font-variant-numeric:tabular-nums}
+input[type="number"]::-webkit-outer-spin-button,input[type="number"]::-webkit-inner-spin-button{-webkit-appearance:none;margin:0}
+input[type="number"]{-moz-appearance:textfield;appearance:textfield}
 a{color:var(--red)}
 .zh{font-family:"Noto Serif SC",serif}
 .wrap{max-width:1240px;margin:0 auto;padding:0 20px}
@@ -62,7 +70,7 @@ a{color:var(--red)}
 .mainnav{display:flex;gap:4px;margin-left:auto;margin-right:auto}
 .mainnav a{color:var(--ink2);text-decoration:none;font-size:13.5px;font-weight:600;padding:8px 11px;border-radius:99px;white-space:nowrap}
 .mainnav a:hover{background:var(--surface2);color:var(--ink)}
-.langsel{position:relative;display:flex;align-items:center;flex:none;background:var(--surface);border:1px solid var(--line2);border-radius:99px;padding:0 10px 0 12px;height:38px;gap:7px;color:var(--ink2)}
+.langsel{position:relative;display:flex;align-items:center;flex:none;background:var(--surface);border:1px solid var(--line2);border-radius:var(--input-r);padding:0 10px 0 12px;height:38px;gap:7px;color:var(--ink2)}
 .langsel svg.globe{flex:none;color:var(--gold)}
 .langsel select{appearance:none;-webkit-appearance:none;border:0;background:transparent;color:var(--ink);font-size:13px;font-weight:700;line-height:1.2;padding:8px 18px 8px 0;outline:none;cursor:pointer;max-width:132px}
 .langsel::after{content:"";position:absolute;right:13px;top:50%;width:7px;height:7px;border-right:1.8px solid var(--ink2);border-bottom:1.8px solid var(--ink2);transform:translateY(-70%) rotate(45deg);pointer-events:none}
@@ -130,7 +138,7 @@ a{color:var(--red)}
 .hero h1 em{font-style:normal;color:#e0683f}
 .hero-sub{font-family:"Noto Serif SC",serif;font-size:clamp(21px,3.4vw,34px);font-weight:700;color:#fff;margin:6px 0 0}
 .hero-lead{max-width:620px;color:var(--cream2);font-size:16px;margin:14px 0 0}
-.hero-search{margin:30px 0 0;max-width:680px;display:flex;background:#fffdf8;border-radius:14px;padding:6px;gap:6px;box-shadow:0 24px 50px rgba(0,0,0,.45)}
+.hero-search{margin:30px 0 0;max-width:680px;display:flex;background:#fffdf8;border-radius:var(--input-r);padding:6px;gap:6px;box-shadow:0 24px 50px rgba(0,0,0,.45)}
 .hero-search input{flex:1;border:0;background:transparent;padding:10px 14px;font-size:15px;color:#1c1710;min-width:0;outline:none}
 .hero-search button{background:var(--shop-primary,var(--red));color:#fff;border:0;border-radius:9px;padding:10px 22px;font-weight:700;white-space:nowrap}
 .hero-search button:hover{background:var(--red-deep)}
@@ -179,8 +187,8 @@ section{padding:76px 0}
 .filters{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:10px}
 .chip{border:1px solid var(--line2);background:var(--surface);color:var(--ink2);border-radius:99px;padding:7px 15px;font-size:13px;font-weight:600}
 .chip.on{background:var(--ink);color:var(--bg);border-color:var(--ink)}
-.filters select{margin-left:auto;border:1px solid var(--line2);background:var(--surface);color:var(--ink);border-radius:99px;padding:8px 13px;font-size:13px;font-weight:600}
-.filters .q{flex:1;min-width:170px;border:1px solid var(--line2);background:var(--surface);color:var(--ink);border-radius:99px;padding:9px 16px;font-size:13.5px;outline:none}
+.filters select{margin-left:auto;border:1px solid var(--line2);background:var(--surface);color:var(--ink);border-radius:var(--input-r);padding:8px 13px;font-size:13px;font-weight:600}
+.filters .q{flex:1;min-width:170px;border:1px solid var(--line2);background:var(--surface);color:var(--ink);border-radius:var(--input-r);padding:9px 16px;font-size:13.5px;outline:none}
 /* Category chip row (2026-11-16): one row, horizontal scroll on narrow
    screens instead of wrapping. */
 #catFilters{flex-wrap:nowrap;overflow-x:auto}
@@ -272,7 +280,7 @@ section{padding:76px 0}
 .chat-quick button{background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.24);color:#fff;border-radius:99px;padding:7px 14px;font-size:12.5px;font-weight:600}
 .chat-quick button:hover{background:rgba(255,255,255,.18)}
 .chat-form{display:flex;gap:8px;margin-top:14px}
-.chat-form input{flex:1;background:#262219;border:1px solid rgba(245,238,221,.2);border-radius:12px;color:#fff;padding:11px 14px;outline:none;min-width:0}
+.chat-form input{flex:1;background:#262219;border:1px solid rgba(245,238,221,.2);border-radius:var(--input-r);color:#fff;padding:11px 14px;outline:none;min-width:0}
 .chat-form button{background:var(--gold);border:0;color:#191204;font-weight:800;border-radius:12px;padding:11px 18px}
 
 /* floating AI chat (AiChat.jsx) */
@@ -296,7 +304,7 @@ section{padding:76px 0}
 .ai-chips button{background:var(--surface);border:1px solid var(--line2);color:var(--ink);border-radius:99px;padding:7px 14px;font-size:12.5px;font-weight:600}
 .ai-chips button:hover{background:var(--surface2)}
 .ai-form{display:flex;gap:8px;padding:12px 14px;border-top:1px solid var(--line)}
-.ai-form input{flex:1;min-width:0;background:var(--surface);border:1px solid var(--line);border-radius:12px;color:var(--ink);padding:11px 14px;outline:none}
+.ai-form input{flex:1;min-width:0;background:var(--surface);border:1px solid var(--line);border-radius:var(--input-r);color:var(--ink);padding:11px 14px;outline:none}
 .ai-form input:focus{border-color:var(--red)}
 .ai-form button{background:var(--red-solid);border:0;color:#fff;font-weight:800;border-radius:12px;padding:11px 18px}
 .ai-form button:disabled{opacity:.55}
@@ -345,7 +353,7 @@ footer ul{list-style:none;margin:0;padding:0;display:grid;gap:6px}
 .sheet p.desc{color:var(--ink2);font-size:14.5px}
 .bookrow{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin:18px 0}
 .bookrow label{font-size:12.5px;font-weight:700;color:var(--ink2);display:grid;gap:6px}
-.bookrow input,.bookrow select{border:1px solid var(--line2);border-radius:10px;padding:11px 12px;background:var(--surface);color:var(--ink);width:100%}
+.bookrow input,.bookrow select{border:1px solid var(--line2);border-radius:var(--input-r);padding:11px 12px;background:var(--surface);color:var(--ink);width:100%}
 .totalrow{display:flex;align-items:center;gap:12px;background:var(--surface2);border-radius:12px;padding:14px 18px;margin-bottom:16px}
 .totalrow b{font-size:21px;color:var(--red)}
 .totalrow span{font-size:12.5px;color:var(--ink2)}
@@ -387,7 +395,7 @@ footer ul{list-style:none;margin:0;padding:0;display:grid;gap:6px}
 .auth-overlay.open{display:flex}
 .auth-card{background:var(--surface);color:var(--ink);width:100%;max-width:380px;border-radius:20px;padding:26px 26px 22px;display:grid;gap:12px}
 .auth-card h3{margin:0;font-size:19px;font-family:"Noto Serif SC",serif}
-.auth-card input,.auth-card select,.auth-card textarea{width:100%;box-sizing:border-box;border:1px solid var(--line2);border-radius:12px;padding:11px 13px;font-size:14px;background:var(--surface);color:var(--ink);font-family:inherit}
+.auth-card input,.auth-card select,.auth-card textarea{width:100%;box-sizing:border-box;border:1px solid var(--line2);border-radius:var(--input-r);padding:11px 13px;font-size:14px;background:var(--surface);color:var(--ink);font-family:inherit}
 .auth-card textarea{min-height:84px;resize:vertical}
 .auth-card .err{color:var(--red);font-size:13px;min-height:18px}
 .auth-card .row{display:flex;gap:10px;align-items:center}
@@ -469,14 +477,13 @@ th .sort-btn:focus-visible{outline:2px solid var(--red);outline-offset:1px}
    the admin system (44px base, one focus ring, custom select chevron,
    hidden number spinners) with the customer night-theatre tokens.
    Scoped to the account page only — home, booking, auth and chat
-   controls keep their own rules. */
-.db-profile .row input,.db-profile .row select,#ordersTable .db-actions input{font-size:13.5px;color:var(--ink);background:var(--surface);border:1px solid var(--line2);border-radius:var(--r-sm);outline:none}
+   controls keep their own rules. (Number spinners are hidden globally
+   since 2026-11-16 — see the global rule above — so the scoped
+   spinner rules were removed.) */
+.db-profile .row input,.db-profile .row select,#ordersTable .db-actions input{font-size:13.5px;color:var(--ink);background:var(--surface);border:1px solid var(--line2);border-radius:var(--input-r);outline:none}
 .db-profile .row input,.db-profile .row select{height:44px;padding:0 12px}
 .db-profile .row input:focus,.db-profile .row select:focus,#ordersTable .db-actions input:focus{border-color:var(--red);box-shadow:0 0 0 3px rgba(176,58,30,0.14)}
 .db-profile .row input:disabled,.db-profile .row select:disabled,#ordersTable .db-actions input:disabled{opacity:.6;cursor:default}
-.db-profile .row input[type="number"]{font-variant-numeric:tabular-nums}
-.db-profile .row input[type="number"]::-webkit-outer-spin-button,.db-profile .row input[type="number"]::-webkit-inner-spin-button{-webkit-appearance:none;margin:0}
-.db-profile .row input[type="number"]{-moz-appearance:textfield;appearance:textfield}
 .db-profile .row select{appearance:none;-webkit-appearance:none;background-image:url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%235d5344' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 12px center;background-size:12px;padding-right:32px}
 /* Small variant (36px): the refund row in the orders tab. */
 .field-sm{height:36px;padding:0 10px;font-size:13px}
@@ -548,7 +555,7 @@ html.large-text .db-profile .row input,html.large-text .db-profile .row select,h
 .equip-preview{margin-top:18px}
 .preview-controls{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
 .preview-controls strong{font-family:"Noto Serif SC",serif;font-size:16px;font-weight:900}
-.preview-controls input[type="color"]{width:38px;height:28px;padding:0;border:1px solid var(--line2);border-radius:6px;background:var(--surface);cursor:pointer}
+.preview-controls input[type="color"]{width:38px;height:28px;padding:0;border:1px solid var(--line2);border-radius:var(--input-r);background:var(--surface);cursor:pointer}
 .stage-view{margin-top:12px;overflow:hidden;border-radius:12px;background:var(--surface2)}
 .stage-platform{position:relative;height:150px;border-radius:12px;transition:transform .3s ease,background .3s ease}
 .stage-platform span{position:absolute;font-size:18px;color:#fff}

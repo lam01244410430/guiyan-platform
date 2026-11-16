@@ -25,7 +25,7 @@ const serverPkg = JSON.parse(
 
 test("account controls base: 44px, customer tokens, one focus ring", () => {
   assert.ok(
-    mainCss.includes(".db-profile .row input,.db-profile .row select,#ordersTable .db-actions input{font-size:13.5px;color:var(--ink);background:var(--surface);border:1px solid var(--line2);border-radius:var(--r-sm);outline:none}"),
+    mainCss.includes(".db-profile .row input,.db-profile .row select,#ordersTable .db-actions input{font-size:13.5px;color:var(--ink);background:var(--surface);border:1px solid var(--line2);border-radius:var(--input-r);outline:none}"),
     "account controls share one base with customer tokens",
   );
   assert.ok(mainCss.includes(".db-profile .row input,.db-profile .row select{height:44px;padding:0 12px}"), "account base height is 44px");
@@ -48,10 +48,10 @@ test("account controls select: custom chevron in the ink2 tone", () => {
   assert.ok(mainCss.includes("background-position:right 12px center;background-size:12px;padding-right:32px}"), "chevron sits 12px from the right with room for it");
 });
 
-test("account controls number: tabular numerals, native spinners hidden", () => {
-  assert.ok(mainCss.includes(".db-profile .row input[type=\"number\"]{font-variant-numeric:tabular-nums}"), "age input uses tabular figures");
-  assert.ok(mainCss.includes(".db-profile .row input[type=\"number\"]::-webkit-outer-spin-button"), "webkit spinners hidden on the account page");
-  assert.ok(mainCss.includes(".db-profile .row input[type=\"number\"]{-moz-appearance:textfield;appearance:textfield}"), "firefox spinner hidden on the account page");
+test("account controls number: tabular numerals, native spinners hidden globally", () => {
+  assert.ok(mainCss.includes("input[type=\"number\"]{font-variant-numeric:tabular-nums}"), "age input uses tabular figures");
+  assert.ok(mainCss.includes("input[type=\"number\"]::-webkit-outer-spin-button,input[type=\"number\"]::-webkit-inner-spin-button{-webkit-appearance:none;margin:0}"), "webkit spinners hidden globally (2026-11-16, was account-scoped)");
+  assert.ok(mainCss.includes("input[type=\"number\"]{-moz-appearance:textfield;appearance:textfield}"), "firefox spinner hidden globally");
 });
 
 test("account refund row: inline widths gone, sm size + CSS widths instead", () => {
@@ -82,11 +82,11 @@ test("account large-text: elderly large-text mode still wins", () => {
   );
 });
 
-test("account untouched: theme toggle, auth, booking, home search keep their rules", () => {
+test("account radius: auth, booking, home search share the 4px input radius (theme toggle untouched)", () => {
   assert.ok(mainCss.includes(".theme-seg{display:inline-flex;gap:4px;background:var(--surface2);border:1px solid var(--line);border-radius:99px;padding:4px}"), "theme toggle untouched");
-  assert.ok(mainCss.includes(".auth-card input,.auth-card select,.auth-card textarea{width:100%;box-sizing:border-box;border:1px solid var(--line2);border-radius:12px;padding:11px 13px;font-size:14px;background:var(--surface);color:var(--ink);font-family:inherit}"), "auth card untouched");
-  assert.ok(mainCss.includes(".bookrow input,.bookrow select{border:1px solid var(--line2);border-radius:10px;padding:11px 12px;background:var(--surface);color:var(--ink);width:100%}"), "booking form untouched");
-  assert.ok(mainCss.includes(".filters .q{flex:1;min-width:170px;border:1px solid var(--line2);background:var(--surface);color:var(--ink);border-radius:99px;padding:9px 16px;font-size:13.5px;outline:none}"), "home search pill untouched");
+  assert.ok(mainCss.includes(".auth-card input,.auth-card select,.auth-card textarea{width:100%;box-sizing:border-box;border:1px solid var(--line2);border-radius:var(--input-r);padding:11px 13px;font-size:14px;background:var(--surface);color:var(--ink);font-family:inherit}"), "auth card shares the 4px input radius");
+  assert.ok(mainCss.includes(".bookrow input,.bookrow select{border:1px solid var(--line2);border-radius:var(--input-r);padding:11px 12px;background:var(--surface);color:var(--ink);width:100%}"), "booking form shares the 4px input radius");
+  assert.ok(mainCss.includes(".filters .q{flex:1;min-width:170px;border:1px solid var(--line2);background:var(--surface);color:var(--ink);border-radius:var(--input-r);padding:9px 16px;font-size:13.5px;outline:none}"), "home search shares the 4px input radius");
 });
 
 test("account test file is wired into the npm test chain", () => {
