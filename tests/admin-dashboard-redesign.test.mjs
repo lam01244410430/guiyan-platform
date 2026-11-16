@@ -317,3 +317,15 @@ test("test file is wired into the npm test chain", () => {
     "server/package.json test script must run tests/admin-dashboard-redesign.test.mjs",
   );
 });
+
+test("dark mode: buttons inherit ink, never the UA black (KPI tile regression)", () => {
+  // CDP probe 2026-11-16: the KPI tile value (<b> inside a <button
+  // class="ov-kpi"> with no colour of its own) computed to rgb(0,0,0)
+  // in dark mode — the UA ButtonText is black on the #141417 card.
+  // The base button rule must carry the ink colour so every button
+  // text defaults to ink in both themes.
+  assert.ok(
+    css.includes("button{font:inherit;color:var(--p-ink);cursor:pointer}"),
+    "base button rule must set color:var(--p-ink)",
+  );
+});

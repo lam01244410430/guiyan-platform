@@ -130,7 +130,13 @@
 html{scroll-behavior:smooth}
 body{margin:0;background:var(--p-bg);color:var(--p-ink);font-family:var(--font-text);font-size:14px;line-height:1.6;font-variant-numeric:tabular-nums;-webkit-font-smoothing:antialiased}
 a{color:var(--p-ink)}
-button{font:inherit;cursor:pointer}
+/* Buttons inherit the ink colour: without this, a <button> takes the
+   UA ButtonText (black) — invisible in dark mode, where the card is
+   #141417. Found by the dashboard-redesign CDP probe 2026-11-16: the
+   KPI tile value (<b> inside a <button class="ov-kpi">, no colour of
+   its own) computed to rgb(0,0,0) on the dark card. Class rules with
+   their own colour still win (higher specificity). */
+button{font:inherit;color:var(--p-ink);cursor:pointer}
 /* Design polish (Step 1): one shared control system for every text /
    number / date / select / textarea control in the admin console —
    44px base, 4px input radius (2026-11-16), one focus ring, custom
