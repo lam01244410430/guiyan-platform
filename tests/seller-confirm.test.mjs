@@ -357,10 +357,16 @@ test("seller-confirm UI: buyer pages show no confirm button on pending orders", 
   for (const [name, src] of [["App.jsx", app], ["UserDashboard.jsx", dash], ["orders.wxml", ordersWxml], ["detail.wxml", detailWxml]]) {
     assert.ok(!src.includes('data-act="confirm"'), `${name} still renders a confirm button`);
   }
-  // The cached-page fail-safe stays: the action mapping itself is
-  // untouched (the server 403s a buyer confirm).
-  assert.ok(app.includes('handleOrderAction("confirm"'), "App.jsx confirm mapping removed");
-  assert.ok(dash.includes('usrOrderAction("confirm"'), "UserDashboard.jsx confirm mapping removed");
+  // The cached-page fail-safe stays: the confirm action mapping
+  // itself is untouched (a stale page calling it gets a server 403).
+  // App.jsx keeps confirm in its status + endpoint maps; the
+  // dashboard handler posts any action generically, confirm included.
+  assert.ok(app.includes('confirm: "confirmed"'), "App.jsx confirm status map removed");
+  assert.ok(app.includes('confirm: "confirm"'), "App.jsx confirm endpoint map removed");
+  assert.ok(
+    dash.includes('apiPost("/api/orders/" + encodeURIComponent(id) + "/" + act'),
+    "UserDashboard.jsx generic order-action post removed",
+  );
   // Cancel is still offered on pending orders.
   assert.ok(app.includes('data-act="cancel"'), "App.jsx lost the cancel button");
   assert.ok(dash.includes('data-act="cancel"'), "UserDashboard.jsx lost the cancel button");
