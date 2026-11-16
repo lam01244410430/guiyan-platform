@@ -639,12 +639,13 @@ test("admin analysis ports the original insights", async () => {
   const r = await req("/api/admin/analysis?period=day", { token });
   assert.equal(r.status, 200, JSON.stringify(r.json));
   assert.ok(r.json.kpis.revenue > 0);
-  // kpis.orders counts every order row, same as cumulative stats — compare
-  // against the live cumulative count instead of a hard-coded seed total,
-  // so this test does not depend on how many orders earlier tests created.
-  const stats = await req("/api/admin/stats", { token });
+  // D1 (dashboard redesign): kpis.orders counts the orders in the
+  // selected window, not the cumulative total — compare against the
+  // windowed stats total for the same period instead of the
+  // cumulative stats (which counts the whole history).
+  const stats = await req("/api/admin/stats?period=day", { token });
   assert.equal(stats.status, 200);
-  assert.equal(r.json.kpis.orders, stats.json.orders);
+  assert.equal(r.json.kpis.orders, stats.json.totals.orders);
   assert.ok(r.json.kpis.paidOrders > 0);
   assert.ok(r.json.kpis.resources > 0);
   assert.ok(Array.isArray(r.json.ranking) && r.json.ranking.length > 0);
