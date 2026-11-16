@@ -123,6 +123,18 @@ export async function openPostgresStore(
       await client.query(
         "ALTER TABLE orders ADD COLUMN IF NOT EXISTS ticket_type_id INTEGER REFERENCES ticket_types(id)",
       );
+      // Showtimes-final (2026-11-16, Q1a): a performance may belong
+      // directly to a resource (show_id NULL, resource_id set) so
+      // non-show resources can sell timed slots too. Show-linked
+      // performances carry both show_id and resource_id (the show's
+      // resource). Same idempotent pattern as the columns above; the
+      // backfill is idempotent (only NULL rows move).
+      await client.query(
+        "ALTER TABLE performances ADD COLUMN IF NOT EXISTS resource_id INTEGER REFERENCES resources(id)",
+      );
+      await client.query(
+        "UPDATE performances SET resource_id=(SELECT resource_id FROM shows WHERE shows.id=performances.show_id) WHERE resource_id IS NULL AND show_id IS NOT NULL",
+      );
       // R2-3 (pickup points + ticket templates, 2026-11-13): the
       // pickup point a tier order chose; NULL = the old flow or a
       // show with no pickup points. Same idempotent pattern.

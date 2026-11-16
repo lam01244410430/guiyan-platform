@@ -125,9 +125,16 @@ export async function createOrder(ctx) {
       perf = await get("SELECT * FROM performances WHERE id=?", perfId);
       assert(perf, "场次不存在", 400);
       assert(perf.status === "on_sale", "场次不在售", 400);
-      const showRow = await get("SELECT * FROM shows WHERE id=?", perf.show_id);
-      assert(showRow && showRow.status === "approved", "演出未通过审核", 400);
-      show = showRow;
+      // Showtimes-final: a show-linked performance needs its show
+      // approved; a direct performance (show_id NULL) must belong
+      // to the resource being booked.
+      if (perf.show_id) {
+        const showRow = await get("SELECT * FROM shows WHERE id=?", perf.show_id);
+        assert(showRow && showRow.status === "approved", "演出未通过审核", 400);
+        show = showRow;
+      } else {
+        assert(perf.resource_id === rid, "场次不属于该资源", 400);
+      }
       tier = await get("SELECT * FROM ticket_types WHERE id=?", tierId);
       assert(tier && tier.performance_id === perf.id, "票种不属于该场次", 400);
       assert(
@@ -151,16 +158,32 @@ export async function createOrder(ctx) {
           ? today
           : date(b.booking_date);
     }
+    // Showtimes-final: a resource with on-sale performances can only
+    // be booked through a performance — an order without one is a
+    // 400, never a silent fall back to the resource price. The count
+    // mirrors the availability rule (approved-show performances +
+    // direct performances of this resource).
+    if (!hasPerf) {
+      const onSale = await get(
+        `SELECT COUNT(*) AS n FROM performances pf LEFT JOIN shows s ON s.id=pf.show_id
+         WHERE pf.status='on_sale' AND (s.resource_id=? AND s.status='approved' OR pf.resource_id=?)`,
+        rid,
+        rid,
+      );
+      assert(!(onSale?.n > 0), "该资源有在售场次，请选择场次", 400);
+    }
     // R2-3: a tier order names a pickup point when (and only when) the
     // performance's show has configured one. Required when the show
     // has >=1 point (missing -> 400) and it must belong to that show
     // (else 400); a show with no points, or a non-performance
     // (old-flow) order, passing pickup_point_id -> 400. Validate
     // everything BEFORE any write (OTP lesson).
+    // Showtimes-final: a direct performance has no show, so it never
+    // takes a pickup point.
     const hasPickup =
       b.pickup_point_id !== undefined && b.pickup_point_id !== null;
     let pickupPoint = null;
-    if (hasPerf) {
+    if (hasPerf && show) {
       const points = await all(
         "SELECT * FROM pickup_points WHERE show_id=? ORDER BY id ASC",
         show.id,
@@ -173,6 +196,8 @@ export async function createOrder(ctx) {
       } else {
         assert(!hasPickup, "该演出未配置取票点", 400);
       }
+    } else if (hasPerf) {
+      assert(!hasPickup, "该场次无需选择取票点", 400);
     } else {
       assert(!hasPickup, "该订单无需选择取票点", 400);
     }

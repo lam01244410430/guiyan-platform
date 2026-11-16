@@ -34,13 +34,29 @@ function scopedShopId(session) {
   return session.shop_id ?? null;
 }
 
-function assertShowAccess(session, show) {
+function assertShopAccess(session, shopId) {
   const scope = scopedShopId(session);
   assert(
-    scope === null || show.shop_id === scope,
-    "无权管理该店铺的演出",
+    scope === null || shopId === scope,
+    "无权管理该店铺的场次",
     403,
   );
+}
+
+// The shop owning a performance — via its show, or via its resource
+// when it is a direct performance (show_id NULL).
+async function shopIdForPerf(get, perf) {
+  if (perf.show_id) {
+    const show = await get("SELECT * FROM shows WHERE id=?", perf.show_id);
+    assert(show, "演出不存在", 404);
+    return show.shop_id;
+  }
+  const resource = await get(
+    "SELECT * FROM resources WHERE id=?",
+    perf.resource_id,
+  );
+  assert(resource, "资源不存在", 404);
+  return resource.shop_id;
 }
 
 function seatRow(s, now) {
@@ -70,19 +86,29 @@ async function getPerfOr404(get, id) {
 // generate step uses the first one created (lowest id) — the venue's
 // default seating. A performance whose show resource links no venue,
 // or whose venue has no template, has no template to generate from.
+// Showtimes-final: a direct performance (show_id NULL) resolves its
+// venue through its own resource instead of a show's resource.
 async function templateForPerformance(get, perf) {
-  const show = await get("SELECT * FROM shows WHERE id=?", perf.show_id);
-  assert(show, "演出不存在", 404);
-  const resource = await get(
-    "SELECT * FROM resources WHERE id=?",
-    show.resource_id,
-  );
-  if (!resource || resource.venue_id == null) return { show, template: null };
+  let resource = null;
+  if (perf.show_id) {
+    const show = await get("SELECT * FROM shows WHERE id=?", perf.show_id);
+    assert(show, "演出不存在", 404);
+    resource = await get(
+      "SELECT * FROM resources WHERE id=?",
+      show.resource_id,
+    );
+  } else {
+    resource = await get(
+      "SELECT * FROM resources WHERE id=?",
+      perf.resource_id,
+    );
+  }
+  if (!resource || resource.venue_id == null) return { template: null };
   const template = await get(
     "SELECT * FROM seat_templates WHERE venue_id=? ORDER BY id ASC LIMIT 1",
     resource.venue_id,
   );
-  return { show, template: template || null };
+  return { template: template || null };
 }
 
 function parseZones(template) {
@@ -101,8 +127,8 @@ export async function generateSeats(ctx) {
   if (!m || req.method !== "POST") return false;
   assertAdmin(session);
   const perf = await getPerfOr404(get, Number(m[1]));
-  const { show, template } = await templateForPerformance(get, perf);
-  assertShowAccess(session, show);
+  const { template } = await templateForPerformance(get, perf);
+  assertShopAccess(session, await shopIdForPerf(get, perf));
   // Validate everything BEFORE any write (OTP lesson).
   assert(template, "该场馆未配置座位模板", 400);
   const zones = parseZones(template);
@@ -151,15 +177,25 @@ export async function listSeats(ctx) {
   const m = p.match(/^\/api\/performances\/(\d+)\/seats$/);
   if (!m || req.method !== "GET") return false;
   const perf = await getPerfOr404(get, Number(m[1]));
-  const show = await get("SELECT * FROM shows WHERE id=?", perf.show_id);
   // Public only when the performance is on sale and its show is
-  // approved — anything else reads as "not found", same as the ticket
-  // type list in routes/ticket-types.mjs.
-  assert(
-    perf.status === "on_sale" && show && show.status === "approved",
-    "场次不在售",
-    404,
-  );
+  // approved (or, for a direct performance, its resource is
+  // published) — anything else reads as "not found", same as the
+  // ticket type list in routes/ticket-types.mjs. A direct
+  // performance has no seats, so this returns an empty list.
+  let visible = false;
+  if (perf.status === "on_sale") {
+    if (perf.show_id) {
+      const show = await get("SELECT * FROM shows WHERE id=?", perf.show_id);
+      visible = !!show && show.status === "approved";
+    } else {
+      const resource = await get(
+        "SELECT * FROM resources WHERE id=?",
+        perf.resource_id,
+      );
+      visible = !!resource && resource.status === "published";
+    }
+  }
+  assert(visible, "场次不在售", 404);
   const rows = await all(
     "SELECT * FROM seats WHERE performance_id=? ORDER BY zone ASC, row ASC, col ASC, id ASC",
     perf.id,

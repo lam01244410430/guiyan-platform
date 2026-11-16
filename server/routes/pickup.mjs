@@ -360,8 +360,18 @@ export async function enrichOrder(get, order) {
       order.performance_id,
     );
     if (perf) {
-      const show = await get("SELECT * FROM shows WHERE id=?", perf.show_id);
-      if (show) ticket_template = await defaultTemplateForShop(get, show.shop_id);
+      // Showtimes-final: a direct performance (show_id NULL) takes
+      // the template from its own resource's shop.
+      if (perf.show_id) {
+        const show = await get("SELECT * FROM shows WHERE id=?", perf.show_id);
+        if (show) ticket_template = await defaultTemplateForShop(get, show.shop_id);
+      } else if (perf.resource_id) {
+        const resource = await get(
+          "SELECT * FROM resources WHERE id=?",
+          perf.resource_id,
+        );
+        if (resource) ticket_template = await defaultTemplateForShop(get, resource.shop_id ?? 1);
+      }
     }
   }
   return { pickup_point, ticket_template };

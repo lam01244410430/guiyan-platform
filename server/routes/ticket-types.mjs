@@ -24,15 +24,6 @@ function scopedShopId(session) {
   return session.shop_id ?? null;
 }
 
-function assertShowAccess(session, show) {
-  const scope = scopedShopId(session);
-  assert(
-    scope === null || show.shop_id === scope,
-    "无权管理该店铺的演出",
-    403,
-  );
-}
-
 function tierRow(t) {
   return {
     id: t.id,
@@ -70,9 +61,35 @@ async function getPerfOr404(get, id) {
 }
 
 async function getShowForPerf(get, perf) {
+  if (!perf.show_id) return null;
   const s = await get("SELECT * FROM shows WHERE id=?", perf.show_id);
   assert(s, "演出不存在", 404);
   return s;
+}
+
+// Showtimes-final: the shop owning a performance — via its show, or
+// via its resource when it is a direct performance (show_id NULL).
+async function shopIdForPerf(get, perf) {
+  if (perf.show_id) {
+    const show = await getShowForPerf(get, perf);
+    return show.shop_id;
+  }
+  const resource = await get(
+    "SELECT * FROM resources WHERE id=?",
+    perf.resource_id,
+  );
+  assert(resource, "资源不存在", 404);
+  return resource.shop_id;
+}
+
+async function assertPerfAccess(session, get, perf) {
+  const shopId = await shopIdForPerf(get, perf);
+  const scope = scopedShopId(session);
+  assert(
+    scope === null || shopId === scope,
+    "无权管理该店铺的票种",
+    403,
+  );
 }
 
 // Sold count for one tier: SUM(quantity) over orders that still count
@@ -114,8 +131,7 @@ export async function createTicketType(ctx) {
   if (!m || req.method !== "POST") return false;
   assertAdmin(session);
   const perf = await getPerfOr404(get, Number(m[1]));
-  const show = await getShowForPerf(get, perf);
-  assertShowAccess(session, show);
+  await assertPerfAccess(session, get, perf);
   // Validate everything BEFORE any write (OTP lesson).
   const name = text(b.name, "票种名称", 100);
   const priceCents = int(b.price_cents, "票价", 0);
@@ -143,15 +159,24 @@ export async function listTicketTypes(ctx) {
   const m = p.match(/^\/api\/performances\/(\d+)\/ticket-types$/);
   if (!m || req.method !== "GET") return false;
   const perf = await getPerfOr404(get, Number(m[1]));
-  const show = await getShowForPerf(get, perf);
   // Public only when the performance is on sale and its show is
-  // approved — anything else reads as "not found", same as the show
-  // detail rule in routes/shows.mjs.
-  assert(
-    perf.status === "on_sale" && show.status === "approved",
-    "场次不在售",
-    404,
-  );
+  // approved (or, for a direct performance, its resource is
+  // published) — anything else reads as "not found", same as the
+  // show detail rule in routes/shows.mjs.
+  let visible = false;
+  if (perf.status === "on_sale") {
+    if (perf.show_id) {
+      const show = await get("SELECT * FROM shows WHERE id=?", perf.show_id);
+      visible = !!show && show.status === "approved";
+    } else {
+      const resource = await get(
+        "SELECT * FROM resources WHERE id=?",
+        perf.resource_id,
+      );
+      visible = !!resource && resource.status === "published";
+    }
+  }
+  assert(visible, "场次不在售", 404);
   const rows = await all(
     "SELECT * FROM ticket_types WHERE performance_id=? ORDER BY price_cents ASC, id ASC",
     perf.id,
@@ -169,8 +194,7 @@ export async function patchTicketType(ctx) {
   const tier = await get("SELECT * FROM ticket_types WHERE id=?", id);
   assert(tier, "票种不存在", 404);
   const perf = await getPerfOr404(get, tier.performance_id);
-  const show = await getShowForPerf(get, perf);
-  assertShowAccess(session, show);
+  await assertPerfAccess(session, get, perf);
   // Validate everything BEFORE any write (OTP lesson). sale_until may
   // be set to null to clear the deadline.
   const updates = {};

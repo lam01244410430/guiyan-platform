@@ -55,6 +55,7 @@ function perfRow(pf) {
   return {
     id: pf.id,
     show_id: pf.show_id,
+    resource_id: pf.resource_id ?? null,
     start_at: pf.start_at,
     price_cents: pf.price_cents,
     status: pf.status,
@@ -260,8 +261,9 @@ export async function createPerformance(ctx) {
   const priceCents = int(b.price_cents, "票价", 0);
   assert(show.status === "approved", "演出未通过审核，不可创建场次", 400);
   const result = await run(
-    "INSERT INTO performances(show_id,start_at,price_cents,status,created_at) VALUES(?,?,?,?,?)",
+    "INSERT INTO performances(show_id,resource_id,start_at,price_cents,status,created_at) VALUES(?,?,?,?,?,?)",
     show.id,
+    show.resource_id,
     startAt,
     priceCents,
     "scheduled",
@@ -276,6 +278,89 @@ export async function createPerformance(ctx) {
   return true;
 }
 
+// Showtimes-final: shop access for one performance — via its show, or
+// via its resource when it is a direct performance (show_id NULL).
+async function assertPerfAccess(session, get, perf) {
+  if (perf.show_id) {
+    const show = await getShowOr404(get, perf.show_id);
+    assertShowAccess(session, show);
+    return;
+  }
+  const resource = await get(
+    "SELECT * FROM resources WHERE id=?",
+    perf.resource_id,
+  );
+  assert(resource, "资源不存在", 404);
+  const scope = scopedShopId(session);
+  assert(
+    scope === null || resource.shop_id === scope,
+    "无权管理该店铺的场次",
+    403,
+  );
+}
+
+export async function createDirectPerformance(ctx) {
+  const { req, p, b, send, session, get, run } = ctx;
+  const m = p.match(/^\/api\/resources\/(\d+)\/performances$/);
+  if (!m || req.method !== "POST") return false;
+  assertAdmin(session);
+  const resource = await get(
+    "SELECT * FROM resources WHERE id=?",
+    Number(m[1]),
+  );
+  assert(resource, "资源不存在", 404);
+  const scope = scopedShopId(session);
+  assert(
+    scope === null || resource.shop_id === scope,
+    "无权管理该店铺的场次",
+    403,
+  );
+  // Validate everything BEFORE any write (OTP lesson). A direct
+  // performance needs no show approval — the resource is already
+  // published — so it goes on sale at once, with a default 标准票
+  // tier (quota = the resource stock, at least 1) so buyers can
+  // book immediately (orders require both performance + tier).
+  const startAt = isoStartAt(b.start_at);
+  const priceCents = int(b.price_cents, "票价", 0);
+  assert(resource.status === "published", "资源未上架，不可创建场次", 400);
+  const result = await run(
+    "INSERT INTO performances(show_id,resource_id,start_at,price_cents,status,created_at) VALUES(NULL,?,?,?,?,'on_sale',?)",
+    resource.id,
+    startAt,
+    priceCents,
+    time(),
+  );
+  const id = Number(result.lastInsertRowid);
+  const quota = Math.max(1, resource.stock || 0);
+  const tierResult = await run(
+    "INSERT INTO ticket_types(performance_id,name,price_cents,quota,sale_until,created_at) VALUES(?,?,?,?,NULL,?)",
+    id,
+    "标准票",
+    priceCents,
+    quota,
+    time(),
+  );
+  const created = await get("SELECT * FROM performances WHERE id=?", id);
+  const tier = await get("SELECT * FROM ticket_types WHERE id=?", Number(tierResult.lastInsertRowid));
+  send({
+    ok: true,
+    id,
+    performance: perfRow(created),
+    ticket_type: tier
+      ? {
+          id: tier.id,
+          performance_id: tier.performance_id,
+          name: tier.name,
+          price_cents: tier.price_cents,
+          quota: tier.quota,
+          sale_until: tier.sale_until,
+          created_at: tier.created_at,
+        }
+      : null,
+  });
+  return true;
+}
+
 export async function patchPerformance(ctx) {
   const { req, p, b, send, session, get, run } = ctx;
   const m = p.match(/^\/api\/admin\/performances\/(\d+)$/);
@@ -284,8 +369,7 @@ export async function patchPerformance(ctx) {
   const id = Number(m[1]);
   const perf = await get("SELECT * FROM performances WHERE id=?", id);
   assert(perf, "场次不存在", 404);
-  const show = await getShowOr404(get, perf.show_id);
-  assertShowAccess(session, show);
+  await assertPerfAccess(session, get, perf);
   // Validate everything BEFORE any write (OTP lesson). Status moves:
   // scheduled -> on_sale, any -> cancelled; a cancelled performance
   // never goes back on sale.
@@ -324,12 +408,17 @@ export async function patchPerformance(ctx) {
 // routes/resources.mjs getAvailability). R2-2: each performance gains
 // its ticket_types with live sold/available counts; a performance with
 // no tiers gets ticket_types: [].
+// Showtimes-final (Q1a): direct performances (show_id NULL,
+// resource_id set) are included too — the LEFT JOIN keeps them when
+// their show is absent, and show-linked rows still need an approved
+// show. A direct performance reports show_id null.
 export async function performancesForResource(all, get, resourceId) {
   const rows = await all(
-    `SELECT pf.id, pf.show_id, pf.start_at, pf.status, pf.price_cents
-     FROM performances pf JOIN shows s ON s.id=pf.show_id
-     WHERE s.resource_id=? AND s.status='approved' AND pf.status='on_sale'
+    `SELECT pf.id, pf.show_id, pf.resource_id, pf.start_at, pf.status, pf.price_cents
+     FROM performances pf LEFT JOIN shows s ON s.id=pf.show_id
+     WHERE (s.resource_id=? AND s.status='approved' OR pf.resource_id=?) AND pf.status='on_sale'
      ORDER BY pf.start_at ASC, pf.id ASC`,
+    resourceId,
     resourceId,
   );
   const out = [];
@@ -337,6 +426,7 @@ export async function performancesForResource(all, get, resourceId) {
     out.push({
       id: r.id,
       show_id: r.show_id,
+      resource_id: r.resource_id ?? null,
       start_at: r.start_at,
       status: r.status,
       price_cents: r.price_cents,

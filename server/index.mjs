@@ -48,7 +48,7 @@ import { adminStatsSeries, adminAnalysis, refreshAnalysis, adminAlerts, adminOrd
 import { adminTagRules } from "./routes/tag-rules.mjs";
 import { createAdminResource, editAdminResource, listAdminResources, syncAdminResource } from "./routes/admin-resources.mjs";
 import { listAdminShops, createAdminShop, patchAdminShop, getShopTheme, patchShopTheme } from "./routes/shops.mjs";
-import { createShow, listShows, getShow, listAdminShows, reviewShow, createPerformance, patchPerformance } from "./routes/shows.mjs";
+import { createShow, listShows, getShow, listAdminShows, reviewShow, createPerformance, createDirectPerformance, patchPerformance } from "./routes/shows.mjs";
 import { createTicketType, listTicketTypes, patchTicketType } from "./routes/ticket-types.mjs";
 import { createPickupPoint, listPickupPoints, deletePickupPoint, listTemplates, createTemplate, patchTemplate, getShopTemplate } from "./routes/pickup.mjs";
 import { listVenues, getVenue, getVenueAvailability, createVenue, patchVenue, listSeatTemplates, createSeatTemplate, patchSeatTemplate } from "./routes/venues.mjs";
@@ -277,6 +277,7 @@ export async function createApp({ database }) {
       if (await listAdminShows(ctx)) return;
       if (await reviewShow(ctx)) return;
       if (await createPerformance(ctx)) return;
+      if (await createDirectPerformance(ctx)) return;
       if (await patchPerformance(ctx)) return;
       if (await createTicketType(ctx)) return;
       if (await listTicketTypes(ctx)) return;

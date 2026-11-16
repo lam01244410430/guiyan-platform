@@ -293,8 +293,22 @@ export async function createFlashSale(ctx) {
   const performanceId = int(b.performance_id, "场次", 1);
   const perf = await get("SELECT * FROM performances WHERE id=?", performanceId);
   assert(perf, "场次不存在", 404);
-  const show = await get("SELECT * FROM shows WHERE id=?", perf.show_id);
-  assert(show && show.shop_id === shopId, "场次不属于该店铺", 400);
+  // Showtimes-final: a direct performance (show_id NULL) belongs to
+  // its resource's shop; a show-linked one to its show's shop.
+  let perfShopId;
+  if (perf.show_id) {
+    const show = await get("SELECT * FROM shows WHERE id=?", perf.show_id);
+    assert(show, "演出不存在", 400);
+    perfShopId = show.shop_id;
+  } else {
+    const resource = await get(
+      "SELECT * FROM resources WHERE id=?",
+      perf.resource_id,
+    );
+    assert(resource, "资源不存在", 400);
+    perfShopId = resource.shop_id;
+  }
+  assert(perfShopId === shopId, "场次不属于该店铺", 400);
   const name = text(b.name, "抢购名称", 100);
   const kind = b.kind;
   assert(kind === "fixed" || kind === "pct", "抢购类型须为 fixed 或 pct", 400);
