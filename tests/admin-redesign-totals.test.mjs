@@ -202,18 +202,22 @@ test("totals action columns: explicit widths so buttons never overflow", () => {
   }
   // The widest action column is the shows table (4 buttons).
   assert.ok(dashboardJsx.includes('className="col-actions-xwide"'), "shows table needs the xwide action column");
-  // Lam 2026-11-16 (admin-overview round, CDP-sized columns): 6 tables
+  // Lam 2026-11-16 (admin-overview round, CDP-sized columns): 7 tables
   // use col-actions-wide — users, resources, shops, venues, comments
-  // plus the nested performances table inside resources (was 4: the
-  // users table and the nested performances table were re-measured).
+  // plus the nested performances table inside shows, and (showtimes-
+  // final) the direct-performances table inside resources: it mirrors
+  // the shows nested table (same 3 buttons 上架/取消/票种), so it takes
+  // the same 250px wide column. (Was 6 before showtimes-final.)
   const wide = dashboardJsx.split('className="col-actions-wide"').length - 1;
-  assert.equal(wide, 6, "users/resources/shops/venues/comments + nested performances need the wide action column, found " + wide);
-  // Lam 2026-11-16 (admin-overview round, CDP-sized columns): only 4
+  assert.equal(wide, 7, "users/resources/shops/venues/comments + nested performances + direct performances need the wide action column, found " + wide);
+  // Lam 2026-11-16 (admin-overview round, CDP-sized columns): only 5
   // tables still use the plain col-actions — the small nested tables
-  // (seat templates, ticket tiers, pickup points, nested seat templates);
-  // the rest moved to col-actions-md/-wide/-xwide in the same round.
+  // (seat templates, ticket tiers, pickup points, nested seat templates)
+  // plus (showtimes-final) the ticket-tiers table nested inside the new
+  // direct-performances manager, mirroring the shows-view tier table.
+  // (Was 4 before showtimes-final.)
   const narrow = dashboardJsx.split('className="col-actions"').length - 1;
-  assert.equal(narrow, 4, "single/double-button action columns need col-actions, found " + narrow);
+  assert.equal(narrow, 5, "single/double-button action columns need col-actions, found " + narrow);
   // SortButton headers are untouched: still inside <th>, still wired.
   assert.ok(dashboardJsx.includes('aria-sort={ariaSort("orders", "code")}'), "sortable headers must stay");
   assert.ok(dashboardJsx.includes('<SortButton label="订单号" sortKey="code" tableId="orders"'), "SortButton must stay in the orders header");
