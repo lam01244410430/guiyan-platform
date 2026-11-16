@@ -369,7 +369,7 @@ test("cross-shop template edit -> 403; i18n 372/181", async () => {
     path.resolve(repoDir, "web", "assets", "js", "data.js")
   );
   const counts = data.LANGS.map((l) => Object.keys(data.I18N[l]).length);
-  assert.deepEqual(counts, [483, 483, 483, 82, 82, 82]);
+  assert.deepEqual(counts, [484, 484, 484, 82, 82, 82]);
   for (const k of ["pickupTitle", "pickupEmpty", "pickupPick"]) {
     for (const l of ["zh", "vi", "en"])
       assert.ok(k in data.I18N[l], `${k} missing in H5 ${l}`);

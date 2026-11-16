@@ -19,7 +19,7 @@
 // shop, shop coupon wins on the same code, duplicate platform code
 // 409, shop-scoped admin cannot create one); subsidy grant (balance +
 // bonus ledger row, cross-shop 403, validation 400/404); plan admin
-// CRUD + cross-shop 403; i18n key counts (H5 483 + 82 th/ms/id, miniprogram 270 + 82,
+// CRUD + cross-shop 403; i18n key counts (H5 484 + 82 th/ms/id, miniprogram 270 + 82,
 // equal sets).
 import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
@@ -498,7 +498,7 @@ test("subsidy grant: balance + bonus ledger row; cross-shop 403; validation 400/
   assert.equal(ownShop.data.account.balance_cents, 100);
 });
 
-test("plan admin CRUD + cross-shop 403; i18n 483+82/270+82", async () => {
+test("plan admin CRUD + cross-shop 403; i18n 484+82/270+82", async () => {
   const created = await req("/api/admin/stored-value-plans", {
     method: "POST", token: adminToken,
     body: { amount_cents: 30000, bonus_cents: 2000 },
@@ -537,7 +537,7 @@ test("plan admin CRUD + cross-shop 403; i18n 483+82/270+82", async () => {
     path.resolve(repoDir, "web", "assets", "js", "data.js")
   );
   const counts = data.LANGS.map((l) => Object.keys(data.I18N[l]).length);
-  assert.deepEqual(counts, [483, 483, 483, 82, 82, 82]);
+  assert.deepEqual(counts, [484, 484, 484, 82, 82, 82]);
   for (const l of ["zh", "vi", "en"])
     for (const k of ["storedValueTitle", "storedValueBalance", "storedValueTopup", "storedValuePlan", "storedValueEmpty", "storedValueUsed"])
       assert.ok(k in data.I18N[l], `${k} missing in H5 ${l}`);

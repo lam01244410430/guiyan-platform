@@ -20,7 +20,7 @@
 // ?order_id=); cross-shop print -> 403 (scoped admin) and the
 // scoped admin's print-logs list hides other shops' rows;
 // non-admin print / print-logs -> 403, anonymous -> 403; i18n key
-// counts (H5 483 + 82 th/ms/id, miniprogram 270 + 82, equal sets).
+// counts (H5 484 + 82 th/ms/id, miniprogram 270 + 82, equal sets).
 import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
@@ -310,12 +310,12 @@ test("non-admin print / print-logs -> 403; anonymous print / print-logs -> 403",
   assert.equal(await printLogCount(printTickets[1].id), 1);
 });
 
-test("i18n 483+82/270+82: printTicket key on both sides, equal sets", async () => {
+test("i18n 484+82/270+82: printTicket key on both sides, equal sets", async () => {
   const data = await import(
     path.resolve(repoDir, "web", "assets", "js", "data.js")
   );
   const counts = data.LANGS.map((l) => Object.keys(data.I18N[l]).length);
-  assert.deepEqual(counts, [483, 483, 483, 82, 82, 82]);
+  assert.deepEqual(counts, [484, 484, 484, 82, 82, 82]);
   for (const l of ["zh", "vi", "en"])
     assert.ok("printTicket" in data.I18N[l], `printTicket missing in H5 ${l}`);
   const text = fs.readFileSync(

@@ -13,7 +13,7 @@
 // server (yuan -> cents), bad values -> 400; (7) ?region= is a city
 // alias, conflict -> 400; (8) ?min_rating= uses the approved-only
 // rating; (9) matchesSearch client filters agree with the server rules.
-// i18n key counts (H5 483 + 82 th/ms/id, miniprogram 270 + 82 th/ms/id) are asserted here too:
+// i18n key counts (H5 484 + 82 th/ms/id, miniprogram 270 + 82 th/ms/id) are asserted here too:
 // 6 new match keys on both sides (372 + 6 = 378, 181 + 11 = 192 — the
 // mini side also gains the 5 price/rating filter-bar keys).
 import { test, before, after } from "node:test";
@@ -228,7 +228,7 @@ test("r6-4 search: rating floor uses the approved-only rating", async () => {
   assert.equal(zero.data.resources.length, all.data.resources.length);
 });
 
-test("r6-4 search.js: client filters agree with the server rules; i18n 483+82/270+82", async () => {
+test("r6-4 search.js: client filters agree with the server rules; i18n 484+82/270+82", async () => {
   const res = (name, price, rating, reviewCount, city) => ({
     name, description: "民歌", city, category: "演出剧目", tags: [],
     price, rating, reviewCount,
@@ -253,12 +253,12 @@ test("r6-4 search.js: client filters agree with the server rules; i18n 483+82/27
   assert.equal(matchesSearch(inRange, "民歌", { minPrice: 100, maxPrice: 300 }), true);
   assert.equal(matchesSearch(inRange, "民歌", { minPrice: 300 }), false);
 
-  // i18n: H5 483 keys/language in zh/vi/en + 82 in th/ms/id, miniprogram 270 + 82, equal sets per side.
+  // i18n: H5 484 keys/language in zh/vi/en + 82 in th/ms/id, miniprogram 270 + 82, equal sets per side.
   const data = await import(
     path.resolve(repoDir, "web", "assets", "js", "data.js")
   );
   const counts = data.LANGS.map((l) => Object.keys(data.I18N[l]).length);
-  assert.deepEqual(counts, [483, 483, 483, 82, 82, 82]);
+  assert.deepEqual(counts, [484, 484, 484, 82, 82, 82]);
   for (const k of ["matchReasonCity", "matchReasonCat", "matchReasonBudget", "matchNoteServer", "matchRejected", "matchLoading"])
     for (const l of ["zh", "vi", "en"])
       assert.ok(k in data.I18N[l], `${k} missing in H5 ${l}`);
