@@ -26,14 +26,22 @@ const adminJsx = fs.readFileSync(
   "utf-8",
 );
 
-test("home categories: 11 columns in one row on desktop", () => {
-  assert.ok(mainCss.includes(".catrail{display:grid;grid-template-columns:repeat(11,1fr);gap:12px}"), "catrail is 11 columns on desktop");
-  assert.ok(mainCss.includes("@media(max-width:1240px){.catrail{grid-template-columns:repeat(5,1fr)}}"), "catrail drops to 5 columns at <=1240px");
-  assert.ok(mainCss.includes("@media(max-width:900px){.catrail{grid-template-columns:repeat(3,1fr)}}"), "catrail drops to 3 columns at <=900px");
-  assert.ok(mainCss.includes("@media(max-width:560px){.catrail{grid-template-columns:repeat(2,1fr)}}"), "catrail drops to 2 columns at <=560px");
-  assert.ok(mainCss.includes(".cat .zh{font-size:21px;font-weight:900;display:block}"), "tile name is unchanged");
-  assert.ok(mainCss.includes(".cat .bar{height:3px;border-radius:99px;background:var(--surface2);margin-top:12px;overflow:hidden}"), "tile gold bar is unchanged");
-  assert.ok(mainCss.includes(".cat b{position:absolute;top:14px;right:14px;"), "tile count badge is unchanged");
+// Basis (2026-11-16, Lam "làm theo mặc định", Q1–Q5 all (a)): the
+// grid-tile catrail is replaced by the icon + seamless rail — one flex
+// row on a shared background, horizontal scroll on narrow screens, no
+// 5/3/2-column breakpoints, no absolute count badge, zh label 15px on
+// one line. The gold proportion bar is the only tile chrome kept.
+test("home categories: one seamless icon rail, one row, scrolls on narrow screens", () => {
+  assert.ok(mainCss.includes(".catrail{display:flex;background:var(--surface2);"), "catrail is one flex rail on a shared background");
+  assert.ok(mainCss.includes("overflow-x:auto"), "catrail scrolls horizontally instead of wrapping");
+  assert.ok(!mainCss.includes(".catrail{display:grid"), "catrail must not be a grid any more");
+  assert.ok(!mainCss.includes("@media(max-width:1240px){.catrail"), "old 5-column catrail breakpoint still present");
+  assert.ok(!mainCss.includes("@media(max-width:900px){.catrail"), "old 3-column catrail breakpoint still present");
+  assert.ok(!mainCss.includes("@media(max-width:560px){.catrail"), "old 2-column catrail breakpoint still present");
+  assert.ok(mainCss.includes(".cat .zh{display:block;font-size:15px;font-weight:700;white-space:nowrap;"), "tile name is 15px on one line");
+  assert.ok(mainCss.includes(".cat .bar{display:block;height:3px;border-radius:99px;background:var(--line);margin-top:10px;overflow:hidden}"), "tile gold bar is kept (display:block: .bar is a span, the old generic .cat span rule is gone)");
+  assert.ok(!mainCss.includes(".cat b{"), "tile count badge rule must be gone");
+  assert.ok(mainCss.includes(".cat .count{display:block;color:var(--ink3);font-size:11.5px;"), "count is small text below the label");
 });
 
 test("home catalog chip row: one row, horizontal scroll, chips keep width", () => {

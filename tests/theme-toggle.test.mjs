@@ -172,7 +172,7 @@ test("css: dark text pairs measure >= 4.5:1, borders >= 3:1 (parsed from the tok
     ["ink3/bg", tk.ink3, tk.bg], ["ink3/surface", tk.ink3, tk.surface],
     ["red/surface (links, brand, price)", tk.red, tk.surface],
     ["red/bg", tk.red, tk.bg],
-    ["red on red-soft (.cat b)", tk.red, tk["red-soft"]],
+    ["red on red-soft (selected cat icon)", tk.red, tk["red-soft"]],
     ["gold on gold-soft (pill)", tk.gold, tk["gold-soft"]],
     ["jade on jade-soft (pill)", tk.jade, tk["jade-soft"]],
     ["#fff on red-solid (buttons)", "#ffffff", tk["red-solid"]],

@@ -17,6 +17,7 @@ import {
 import { Header, LoginDialog, RegisterDialog, Toast, isLargeText } from "./chrome.jsx";
 import { matchesSearch } from "./search.js";
 import AiChat from "./AiChat.jsx";
+import { CAT_ICONS } from "./CatIcons.jsx";
 import heroImg from "../img/hero.webp";
 import spotlightImg from "../img/spotlight.webp";
 
@@ -965,8 +966,10 @@ export default function App() {
             {CATS.map((c) => {
               const n = catCount(c[0]);
               return (
-                <button key={c[0]} type="button" className="cat" data-cat={c[0]} onClick={() => { setCat(c[0]); document.getElementById("catalog").scrollIntoView({ behavior: "smooth" }); }}>
-                  <b>{n}</b><span className="zh">{c[1]}</span>{li() !== 0 && (<span>{catName(c[0])}</span>)}
+                <button key={c[0]} type="button" className={"cat" + (store.cat === c[0] ? " on" : "")} data-cat={c[0]} aria-pressed={store.cat === c[0]} onClick={() => { setCat(c[0]); document.getElementById("catalog").scrollIntoView({ behavior: "smooth" }); }}>
+                  <span className="ic"><svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">{CAT_ICONS[c[0]]}</svg></span>
+                  <span className="zh">{c[1]}</span>{li() !== 0 && (<span className="tr">{catName(c[0])}</span>)}
+                  <span className="count">{n}</span>
                   <span className="bar"><i style={{ width: Math.round((n / maxCat) * 100) + "%" }}></i></span>
                 </button>
               );
