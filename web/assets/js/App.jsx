@@ -1366,6 +1366,7 @@ export default function App() {
                           </button>
                           {pf.id === perfSel && (
                             <div className="tier-list">
+                              <h4>{t("tierTitle")}</h4>
                               {pf.ticket_types && pf.ticket_types.length ? (
                                 pf.ticket_types.map((tt) => (
                                   <button key={tt.id} type="button" className="perf-row" style={{ width: "100%", background: tt.id === tierSel ? "var(--sand)" : "transparent", border: "none", cursor: tt.available > 0 ? "pointer" : "not-allowed", textAlign: "left", opacity: tt.available > 0 ? 1 : 0.55 }}
@@ -1459,7 +1460,7 @@ export default function App() {
                       ))}
                     </select>
                   </label>
-                  <label><input type="text" value={voiceText} maxLength={500} placeholder={t("voicePh")} onChange={(e) => setVoiceText(e.target.value)} /></label>
+                  <label>{t("voiceTextLabel")}<input type="text" value={voiceText} maxLength={500} placeholder={t("voicePh")} onChange={(e) => setVoiceText(e.target.value)} /></label>
                   <button type="button" className="btn" onClick={submitVoiceOrder}>{t("voiceTitle")}</button>
                   {voiceMsg && (<p className="perf-empty">{voiceMsg}</p>)}
                   <p className="perf-empty">{t("voiceDialectNote")}</p>

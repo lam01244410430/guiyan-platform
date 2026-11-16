@@ -119,7 +119,10 @@ a{color:var(--red)}
   .mainnav a{padding:10px 12px;border-radius:99px}
 }
 @media (max-width:560px){
-  .topbar-in{padding:0 16px}
+  /* Booking popup at 375px: the header row (641px) widened the layout
+     viewport, so the fixed sheet became 641px and its close button slid
+     off-screen. Wrap the top bar so the page stays 375px wide. */
+  .topbar-in{flex-wrap:wrap;height:auto;padding:8px 16px}
   .wxbtn{display:none}
   .cartbtn .lbl{display:none}
   .cartbtn{padding:0 12px}
@@ -361,7 +364,10 @@ footer ul{list-style:none;margin:0;padding:0;display:grid;gap:6px}
 .bookrow{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin:18px 0}
 .bookrow label{font-size:12.5px;font-weight:700;color:var(--ink2);display:grid;gap:6px}
 .bookrow input,.bookrow select{border:1px solid var(--line2);border-radius:var(--input-r);height:44px;padding:0 12px;background:var(--surface);color:var(--ink);width:100%}
-.totalrow{display:flex;align-items:center;gap:12px;background:var(--surface2);border-radius:12px;padding:14px 18px;margin-bottom:16px}
+/* R7-7 voice order: the h4 must sit at the top of its grid row, not
+   centred on the 3-line steps text. */
+.bookrow.voice-order h4{align-self:start;margin:0}
+.totalrow{display:flex;align-items:center;gap:12px;background:var(--surface2);border-radius:12px;padding:14px 18px;margin-bottom:18px}
 .totalrow b{font-size:21px;color:var(--red)}
 .totalrow span{font-size:12.5px;color:var(--ink2)}
 .sheet .acts{display:flex;gap:8px;flex-wrap:wrap}
@@ -530,6 +536,15 @@ html.large-text .db-profile .row input,html.large-text .db-profile .row select,h
 .perf-list h4{font-family:"Noto Serif SC",serif;font-size:16px;font-weight:900;margin:0 0 10px}
 .perf-row{display:flex;gap:12px;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--line);font-size:13.5px}
 .perf-row .perf-status{font-weight:700;color:var(--jade)}
+/* Booking popup: perf + tier rows share one fixed price column, so the
+   price left edge lines up across rows (space-between let it drift with
+   the left label width). The first column is FIXED at 156px -- the width
+   of the longest left label (the performance date) -- so the price column
+   always starts at the same x; a flexible first column would still let
+   the price drift with the status width. The price itself is auto-width
+   and the status stays right-aligned. Pickup rows keep the flex layout. */
+.perf-list .perf-row{display:grid;grid-template-columns:156px auto 1fr}
+.perf-list .perf-row span:nth-child(3){justify-self:end}
 .perf-empty{margin:0;font-size:13px;color:var(--ink3)}
 .seatmap{margin-top:18px}
 .seatmap h4{font-family:"Noto Serif SC",serif;font-size:16px;font-weight:900;margin:0 0 10px}
@@ -552,7 +567,7 @@ html.large-text .db-profile .row input,html.large-text .db-profile .row select,h
 .cal-legend .cal-day{display:inline-flex;width:18px;height:18px;font-size:10px;vertical-align:-4px}
 .cal-legend .cal-day.occ{background:var(--red-soft)}
 /* R2-5: clickable seat picker for a performance with seats. */
-.seatpick{margin-top:12px}
+.seatpick{margin-top:12px;margin-bottom:12px}
 .seatpick h5{font-size:13.5px;font-weight:800;margin:0 0 4px}
 .seatzone{margin-top:8px;font-size:12.5px;font-weight:700;color:var(--ink2)}
 .seatgrid-pick{display:grid;gap:4px;margin-top:4px}
