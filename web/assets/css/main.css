@@ -71,7 +71,7 @@ a{color:var(--red)}
 .mainnav{display:flex;gap:4px;margin-left:auto;margin-right:auto}
 .mainnav a{color:var(--ink2);text-decoration:none;font-size:13.5px;font-weight:600;padding:8px 11px;border-radius:99px;white-space:nowrap}
 .mainnav a:hover{background:var(--surface2);color:var(--ink)}
-.langsel{position:relative;display:flex;align-items:center;flex:none;background:var(--surface);border:1px solid var(--line2);border-radius:var(--input-r);padding:0 10px 0 12px;height:38px;gap:7px;color:var(--ink2)}
+.langsel{position:relative;display:flex;align-items:center;flex:none;background:var(--surface);border:1px solid var(--line2);border-radius:999px;padding:0 10px 0 12px;height:38px;gap:7px;color:var(--ink2)}
 .langsel svg.globe{flex:none;color:var(--gold)}
 .langsel select{appearance:none;-webkit-appearance:none;border:0;background:transparent;color:var(--ink);font-size:13px;font-weight:700;line-height:1.2;padding:8px 18px 8px 0;outline:none;cursor:pointer;max-width:132px}
 .langsel::after{content:"";position:absolute;right:13px;top:50%;width:7px;height:7px;border-right:1.8px solid var(--ink2);border-bottom:1.8px solid var(--ink2);transform:translateY(-70%) rotate(45deg);pointer-events:none}
@@ -82,14 +82,14 @@ a{color:var(--red)}
 .themebtn:hover{border-color:var(--red);color:var(--ink)}
 .themebtn:focus-visible{outline:2px solid var(--red);outline-offset:2px}
 .themebtn svg{display:block}
-.wxbtn{display:inline-flex;align-items:center;gap:7px;background:#07c160;color:#fff;border:0;border-radius:4px;height:44px;padding:0 15px;font-weight:700;font-size:13.5px;white-space:nowrap;text-decoration:none}
+.wxbtn{display:inline-flex;align-items:center;gap:7px;background:#07c160;color:#fff;border:0;border-radius:999px;height:44px;padding:0 15px;font-weight:700;font-size:13.5px;white-space:nowrap;text-decoration:none}
 .wxbtn:hover{background:#06ad56}
-.cartbtn{display:inline-flex;align-items:center;gap:8px;background:var(--ink);color:var(--bg);border:0;border-radius:4px;height:44px;padding:0 16px;font-weight:700;font-size:13.5px;white-space:nowrap}
+.cartbtn{display:inline-flex;align-items:center;gap:8px;background:var(--ink);color:var(--bg);border:0;border-radius:999px;height:44px;padding:0 16px;font-weight:700;font-size:13.5px;white-space:nowrap}
 .cartbtn b{background:var(--red-solid);color:#fff;border-radius:99px;min-width:21px;height:21px;display:inline-grid;place-items:center;font-size:12px;padding:0 5px}
 
 /* ---------- signed-in user menu ("Hi + name") ---------- */
 .user-menu{position:relative;flex:none}
-.user-chip{display:inline-flex;align-items:center;gap:8px;background:var(--ink);color:var(--bg);border:0;border-radius:4px;height:44px;padding:4px 13px 4px 4px;font-family:inherit;font-weight:700;font-size:13.5px;white-space:nowrap;cursor:pointer}
+.user-chip{display:inline-flex;align-items:center;gap:8px;background:var(--ink);color:var(--bg);border:0;border-radius:999px;height:44px;padding:4px 13px 4px 4px;font-family:inherit;font-weight:700;font-size:13.5px;white-space:nowrap;cursor:pointer}
 .user-chip .avatar{width:28px;height:28px;flex:none;border-radius:50%;background:var(--red-solid);color:#fff;display:inline-grid;place-items:center;font-size:13px;font-weight:800}
 .user-chip .chev{flex:none;transition:transform .18s}
 .user-chip .avatar img{width:100%;height:100%;object-fit:cover;border-radius:50%;display:block}
@@ -116,7 +116,7 @@ a{color:var(--red)}
   .menuBtn{display:inline-flex;margin-right:auto}
   .mainnav{display:none;position:absolute;top:100%;left:0;right:0;flex-direction:column;gap:2px;background:var(--surface);border-bottom:1px solid var(--line);padding:8px 20px 12px;margin-left:0}
   .mainnav.open{display:flex}
-  .mainnav a{padding:10px 12px;border-radius:8px}
+  .mainnav a{padding:10px 12px;border-radius:99px}
 }
 @media (max-width:560px){
   .topbar-in{padding:0 16px}
@@ -591,7 +591,7 @@ html.large-text .db-profile .row input,html.large-text .db-profile .row select,h
    (localStorage guiyan-large-text, default off). Larger type only —
    the purchase flow stays the same 3 steps (pick show → confirm →
    payment confirmation). */
-.largetextbtn{display:inline-flex;align-items:center;gap:7px;background:transparent;color:var(--ink);border:1px solid var(--line);border-radius:4px;padding:8px 13px;font-weight:700;font-size:13px;white-space:nowrap;cursor:pointer}
+.largetextbtn{display:inline-flex;align-items:center;gap:7px;background:transparent;color:var(--ink);border:1px solid var(--line);border-radius:999px;padding:8px 13px;font-weight:700;font-size:13px;white-space:nowrap;cursor:pointer}
 .largetextbtn[aria-pressed="true"]{background:var(--ink);color:var(--bg)}
 html.large-text body{font-size:18px}
 html.large-text .topbar-in,html.large-text .mainnav a,html.large-text .langsel select{font-size:16px}
