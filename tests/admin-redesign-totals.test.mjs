@@ -212,7 +212,7 @@ test("totals search: SearchBox resultCount kept as-is", () => {
 
 test("totals fixed layout + ellipsis CSS present", () => {
   for (const snippet of [
-    ".tbl-wrap > table{table-layout:fixed}",
+    ".tbl-wrap > table{table-layout:fixed;max-width:max-content}",
     "td.cell-ellipsis{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}",
     "span.cell-ellipsis{display:inline-block;vertical-align:middle;max-width:calc(100% - 26px);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}",
     ".tbl-wrap table table td.cell-ellipsis{max-width:220px}",

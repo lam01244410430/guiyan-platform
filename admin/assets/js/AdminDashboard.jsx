@@ -2999,6 +2999,43 @@ export default function AdminDashboard() {
   const pgSuggestions = tablePage("suggestions", memberInsights ? memberInsights.suggestions : []);
   const pgMemberUsers = tablePage("member-users", memberInsights ? memberInsights.users : []);
   const pgFinance = tablePage("finance", financeLedger);
+  // Reset a table's stored page to 1 whenever its rendered list changes
+  // (search / filter / sort, Q1(a)). tablePage() already renders page 1
+  // for a changed signature, but the stale stored entry would restore
+  // the old page if the list later changed back to its old signature
+  // (e.g. filter pending -> all restored page 3 instead of page 1).
+  // This effect forgets the stale entry, so a list change always lands
+  // on page 1, whichever way the filter moves.
+  const pageTables = [
+    ["orders", pgOrders], ["users", pgUsers], ["resources", pgResources],
+    ["templates", pgTemplates], ["shops", pgShops], ["shows", pgShows],
+    ["venues", pgVenues], ["tiers", pgTiers], ["coupons", pgCoupons],
+    ["flashsales", pgFlashSales], ["autorules", pgCouponRules],
+    ["smstasks", pgSmsTasks], ["licenses", pgLicenses],
+    ["stored-plans", pgStoredPlans], ["sv-ledger", pgSvLedger],
+    ["batch", pgBatch], ["verify-history", pgVerifyHistory],
+    ["demands", pgDemands], ["comments", pgComments],
+    ["analysis-shows", pgAnalysisShows],
+    ["analysis-coupons", pgAnalysisCoupons],
+    ["analysis-flash", pgAnalysisFlash],
+    ["analysis-tiers", pgAnalysisTiers], ["alerts", pgAlertRules],
+    ["audit", pgAudit], ["events", pgEvents],
+    ["suggestions", pgSuggestions], ["member-users", pgMemberUsers],
+    ["finance", pgFinance],
+  ];
+  const pageSigKey = pageTables.map(([, pg]) => pg.sig).join("~");
+  useEffect(() => {
+    setTablePages((prev) => {
+      let next = null;
+      for (const [id, pg] of pageTables) {
+        if (prev[id] && prev[id].sig !== pg.sig) {
+          if (!next) next = { ...prev };
+          next[id] = { sig: pg.sig, page: 1 };
+        }
+      }
+      return next || prev;
+    });
+  }, [pageSigKey]);
   // Search empty state (parent-side): distinct from the "no data at all"
   // state — only shown while a query is active and nothing matches.
   const searchEmpty = (colSpan) => (

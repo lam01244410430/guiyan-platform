@@ -62,6 +62,13 @@ test("pager Q1: page resets to 1 when the rendered list changes", () => {
     "a changed signature must reset the page to 1");
   assert.ok(dashboardJsx.includes("rows.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)"),
     "rows must be sliced 25 per page");
+  // The reset must stick when the list changes back to an old signature
+  // (filter pending -> all must land on page 1, not restore the old
+  // page): a useEffect forgets the stale stored page on sig change.
+  assert.ok(dashboardJsx.includes("next[id] = { sig: pg.sig, page: 1 };"),
+    "a sig change must forget the stale stored page");
+  assert.ok(dashboardJsx.includes("}, [pageSigKey]);"),
+    "the page-reset effect must watch the combined page signatures");
 });
 
 test("pager Q1: pre-sliced preview tables keep their slice and get no pager", () => {
@@ -106,6 +113,19 @@ test("fit Q2: the named stretch columns are capped", () => {
 test("fit Q2(b): tables keep exact column widths (max-width:max-content)", () => {
   assert.ok(css.includes(".tbl-wrap > table{table-layout:fixed;max-width:max-content}"),
     "top-level tables must cap at their natural width instead of stretching");
+});
+
+test("fit F3: orders tables fit the 1440px frame (capped total 1104 <= 1111)", () => {
+  // The capped orders total was 1152px, 41px past the 1440px frame, so
+  // the 售后 column scrolled off-screen. The orders-only trims below
+  // bring it to 120+124+124+88+104+120+96+128+200 = 1104px.
+  for (const rule of [
+    ".tbl-wrap > table.orders-table th.col-code{width:120px}",
+    ".tbl-wrap > table.orders-table th.col-name{width:124px}",
+    ".tbl-wrap > table.orders-table th.col-contract{width:128px}",
+  ]) {
+    assert.ok(css.includes(rule), "orders-table trim must exist: " + rule);
+  }
 });
 
 test("fit Q3: 会员等级 capped, 店铺 one line with ellipsis + title", () => {

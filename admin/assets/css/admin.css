@@ -324,6 +324,17 @@ table{width:100%;border-collapse:collapse;font-size:13px;min-width:640px}
    classes also size the nested tables (shows performances/tiers/pickups,
    venue seat templates). */
 .tbl-wrap > table.orders-table{min-width:1000px}
+/* Tables pagination-fit round, F3 fix (2026-11-17): the capped orders
+   total was 1152px, 41px past the 1440px frame (1111px), so the 售后
+   column scrolled off-screen. Trim 48px from orders-only columns —
+   code 132->120 and names 136->124 truncate with ellipsis (click to
+   expand, B-055 pattern), contract 140->128 still fits the 协议 / 权益
+   button (~90px in a 100px content box) — total 1104px, fits 1440
+   with 7px spare. The shared .col-* widths stay unchanged, so other
+   tables are untouched. */
+.tbl-wrap > table.orders-table th.col-code{width:120px}
+.tbl-wrap > table.orders-table th.col-name{width:124px}
+.tbl-wrap > table.orders-table th.col-contract{width:128px}
 /* Dashboard fix1 Q5 (2026-11-16): ONLY the 最近订单 table on the
    overview centres its columns — the wrap carries .ov-recent, so the
    orders view table (same orders-table class) and the other admin

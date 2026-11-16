@@ -253,7 +253,7 @@ test("alerts view stays intact: full alert + audit tables, no standalone alert t
     "filteredAlerts",
     "filteredAudit",
     "预警规则",
-    "alertRules.map",
+    "pgAlertRules.rows.map",
   ]) {
     assert.ok(dashboardJsx.includes(snippet), `alerts view missing: ${snippet}`);
   }
