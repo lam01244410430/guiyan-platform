@@ -2549,7 +2549,7 @@ export default function AdminDashboard() {
     orders: ["全部订单", "可处理售后"],
     users: ["全部用户", ""],
     tagrules: ["标签规则", "自动标签规则 · 保存后立即重算"],
-    aicopy: ["文案生成", "本地模板 · 未接入大模型"],
+    aicopy: ["文案生成", copyResult ? (copyResult.source === "ai" ? "AI 生成" : "本地模板 · 智能服务暂时不可用，已用模板生成") : "AI 生成 · 智能服务不可用时自动用模板"],
     ipconfig: ["IP 配置", "文小惠形象配置 · 未设置时聊天保持原样"],
     resources: ["资源总览", ""],
     licenses: ["版权登记", "按店铺管理"],
@@ -4087,7 +4087,7 @@ export default function AdminDashboard() {
           </section>
 
           <section className={"view" + (view === "aicopy" ? " on" : "")} id="view-aicopy">
-            <div className="note">本地模板 · 未接入大模型。输入主题生成三渠道文案草稿；缺日期、价格、地点时只留占位符，不编造。请用中文输入主题，模板只识别中文日期/价格/地点。</div>
+            <div className="note">AI 生成三渠道文案草稿；智能服务不可用时自动用本地模板。缺日期、价格、地点时只留占位符，不编造。请用中文输入主题。</div>
             <textarea className="copy-prompt" aria-label="文案主题" placeholder="例如：为《刘三姐》写一段小红书推送，地点：南宁剧场，票价280元"
               value={copyPrompt} onChange={(e) => setCopyPrompt(e.target.value)} />
             <div className="chips">

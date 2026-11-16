@@ -1,12 +1,22 @@
-// AIGC copy template (Wave 3 #10) — port of zhou assistants.mjs
-// copyAnswer() (134-215), verbatim logic. This is a LOCAL TEMPLATE, not
-// real AIGC: no model is called, no paid API, no DeepSeek (poster image
-// generation is phase 7, deferred for lack of funds).
+// AIGC copy (Wave 3 #10) — port of zhou assistants.mjs copyAnswer()
+// (134-215), verbatim logic, kept as the fail-open fallback.
+//
+// Real AI (2026-11-16): POST /api/ai/copy calls the trial agent
+// (Python + DeepSeek on my-llm, the same backend as POST
+// /api/assistant/chat) with a dedicated per-request copy prompt — one
+// call per channel (小红书/公众号/短信）, in parallel. The chat
+// agent's system prompt is NOT changed (its short-answer/no-table
+// rule is for Q&A); the copy prompt below carries its own
+// instructions. Any agent failure (unreachable, timeout, non-2xx,
+// empty reply) fails open to the template with source:"template".
 //
 // Hard rule (Q5): a missing date/price/place in the prompt becomes a
 // [待确认...] placeholder — NEVER filled in from a database resource,
 // even when the topic matches a real resource name. Template copy must
-// never imply "these are the real facts of that show".
+// never imply "these are the real facts of that show". The same rule
+// is sent to the model in the copy prompt, and this handler reads no
+// resource rows at all. Prompt/reply content is never logged — on
+// failure only the error code is logged, like the chat proxy.
 import { randomInt } from "node:crypto";
 import { text } from "../lib/http.mjs";
 
@@ -127,7 +137,60 @@ export async function aiCopy(ctx) {
   ctx.needUser();
   const prompt = text(ctx.b?.prompt, "主题", 1000);
   const { topic, genre, sections, answer } = copyAnswer(prompt);
-  await audit(session, "AI模拟 copy", prompt.slice(0, 100));
+  let ai = null;
+  try {
+    const replies = await Promise.all(
+      COPY_CHANNELS.map((c) => callCopyAgent(copyPromptFor(c, prompt))),
+    );
+    ai = replies;
+  } catch (e) {
+    const code =
+      e?.code ||
+      (e?.name === "AbortError" ? "TIMEOUT" : e?.name || "UPSTREAM_FAILED");
+    console.error("AI copy upstream failed", { code });
+    ai = null;
+  }
+  if (ai) {
+    const [xhs, gzh, sms] = ai;
+    const title =
+      gzh.split("\n").map((l) => l.trim()).find(Boolean)?.slice(0, 30) ||
+      topic;
+    const body = gzh;
+    const channels = [
+      { name: "小红书版", content: xhs },
+      { name: "公众号版", content: gzh },
+      { name: "短信版", content: sms },
+    ];
+    const notes = [
+      "发布前核实日期、场馆、价格、适用人群及授权。",
+      "AI 生成草稿，不保证演出事实或生成真实营销权益。",
+    ];
+    const aiAnswer =
+      "【AI 生成】\n活动标题：" +
+      title +
+      "\n推送文案：" +
+      body +
+      "\n" +
+      channels.map((c) => c.name + "：" + c.content).join("\n") +
+      "\n注意事项：" +
+      notes.join("；");
+    await audit(session, "AI copy", "文案生成");
+    send({
+      topic,
+      genre,
+      title,
+      body,
+      channels,
+      notes,
+      label: "AI 生成",
+      mock: false,
+      source: "ai",
+      answer: aiAnswer,
+      sections: { title, body, channels, notes },
+    });
+    return true;
+  }
+  await audit(session, "AI模拟 copy", "文案生成");
   send({
     topic,
     genre,
@@ -137,8 +200,84 @@ export async function aiCopy(ctx) {
     notes: sections.notes,
     label: "本地模板",
     mock: true,
+    source: "template",
     answer,
     sections,
   });
   return true;
+}
+
+// One copy channel: the per-request prompt asks the model for exactly
+// this channel's version. The [待确认...] rule is part of every
+// prompt — the model must not invent a date, venue or price the user
+// did not provide.
+const COPY_CHANNELS = [
+  {
+    name: "小红书版",
+    instruction:
+      "小红书风格：活泼简短，150字以内，可用少量表情符号，结尾加2-3个话题标签（如 #广西文化）。",
+  },
+  {
+    name: "公众号版",
+    instruction:
+      "公众号风格：先给一个吸引人的标题（第一行就是标题），再写正文，200-300字，段落清晰。",
+  },
+  {
+    name: "短信版",
+    instruction:
+      "短信风格：70字以内，以【桂演】开头，只写最关键的信息，不要话题标签。",
+  },
+];
+
+function copyPromptFor(channel, prompt) {
+  return (
+    "你是桂演（广西文化惠民票务平台）的文案助手。请为以下演出主题写一段中文推广文案。\n" +
+    "主题：" +
+    prompt +
+    "\n" +
+    "渠道：" +
+    channel.name +
+    " — " +
+    channel.instruction +
+    "\n" +
+    "规则：只写用户提供的主题；不要编造日期、场馆、价格等事实。不知道的日期写 [待确认日期]，不知道的场馆写 [待确认场馆]，不知道的价格写 [待确认价格]，不要猜测。只返回文案正文，不要解释，不要加开场白。"
+  );
+}
+
+async function callCopyAgent(message) {
+  // Env is read at request time, not module load, so tests can point a
+  // spawned server at a stub and Vercel env changes apply without
+  // rebuild. AI_CHAT_TIMEOUT_MS exists only so the timeout path is
+  // testable without waiting 25 s. Never log the message or
+  // AI_CHAT_URL.
+  const upstreamUrl =
+    process.env.AI_CHAT_URL || "http://34.96.190.102/api/chat";
+  const timeoutRaw = Number(process.env.AI_CHAT_TIMEOUT_MS);
+  const timeoutMs =
+    Number.isFinite(timeoutRaw) && timeoutRaw > 0 ? timeoutRaw : 25000;
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), timeoutMs);
+  try {
+    const up = await fetch(upstreamUrl, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ message, language: "zh" }),
+      signal: ctrl.signal,
+    });
+    if (!up.ok)
+      throw Object.assign(new Error("upstream status"), {
+        code: `UPSTREAM_${up.status}`,
+      });
+    const data = await up.json();
+    const reply =
+      typeof data?.reply === "string" && data.reply.trim()
+        ? data.reply.trim()
+        : typeof data?.detail === "string" && data.detail.trim()
+          ? data.detail.trim()
+          : null;
+    if (!reply) throw new Error("empty upstream reply");
+    return reply;
+  } finally {
+    clearTimeout(timer);
+  }
 }
