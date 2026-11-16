@@ -518,9 +518,15 @@ test("showtimes-final Q2a: honesty markers intact in data + admin", async () => 
   // in the web order list and the admin dashboard (kept, Q2a).
   assert.ok(app.includes("模拟托管中"), "web honesty marker missing: 模拟托管中");
   assert.ok(mini.includes('simPay: "模拟支付"'), "mini simPay missing");
-  for (const s of ["模拟托管中", "下载模拟协议", "最近模拟同步", "模拟经营分析报告", "已触发模拟预警", "已模拟同步", "（模拟事件）"]) {
+  for (const s of ["模拟托管中", "下载模拟协议", "最近模拟同步", "模拟经营分析报告", "已触发模拟预警", "已模拟同步", "模拟事件"]) {
     assert.ok(admin.includes(s), `admin honesty marker missing: ${s}`);
   }
+  // The exact "（模拟事件）" label is appended server-side to insight
+  // titles (admin-insights.mjs) and rendered by the admin UI.
+  const insights = fs.readFileSync(
+    path.resolve(repoDir, "server", "routes", "admin-insights.mjs"), "utf8",
+  );
+  assert.ok(insights.includes("（模拟事件）"), "server honesty marker missing: （模拟事件）");
 });
 
 test("showtimes-final Q2a: internal .note blocks + 模拟/演示 code comments gone", async () => {
