@@ -1,8 +1,8 @@
 
 :root{
-  --bg:#f7f3ec; --bg2:#efe8db; --surface:#fffdf8; --surface2:#f3ecdf;
+  --bg:#ffffff; --bg2:#f3f3f3; --surface:#ffffff; --surface2:#f3f3f3;
   --ink:#1c1710; --ink2:#5d5344; --ink3:#8a7d68;
-  --line:#ddd2bf; --line2:#cbbd9f;
+  --line:#dcdcdc; --line2:#c9c9c9;
   --red:#b03a1e; --red-deep:#8c2b12; --red-soft:#f6e3d8; --red-solid:#b03a1e;
   --gold:#a97e1c; --gold-soft:#f1e5c3;
   --jade:#0d6e5f; --jade-soft:#dcefe9; --jade-solid:#0d6e5f;
@@ -409,11 +409,26 @@ footer ul{list-style:none;margin:0;padding:0;display:grid;gap:6px}
 .db-table td{padding:11px 14px;border-bottom:1px solid var(--line);vertical-align:middle}
 .db-table tr:last-child td{border-bottom:0}
 .db-table td.num,.db-table th.num{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
-/* Account tabs (2026-11-12): tab bar above the dashboard panels. */
-.acct-tabs{display:flex;gap:8px;flex-wrap:wrap;margin:0 0 22px}
-.acct-tab{border:1px solid var(--line2);background:var(--surface);color:var(--ink2);border-radius:99px;padding:8px 16px;font-size:13.5px;font-weight:700;cursor:pointer}
-.acct-tab.on{background:var(--ink);color:var(--bg);border-color:var(--ink)}
-.acct-tab .pill{margin-left:6px}
+/* Account layout (2026-11-16): left vertical nav + right content frame.
+   White design (Lam 2026-11-16): the light tokens above are fresh white
+   #ffffff + neutral light grey #f3f3f3 — NO warm paper/cream on home,
+   the account page or the brand page, which all share these tokens.
+   Red/gold/pine accents and the dark hero stay as they are. */
+.acct-layout{display:flex;gap:24px;align-items:flex-start}
+.acct-tabs{display:flex;flex-direction:column;gap:2px;flex:none;width:240px;margin:0}
+.acct-tab{display:flex;align-items:center;gap:8px;width:100%;box-sizing:border-box;text-align:left;border:0;background:transparent;color:var(--ink);border-radius:4px;padding:11px 14px;font-size:13.5px;font-weight:700;cursor:pointer;white-space:nowrap}
+.acct-tab:hover{background:var(--surface2)}
+.acct-tab.on{background:var(--ink);color:var(--bg)}
+.acct-tab.on:hover{background:var(--ink)}
+.acct-tab .pill{margin-left:auto}
+.acct-frame{flex:1;min-width:0;background:var(--surface);border:1px solid var(--line);border-radius:4px;padding:24px}
+.acct-frame .db-sec:last-child{margin-bottom:0}
+@media(max-width:860px){
+  .acct-layout{flex-direction:column;gap:16px}
+  .acct-tabs{flex-direction:row;flex-wrap:nowrap;overflow-x:auto;width:100%}
+  .acct-tab{flex:none;width:auto}
+  .acct-frame{width:100%;box-sizing:border-box;padding:20px}
+}
 /* Settings tab: theme segmented control (3 options, one pressed) + link
    rows that jump to the existing account tabs. Same tokens/radii as the
    rest of the account page; no new colours. */

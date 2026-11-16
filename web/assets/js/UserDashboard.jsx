@@ -684,16 +684,18 @@ export default function UserDashboard() {
 
           {!gate && (
             <div id="usrMain">
+              <div className="acct-layout">
               <div className="acct-tabs" role="tablist" id="acctTabs">
                 {ACCT_TABS.map(([id, labelKey]) => (
                   <button key={id} type="button" role="tab" aria-selected={acctTab === id}
                     className={"acct-tab" + (acctTab === id ? " on" : "")}
                     onClick={() => switchTab(id)}>
                     {t(labelKey)}
-                    {id === "inbox" && usrUnread > 0 && (<span className="pill paid" style={{ marginLeft: 6 }}>{usrUnread}</span>)}
+                    {id === "inbox" && usrUnread > 0 && (<span className="pill paid">{usrUnread}</span>)}
                   </button>
                 ))}
               </div>
+              <div className="acct-frame">
 
               {acctTab === "info" && (<>
                 <section className="db-sec">
@@ -1149,7 +1151,9 @@ export default function UserDashboard() {
                   </div>
                 </section>
               </>)}
+              </div>
             </div>
+          </div>
           )}
         </div>
       </main>
