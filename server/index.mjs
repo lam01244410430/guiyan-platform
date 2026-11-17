@@ -109,6 +109,11 @@ function createRequestHandler(db, handle) {
           // otherwise.
           new URL(req.url, "http://localhost").pathname ===
             "/api/admin/bi/export" ||
+          // P1 G2: the users CSV export audits "导出报表" (one
+          // INSERT), like the orders CSV above — same
+          // read-only-transaction 25006 / 500 otherwise.
+          new URL(req.url, "http://localhost").pathname ===
+            "/api/admin/users.csv" ||
           csvExportPath(new URL(req.url, "http://localhost")),
         success: () => res.statusCode < 400,
       });
