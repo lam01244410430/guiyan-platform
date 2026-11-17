@@ -427,7 +427,12 @@ test("r7-voice-order: large-text flag does not affect ordering logic", async () 
     "utf8",
   );
   assert.ok(chrome.includes("guiyan-large-text"));
-  assert.ok(chrome.includes("largeText"));
+  // Header button removed per Lam 2026-11-17 (header-overflow round) — the
+  // plumbing stays: isLargeText()/applyLargeText() still live here and
+  // App.jsx still passes large_text to the voice-order API.
+  assert.ok(chrome.includes("isLargeText"));
+  assert.ok(chrome.includes("applyLargeText"));
+  assert.ok(!chrome.includes("largetextbtn"), "header must not render the 大字模式 button");
   const appJs = fs.readFileSync(
     path.resolve(repoDir, "miniprogram", "app.js"),
     "utf8",

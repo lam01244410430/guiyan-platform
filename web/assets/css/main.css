@@ -112,7 +112,11 @@ a{color:var(--red)}
   .langsel select{max-width:104px}
   .topbar-in{gap:10px}
 }
-@media (max-width:860px){
+/* Header-overflow round (2026-11-17): the nav collapses into the hamburger
+   at <=1250px — at 1100-1249 the 5-link nav + right group measured ~1400px
+   wide and pushed 登录 / the user chip off-screen. The dropdown pattern is
+   the same absolute one the header already used at <=860px. */
+@media (max-width:1250px){
   .menuBtn{display:inline-flex;margin-right:auto}
   .mainnav{display:none;position:absolute;top:100%;left:0;right:0;flex-direction:column;gap:2px;background:var(--surface);border-bottom:1px solid var(--line);padding:8px 20px 12px;margin-left:0}
   .mainnav.open{display:flex}
@@ -128,7 +132,11 @@ a{color:var(--red)}
   .cartbtn{padding:0 12px}
   .user-chip #loginName{max-width:96px;overflow:hidden;text-overflow:ellipsis}
 }
-@media(max-width:900px){.mainnav{display:none}.brand small{display:none}}
+@media(max-width:900px){.mainnav{display:none}.brand small{display:none}
+/* Header-overflow round (2026-11-17): wrap the top bar at <=900px, not just
+   <=560px — at 600px the row measured 698px (logged out) / 770px (logged
+   in) wide and overflowed; the wrap pattern is the one proven at <=560px. */
+.topbar-in{flex-wrap:wrap;height:auto;padding:8px 16px}}
 @media(max-width:560px){.cartbtn span.lbl{display:none}.wxbtn span{display:none}.wxbtn{padding:0 11px}.langsel select{max-width:104px;font-size:12.5px}}
 
 /* ---------- hero ---------- */
