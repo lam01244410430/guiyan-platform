@@ -672,7 +672,6 @@ export default function AdminDashboard() {
       }).catch(onFail),
     ]).then(function (rs) { return rs.every(Boolean); });
   }
-  }
   // R5-2: save the rules form (validated client-side first; the
   // server re-validates: unknown keys -> 400, ranges 1–365 / 0–100
   // / 1–365), then reload the member rows — the churn list follows
