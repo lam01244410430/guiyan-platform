@@ -7,7 +7,7 @@
 // BOM, the exact 9-column header, a dated filename, and a row per user;
 // (2) ?q= filters to the matching users (one row for this file's unique
 // username, header-only for a miss); (3) ?tag= filters to users carrying
-// that tag (a user with a ¥12000 completed order carries 高价值） and a
+// that tag (a user with a ¥12000 completed order carries 高价值用户） and a
 // tag nobody has returns header-only; (4) non-admin -> 403, anonymous
 // -> 403, and the export is audited as 导出报表.
 //
@@ -120,7 +120,7 @@ before(async () => {
   }
   adminToken = await login("admin", "admin123");
   userToken = await register("p1csvuser", "Test1234");
-  // A 高价值 user: one completed ¥12000 order (spent >= ¥10000, outside
+  // A 高价值用户 user: one completed ¥12000 order (spent >= ¥10000, outside
   // the 潜力会员 ¥1000–10000 band).
   const res = await req("/api/admin/resources", {
     method: "POST",
@@ -176,15 +176,15 @@ test("?q= filters to the matching users", async () => {
 });
 
 test("?tag= filters to users carrying that tag", async () => {
-  const tagged = await reqText("/api/admin/users.csv?tag=高价值", { token: adminToken });
+  const tagged = await reqText("/api/admin/users.csv?tag=高价值用户", { token: adminToken });
   assert.equal(tagged.status, 200);
   const rows = parseCsv(tagged);
-  assert.ok(rows.length >= 2, "expected at least one 高价值 user");
+  assert.ok(rows.length >= 2, "expected at least one 高价值用户 user");
   const mine = rows.find((x) => x[2] === "p1csvhigh");
-  assert.ok(mine, "p1csvhigh row missing from 高价值 export");
-  assert.ok(mine[7].includes("高价值"), `tags cell ${mine[7]} lacks 高价值`);
+  assert.ok(mine, "p1csvhigh row missing from 高价值用户 export");
+  assert.ok(mine[7].includes("高价值用户"), `tags cell ${mine[7]} lacks 高价值用户`);
   for (const row of rows.slice(1)) {
-    assert.ok(row[7].includes("高价值"), `row ${row[2]} lacks 高价值 in ${row[7]}`);
+    assert.ok(row[7].includes("高价值用户"), `row ${row[2]} lacks 高价值用户 in ${row[7]}`);
   }
   const none = await reqText("/api/admin/users.csv?tag=不存在的标签", { token: adminToken });
   assert.equal(none.status, 200);
