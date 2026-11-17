@@ -94,6 +94,75 @@ export async function adminUsers(ctx) {
   return true;
 }
 
+// P1 G2 — export the grouped user list as CSV: the same rows the 全部用户
+// table shows after its current filters (tag filter + search box), not
+// the whole user table. Same CSV shape as adminOrdersCsv (UTF-8 BOM,
+// quoted cells, formula-injection guard) and the same audit entry.
+// Filename carries the Beijing date. Admin-only.
+export async function adminUsersCsv(ctx) {
+  const { req, p, session, all, url, audit, res } = ctx;
+  if (p !== "/api/admin/users.csv" || req.method !== "GET") return false;
+  assert(isAdminRole(session?.role), "无权访问管理后台", 403);
+  const byId = new Map(
+    (await profileRows(ctx)).map((r) => [r.id, r.tags]),
+  );
+  let users = (await all("SELECT * FROM users ORDER BY id DESC")).map(
+    (u) => ({ ...safeUser(u), tags: byId.get(u.id) || [] }),
+  );
+  // Same filter as the admin users table (AdminDashboard.jsx
+  // filteredUsers / userMatch): tag first, then the search box over
+  // id / name / username / email / city / channel / role / verified.
+  const tag = url.searchParams.get("tag");
+  if (tag) users = users.filter((u) => u.tags.includes(tag));
+  const q = (url.searchParams.get("q") || "").trim().toLowerCase();
+  if (q) {
+    const has = (v) => String(v ?? "").toLowerCase().includes(q);
+    users = users.filter(
+      (u) =>
+        has(String(u.id)) ||
+        has(u.name) ||
+        has(u.username) ||
+        has(u.email) ||
+        has(u.city) ||
+        has(u.channel) ||
+        has(u.role) ||
+        has(u.verified ? "已认证" : "未认证"),
+    );
+  }
+  const csv = (v) =>
+    `"${String(v ?? "")
+      .replace(/"/g, '""')
+      .replace(/^[=+@-]/, "'$&")}"`;
+  const today = new Date(Date.now() + 8 * 3600000)
+    .toISOString()
+    .slice(0, 10);
+  const content =
+    "\uFEFF" +
+    [
+      ["ID", "姓名", "账号", "角色", "城市", "渠道", "认证", "标签", "状态"],
+      ...users.map((u) => [
+        u.id,
+        u.name || "",
+        u.username,
+        u.role,
+        u.city || "",
+        u.channel || "",
+        u.verified ? "已认证" : "未认证",
+        (u.tags || []).join("、"),
+        u.status === "disabled" ? "停用" : "启用",
+      ]),
+    ]
+      .map((r) => r.map(csv).join(","))
+      .join("\r\n");
+  await audit(session, "导出报表", `${users.length}位用户`);
+  res.writeHead(200, {
+    "Content-Type": "text/csv; charset=utf-8",
+    "Content-Disposition": `attachment; filename="guiyan-users-${today}.csv"`,
+  });
+  res.end(content);
+  return true;
+}
+
 export async function adminDemands(ctx) {
   const { req, p, send, session, all } = ctx;
   if (p !== "/api/admin/demands" || req.method !== "GET") return false;
