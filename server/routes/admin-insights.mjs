@@ -39,7 +39,7 @@ const PAID_STATUSES = ["paid", "completed", "disputed", "refund_requested"];
 // after-sales handling, so they stay out of revenue here; the ranking /
 // shows / promos / venue sections below keep the wider PAID_STATUSES
 // (money received, not yet refunded) pinned by tests/r5-analysis.test.mjs.
-const REVENUE_STATUSES = ["paid", "completed"];
+export const REVENUE_STATUSES = ["paid", "completed"];
 const SOURCES = {
 票房: "未接入",
 核销: "未接入",

@@ -69,6 +69,7 @@
 import { assert, int } from "../lib/http.mjs";
 import { isAdminRole } from "../lib/roles.mjs";
 import { PAID_STATUSES } from "../lib/profiles.mjs";
+import { REVENUE_STATUSES } from "./admin-insights.mjs";
 import { resolveTier, MAIN_SHOP_ID } from "./member-tiers.mjs";
 
 export const DEFAULT_MEMBER_INSIGHT_RULES = {
@@ -89,6 +90,11 @@ const RULE_LABELS = {
 };
 
 const PAID_LIST = `'${PAID_STATUSES.join("','")}'`;
+// Revenue scope for the 90-day stats below — the same list as the stats
+// revenue (routes/admin.mjs) and the analysis donut/KPI, NOT the wider
+// PAID_LIST: disputed / refund_requested stay out of revenue (they are
+// under after-sales handling; see admin-insights.mjs REVENUE_STATUSES).
+const REVENUE_LIST = `'${REVENUE_STATUSES.join("','")}'`;
 
 function assertAdminSession(session) {
   assert(session, "请先登录", 401);
@@ -299,9 +305,11 @@ export async function listMemberInsights(ctx) {
 
 // P1 G5 — 90-day consumption stats for one shop: total paid spend,
 // paid order count, and the number of users with spend in the rolling
-// 90-day window (today − 90d → today). Same spending definition as
-// listMemberInsights (SUM(amount) over PAID_STATUSES, per shop via
-// resources.shop_id). Computed on read when the view opens — no cron
+// 90-day window (today − 90d → today). Revenue scope is paid/completed
+// ONLY (REVENUE_STATUSES, the same definition as adminStatsTotals
+// revenue_cents and the analysis donut/KPI) — disputed / refund_requested
+// are under after-sales handling and stay out, so the strip sums to the
+// same revenue as stats. Computed on read when the view opens — no cron
 // (M1: no 定时任务）. Shop scoping follows resolveShopId.
 export async function memberSpending90d(ctx) {
   const { req, p, send, session, get, url } = ctx;
@@ -315,7 +323,7 @@ export async function memberSpending90d(ctx) {
     `SELECT COUNT(*) AS orders, COALESCE(SUM(o.amount),0) AS total_cents,
             COUNT(DISTINCT o.user_id) AS users
      FROM orders o JOIN resources r ON r.id=o.resource_id
-     WHERE r.shop_id=? AND o.status IN (${PAID_LIST}) AND o.created_at>=?`,
+     WHERE r.shop_id=? AND o.status IN (${REVENUE_LIST}) AND o.created_at>=?`,
     shopId,
     new Date(startMs).toISOString(),
   );

@@ -16,9 +16,12 @@
 import { assert, int, text, time } from "./http.mjs";
 
 // Paid statuses — the same list as server/routes/admin-insights.mjs
-// PAID_STATUSES. `disputed` / `refund_requested` never occur in Lam's
-// order state machine (no such transitions), but the list is shared so a
-// future Wave 4 approval flow is counted the same way everywhere.
+// PAID_STATUSES: money received, not yet refunded. `disputed` /
+// `refund_requested` DO occur — via the Wave 4 refund/dispute flow
+// (paid → refund_requested / paid → disputed, routes/orders.mjs); live
+// order GY2026000005 is refund_requested. Revenue scope is narrower
+// (paid/completed only — REVENUE_STATUSES in admin-insights.mjs) and
+// must not reuse this list; see the G5 90-day fix (p1-g5-fix).
 export const PAID_STATUSES = ["paid", "completed", "disputed", "refund_requested"];
 
 // Port of insights.mjs ruleMatches(): one condition compares a metrics

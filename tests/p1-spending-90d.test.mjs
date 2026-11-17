@@ -3,13 +3,16 @@
 // to it over HTTP. DATABASE_URL must point at a FRESH disposable
 // database (npm test is NOT idempotent on a reused DB).
 //
-// Covered (4 tests): (1) GET returns {shop_id, start_date, end_date,
+// Covered (5 tests): (1) GET returns {shop_id, start_date, end_date,
 // total_cents, orders, users} for shop 1 and the totals match the same
 // window computed directly from the DB; (2) ageing one paid order past
 // 90 days drops the totals by exactly that order (restored after);
 // (3) a shop-scoped admin sees only their own shop whatever ?shop=
 // says, while the platform admin can pick a shop; (4) anonymous ->
-// 401, non-admin -> 403.
+// 401, non-admin -> 403; (5) refund_requested + disputed orders are
+// EXCLUDED (revenue scope paid/completed — the G5 fix; the old
+// expectedTotals pinned the wider PAID_STATUSES list, which counted a
+// live refund_requested order and showed ¥161,908 instead of ¥158,308).
 //
 // Test usernames are hyphen-free. All assertions filter by this file's
 // own usernames / resource / shop — other test files share this DB.
@@ -78,13 +81,16 @@ async function spending90d(token, qs = "") {
 }
 
 // The same window the endpoint uses, computed straight from the DB.
+// Revenue scope: paid/completed ONLY (REVENUE_STATUSES) — disputed /
+// refund_requested stay out, so the strip sums to the same revenue as
+// stats/analysis.
 async function expectedTotals(shopId) {
   const startIso = new Date(Date.now() - 90 * 86400000).toISOString();
   const row = await pool.query(
     `SELECT COUNT(*) AS orders, COALESCE(SUM(o.amount),0) AS total,
             COUNT(DISTINCT o.user_id) AS users
      FROM orders o JOIN resources r ON r.id=o.resource_id
-     WHERE r.shop_id=$1 AND o.status IN ('paid','completed','disputed','refund_requested')
+     WHERE r.shop_id=$1 AND o.status IN ('paid','completed')
        AND o.created_at>=$2`,
     [shopId, startIso],
   );
@@ -100,6 +106,7 @@ let userToken;
 let shopBId;
 let shopAdminToken;
 let agedOrderId;
+let resourceId;
 
 before(async () => {
   child = spawn("node", ["server.mjs"], {
@@ -133,6 +140,7 @@ before(async () => {
     },
   });
   assert.equal(res.status, 200, JSON.stringify(res.data));
+  resourceId = res.data.resource.id;
   for (let i = 0; i < 2; i++) {
     const o = await req("/api/orders", {
       method: "POST",
@@ -232,4 +240,36 @@ test("anonymous -> 401, non-admin -> 403", async () => {
   assert.equal(r1.status, 401, JSON.stringify(r1.data));
   const r2 = await req("/api/admin/member-spending-90d", { token: userToken });
   assert.equal(r2.status, 403, JSON.stringify(r2.data));
+});
+
+test("refund_requested + disputed orders are EXCLUDED from the 90-day totals", async () => {
+  // Seed has no refund_requested/disputed orders (lesson (l)), so this
+  // test creates its own through the API: pay two ¥280 orders, then
+  // refund one and dispute the other (both transitions start from paid).
+  // The endpoint totals must not move at all, and the users count must
+  // not move either (this user has no other order in the window).
+  const beforeTotals = await spending90d(adminToken);
+  const refundUser = await register("p1spdrfuser", "Test1234");
+  for (const action of ["refund", "dispute"]) {
+    const o = await req("/api/orders", {
+      method: "POST",
+      token: refundUser,
+      body: { resourceId, quantity: 1, booking_date: "2026-12-05" },
+    });
+    assert.equal(o.status, 200, JSON.stringify(o.data));
+    assert.equal((await transition(adminToken, o.data.id, "confirm")).status, 200);
+    assert.equal((await transition(refundUser, o.data.id, "pay")).status, 200);
+    const r = await transition(refundUser, o.data.id, action);
+    assert.equal(r.status, 200, `${action} -> ${r.status} ${JSON.stringify(r.data)}`);
+  }
+  const rows = await pool.query(
+    "SELECT status, COUNT(*) AS n FROM orders WHERE user_id=(SELECT id FROM users WHERE username='p1spdrfuser') GROUP BY status",
+  );
+  const byStatus = Object.fromEntries(rows.rows.map((r) => [r.status, Number(r.n)]));
+  assert.equal(byStatus.refund_requested, 1, JSON.stringify(byStatus));
+  assert.equal(byStatus.disputed, 1, JSON.stringify(byStatus));
+  const afterTotals = await spending90d(adminToken);
+  assert.equal(afterTotals.total_cents, beforeTotals.total_cents, "refund/dispute must not add revenue");
+  assert.equal(afterTotals.orders, beforeTotals.orders, "refund/dispute must not add orders");
+  assert.equal(afterTotals.users, beforeTotals.users, "refund/dispute user must not count");
 });
