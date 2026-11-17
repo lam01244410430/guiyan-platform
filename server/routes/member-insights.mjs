@@ -296,3 +296,38 @@ export async function listMemberInsights(ctx) {
   send({ users, suggestions });
   return true;
 }
+
+// P1 G5 — 90-day consumption stats for one shop: total paid spend,
+// paid order count, and the number of users with spend in the rolling
+// 90-day window (today − 90d → today). Same spending definition as
+// listMemberInsights (SUM(amount) over PAID_STATUSES, per shop via
+// resources.shop_id). Computed on read when the view opens — no cron
+// (M1: no 定时任务）. Shop scoping follows resolveShopId.
+export async function memberSpending90d(ctx) {
+  const { req, p, send, session, get, url } = ctx;
+  if (p !== "/api/admin/member-spending-90d" || req.method !== "GET")
+    return false;
+  assertAdminSession(session);
+  const shopId = resolveShopId(session, url);
+  const nowMs = Date.now();
+  const startMs = nowMs - 90 * 86400000;
+  const row = await get(
+    `SELECT COUNT(*) AS orders, COALESCE(SUM(o.amount),0) AS total_cents,
+            COUNT(DISTINCT o.user_id) AS users
+     FROM orders o JOIN resources r ON r.id=o.resource_id
+     WHERE r.shop_id=? AND o.status IN (${PAID_LIST}) AND o.created_at>=?`,
+    shopId,
+    new Date(startMs).toISOString(),
+  );
+  const beijingDay = (ms) =>
+    new Date(ms + 8 * 3600000).toISOString().slice(0, 10);
+  send({
+    shop_id: shopId,
+    start_date: beijingDay(startMs),
+    end_date: beijingDay(nowMs),
+    total_cents: Number(row?.total_cents || 0),
+    orders: Number(row?.orders || 0),
+    users: Number(row?.users || 0),
+  });
+  return true;
+}
