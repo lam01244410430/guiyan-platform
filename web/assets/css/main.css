@@ -416,6 +416,23 @@ footer ul{list-style:none;margin:0;padding:0;display:grid;gap:6px}
 .drawer .emptybox{text-align:center;color:var(--ink2);padding:44px 10px;font-size:14px}
 .toast{position:fixed;left:50%;bottom:26px;transform:translate(-50%,80px);background:var(--ink);color:var(--bg);padding:13px 22px;border-radius:99px;font-size:14px;font-weight:600;z-index:120;transition:transform .3s ease;box-shadow:var(--shadow);max-width:92vw;text-align:center}
 .toast.show{transform:translate(-50%,0)}
+/* ---------- H5 bottom nav (P1 M4, mobile only) ---------- */
+.bottomnav{display:none}
+@media(max-width:860px){
+  /* P1 M4: 4 tabs 发现 / 资源 / 需求 / 我的, fixed to the bottom, mobile
+     only (desktop keeps the top nav). Content gets bottom padding so the
+     fixed bar never covers it; the AI button, its panel and the toast
+     are lifted above the bar. This block sits after the <=560px AI rules
+     so the lifted offsets win at every narrow width. */
+  .bottomnav{display:flex;position:fixed;left:0;right:0;bottom:0;z-index:60;background:var(--surface);border-top:1px solid var(--line);height:56px}
+  .bottomnav .bn-tab{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;color:var(--ink2);text-decoration:none;font-size:11px;font-weight:600;line-height:1.2;white-space:nowrap}
+  .bottomnav .bn-tab.on{color:var(--red);font-weight:700}
+  .bottomnav .bn-tab svg{flex:none}
+  body{padding-bottom:56px}
+  .ai-fab{bottom:76px}
+  .ai-panel{bottom:144px}
+  .toast{bottom:82px}
+}
 .authchip{display:inline-flex;align-items:center;gap:8px;background:var(--surface);border:1px solid var(--line2);border-radius:4px;padding:6px 8px 6px 14px;font-size:13px;font-weight:700;white-space:nowrap}
 .authchip button{border:0;background:var(--surface2);border-radius:4px;padding:5px 11px;font-size:12.5px;font-weight:700;color:var(--ink);cursor:pointer}
 .auth-overlay{position:fixed;inset:0;background:rgba(10,8,5,.62);z-index:130;display:none;align-items:center;justify-content:center;padding:20px}

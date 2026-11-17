@@ -82,6 +82,66 @@ function SunIcon() {
    cartCount, onOpenDrawer, onMenuOrders, onLoginClick, onLogout,
    lang, onLangChange, menuOpen, onToggleMenu, onCloseMenu,
    navOpen, onToggleNav, onNavLinkClick */
+
+/* P1 M4 — H5 bottom nav (mobile only, <=860px): 4 tabs 发现 / 资源 / 需求 /
+   我的. Hand-drawn inline SVG line icons, stroke 1.7 like the catrail
+   icons — no icon library. The active tab is red + bold. Links mirror
+   the top nav per variant; 我的 goes to user.html. */
+function BnDiscoverIcon() {
+  return (
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <circle cx="12" cy="12" r="9" /><path d="M15.5 8.5l-2 5-5 2 2-5z" />
+    </svg>
+  );
+}
+function BnResourcesIcon() {
+  return (
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <rect x="4" y="4" width="7" height="7" rx="1.5" /><rect x="13" y="4" width="7" height="7" rx="1.5" /><rect x="4" y="13" width="7" height="7" rx="1.5" /><rect x="13" y="13" width="7" height="7" rx="1.5" />
+    </svg>
+  );
+}
+function BnDemandsIcon() {
+  return (
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <rect x="5" y="4" width="14" height="17" rx="2" /><path d="M9 9.5h6M9 13.5h6M9 17h4" />
+    </svg>
+  );
+}
+function BnMineIcon() {
+  return (
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <circle cx="12" cy="8" r="3.6" /><path d="M5 20c1.2-3.4 3.8-5 7-5s5.8 1.6 7 5" />
+    </svg>
+  );
+}
+export function BottomNav({ variant }) {
+  const tabs = variant === "index"
+    ? [["#top", "bnDiscover", "discover"], ["#catalog", "bnResources", "resources"], ["#demands", "bnDemands", "demands"], ["user.html", "bnMine", "mine"]]
+    : [["index.html", "bnDiscover", "discover"], ["index.html#catalog", "bnResources", "resources"], ["index.html#demands", "bnDemands", "demands"], ["user.html", "bnMine", "mine"]];
+  const initial = () => {
+    if (variant === "user") return "mine";
+    try {
+      const h = window.location.hash;
+      if (h === "#catalog") return "resources";
+      if (h === "#demands") return "demands";
+    } catch { /* no window — default discover */ }
+    return "discover";
+  };
+  const [active, setActive] = useState(initial);
+  const icons = { discover: <BnDiscoverIcon />, resources: <BnResourcesIcon />, demands: <BnDemandsIcon />, mine: <BnMineIcon /> };
+  return (
+    <nav className="bottomnav" id="bottomNav" aria-label="Bottom navigation">
+      {tabs.map(([href, key, id]) => (
+        <a key={id} href={href} className={"bn-tab" + (active === id ? " on" : "")} data-tab={id} onClick={() => setActive(id)}>
+          {icons[id]}
+          <span>{t(key)}</span>
+        </a>
+      ))}
+    </nav>
+  );
+}
+
 export function Header(props) {
   const { variant, user, lang } = props;
   const menuRef = useRef(null);
@@ -111,6 +171,7 @@ export function Header(props) {
   const name = user ? (user.name || user.username || "demo") : "demo";
 
   return (
+    <>
     <header className="topbar">
       <div className="topbar-in">
         <a className="brand" href={variant === "index" ? "#top" : "index.html"}>
@@ -177,6 +238,8 @@ export function Header(props) {
         )}
       </div>
     </header>
+    <BottomNav variant={variant} />
+    </>
   );
 }
 
