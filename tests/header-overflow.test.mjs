@@ -1,18 +1,14 @@
 // tests/header-overflow.test.mjs: customer header no longer overflows the
-// viewport at 600/700/1100/1249 (Lam 2026-11-17), and the 大字模式 button
-// is gone from the header (Lam 2026-11-17 11:51 — button only, the
-// large-text plumbing stays for voice-order).
+// viewport at 600/700/1100/1249 (Lam 2026-11-17).
 // No server needed: all checks are source-level, same shape as
 // tests/header-breadcrumb-groups.test.mjs.
 //
 // Covered: the header hamburger breakpoint moved 860 -> 1250 (nav collapses
 // before the row can overflow); .topbar-in wraps at <=900px (not just
 // <=560px); the 861-900 dead zone (nav hidden, no hamburger) is gone;
-// chrome.jsx renders no .largetextbtn button and keeps no largeText state,
-// while isLargeText()/applyLargeText(), the guiyan-large-text key, the
-// html.large-text CSS rule and the largeText i18n key all stay (App.jsx
-// still passes large_text to the voice-order API); brand 桂演 + tag stay;
-// header buttons keep pill 999px + 44px height.
+// the 大字模式 button STAYS (Lam first asked to remove it 11:51, then
+// deferred it 11:57 "chưa cần" — this test locks the kept button in);
+// brand 桂演 + tag stay; header buttons keep pill 999px + 44px height.
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
@@ -67,11 +63,12 @@ test("no dead zone 861-900: hamburger covers every width where nav hides", () =>
   assert.ok(header900Block().includes(".mainnav{display:none"), "nav must hide at <=900px");
 });
 
-test("header renders no 大字模式 button and keeps no largeText state", () => {
+test("大字模式 button stays (Lam deferred its removal 11:57, 'chưa cần')", () => {
   const chrome = read("web/assets/js/chrome.jsx");
-  assert.ok(!chrome.includes("largetextbtn"), "Header must not render .largetextbtn");
-  assert.ok(!chrome.includes("setLargeTextState"), "Header must keep no largeText state");
-  assert.ok(!chrome.includes("const [largeText,"), "Header must keep no largeText state variable");
+  assert.ok(chrome.includes("largetextbtn"), "Header must still render .largetextbtn");
+  assert.ok(chrome.includes("setLargeTextState"), "Header must keep its largeText state");
+  assert.ok(chrome.includes("isLargeText"), "isLargeText() helper must stay");
+  assert.ok(chrome.includes("applyLargeText"), "applyLargeText() helper must stay");
 });
 
 test("large-text plumbing stays for voice-order (helpers, key, CSS, i18n)", () => {

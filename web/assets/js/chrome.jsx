@@ -85,6 +85,7 @@ function SunIcon() {
 export function Header(props) {
   const { variant, user, lang } = props;
   const menuRef = useRef(null);
+  const [largeText, setLargeTextState] = useState(() => isLargeText());
   /* Theme toggle (header, compact): same state as the settings control —
      useTheme() subscribes, so a change in either place re-renders both. */
   const { effective: themeEffective, toggleTheme } = useTheme();
@@ -134,6 +135,10 @@ export function Header(props) {
             <option value="id">Bahasa Indonesia</option>
           </select>
         </label>
+        <button className="largetextbtn" type="button" aria-pressed={largeText ? "true" : "false"} title={t("largeText")}
+          onClick={() => { const next = !largeText; setLargeTextState(next); applyLargeText(next); }}>
+          <span>{t("largeText")}</span>
+        </button>
         <button className="themebtn" id="themeBtn" type="button" onClick={toggleTheme}
           aria-label={t("themeToggle")} title={t("themeToggle")}
           aria-pressed={themeEffective === "dark" ? "true" : "false"}>
