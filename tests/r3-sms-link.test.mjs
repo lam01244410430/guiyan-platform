@@ -13,7 +13,7 @@
 // tier = stored tier holders, compared against live DB counts);
 // cross-shop -> 403, anon/non-admin -> 403; PATCH /api/account/social
 // with a bad key -> 400, maoyan handle stored + returned + deletable
-// by empty string; i18n key counts (H5 484 + 82 th/ms/id, miniprogram 270 + 82, equal
+// by empty string; i18n key counts (H5 488 + 82 th/ms/id, miniprogram 270 + 82, equal
 // sets).
 import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
@@ -427,7 +427,7 @@ test("social: bad key -> 400; maoyan handle stored + returned; empty string dele
   assert.equal(cleared.data.social.douyin, "sms_douyin");
 });
 
-test("r3-sms-link i18n: H5 484 keys/language in zh/vi/en + 82 in th/ms/id, miniprogram 270 + 82, equal sets", async () => {
+test("r3-sms-link i18n: H5 488 keys/language in zh/vi/en + 82 in th/ms/id, miniprogram 270 + 82, equal sets", async () => {
   // i18n: 1 new socMaoyan key on H5 only (353 -> 354); the
   // miniprogram has no social-links UI at all (all soc* keys are
   // H5-only), so it stays at 157; R3-6 adds 6 stored-value keys on
@@ -436,7 +436,7 @@ test("r3-sms-link i18n: H5 484 keys/language in zh/vi/en + 82 in th/ms/id, minip
     path.resolve(repoDir, "web", "assets", "js", "data.js")
   );
   const counts = data.LANGS.map((l) => Object.keys(data.I18N[l]).length);
-  assert.deepEqual(counts, [484, 484, 484, 82, 82, 82]);
+  assert.deepEqual(counts, [488, 488, 488, 82, 82, 82]);
   for (const l of ["zh", "vi", "en"])
     assert.ok("socMaoyan" in data.I18N[l], `socMaoyan missing in H5 ${l}`);
   const text = fs.readFileSync(

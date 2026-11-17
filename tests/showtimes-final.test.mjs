@@ -18,7 +18,7 @@
 // restores quota; flash sale on a direct performance (shop via
 // resource); docs have no 待补充 except the 00-readme.md:4 rule;
 // honesty markers intact; internal .note blocks + 模拟/演示 code
-// comments gone; i18n key counts (H5 484 + 82 th/ms/id, miniprogram
+// comments gone; i18n key counts (H5 488 + 82 th/ms/id, miniprogram
 // 270 + 82, equal sets).
 import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
@@ -460,12 +460,12 @@ test("flash sale on a direct performance: create 200 (shop via resource); cross-
   assert.equal(o.data.flash_cents, 1000);
 });
 
-test("showtimes-final i18n: H5 484 keys/language in zh/vi/en + 82 in th/ms/id, miniprogram 270 + 82, equal sets", async () => {
+test("showtimes-final i18n: H5 488 keys/language in zh/vi/en + 82 in th/ms/id, miniprogram 270 + 82, equal sets", async () => {
   const data = await import(
     path.resolve(repoDir, "web", "assets", "js", "data.js")
   );
   const counts = data.LANGS.map((l) => Object.keys(data.I18N[l]).length);
-  assert.deepEqual(counts, [484, 484, 484, 82, 82, 82]);
+  assert.deepEqual(counts, [488, 488, 488, 82, 82, 82]);
   for (const l of ["zh", "vi", "en"])
     assert.equal(data.I18N[l].perfPick, { zh: "请选择场次", vi: "Vui lòng chọn suất diễn", en: "Choose a performance" }[l]);
   const text = fs.readFileSync(

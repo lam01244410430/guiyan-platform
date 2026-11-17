@@ -18,7 +18,7 @@
 // owner + admin 200, another user 403; admin list filters
 // (?status= / ?code=); backfill: every paid/completed/disputed/
 // refund_requested order holds exactly `quantity` tickets,
-// cancelled orders hold none; i18n key counts (H5 484 + 82 th/ms/id,
+// cancelled orders hold none; i18n key counts (H5 488 + 82 th/ms/id,
 // miniprogram 270 + 82, equal sets).
 import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
@@ -346,7 +346,7 @@ test("anonymous verify -> 401; anonymous admin-tickets -> 403", async () => {
   assert.equal((await req("/api/admin/tickets")).status, 403);
 });
 
-test("backfilled seeded paid orders have tickets; admin list + filters; i18n 484+82/270+82", async () => {
+test("backfilled seeded paid orders have tickets; admin list + filters; i18n 488+82/270+82", async () => {
   // Every paid/completed/disputed/refund_requested order holds
   // exactly `quantity` tickets (backfill on setup + pay issuance);
   // cancelled orders hold none.
@@ -387,7 +387,7 @@ test("backfilled seeded paid orders have tickets; admin list + filters; i18n 484
     path.resolve(repoDir, "web", "assets", "js", "data.js")
   );
   const counts = data.LANGS.map((l) => Object.keys(data.I18N[l]).length);
-  assert.deepEqual(counts, [484, 484, 484, 82, 82, 82]);
+  assert.deepEqual(counts, [488, 488, 488, 82, 82, 82]);
   for (const l of ["zh", "vi", "en"])
     for (const k of ["ticketTitle", "ticketCode", "ticketEmpty", "ticketIssued", "ticketUsed", "ticketVoid"])
       assert.ok(k in data.I18N[l], `${k} missing in H5 ${l}`);

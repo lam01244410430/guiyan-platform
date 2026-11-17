@@ -382,12 +382,12 @@ test("no-template venue generate -> 400; unsold performance seats -> 404", async
   assert.equal((await req(`/api/performances/99999/seats`)).status, 404);
 });
 
-test("r2-seats i18n: H5 484 keys/language in zh/vi/en + 82 in th/ms/id, miniprogram 270 + 82, equal sets", async () => {
+test("r2-seats i18n: H5 488 keys/language in zh/vi/en + 82 in th/ms/id, miniprogram 270 + 82, equal sets", async () => {
   const data = await import(
     path.resolve(repoDir, "web", "assets", "js", "data.js")
   );
   const counts = data.LANGS.map((l) => Object.keys(data.I18N[l]).length);
-  assert.deepEqual(counts, [484, 484, 484, 82, 82, 82]);
+  assert.deepEqual(counts, [488, 488, 488, 82, 82, 82]);
   for (const k of ["seatPick", "seatSelected"]) {
     for (const l of data.LANGS)
       assert.ok(k in data.I18N[l], `${k} missing in H5 ${l}`);
