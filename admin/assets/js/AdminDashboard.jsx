@@ -584,25 +584,48 @@ export default function AdminDashboard() {
     if (e && e.status === 403) { setForbidden(true); return; }
     toast("加载失败，请稍后重试");
   }
-  function loadAlerts() {
-    apiGet("/api/admin/alerts").then(function (d) {
-      setAlerts(d.alerts || []); setThreshold(d.threshold ?? 5);
-    }).catch(loadFail);
+  // G4 — submit succeeded but the follow-up refresh failed: report the
+  // two results separately. The submit already succeeded server-side, so
+  // a refresh failure must never be reported as a submit failure, and a
+  // generic "加载失败" toast must never overwrite the success message.
+  // The success toast shows immediately; if any refresh job fails, the
+  // toast is replaced by the split message (submit OK + refresh failed).
+  // `jobs` are promises resolving true (refreshed) or false (failed) —
+  // never throwing, never toasting (see quietGet / the loaders' `quiet`
+  // flag below).
+  function reportSaveRefresh(okMsg, jobs) {
+    toast(okMsg);
+    return Promise.all(jobs).then(function (rs) {
+      if (rs.some(function (r) { return r === false; })) toast(okMsg + "；刷新失败，请重试/手动刷新");
+    });
   }
-  function loadAudit() {
-    apiGet("/api/admin/audit-logs").then(function (d) {
+  // G4 — a refresh fetch that never throws and never toasts: resolves
+  // true when the data landed, false otherwise.
+  function quietGet(url, apply) {
+    return apiGet(url).then(function (d) { apply(d); return true; }).catch(function () { return false; });
+  }
+  function loadAlerts(quiet) {
+    return apiGet("/api/admin/alerts").then(function (d) {
+      setAlerts(d.alerts || []); setThreshold(d.threshold ?? 5);
+      return true;
+    }).catch(function (e) { if (!quiet) loadFail(e); return false; });
+  }
+  function loadAudit(quiet) {
+    return apiGet("/api/admin/audit-logs").then(function (d) {
       setAuditLogs(d.logs || []);
-    }).catch(loadFail);
+      return true;
+    }).catch(function (e) { if (!quiet) loadFail(e); return false; });
   }
   // R5-1: read the STORED aggregates for the current period/date/
   // type filter (the list endpoint never recomputes live).
-  function loadEventAggregates() {
+  function loadEventAggregates(quiet) {
     const qs = "/api/admin/event-aggregates?period=" + eventPeriod
       + (eventDate ? "&date=" + encodeURIComponent(eventDate) : "")
       + (eventType ? "&type=" + encodeURIComponent(eventType) : "");
-    apiGet(qs).then(function (d) {
+    return apiGet(qs).then(function (d) {
       setEventAggregates(d.event_aggregates || []);
-    }).catch(loadFail);
+      return true;
+    }).catch(function (e) { if (!quiet) loadFail(e); return false; });
   }
   // R5-1: recompute the aggregates for the current period/date
   // (manual trigger only — there is no cron/worker this wave), then
@@ -615,8 +638,7 @@ export default function AdminDashboard() {
       ...(eventDate ? { date: eventDate } : {}),
     }).then(function () {
       setEventBusy(false);
-      toast("已重新聚合");
-      loadEventAggregates();
+      reportSaveRefresh("已重新聚合", [loadEventAggregates(true)]);
     }).catch(function (e) {
       setEventBusy(false);
       if (e && e.status === 403) toast("无权重新聚合");
@@ -627,22 +649,29 @@ export default function AdminDashboard() {
   // R5-2: load the member rows + suggestions for the chosen shop
   // and the stored insight rules (the server forces a shop-scoped
   // admin to their own shop whatever ?shop= says).
-  function loadMemberInsights() {
-    apiGet("/api/admin/member-insights?shop=" + encodeURIComponent(insightShop)).then(function (d) {
-      setMemberInsights(d);
-    }).catch(loadFail);
-    // P1 G5: rolling 90-day consumption stats for the same shop.
-    apiGet("/api/admin/member-spending-90d?shop=" + encodeURIComponent(insightShop)).then(function (d) {
-      setSpending90d(d);
-    }).catch(loadFail);
-    apiGet("/api/admin/member-insight-rules").then(function (d) {
-      setInsightRules(d.rules || null);
-      if (d.rules) setInsightRuleForm({
-        churnDays: String(d.rules.churnDays),
-        upgradeGapPct: String(d.rules.upgradeGapPct),
-        callbackDays: String(d.rules.callbackDays),
-      });
-    }).catch(loadFail);
+  function loadMemberInsights(quiet) {
+    const onFail = function (e) { if (!quiet) loadFail(e); return false; };
+    return Promise.all([
+      apiGet("/api/admin/member-insights?shop=" + encodeURIComponent(insightShop)).then(function (d) {
+        setMemberInsights(d);
+        return true;
+      }).catch(onFail),
+      // P1 G5: rolling 90-day consumption stats for the same shop.
+      apiGet("/api/admin/member-spending-90d?shop=" + encodeURIComponent(insightShop)).then(function (d) {
+        setSpending90d(d);
+        return true;
+      }).catch(onFail),
+      apiGet("/api/admin/member-insight-rules").then(function (d) {
+        setInsightRules(d.rules || null);
+        if (d.rules) setInsightRuleForm({
+          churnDays: String(d.rules.churnDays),
+          upgradeGapPct: String(d.rules.upgradeGapPct),
+          callbackDays: String(d.rules.callbackDays),
+        });
+        return true;
+      }).catch(onFail),
+    ]).then(function (rs) { return rs.every(Boolean); });
+  }
   }
   // R5-2: save the rules form (validated client-side first; the
   // server re-validates: unknown keys -> 400, ranges 1–365 / 0–100
@@ -660,8 +689,7 @@ export default function AdminDashboard() {
     apiPatch("/api/admin/member-insight-rules", { churnDays, upgradeGapPct, callbackDays }).then(function (d) {
       setInsightBusy(false);
       setInsightRules(d.rules || null);
-      toast("规则已保存");
-      loadMemberInsights();
+      reportSaveRefresh("规则已保存", [loadMemberInsights(true)]);
     }).catch(function (e) {
       setInsightBusy(false);
       if (e && e.status === 403) toast("无权修改规则");
@@ -738,10 +766,11 @@ export default function AdminDashboard() {
   // R5-5: load the alert rules (the alerts view shows them under
   // the alert list; auto alerts themselves are computed on read and
   // are part of GET /api/admin/alerts).
-  function loadAlertRules() {
-    apiGet("/api/admin/alert-rules").then(function (d) {
+  function loadAlertRules(quiet) {
+    return apiGet("/api/admin/alert-rules").then(function (d) {
       setAlertRules(d.rules || []);
-    }).catch(loadFail);
+      return true;
+    }).catch(function (e) { if (!quiet) loadFail(e); return false; });
   }
   // R5-5: create a rule from the form (config fields follow the
   // chosen kind; empty shop = platform-level for the platform
@@ -768,8 +797,7 @@ export default function AdminDashboard() {
     setRuleBusy(true);
     apiPost("/api/admin/alert-rules", { kind, shop_id: shopId, config }).then(function () {
       setRuleBusy(false);
-      toast("已新增预警规则");
-      loadAlertRules(); loadAlerts(); loadAudit();
+      reportSaveRefresh("已新增预警规则", [loadAlertRules(true), loadAlerts(true), loadAudit(true)]);
     }).catch(function (e) {
       setRuleBusy(false);
       toast((e && e.data && e.data.error) || "新增失败");
@@ -782,21 +810,25 @@ export default function AdminDashboard() {
     setRuleBusy(true);
     apiPatch("/api/admin/alert-rules/" + rule.id, { status: rule.status === "active" ? "disabled" : "active" }).then(function () {
       setRuleBusy(false);
-      toast(rule.status === "active" ? "已停用规则，自动预警随之消失" : "已启用规则");
-      loadAlertRules(); loadAlerts(); loadAudit();
+      reportSaveRefresh(rule.status === "active" ? "已停用规则，自动预警随之消失" : "已启用规则", [
+        loadAlertRules(true),
+        loadAlerts(true),
+        loadAudit(true),
+      ]);
     }).catch(function (e) {
       setRuleBusy(false);
       toast((e && e.data && e.data.error) || "操作失败");
     });
   }
   // R5-5: load the finance ledger page for the current filters.
-  function loadFinanceLedger() {
+  function loadFinanceLedger(quiet) {
     const qs = "/api/admin/finance-ledger?limit=200"
       + (ledgerKind ? "&kind=" + encodeURIComponent(ledgerKind) : "")
       + (ledgerReconciled !== "" ? "&reconciled=" + encodeURIComponent(ledgerReconciled) : "");
-    apiGet(qs).then(function (d) {
+    return apiGet(qs).then(function (d) {
       setFinanceLedger(d.ledger || []);
-    }).catch(loadFail);
+      return true;
+    }).catch(function (e) { if (!quiet) loadFail(e); return false; });
   }
   // R5-5: mark one ledger row reconciled, then reload the table.
   function doReconcileLedger(id) {
@@ -804,8 +836,7 @@ export default function AdminDashboard() {
     setLedgerBusyId(id);
     apiPost("/api/admin/finance-ledger/" + id + "/reconcile", {}).then(function () {
       setLedgerBusyId(null);
-      toast("已对账");
-      loadFinanceLedger(); loadAudit();
+      reportSaveRefresh("已对账", [loadFinanceLedger(true), loadAudit(true)]);
     }).catch(function (e) {
       setLedgerBusyId(null);
       toast((e && e.data && e.data.error) || "对账失败");
@@ -818,8 +849,7 @@ export default function AdminDashboard() {
       + (ledgerKind ? "&kind=" + encodeURIComponent(ledgerKind) : "")
       + (ledgerReconciled !== "" ? "&reconciled=" + encodeURIComponent(ledgerReconciled) : "");
     apiDownloadCsv(qs, "guiyan-finance-ledger.csv").then(function () {
-      toast("已导出财务账本 CSV");
-      loadAudit();
+      reportSaveRefresh("已导出财务账本 CSV", [loadAudit(true)]);
     }).catch(function (e) {
       toast((e && e.data && e.data.error) || "导出失败");
     });
@@ -1054,8 +1084,7 @@ export default function AdminDashboard() {
     if (csvBusy) return;
     setCsvBusy(true);
     apiDownloadCsv("/api/admin/orders.csv", "guiyan-orders.csv").then(function () {
-      toast("已导出订单CSV");
-      loadAudit();
+      reportSaveRefresh("已导出订单CSV", [loadAudit(true)]);
     }).catch(function (e) {
       if (e && e.status === 403) toast("无权导出");
       else toast("导出失败，请稍后重试");
@@ -1128,9 +1157,10 @@ export default function AdminDashboard() {
     apiPatch("/api/admin/demands/" + id, { status }).then(function () {
       setDemands(function (ds) { return ds.map(function (d) { return d.id === id ? { ...d, status } : d; }); });
       // Review busts the cached admin stats on the server.
-      apiGet("/api/admin/stats").then(setStats).catch(function () {});
-      loadAudit();
-      toast(status === "approved" ? "已通过" : "已拒绝");
+      reportSaveRefresh(status === "approved" ? "已通过" : "已拒绝", [
+        quietGet("/api/admin/stats", setStats),
+        loadAudit(true),
+      ]);
     }).catch(function (e) {
       if (e && e.status === 403) toast("无权审核");
       else if (e && e.status === 404) toast("需求不存在");
@@ -1140,11 +1170,12 @@ export default function AdminDashboard() {
 
   /* R6-5 评论审核: load the admin comment list for the chosen
      status filter ("" = all statuses). */
-  function loadComments() {
+  function loadComments(quiet) {
     const qs = "/api/admin/comments" + (cmtFilter ? "?status=" + encodeURIComponent(cmtFilter) : "");
-    apiGet(qs).then(function (d) {
+    return apiGet(qs).then(function (d) {
       setComments(d.comments || []);
-    }).catch(loadFail);
+      return true;
+    }).catch(function (e) { if (!quiet) loadFail(e); return false; });
   }
   /* R6-5: approve/reject one pending comment (same reviewBusyId
      pattern as demands). The list reloads so the row's status and
@@ -1153,9 +1184,10 @@ export default function AdminDashboard() {
     if (reviewBusyId !== null) return;
     setReviewBusyId(id);
     apiPatch("/api/admin/comments/" + id, { status }).then(function () {
-      loadComments();
-      loadAudit();
-      toast(status === "approved" ? "已通过" : "已拒绝");
+      reportSaveRefresh(status === "approved" ? "已通过" : "已拒绝", [
+        loadComments(true),
+        loadAudit(true),
+      ]);
     }).catch(function (e) {
       if (e && e.status === 403) toast("无权审核");
       else if (e && e.status === 404) toast("评价不存在");
@@ -1171,9 +1203,7 @@ export default function AdminDashboard() {
     setReviewBusyId(id);
     apiPatch("/api/admin/comments/" + id + "/reply", { reply }).then(function () {
       setReplyDraft(function (m) { const next = { ...m }; delete next[id]; return next; });
-      loadComments();
-      loadAudit();
-      toast("已回复，作者已收到通知");
+      reportSaveRefresh("已回复，作者已收到通知", [loadComments(true), loadAudit(true)]);
     }).catch(function (e) {
       if (e && e.status === 403) toast("无权回复");
       else if (e && e.status === 404) toast("评价不存在");
@@ -1195,10 +1225,11 @@ export default function AdminDashboard() {
     setReviewBusyId(id);
     apiPost("/api/orders/" + id + "/" + action, reason ? { reason } : {}).then(function (d) {
       setOrders(function (os) { return os.map(function (o) { return o.id === id ? { ...o, status: d.status } : o; }); });
-      apiGet("/api/admin/orders").then(function (r) { setOrders(r.orders || []); }).catch(function () {});
-      apiGet("/api/admin/stats").then(setStats).catch(function () {});
-      loadAudit();
-      toast("已处理");
+      reportSaveRefresh("已处理", [
+        quietGet("/api/admin/orders", function (r) { setOrders(r.orders || []); }),
+        quietGet("/api/admin/stats", setStats),
+        loadAudit(true),
+      ]);
     }).catch(function (e) {
       if (e && e.status === 403) toast("无权处理");
       else if (e && e.status === 400) toast((e.data && e.data.error) || "当前状态不允许该操作");
@@ -1222,10 +1253,11 @@ export default function AdminDashboard() {
     setReviewBusyId(id);
     apiPost("/api/orders/" + id + "/" + action, reason.trim() ? { reason: reason.trim() } : {}).then(function (d) {
       setOrders(function (os) { return os.map(function (o) { return o.id === id ? { ...o, status: d.status } : o; }); });
-      apiGet("/api/admin/orders").then(function (r) { setOrders(r.orders || []); }).catch(function () {});
-      apiGet("/api/admin/stats").then(setStats).catch(function () {});
-      loadAudit();
-      toast(action === "confirm" ? "订单已确认" : "订单已驳回");
+      reportSaveRefresh(action === "confirm" ? "订单已确认" : "订单已驳回", [
+        quietGet("/api/admin/orders", function (r) { setOrders(r.orders || []); }),
+        quietGet("/api/admin/stats", setStats),
+        loadAudit(true),
+      ]);
     }).catch(function (e) {
       if (e && e.status === 403) toast("无权处理");
       else if (e && e.status === 400) toast((e.data && e.data.error) || "当前状态不允许该操作");
@@ -1242,9 +1274,10 @@ export default function AdminDashboard() {
     setReviewBusyId(id);
     apiPost("/api/orders/" + id + "/escrow", { action }).then(function (d) {
       setOrders(function (os) { return os.map(function (o) { return o.id === id ? { ...o, escrow: d.escrow } : o; }); });
-      apiGet("/api/admin/orders").then(function (r) { setOrders(r.orders || []); }).catch(function () {});
-      loadAudit();
-      toast(action === "hold" ? "已托管" : "托管已释放");
+      reportSaveRefresh(action === "hold" ? "已托管" : "托管已释放", [
+        quietGet("/api/admin/orders", function (r) { setOrders(r.orders || []); }),
+        loadAudit(true),
+      ]);
     }).catch(function (e) {
       if (e && e.status === 403) toast("无权处理");
       else if (e && e.status === 400) toast((e.data && e.data.error) || "当前托管状态不允许该操作");
@@ -1303,9 +1336,7 @@ export default function AdminDashboard() {
           : rs.map(function (r) { return r.id === saved.id ? saved : r; });
       });
       setResForm(null);
-      apiGet("/api/admin/stats").then(setStats).catch(function () {});
-      loadAudit();
-      toast("已保存");
+      reportSaveRefresh("已保存", [quietGet("/api/admin/stats", setStats), loadAudit(true)]);
     }).catch(function (e) {
       if (e && e.status === 403) toast("无权管理资源");
       else if (e && e.status === 404) toast("资源不存在");
@@ -1319,9 +1350,10 @@ export default function AdminDashboard() {
     apiPatch("/api/admin/resources/" + r.id, { status: next }).then(function (d) {
       const saved = d.resource;
       setResources(function (rs) { return rs.map(function (x) { return x.id === saved.id ? saved : x; }); });
-      apiGet("/api/admin/stats").then(setStats).catch(function () {});
-      loadAudit();
-      toast(next === "published" ? "已上架" : "已下架");
+      reportSaveRefresh(next === "published" ? "已上架" : "已下架", [
+        quietGet("/api/admin/stats", setStats),
+        loadAudit(true),
+      ]);
     }).catch(function (e) {
       if (e && e.status === 403) toast("无权管理资源");
       else if (e && e.status === 404) toast("资源不存在");
@@ -1334,10 +1366,9 @@ export default function AdminDashboard() {
     apiPost("/api/admin/resources/" + r.id + "/sync", {}).then(function (d) {
       const saved = d.resource;
       setResources(function (rs) { return rs.map(function (x) { return x.id === saved.id ? saved : x; }); });
-      loadAudit();
       // The server message states no external request was sent; the
       // the sync writes a local record only (no external request is sent).
-      toast(d.message || "已模拟同步");
+      reportSaveRefresh(d.message || "已模拟同步", [loadAudit(true)]);
     }).catch(function (e) {
       if (e && e.status === 403) toast("无权管理资源");
       else if (e && e.status === 404) toast("资源不存在");
@@ -1420,8 +1451,7 @@ export default function AdminDashboard() {
           : vs.map(function (x) { return x.id === saved.id ? { ...saved, has_seats: x.has_seats } : x; });
       });
       setVenueForm(null);
-      loadAudit();
-      toast("已保存");
+      reportSaveRefresh("已保存", [loadAudit(true)]);
     }).catch(function (e) {
       if (e && e.status === 403) toast("只能管理本店铺的场馆");
       else if (e && e.status === 404) toast("场馆不存在");
@@ -1475,8 +1505,7 @@ export default function AdminDashboard() {
           : ts.map(function (x) { return x.id === saved.id ? saved : x; });
       });
       setMemberTierForm(null);
-      loadAudit();
-      toast("已保存");
+      reportSaveRefresh("已保存", [loadAudit(true)]);
     }).catch(function (e) {
       if (e && e.status === 403) toast("只能管理本店铺的会员等级");
       else if (e && e.status === 404) toast("会员等级不存在");
@@ -1531,8 +1560,7 @@ export default function AdminDashboard() {
           : ps.map(function (x) { return x.id === saved.id ? saved : x; });
       });
       setStoredValuePlanForm(null);
-      loadAudit();
-      toast("已保存");
+      reportSaveRefresh("已保存", [loadAudit(true)]);
     }).catch(function (e) {
       if (e && e.status === 403) toast("只能管理本店铺的文惠卡");
       else if (e && e.status === 404) toast("储值套餐不存在");
@@ -1551,8 +1579,7 @@ export default function AdminDashboard() {
     setGrantBusy(true);
     apiPost("/api/admin/stored-value/grant", body).then(function (d) {
       setGrantForm({ user_id: "", amount_cents: "", note: "", shop_id: "1" });
-      loadAudit();
-      toast("已发放，当前余额 " + fmtMoney(d.account.balance_cents));
+      reportSaveRefresh("已发放，当前余额 " + fmtMoney(d.account.balance_cents), [loadAudit(true)]);
     }).catch(function (e) {
       if (e && e.status === 403) toast("只能管理本店铺的文惠卡");
       else if (e && e.status === 404) toast("用户或店铺不存在");
@@ -1768,8 +1795,7 @@ export default function AdminDashboard() {
           : cs.map(function (x) { return x.id === saved.id ? saved : x; });
       });
       setCouponForm(null);
-      loadAudit();
-      toast("已保存");
+      reportSaveRefresh("已保存", [loadAudit(true)]);
     }).catch(function (e) {
       if (e && e.status === 403) toast("只能管理本店铺的优惠券");
       else if (e && e.status === 404) toast("优惠券不存在");
@@ -1857,8 +1883,7 @@ export default function AdminDashboard() {
           : ss.map(function (x) { return x.id === saved.id ? saved : x; });
       });
       setFlashSaleForm(null);
-      loadAudit();
-      toast("已保存");
+      reportSaveRefresh("已保存", [loadAudit(true)]);
     }).catch(function (e) {
       if (e && e.status === 403) toast("只能管理本店铺的限时抢购");
       else if (e && e.status === 404) toast("限时抢购不存在");
@@ -1924,8 +1949,7 @@ export default function AdminDashboard() {
           : rs.map(function (x) { return x.id === saved.id ? saved : x; });
       });
       setCouponRuleForm(null);
-      loadAudit();
-      toast("已保存");
+      reportSaveRefresh("已保存", [loadAudit(true)]);
     }).catch(function (e) {
       if (e && e.status === 403) toast("只能管理本店铺的自动发券规则");
       else if (e && e.status === 404) toast("自动发券规则不存在");
@@ -1995,8 +2019,7 @@ export default function AdminDashboard() {
           : rs.map(function (x) { return x.id === saved.id ? saved : x; });
       });
       setSmsTaskForm(null);
-      loadAudit();
-      toast("已保存");
+      reportSaveRefresh("已保存", [loadAudit(true)]);
     }).catch(function (e) {
       if (e && e.status === 403) toast("只能管理本店铺的短信任务");
       else if (e && e.status === 404) toast("短信任务不存在");
@@ -2047,8 +2070,7 @@ export default function AdminDashboard() {
       const done = function () {
         setLicenses(function (rs) { return [d.license].concat(rs); });
         setLicForm(null);
-        loadAudit();
-        toast("已登记版权");
+        reportSaveRefresh("已登记版权", [loadAudit(true)]);
       };
       if (Object.keys(metaPatch).length === 0) { done(); return; }
       const res = resources.find(function (r) { return r.id === body.resource_id; });
@@ -2136,8 +2158,7 @@ export default function AdminDashboard() {
         return vs.map(function (x) { return x.id === tplForm.venueId ? { ...x, has_seats: true } : x; });
       });
       setTplForm(null);
-      loadAudit();
-      toast("已保存");
+      reportSaveRefresh("已保存", [loadAudit(true)]);
     }).catch(function (e) {
       if (e && e.status === 403) toast("只能管理本店铺的座位模板");
       else if (e && e.status === 404) toast("场馆或模板不存在");
@@ -2188,9 +2209,10 @@ export default function AdminDashboard() {
       });
       setShopForm(null);
       // The owner list carries shop_id, so reload users as well.
-      apiGet("/api/admin/users").then(function (u) { setUsers(u.users || []); }).catch(function () {});
-      loadAudit();
-      toast("已保存");
+      reportSaveRefresh("已保存", [
+        quietGet("/api/admin/users", function (u) { setUsers(u.users || []); }),
+        loadAudit(true),
+      ]);
     }).catch(function (e) {
       if (e && e.status === 403) toast("只有平台管理员可管理店铺");
       else if (e && e.status === 404) toast("店铺不存在");
@@ -2204,8 +2226,7 @@ export default function AdminDashboard() {
     apiPatch("/api/admin/shops/" + s.id, { status: next }).then(function (d) {
       const saved = d.shop;
       setShops(function (ss) { return ss.map(function (x) { return x.id === saved.id ? saved : x; }); });
-      loadAudit();
-      toast(next === "active" ? "已启用" : "已停用");
+      reportSaveRefresh(next === "active" ? "已启用" : "已停用", [loadAudit(true)]);
     }).catch(function (e) {
       if (e && e.status === 403) toast("只有平台管理员可管理店铺");
       else if (e && e.status === 404) toast("店铺不存在");
@@ -2255,8 +2276,7 @@ export default function AdminDashboard() {
     setThemeBusyId(themeForm.shopId);
     apiPatch("/api/admin/shops/" + themeForm.shopId + "/theme", body).then(function () {
       setThemeForm(null);
-      loadAudit();
-      toast("已保存");
+      reportSaveRefresh("已保存", [loadAudit(true)]);
     }).catch(function (e) {
       if (e && e.status === 403) toast("只能装修本店铺");
       else if (e && e.status === 404) toast("店铺不存在");
@@ -2300,8 +2320,7 @@ export default function AdminDashboard() {
     apiPost("/api/shows", body).then(function (d) {
       setShows(function (ss) { return [d.show].concat(ss); });
       setShowForm(null);
-      loadAudit();
-      toast("已提交审核");
+      reportSaveRefresh("已提交审核", [loadAudit(true)]);
     }).catch(function (e) {
       if (e && e.status === 403) toast("只能在本店铺创建演出");
       else if (e && e.status === 404) toast("店铺或资源不存在");
@@ -2314,8 +2333,7 @@ export default function AdminDashboard() {
     apiPatch("/api/admin/shows/" + s.id, { status: status }).then(function (d) {
       const saved = d.show;
       setShows(function (ss) { return ss.map(function (x) { return x.id === saved.id ? saved : x; }); });
-      loadAudit();
-      toast(status === "approved" ? "已通过" : "已拒绝");
+      reportSaveRefresh(status === "approved" ? "已通过" : "已拒绝", [loadAudit(true)]);
     }).catch(function (e) {
       if (e && e.status === 403) toast("只能审核本店铺的演出");
       else if (e && e.status === 404) toast("演出不存在");
@@ -2352,8 +2370,7 @@ export default function AdminDashboard() {
         });
       });
       setPerfForm({ showId: showId, start_at: "", price: "" });
-      loadAudit();
-      toast("已创建场次");
+      reportSaveRefresh("已创建场次", [loadAudit(true)]);
     }).catch(function (e) {
       if (e && e.status === 403) toast("只能管理本店铺的场次");
       else if (e && e.status === 404) toast("演出不存在");
@@ -2371,8 +2388,7 @@ export default function AdminDashboard() {
           return { ...x, performances: (x.performances || []).map(function (p) { return p.id === saved.id ? saved : p; }) };
         });
       });
-      loadAudit();
-      toast(status === "on_sale" ? "已上架" : "已取消");
+      reportSaveRefresh(status === "on_sale" ? "已上架" : "已取消", [loadAudit(true)]);
     }).catch(function (e) {
       if (e && e.status === 403) toast("只能管理本店铺的场次");
       else if (e && e.status === 404) toast("场次不存在");
@@ -2385,10 +2401,11 @@ export default function AdminDashboard() {
   // performances with their tiers); creating one goes straight to
   // on sale with a default tier (server-side), so the list is
   // reloaded after create/status change instead of patched in place.
-  function loadResPerfs(resId) {
-    apiGet("/api/resources/" + resId + "/availability").then(function (d) {
+  function loadResPerfs(resId, quiet) {
+    return apiGet("/api/resources/" + resId + "/availability").then(function (d) {
       setResPerfsByRes(function (m) { return { ...m, [resId]: d.performances || [] }; });
-    }).catch(loadFail);
+      return true;
+    }).catch(function (e) { if (!quiet) loadFail(e); return false; });
   }
   function toggleResPerfManager(r) {
     if (resPerfResId === r.id) {
@@ -2414,9 +2431,7 @@ export default function AdminDashboard() {
       start_at: resPerfForm.start_at, price_cents: Math.round(price * 100),
     }).then(function () {
       setResPerfForm({ resId: resId, start_at: "", price: "" });
-      loadResPerfs(resId);
-      loadAudit();
-      toast("已创建场次");
+      reportSaveRefresh("已创建场次", [loadResPerfs(resId, true), loadAudit(true)]);
     }).catch(function (e) {
       if (e && e.status === 403) toast("只能管理本店铺的场次");
       else if (e && e.status === 404) toast("资源不存在");
@@ -2427,9 +2442,10 @@ export default function AdminDashboard() {
     if (perfBusyId !== null) return;
     setPerfBusyId(pf.id);
     apiPatch("/api/admin/performances/" + pf.id, { status: status }).then(function () {
-      loadResPerfs(resId);
-      loadAudit();
-      toast(status === "on_sale" ? "已上架" : "已取消");
+      reportSaveRefresh(status === "on_sale" ? "已上架" : "已取消", [
+        loadResPerfs(resId, true),
+        loadAudit(true),
+      ]);
     }).catch(function (e) {
       if (e && e.status === 403) toast("只能管理本店铺的场次");
       else if (e && e.status === 404) toast("场次不存在");
@@ -2624,8 +2640,7 @@ export default function AdminDashboard() {
     setUserStatusBusyId(usr.id);
     apiPatch("/api/admin/users/" + usr.id + "/status", { status: next }).then(function (d) {
       setUsers(function (us) { return us.map(function (x) { return x.id === d.user.id ? d.user : x; }); });
-      loadAudit();
-      toast(next === "active" ? "已启用" : "已停用");
+      reportSaveRefresh(next === "active" ? "已启用" : "已停用", [loadAudit(true)]);
     }).catch(function (e) {
       toast((e && e.data && e.data.error) || "操作失败，请稍后重试");
     }).finally(function () { setUserStatusBusyId(null); });
@@ -2664,8 +2679,7 @@ export default function AdminDashboard() {
     }).then(function (d) {
       setUsers(function (us) { return us.map(function (x) { return x.id === d.user.id ? d.user : x; }); });
       setUserEditForm(null);
-      loadAudit();
-      toast("已保存");
+      reportSaveRefresh("已保存", [loadAudit(true)]);
     }).catch(function (e) {
       toast((e && e.data && e.data.error) || "保存失败，请检查表单");
     }).finally(function () { setUserCrudBusyId(null); });
@@ -2693,8 +2707,7 @@ export default function AdminDashboard() {
       // already tolerates ((usr.tags || [])).
       setUsers(function (us) { return [d.user].concat(us); });
       setUserCreateForm(null);
-      loadAudit();
-      toast("已新建用户");
+      reportSaveRefresh("已新建用户", [loadAudit(true)]);
     }).catch(function (e) {
       toast((e && e.data && e.data.error) || "新建失败，请检查表单");
     }).finally(function () { setUserCrudBusyId(null); });
@@ -2705,8 +2718,7 @@ export default function AdminDashboard() {
     apiDelete("/api/admin/users/" + usr.id).then(function () {
       setUsers(function (us) { return us.filter(function (x) { return x.id !== usr.id; }); });
       setUserDeleteTarget(null);
-      loadAudit();
-      toast("已删除用户");
+      reportSaveRefresh("已删除用户", [loadAudit(true)]);
     }).catch(function (e) {
       toast((e && e.data && e.data.error) || "删除失败");
     }).finally(function () { setUserCrudBusyId(null); });
@@ -2723,8 +2735,7 @@ export default function AdminDashboard() {
     setUserCrudBusyId(usr.id);
     apiPatch("/api/admin/users/" + usr.id + "/role", { role: role }).then(function (d) {
       setUsers(function (us) { return us.map(function (x) { return x.id === d.user.id ? d.user : x; }); });
-      loadAudit();
-      toast(role === "admin" ? "已授予管理员" : "已收回管理员");
+      reportSaveRefresh(role === "admin" ? "已授予管理员" : "已收回管理员", [loadAudit(true)]);
     }).catch(function (e) {
       toast((e && e.data && e.data.error) || "操作失败，请稍后重试");
     }).finally(function () { setUserCrudBusyId(null); });
@@ -2734,16 +2745,16 @@ export default function AdminDashboard() {
     if (triggerBusy) return;
     setTriggerBusy(kind);
     apiPost("/api/admin/alerts", { kind }).then(function () {
-      toast("已触发模拟预警");
-      loadAlerts(); loadAudit(); setAnalysisStale(true);
+      setAnalysisStale(true);
+      reportSaveRefresh("已触发模拟预警", [loadAlerts(true), loadAudit(true)]);
     }).catch(function () { toast("触发失败，请稍后重试"); })
       .finally(function () { setTriggerBusy(""); });
   }
 
   function doResolveAlert(id) {
     apiPost("/api/admin/alerts", { resolve: id }).then(function () {
-      toast("已处理");
-      loadAlerts(); loadAudit(); setAnalysisStale(true);
+      setAnalysisStale(true);
+      reportSaveRefresh("已处理", [loadAlerts(true), loadAudit(true)]);
     }).catch(function () { toast("处理失败，请稍后重试"); });
   }
 
@@ -2789,11 +2800,12 @@ export default function AdminDashboard() {
     setTagRulesBusy(true);
     apiPatch("/api/admin/tag-rules", { tagRules }).then(function (d) {
       setTagRules(d.tagRules || tagRules);
-      toast("标签规则已保存，用户标签已重算");
       // Tags changed: reload the users table and mark the analysis stale
       // (its userSummary counts tags; the server already busted its cache).
-      apiGet("/api/admin/users").then(function (u) { setUsers(u.users || []); }).catch(function () {});
       setAnalysisStale(true);
+      reportSaveRefresh("标签规则已保存，用户标签已重算", [
+        quietGet("/api/admin/users", function (u) { setUsers(u.users || []); }),
+      ]);
     }).catch(function (e) {
       if (e && e.status === 403) toast("无权修改标签规则");
       else toast((e && e.data && e.data.error) || "保存失败，请检查规则");
