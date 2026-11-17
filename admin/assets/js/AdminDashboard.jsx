@@ -337,6 +337,8 @@ export default function AdminDashboard() {
   // the chosen shop, the stored insight rules, and the rules form
   // (strings in the inputs, validated as integers on save).
   const [memberInsights, setMemberInsights] = useState(null);
+  // P1 G5: rolling 90-day consumption stats for the chosen shop.
+  const [spending90d, setSpending90d] = useState(null);
   const [insightShop, setInsightShop] = useState("1");
   const [insightRules, setInsightRules] = useState(null);
   const [insightRuleForm, setInsightRuleForm] = useState({ churnDays: "90", upgradeGapPct: "20", callbackDays: "90" });
@@ -373,6 +375,13 @@ export default function AdminDashboard() {
   // view tag filter (client-side, composes with search/sort; the API's
   // ?tag= filter exists so the endpoint is usable on its own).
   const [tagRules, setTagRules] = useState(null);
+  // P1 G1 recommendation weights (admin-configurable; the tagrules view
+  // is the portrait/recommendation config area) + the users-view CSV
+  // export flag (P1 G2).
+  const [recWeights, setRecWeights] = useState(null);
+  const [recWeightForm, setRecWeightForm] = useState({ browse: "2", favorite: "5", purchase: "8", cap: "35" });
+  const [recWeightsBusy, setRecWeightsBusy] = useState(false);
+  const [usersCsvBusy, setUsersCsvBusy] = useState(false);
   // Wave 3 #8 operator card (analysis view): question + rule answer.
   const [opQuery, setOpQuery] = useState("");
   const [opReply, setOpReply] = useState("");
@@ -621,6 +630,10 @@ export default function AdminDashboard() {
   function loadMemberInsights() {
     apiGet("/api/admin/member-insights?shop=" + encodeURIComponent(insightShop)).then(function (d) {
       setMemberInsights(d);
+    }).catch(loadFail);
+    // P1 G5: rolling 90-day consumption stats for the same shop.
+    apiGet("/api/admin/member-spending-90d?shop=" + encodeURIComponent(insightShop)).then(function (d) {
+      setSpending90d(d);
     }).catch(loadFail);
     apiGet("/api/admin/member-insight-rules").then(function (d) {
       setInsightRules(d.rules || null);
@@ -975,6 +988,16 @@ export default function AdminDashboard() {
       apiGet("/api/admin/tag-rules").then(function (d) {
         setTagRules(d.tagRules || []);
       }).catch(loadFail);
+      // P1 G1: load the stored recommendation weights with the tag rules.
+      apiGet("/api/admin/rec-weights").then(function (d) {
+        setRecWeights(d.recWeights || null);
+        if (d.recWeights) setRecWeightForm({
+          browse: String(d.recWeights.browse),
+          favorite: String(d.recWeights.favorite),
+          purchase: String(d.recWeights.purchase),
+          cap: String(d.recWeights.cap),
+        });
+      }).catch(loadFail);
     }
     if (view === "alerts" && !loadedRef.current.alerts) {
       loadedRef.current.alerts = true;
@@ -1037,6 +1060,25 @@ export default function AdminDashboard() {
       if (e && e.status === 403) toast("无权导出");
       else toast("导出失败，请稍后重试");
     }).finally(function () { setCsvBusy(false); });
+  }
+
+  // P1 G2: export the grouped user list — exactly the rows the 全部用户
+  // table shows after the current tag filter + search box (not the
+  // whole user table). Filename carries the Beijing date.
+  function doExportUsersCsv() {
+    if (usersCsvBusy) return;
+    setUsersCsvBusy(true);
+    const qs = new URLSearchParams();
+    if (tagFilter) qs.set("tag", tagFilter);
+    if (q) qs.set("q", q);
+    const today = new Date(Date.now() + 8 * 3600000).toISOString().slice(0, 10);
+    const suffix = qs.toString() ? "?" + qs.toString() : "";
+    apiDownloadCsv("/api/admin/users.csv" + suffix, "guiyan-users-" + today + ".csv").then(function () {
+      toast("已导出用户CSV");
+    }).catch(function (e) {
+      if (e && e.status === 403) toast("无权导出");
+      else toast("导出失败，请稍后重试");
+    }).finally(function () { setUsersCsvBusy(false); });
   }
 
   /* Wave 4 #15 — simulated agreement per order (具体功能 #12, port of
@@ -2758,6 +2800,31 @@ export default function AdminDashboard() {
     }).finally(function () { setTagRulesBusy(false); });
   }
 
+  // P1 G1: save the recommendation weights (client-side range checks
+  // mirror the server: browse/favorite/purchase 0–100, cap 1–200).
+  // The save takes the stored values from the PATCH response — no
+  // post-save reload, so there is no refresh step to fail; the next
+  // recommendation call uses the new weights immediately.
+  function saveRecWeights() {
+    if (recWeightsBusy || recWeights === null) return;
+    const browse = Number(recWeightForm.browse);
+    const favorite = Number(recWeightForm.favorite);
+    const purchase = Number(recWeightForm.purchase);
+    const cap = Number(recWeightForm.cap);
+    if (!Number.isInteger(browse) || browse < 0 || browse > 100) { toast("浏览权重须为 0–100 的整数"); return; }
+    if (!Number.isInteger(favorite) || favorite < 0 || favorite > 100) { toast("收藏权重须为 0–100 的整数"); return; }
+    if (!Number.isInteger(purchase) || purchase < 0 || purchase > 100) { toast("购买权重须为 0–100 的整数"); return; }
+    if (!Number.isInteger(cap) || cap < 1 || cap > 200) { toast("单类信号上限须为 1–200 的整数"); return; }
+    setRecWeightsBusy(true);
+    apiPatch("/api/admin/rec-weights", { browse, favorite, purchase, cap }).then(function (d) {
+      setRecWeights(d.recWeights || null);
+      toast("推荐权重已保存，下次推荐立即生效");
+    }).catch(function (e) {
+      if (e && e.status === 403) toast("无权修改推荐权重");
+      else toast((e && e.message) || "保存失败");
+    }).finally(function () { setRecWeightsBusy(false); });
+  }
+
   function doOperatorAsk() {
     const q = opQuery.trim();
     if (opBusy || !q) return;
@@ -3318,6 +3385,9 @@ export default function AdminDashboard() {
                 <option value="">全部标签</option>
                 {allTags.map((tg) => (<option key={tg} value={tg}>{tg}</option>))}
               </select>
+              {/* P1 G2: export exactly the filtered list (current tag
+                  filter + search box), not the whole user table. */}
+              <button type="button" className="btn-export" disabled={usersCsvBusy} onClick={doExportUsersCsv}>{usersCsvBusy ? "导出中…" : "导出 CSV"}</button>
               {isPlatformAdmin ? (
                 <button type="button" className="btn-export" onClick={openUserCreateForm}>新建用户</button>
               ) : null}
@@ -3408,6 +3478,19 @@ export default function AdminDashboard() {
                   <button type="button" disabled={tagRules.length >= 20} onClick={addTagRule}>添加规则</button>
                   <button type="button" className="btn-export" disabled={tagRulesBusy} onClick={saveTagRules}>{tagRulesBusy ? "保存中…" : "保存标签规则"}</button>
                 </div>
+                {/* P1 G1 推荐权重：浏览 / 收藏 / 购买的信号权重与单类信号
+                    上限；保存后下次推荐立即生效，无需迁移旧数据。 */}
+                <fieldset className="tag-rule">
+                  <legend>推荐权重</legend>
+                  <p className="def-note">推荐分数按浏览、收藏、购买三类信号加权，单类信号计分有上限；保存后下次推荐立即生效。当前：浏览 {recWeights ? recWeights.browse : "—"} · 收藏 {recWeights ? recWeights.favorite : "—"} · 购买 {recWeights ? recWeights.purchase : "—"} · 上限 {recWeights ? recWeights.cap : "—"}</p>
+                  <label>浏览权重 <input type="number" min={0} max={100} value={recWeightForm.browse} onChange={(e) => setRecWeightForm(function (f) { return { ...f, browse: e.target.value }; })} /></label>
+                  <label>收藏权重 <input type="number" min={0} max={100} value={recWeightForm.favorite} onChange={(e) => setRecWeightForm(function (f) { return { ...f, favorite: e.target.value }; })} /></label>
+                  <label>购买权重 <input type="number" min={0} max={100} value={recWeightForm.purchase} onChange={(e) => setRecWeightForm(function (f) { return { ...f, purchase: e.target.value }; })} /></label>
+                  <label>单类信号上限 <input type="number" min={1} max={200} value={recWeightForm.cap} onChange={(e) => setRecWeightForm(function (f) { return { ...f, cap: e.target.value }; })} /></label>
+                  <div className="chips">
+                    <button type="button" className="btn-export" disabled={recWeightsBusy || recWeights === null} onClick={saveRecWeights}>{recWeightsBusy ? "保存中…" : "保存推荐权重"}</button>
+                  </div>
+                </fieldset>
               </>
             )}
           </section>
@@ -5183,6 +5266,15 @@ export default function AdminDashboard() {
               <button type="button" className="btn-export" disabled={insightBusy} onClick={saveInsightRules}>{insightBusy ? "保存中…" : "保存规则"}</button>
             </div>
             {insightRules ? (<div className="note">当前规则：流失天数 {insightRules.churnDays} 天 · 可升级差距 {insightRules.upgradeGapPct}% · 回访天数 {insightRules.callbackDays} 天</div>) : null}
+            {/* P1 G5: rolling 90-day consumption stats for this shop —
+                computed on read when the view opens (no cron). */}
+            {spending90d ? (
+              <div className="stats">
+                <div className="stat"><b>{fmtMoney(spending90d.total_cents)}</b><span>近90天消费（{spending90d.start_date} 至 {spending90d.end_date}）</span></div>
+                <div className="stat"><b>{spending90d.orders}</b><span>近90天订单</span></div>
+                <div className="stat"><b>{spending90d.users}</b><span>近90天消费用户</span></div>
+              </div>
+            ) : null}
             <div className="tbl-wrap">
               <table>
                 <thead><tr><th scope="col" className="col-sugg">经营建议</th><th scope="col" className="col-sugg">对象</th><th scope="col" className="col-wide">建议内容</th></tr></thead>

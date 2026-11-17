@@ -43,9 +43,10 @@ import { ANSWERS, assistant } from "./routes/assistant.mjs";
 import { getProfile, getRecommendations } from "./routes/profile.mjs";
 import { aiCopy } from "./routes/ai-copy.mjs";
 import { storageHealth, storageUpload, storageUrl, storageDelete } from "./routes/storage.mjs";
-import { adminStats, adminOrders, adminUsers, adminDemands } from "./routes/admin.mjs";
+import { adminStats, adminOrders, adminUsers, adminUsersCsv, adminDemands } from "./routes/admin.mjs";
 import { adminStatsSeries, adminAnalysis, refreshAnalysis, adminAlerts, adminOrdersCsv, adminReviewDemand, adminAuditLogs } from "./routes/admin-insights.mjs";
 import { adminTagRules } from "./routes/tag-rules.mjs";
+import { adminRecWeights } from "./routes/rec-weights.mjs";
 import { createAdminResource, editAdminResource, listAdminResources, syncAdminResource } from "./routes/admin-resources.mjs";
 import { listAdminShops, createAdminShop, patchAdminShop, getShopTheme, patchShopTheme } from "./routes/shops.mjs";
 import { createShow, listShows, getShow, listAdminShows, reviewShow, createPerformance, createDirectPerformance, patchPerformance } from "./routes/shows.mjs";
@@ -62,7 +63,7 @@ import { listAdminSmsTasks, getAdminSmsTask, createSmsTask, patchSmsTask } from 
 import { listShopPlans, listAdminPlans, createPlan, patchPlan, topup, getAccountStoredValue, getAdminStoredValue, grantStoredValue } from "./routes/stored-value.mjs";
 import { verifyTicket, verifyBatch, listOrderTickets, listAdminTickets, printTickets, listPrintLogs } from "./routes/tickets.mjs";
 import { recordEvent, aggregateEvents, listEventAggregates } from "./routes/events.mjs";
-import { listMemberInsights, getMemberInsightRules, patchMemberInsightRules } from "./routes/member-insights.mjs";
+import { listMemberInsights, getMemberInsightRules, patchMemberInsightRules, memberSpending90d } from "./routes/member-insights.mjs";
 import { getIp, patchIp } from "./routes/ip.mjs";
 import { getBi, exportBi } from "./routes/bi.mjs";
 import { listAlertRules, createAlertRule, patchAlertRule, listFinanceLedger, reconcileFinanceLedger, getResourceStats } from "./routes/alerts-ledger.mjs";
@@ -250,6 +251,7 @@ export async function createApp({ database }) {
       if (await adminStats(ctx)) return;
       if (await adminOrders(ctx)) return;
       if (await adminUsers(ctx)) return;
+      if (await adminUsersCsv(ctx)) return;
       if (await adminDemands(ctx)) return;
       if (await adminStatsSeries(ctx)) return;
       if (await adminAnalysis(ctx)) return;
@@ -262,6 +264,7 @@ export async function createApp({ database }) {
       if (await replyComment(ctx)) return;
       if (await adminAuditLogs(ctx)) return;
       if (await adminTagRules(ctx)) return;
+      if (await adminRecWeights(ctx)) return;
       if (await listAdminResources(ctx)) return;
       if (await createAdminResource(ctx)) return;
       if (await editAdminResource(ctx)) return;
@@ -351,6 +354,7 @@ export async function createApp({ database }) {
       if (await listMemberInsights(ctx)) return;
       if (await getMemberInsightRules(ctx)) return;
       if (await patchMemberInsightRules(ctx)) return;
+      if (await memberSpending90d(ctx)) return;
       if (await getIp(ctx)) return;
       if (await patchIp(ctx)) return;
       if (await getBi(ctx)) return;
