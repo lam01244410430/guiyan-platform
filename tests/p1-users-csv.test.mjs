@@ -40,11 +40,16 @@ async function reqText(path, { token } = {}) {
   const headers = {};
   if (token) headers.Authorization = `Bearer ${token}`;
   const res = await fetch(BASE + path, { headers });
+  // BOM on raw bytes: Response.text() decodes UTF-8 and strips a
+  // leading U+FEFF, so startsWith("\uFEFF") can never pass even though
+  // the wire bytes are correct (same gotcha as the orders CSV test).
+  const buf = Buffer.from(await res.arrayBuffer());
   return {
     status: res.status,
     contentType: res.headers.get("content-type") || "",
     disposition: res.headers.get("content-disposition") || "",
-    text: await res.text(),
+    buf,
+    text: new TextDecoder("utf-8").decode(buf),
   };
 }
 
@@ -78,9 +83,14 @@ async function completeThrough(token, orderId) {
   assert.equal((await transition(token, orderId, "complete")).status, 200);
 }
 
-function parseCsv(text) {
-  assert.ok(text.startsWith("\uFEFF"), "CSV must start with a UTF-8 BOM");
-  const lines = text.slice(1).split("\r\n");
+function parseCsv(r) {
+  assert.deepEqual(
+    [...r.buf.subarray(0, 3)],
+    [0xef, 0xbb, 0xbf],
+    "CSV must start with a UTF-8 BOM",
+  );
+  // TextDecoder strips the BOM, so the header starts at lines[0].
+  const lines = r.text.split("\r\n");
   return lines.map((l) => l.split('","').map((c) => c.replace(/^"/, "").replace(/"$/, "")));
 }
 
@@ -144,7 +154,7 @@ test("GET users.csv returns BOM CSV with the users-table columns and a dated fil
   assert.match(r.contentType, /text\/csv/);
   const today = new Date(Date.now() + 8 * 3600000).toISOString().slice(0, 10);
   assert.equal(r.disposition, `attachment; filename="guiyan-users-${today}.csv"`);
-  const rows = parseCsv(r.text);
+  const rows = parseCsv(r);
   assert.deepEqual(rows[0], ["ID", "姓名", "账号", "角色", "城市", "渠道", "认证", "标签", "状态"]);
   assert.ok(rows.length > 10, `expected many user rows, got ${rows.length}`);
   const mine = rows.find((x) => x[2] === "p1csvuser");
@@ -157,18 +167,18 @@ test("GET users.csv returns BOM CSV with the users-table columns and a dated fil
 test("?q= filters to the matching users", async () => {
   const hit = await reqText("/api/admin/users.csv?q=p1csvuser", { token: adminToken });
   assert.equal(hit.status, 200);
-  const rows = parseCsv(hit.text);
+  const rows = parseCsv(hit);
   assert.equal(rows.length, 2, `expected header + 1 row, got ${rows.length}`);
   assert.equal(rows[1][2], "p1csvuser");
   const miss = await reqText("/api/admin/users.csv?q=p1csvnope999", { token: adminToken });
   assert.equal(miss.status, 200);
-  assert.equal(parseCsv(miss.text).length, 1, "a miss must return header only");
+  assert.equal(parseCsv(miss).length, 1, "a miss must return header only");
 });
 
 test("?tag= filters to users carrying that tag", async () => {
   const tagged = await reqText("/api/admin/users.csv?tag=高价值", { token: adminToken });
   assert.equal(tagged.status, 200);
-  const rows = parseCsv(tagged.text);
+  const rows = parseCsv(tagged);
   assert.ok(rows.length >= 2, "expected at least one 高价值 user");
   const mine = rows.find((x) => x[2] === "p1csvhigh");
   assert.ok(mine, "p1csvhigh row missing from 高价值 export");
@@ -178,7 +188,7 @@ test("?tag= filters to users carrying that tag", async () => {
   }
   const none = await reqText("/api/admin/users.csv?tag=不存在的标签", { token: adminToken });
   assert.equal(none.status, 200);
-  assert.equal(parseCsv(none.text).length, 1, "an unmatched tag must return header only");
+  assert.equal(parseCsv(none).length, 1, "an unmatched tag must return header only");
 });
 
 test("non-admin and anonymous cannot export; the export is audited", async () => {
