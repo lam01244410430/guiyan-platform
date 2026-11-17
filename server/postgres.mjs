@@ -10,7 +10,7 @@ import pg from "pg";
 import { schema } from "./schema.mjs";
 import { seedStatements } from "./seed.mjs";
 import { enrichCatalog } from "./catalog-content.mjs";
-import { defaultTagRules } from "./lib/profiles.mjs";
+import { defaultTagRules, DEFAULT_REC_WEIGHTS } from "./lib/profiles.mjs";
 import { DEFAULT_TIERS } from "./routes/member-tiers.mjs";
 import { DEFAULT_MEMBER_INSIGHT_RULES } from "./routes/member-insights.mjs";
 import { DEFAULT_PLANS } from "./routes/stored-value.mjs";
@@ -715,6 +715,13 @@ export async function openPostgresStore(
       await client.query(
         "INSERT INTO settings(key,value) VALUES('memberInsightRules',$1) ON CONFLICT (key) DO NOTHING",
         [JSON.stringify(DEFAULT_MEMBER_INSIGHT_RULES)],
+      );
+      // P1 G1: backfill the recWeights settings key the same way —
+      // existing weights are never overwritten, so an admin's edits
+      // survive reboots.
+      await client.query(
+        "INSERT INTO settings(key,value) VALUES('recWeights',$1) ON CONFLICT (key) DO NOTHING",
+        [JSON.stringify(DEFAULT_REC_WEIGHTS)],
       );
       // R7-1: backfill the 文小惠 IP config keys the same way —
       // empty = unset; an admin's set values are never overwritten.

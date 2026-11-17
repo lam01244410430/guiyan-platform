@@ -238,6 +238,82 @@ export async function loadTagRules(ctx) {
   return JSON.parse(JSON.stringify(defaultTagRules));
 }
 
+// P1 G1 — recommendation weights, configurable in the admin 标签规则 view.
+// Stored in `settings` under key `recWeights` (seeded by the postgres.mjs
+// guard-key backfill, same pattern as tagRules / memberInsightRules —
+// an admin's edits are never overwritten). Defaults keep the Wave 3
+// numbers: browse +2, favorite +5, purchase +8, per-category signal cap 35.
+export const DEFAULT_REC_WEIGHTS = {
+  browse: 2,
+  favorite: 5,
+  purchase: 8,
+  cap: 35,
+};
+const REC_WEIGHT_RANGES = {
+  browse: [0, 100],
+  favorite: [0, 100],
+  purchase: [0, 100],
+  cap: [1, 200],
+};
+const REC_WEIGHT_LABELS = {
+  browse: "浏览权重",
+  favorite: "收藏权重",
+  purchase: "购买权重",
+  cap: "单类信号上限",
+};
+
+// Read the stored weights; a missing row, broken JSON or an out-of-range
+// value falls back to the default for that field (lazy default, never
+// throws, never overwrites the stored row — same pattern as
+// loadMemberInsightRules). A ctx without a `get` helper (unit callers)
+// gets the defaults.
+export async function loadRecWeights(ctx) {
+  const out = { ...DEFAULT_REC_WEIGHTS };
+  try {
+    if (!ctx || typeof ctx.get !== "function") return out;
+    const row = await ctx.get(
+      "SELECT value FROM settings WHERE key='recWeights'",
+    );
+    const parsed = JSON.parse(row?.value ?? "");
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed))
+      return out;
+    for (const key of Object.keys(REC_WEIGHT_RANGES)) {
+      const [min, max] = REC_WEIGHT_RANGES[key];
+      if (
+        Number.isSafeInteger(parsed[key]) &&
+        parsed[key] >= min &&
+        parsed[key] <= max
+      )
+        out[key] = parsed[key];
+    }
+  } catch {
+    // fall through to the defaults above
+  }
+  return out;
+}
+
+// Validate a PATCH body (partial merge, like member-insight-rules):
+// unknown keys -> 400, each value an int in range. Returns only the
+// provided keys; throws a 400 assert before any write.
+export function validateRecWeights(body) {
+  assert(
+    body && typeof body === "object" && !Array.isArray(body),
+    "推荐权重格式错误",
+  );
+  const updates = {};
+  for (const key of Object.keys(body)) {
+    assert(
+      Object.prototype.hasOwnProperty.call(REC_WEIGHT_RANGES, key),
+      `未知权重项：${key}`,
+      400,
+    );
+    const [min, max] = REC_WEIGHT_RANGES[key];
+    updates[key] = int(body[key], REC_WEIGHT_LABELS[key], min, max);
+  }
+  assert(Object.keys(updates).length > 0, "未提供可修改的权重项", 400);
+  return updates;
+}
+
 const sum = (rows, key) => rows.reduce((n, r) => n + Number(r[key] || 0), 0);
 
 // Price band of one ticket (cents per unit), port of insights.mjs
@@ -655,10 +731,12 @@ export async function evaluateAutoTags(ctx, userId) {
 }
 
 // Port of insights.mjs recommendations(): per-category signals from the
-// user's last 100 views + favorites + paid orders; view +2, favorite +5,
-// paid +8, signal capped at 35, preference +20, same city +6. Sorted by
-// score desc, then resource id asc. Each entry also embeds a short
-// resource summary (Q9 default) so the client needs no second fetch.
+// user's last 100 views + favorites + paid orders; view / favorite /
+// paid weights and the per-category signal cap come from the stored
+// recWeights (P1 G1, defaults +2 / +5 / +8, cap 35), preference +20,
+// same city +6. Sorted by score desc, then resource id asc. Each entry
+// also embeds a short resource summary (Q9 default) so the client needs
+// no second fetch.
 // SCORING IS UNCHANGED by the 2026-11-12 portrait rework — only the
 // reason TEXT names the matched portrait dimension: preference/category
 // -> 演出类型/观演偏好; same city -> 活跃城市/区域; same meta.genre ->
@@ -685,6 +763,10 @@ const TIME_LABELS = {
 export async function recommendationsFor(user, resources, ctx, opts = {}) {
   if (!user) return [];
   const { all, orderRows } = ctx;
+  // P1 G1: the signal weights are admin-configurable (settings key
+  // `recWeights`); a change takes effect on the next recommendation
+  // call — no migration of old data, no stored scores.
+  const weights = await loadRecWeights(ctx);
   const views = await all(
     "SELECT detail FROM events WHERE type='view' AND user_id=? ORDER BY id DESC LIMIT 100",
     user.id,
@@ -759,12 +841,12 @@ export async function recommendationsFor(user, resources, ctx, opts = {}) {
   }
   const signals = new Map();
   for (const [rows, key, weight, label] of [
-    [views, "detail", 2, "浏览"],
-    [favorites, "resource_id", 5, "收藏"],
+    [views, "detail", weights.browse, "浏览"],
+    [favorites, "resource_id", weights.favorite, "收藏"],
     [
       orders.filter((o) => PAID_STATUSES.includes(o.status)),
       "resource_id",
-      8,
+      weights.purchase,
       "购买",
     ],
   ])
@@ -788,7 +870,7 @@ export async function recommendationsFor(user, resources, ctx, opts = {}) {
         reasons.push("符合你的兴趣偏好（演出类型/观演偏好）");
       }
       if (signal) {
-        score += Math.min(35, signal.score);
+        score += Math.min(weights.cap, signal.score);
         reasons.push("你" + [...signal.reasons].join("、") + "过同类资源");
       }
       if (meta.genre && topGenre && meta.genre === topGenre) {

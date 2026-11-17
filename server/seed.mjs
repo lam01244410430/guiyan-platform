@@ -7,7 +7,7 @@
 // Money is integer cents; times are ISO text. All data is fictional.
 
 import { randomBytes, scryptSync } from "node:crypto";
-import { defaultTagRules } from "./lib/profiles.mjs";
+import { defaultTagRules, DEFAULT_REC_WEIGHTS } from "./lib/profiles.mjs";
 import { DEFAULT_MEMBER_INSIGHT_RULES } from "./routes/member-insights.mjs";
 
 export const categories = [
@@ -696,6 +696,8 @@ function seed(db, passwords) {
     tagRules: defaultTagRules,
     // R5-2: default member-insight rules (same seed + backfill pair).
     memberInsightRules: DEFAULT_MEMBER_INSIGHT_RULES,
+    // P1 G1: default recommendation weights (same seed + backfill pair).
+    recWeights: DEFAULT_REC_WEIGHTS,
     // R7-1: 文小惠 IP config frame — empty = unset (no design has
     // arrived from Lam/Group; GET /api/ip returns {} until an admin
     // sets these — never invented values).
