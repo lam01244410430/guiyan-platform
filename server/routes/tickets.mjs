@@ -19,9 +19,12 @@
 //   pay branch of transitionOrder): one ticket per order.quantity;
 //   seat orders link tickets 1:1 to the order's sold seats
 //   (row, col ASC); non-seat orders get seat_id NULL.
-// - Verify checks ticket status ONLY — no date/performance check
-//   this wave (an expired performance's ticket still verifies;
-//   documented, never claimed otherwise).
+// - Verify checks ticket status + the G3 entry-time limit (P1 gap,
+//   Lam decided 2026-11-17): a ticket may only be verified from 60
+//   minutes before its performance starts; earlier -> 400
+//   "未到入场时间" (+ a `too_early` verify_logs row). Tickets with no
+//   linked performance (performance_id NULL — old-flow orders,
+//   non-show resources) skip the time check entirely.
 // - Batch verify (R4-3, rows 31, 78): `POST /api/verify/batch`
 //   verifies up to 50 codes in ONE transaction, one result per
 //   code; a bad code never throws the batch; re-sending the same
@@ -177,6 +180,33 @@ export async function pendingRefundTicketIds(get, orderId) {
   }
 }
 
+// --- G3 (P1 gap): entry-time limit ------------------------------
+// A ticket may only be verified from 60 minutes before its
+// performance starts (Lam decided 2026-11-17). Path to the start
+// time: ticket -> order.performance_id -> performances.start_at
+// (orders.mjs writes performance_id for performance orders;
+// old-flow orders have performance_id NULL — see
+// admin-insights.mjs). Tickets with no linked performance, or an
+// unparseable start_at, are never too early (fail-open: the time
+// check must never block a verify it cannot evaluate).
+const ENTRY_OPEN_MS = 60 * 60 * 1000;
+
+async function performanceStartAt(get, orderId) {
+  const row = await get(
+    "SELECT pf.start_at AS start_at FROM orders o JOIN performances pf ON pf.id=o.performance_id WHERE o.id=?",
+    orderId,
+  );
+  return row?.start_at ?? null;
+}
+
+function isTooEarly(startAt, nowMs) {
+  if (!startAt) return false;
+  const startMs = Date.parse(startAt);
+  if (!Number.isFinite(startMs)) return false;
+  // Exactly 60 minutes before start is allowed (boundary inclusive).
+  return startMs - nowMs > ENTRY_OPEN_MS;
+}
+
 // POST /api/verify/:code — admin only (staff = admin role; no
 // separate staff role exists). Anonymous -> 401 (needUser), a
 // signed-in non-admin -> 403.
@@ -237,6 +267,12 @@ export async function verifyTicket(ctx) {
     return fail("void", "票已作废", 400);
   if (ticket.status === "used")
     return fail("already_used", "票已核销", 400);
+  // G3 entry-time limit — after the status checks, so a re-verify
+  // still answers already_used and a void ticket still answers
+  // void; only an issued ticket can be too early.
+  const startAt = await performanceStartAt(get, ticket.order_id);
+  if (isTooEarly(startAt, Date.now()))
+    return fail("too_early", "未到入场时间", 400);
   // issued -> used, with the log, in the one request transaction.
   await run(
     "UPDATE tickets SET status='used', verified_at=?, verified_by=? WHERE id=? AND status='issued'",
@@ -263,7 +299,7 @@ export async function verifyTicket(ctx) {
 // codes, an empty array -> 400, a non-array -> 400. ONE
 // transaction, one result per code in input order:
 //   {code, result, ticket?, order?} with result in
-//   used/already_used/not_found/void/refund_pending.
+//   used/already_used/not_found/void/refund_pending/too_early.
 // A single bad code NEVER throws the batch — the loop continues
 // and the batch still answers 200. Idempotent: a code verified
 // earlier in this batch (or in a previous batch) is re-read inside
@@ -343,6 +379,13 @@ export async function verifyBatch(ctx) {
     }
     if (ticket.status === "used") {
       await fail("already_used");
+      continue;
+    }
+    // G3 entry-time limit — same rule as verifyTicket; a too-early
+    // ticket is refused per-code, the batch still answers 200.
+    const startAt = await performanceStartAt(get, ticket.order_id);
+    if (isTooEarly(startAt, Date.now())) {
+      await fail("too_early");
       continue;
     }
     // issued -> used, with the log, in the batch transaction.
