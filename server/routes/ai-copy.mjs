@@ -251,7 +251,7 @@ async function callCopyAgent(message) {
   // testable without waiting 25 s. Never log the message or
   // AI_CHAT_URL.
   const upstreamUrl =
-    process.env.AI_CHAT_URL || "http://34.96.190.102/api/chat";
+    process.env.AI_CHAT_URL || "http://44.250.231.115/api/chat";
   const timeoutRaw = Number(process.env.AI_CHAT_TIMEOUT_MS);
   const timeoutMs =
     Number.isFinite(timeoutRaw) && timeoutRaw > 0 ? timeoutRaw : 25000;
