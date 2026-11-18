@@ -37,7 +37,7 @@ const BOOKING_DATE = "2026-12-20";
 let proc;
 let serverStderr = "";
 // Stub for the trial AI backend behind POST /api/assistant/chat. Never call
-// the real trial IP (34.96.190.102) from any test. Behaviour is per-test
+// the real trial IP (44.250.231.115) from any test. Behaviour is per-test
 // via the mutable stubHandler; the default answers like a healthy upstream.
 let stubServer;
 let stubPort;

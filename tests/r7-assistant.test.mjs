@@ -11,7 +11,7 @@
 // first boot). Do not point it at any shared or production database.
 // The trial AI backend is stubbed to fail, so POST
 // /api/assistant/chat always exercises the rule-engine fallback —
-// never the real trial IP (34.96.190.102).
+// never the real trial IP (44.250.231.115).
 import test, { before, after } from "node:test";
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
