@@ -571,7 +571,7 @@ export async function assistant(ctx) {
     // AI_CHAT_TIMEOUT_MS exists only so the timeout path is testable
     // without waiting 25 s. Never log the message or AI_CHAT_URL.
     const upstreamUrl =
-      process.env.AI_CHAT_URL || "http://44.250.231.115/api/chat";
+      process.env.AI_CHAT_URL || "http://35.93.196.242/api/chat";
     const timeoutRaw = Number(process.env.AI_CHAT_TIMEOUT_MS);
     const timeoutMs =
       Number.isFinite(timeoutRaw) && timeoutRaw > 0 ? timeoutRaw : 25000;
